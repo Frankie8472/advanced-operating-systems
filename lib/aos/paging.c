@@ -123,7 +123,7 @@ errval_t paging_init(void)
     // TIP: it might be a good idea to call paging_init_state() from here to
     // avoid code duplication.
     set_current_paging_state(&current);
-    return LIB_ERR_NOT_IMPLEMENTED;
+    return SYS_ERR_OK;
 }
 
 
@@ -149,7 +149,7 @@ errval_t paging_region_init_fixed(struct paging_state *st, struct paging_region 
 
     //TODO(M2): Add the region to a datastructure and ensure paging_alloc
     //will return non-overlapping regions.
-    return LIB_ERR_NOT_IMPLEMENTED;
+    return SYS_ERR_OK;
 }
 
 /**
@@ -244,7 +244,7 @@ errval_t paging_alloc(struct paging_state *st, void **buf, size_t bytes, size_t 
      *        accomodate a buffer of size `bytes`.
      */
     *buf = NULL;
-    return LIB_ERR_NOT_IMPLEMENTED;
+    return SYS_ERR_OK;
 }
 
 /**
