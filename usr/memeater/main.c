@@ -174,10 +174,6 @@ int main(int argc, char *argv[])
     debug_printf("testing terminal printf function...\n");
 
     printf("Hello world using terminal service\n");
-
-    if (argc > 1) {
-        debug_printf("%s\n", argv[1]);
-    }
     debug_printf("memeater terminated....\n");
 
     return EXIT_SUCCESS;

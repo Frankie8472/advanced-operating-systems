@@ -62,11 +62,11 @@ errval_t aos_rpc_serial_putchar(struct aos_rpc *chan, char c);
 
 /**
  * \brief Request that the process manager start a new process
- * \arg name the name of the process that needs to be spawned (without a
- *           path prefix)
+ * \arg cmdline the name of the process that needs to be spawned (without a
+ *           path prefix) and optionally any arguments to pass to it
  * \arg newpid the process id of the newly-spawned process
  */
-errval_t aos_rpc_process_spawn(struct aos_rpc *chan, char *name,
+errval_t aos_rpc_process_spawn(struct aos_rpc *chan, char *cmdline,
                                coreid_t core, domainid_t *newpid);
 
 
@@ -90,19 +90,6 @@ errval_t aos_rpc_process_get_name(struct aos_rpc *chan, domainid_t pid,
  */
 errval_t aos_rpc_process_get_all_pids(struct aos_rpc *chan,
                                       domainid_t **pids, size_t *pid_count);
-
-
-/**
- * \brief Request a device cap for the given region.
- * @param chan  the rpc channel
- * @param paddr physical address of the device
- * @param bytes number of bytes of the device memory
- * @param frame returned frame
- */
-errval_t aos_rpc_get_device_cap(struct aos_rpc *chan,
-                                lpaddr_t paddr, size_t bytes,
-                                struct capref *frame);
-
 
 
 /**
