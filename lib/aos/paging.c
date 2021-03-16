@@ -115,6 +115,7 @@ errval_t paging_init_state_foreign(struct paging_state *st, lvaddr_t start_vaddr
 errval_t paging_init(void)
 {
     debug_printf("paging_init\n");
+    current.slot_alloc = get_default_slot_allocator();
     // TODO (M2): Call paging_init_state for &current
     // TODO (M4): initialize self-paging handler
     // TIP: use thread_set_exception_handler() to setup a page fault handler
@@ -291,7 +292,93 @@ errval_t paging_map_fixed_attr(struct paging_state *st, lvaddr_t vaddr,
      * TODO(M1): Map a frame assuming all mappings will fit into one last level pt
      * TODO(M2): General case
      */
-    return LIB_ERR_NOT_IMPLEMENTED;
+
+    struct capref root_pagetable = {
+        .cnode = cnode_page,
+        .slot  = 0
+    };
+
+    printf("performing st->slot_alloc->alloc(st->slot_alloc, &mapping);!\n");
+    struct capref mapping;
+    st->slot_alloc->alloc(st->slot_alloc, &mapping);
+
+    static int pt_initialized = 0;
+
+    /*uint64_t l0_offset = (vaddr >> (12 + 3 * 9)) & 0x1FF;
+    uint64_t l1_offset = (vaddr >> (12 + 2 * 9)) & 0x1FF;
+    uint64_t l2_offset = (vaddr >> (12 + 1 * 9)) & 0x1FF;
+    uint64_t l3_offset = (vaddr >> (12 + 0 * 9)) & 0x1FF;*/
+
+
+    static struct capref l3;
+    static struct capref l3_mapping;
+    if (!pt_initialized) {
+        struct capref l1;
+        struct capref l1_mapping;
+        st->slot_alloc->alloc(st->slot_alloc, &l1_mapping);
+        pt_alloc(st, ObjType_VNode_AARCH64_l1, &l1);
+
+        printf("performing vnode_map!\n");
+
+        vnode_map(
+            root_pagetable,
+            l1,
+            1,
+            VREGION_FLAGS_READ,
+            0,
+            1,
+            l1_mapping
+        );
+
+        struct capref l2;
+        struct capref l2_mapping;
+        st->slot_alloc->alloc(st->slot_alloc, &l2_mapping);
+        pt_alloc(st, ObjType_VNode_AARCH64_l2, &l2);
+
+        printf("performing vnode_map!\n");
+
+        vnode_map(
+            l1,
+            l2,
+            0,
+            VREGION_FLAGS_READ,
+            0,
+            1,
+            l2_mapping
+        );
+
+
+        st->slot_alloc->alloc(st->slot_alloc, &l3_mapping);
+        pt_alloc(st, ObjType_VNode_AARCH64_l3, &l3);
+
+        printf("performing vnode_map!\n");
+
+        vnode_map(
+            l2,
+            l3,
+            0,
+            VREGION_FLAGS_READ,
+            0,
+            1,
+            l3_mapping
+        );
+        pt_initialized = 1;
+    }
+
+
+    //pt_alloc(st, ObjType_VNode_AARCH64_l3, &cap);
+    return vnode_map(
+        l3,
+        frame,
+        0,
+        VREGION_FLAGS_READ_WRITE,
+        0,
+        1,
+        mapping
+    );
+
+    //return SYS_ERR_OK;
+    //return LIB_ERR_NOT_IMPLEMENTED;
 }
 
 /**

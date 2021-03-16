@@ -52,6 +52,30 @@ bsp_main(int argc, char *argv[]) {
     }
 
     // TODO: initialize mem allocator, vspace management here
+
+    // begin experiment
+    printf("start experiment!\n");
+    struct capref my_frame;
+    size_t f_size;
+    frame_alloc(&my_frame, 4096, &f_size);
+    lvaddr_t addr = 0x8000000000; //VADDR_OFFSET + 0x1234000;
+    paging_map_fixed_attr(get_current_paging_state(), addr, my_frame, 4096, 0);
+
+    int* pointer = (int*) addr;
+    pointer = pointer;
+    for (int i = 0; i < 100; i++) {
+        pointer[i] = i;
+    }
+    for (int i = 0; i < 100; i++) {
+        pointer[0] += pointer[i];
+    }
+    printf("value in memory: %d\n", pointer[0]);
+    /*ram_alloc_aligned(&a_page, 4096, 4096);
+    ram_alloc_aligned(&a_page, 4096, 4096);
+    ram_alloc_aligned(&a_page, 4096, 4096);
+    ram_alloc_aligned(&a_page, 4096, 4096);*/
+    printf("end experiment!\n");
+    // end experiment
     
     // Grading 
     grading_test_early();
