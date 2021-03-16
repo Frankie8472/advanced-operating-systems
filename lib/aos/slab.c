@@ -179,7 +179,20 @@ size_t slab_freecount(struct slab_allocator *slabs)
  */
 static errval_t slab_refill_pages(struct slab_allocator *slabs, size_t bytes)
 {
-    return LIB_ERR_NOT_IMPLEMENTED;
+    struct capref fr;
+    size_t size;
+    frame_alloc(&fr, bytes, &size);
+    static lvaddr_t addr = VADDR_OFFSET + 0x45000; // we just assume that we can do this
+    // TODO: as soon as we have usable virtual memory allocation, replace this lottery
+    errval_t err = paging_map_fixed_attr(get_current_paging_state(), addr, fr, bytes, 0);
+    
+    if (err_is_fail(err)) {
+        DEBUG_ERR(err, "error refilling slab allocator");
+    }
+    debug_printf("growing slab\n");
+    slab_grow(slabs, (void*) addr, size);
+    addr += 0x1000;
+    return SYS_ERR_OK;
 }
 
 /**

@@ -33,6 +33,82 @@ struct bootinfo *bi;
 coreid_t my_core_id;
 
 
+static void test_free_coalesce(void)
+{
+    struct capref caps[1000];
+    for (int i = 0; i < 1000; i++) {
+        ram_alloc_aligned(&caps[i], 4096, 1);
+    }
+    for (int i = 0; i < 1000; i++) {
+        if ((i / 10) % 2) {
+            aos_ram_free(caps[i]);
+        }
+    }
+
+    print_mm_state(&aos_mm);
+}
+
+
+static void test_map_frame_8192(void)
+{
+    struct capref my_frame;
+    size_t f_size;
+    frame_alloc(&my_frame, 8192, &f_size);
+
+    lvaddr_t addr = VADDR_OFFSET + 0x125000;
+    paging_map_fixed_attr(get_current_paging_state(), addr, my_frame, 8192, 0);
+
+    long* pointer = (long*) addr;
+    for (int i = 0; i < 1024; i++) {
+        pointer[i] = i;
+    }
+    for (int i = 0; i < 512; i++) {
+        pointer[0] += pointer[i];
+    }
+    printf("value in memory at v-address %p: %d\n", pointer, pointer[0]);
+}
+
+
+static void test_align(void)
+{
+    struct capref cap;
+    ram_alloc_aligned(&cap, 4096, 1024 * 1024 * 1024);
+    print_mm_state(&aos_mm);
+}
+
+
+static void test(void)
+{
+    // begin experiment
+    printf("start experiment!\n");
+    test_align();
+
+    if(0) test_free_coalesce();
+
+    test_map_frame_8192();
+
+    struct capref my_frame;
+    size_t f_size;
+    frame_alloc(&my_frame, 4096, &f_size);
+
+    lvaddr_t addr = VADDR_OFFSET + 0x123000;
+    paging_map_fixed_attr(get_current_paging_state(), addr, my_frame, 4096, 0);
+
+    int* pointer = (int*) addr;
+    for (int i = 0; i < 100; i++) {
+        pointer[i] = i;
+    }
+    for (int i = 0; i < 100; i++) {
+        pointer[0] += pointer[i];
+    }
+    printf("value in memory at v-address %p: %d\n", pointer, pointer[0]);
+    /*ram_alloc_aligned(&a_page, 4096, 4096);
+    ram_alloc_aligned(&a_page, 4096, 4096);
+    ram_alloc_aligned(&a_page, 4096, 4096);
+    ram_alloc_aligned(&a_page, 4096, 4096);*/
+    printf("end experiment!\n");
+    // end experiment
+}
 
 
 static int
@@ -53,29 +129,7 @@ bsp_main(int argc, char *argv[]) {
 
     // TODO: initialize mem allocator, vspace management here
 
-    // begin experiment
-    printf("start experiment!\n");
-    struct capref my_frame;
-    size_t f_size;
-    frame_alloc(&my_frame, 4096, &f_size);
-    lvaddr_t addr = 0x8000000000; //VADDR_OFFSET + 0x1234000;
-    paging_map_fixed_attr(get_current_paging_state(), addr, my_frame, 4096, 0);
-
-    int* pointer = (int*) addr;
-    pointer = pointer;
-    for (int i = 0; i < 100; i++) {
-        pointer[i] = i;
-    }
-    for (int i = 0; i < 100; i++) {
-        pointer[0] += pointer[i];
-    }
-    printf("value in memory: %d\n", pointer[0]);
-    /*ram_alloc_aligned(&a_page, 4096, 4096);
-    ram_alloc_aligned(&a_page, 4096, 4096);
-    ram_alloc_aligned(&a_page, 4096, 4096);
-    ram_alloc_aligned(&a_page, 4096, 4096);*/
-    printf("end experiment!\n");
-    // end experiment
+    test();
     
     // Grading 
     grading_test_early();

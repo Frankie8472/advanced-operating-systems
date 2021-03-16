@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (c) 2012, 2013, 2016, ETH Zurich.
+ * Copyright (c) 2012, 2013, 2016, ETH Zurich.W
  * All rights reserved.
  *
  * This file is distributed under the terms in the attached LICENSE file.
@@ -293,25 +293,23 @@ errval_t paging_map_fixed_attr(struct paging_state *st, lvaddr_t vaddr,
      * TODO(M2): General case
      */
 
+    // only able to map whole pages
+    assert(bytes % 4096 == 0);
+
     struct capref root_pagetable = {
         .cnode = cnode_page,
         .slot  = 0
     };
 
-    printf("performing st->slot_alloc->alloc(st->slot_alloc, &mapping);!\n");
-    struct capref mapping;
-    st->slot_alloc->alloc(st->slot_alloc, &mapping);
-
-    static int pt_initialized = 0;
-
-    /*uint64_t l0_offset = (vaddr >> (12 + 3 * 9)) & 0x1FF;
+    uint64_t l0_offset = (vaddr >> (12 + 3 * 9)) & 0x1FF;
     uint64_t l1_offset = (vaddr >> (12 + 2 * 9)) & 0x1FF;
     uint64_t l2_offset = (vaddr >> (12 + 1 * 9)) & 0x1FF;
-    uint64_t l3_offset = (vaddr >> (12 + 0 * 9)) & 0x1FF;*/
-
+    uint64_t l3_offset = (vaddr >> (12 + 0 * 9)) & 0x1FF;
 
     static struct capref l3;
     static struct capref l3_mapping;
+
+    static int pt_initialized = 0;
     if (!pt_initialized) {
         struct capref l1;
         struct capref l1_mapping;
@@ -320,32 +318,40 @@ errval_t paging_map_fixed_attr(struct paging_state *st, lvaddr_t vaddr,
 
         printf("performing vnode_map!\n");
 
-        vnode_map(
+        errval_t err = vnode_map(
             root_pagetable,
             l1,
-            1,
+            l0_offset,
             VREGION_FLAGS_READ,
             0,
             1,
             l1_mapping
         );
 
+        if (err_is_fail(err)) {
+            DEBUG_ERR(err, "failed to map l1 vnode");
+            return err;
+        }
+
         struct capref l2;
         struct capref l2_mapping;
         st->slot_alloc->alloc(st->slot_alloc, &l2_mapping);
         pt_alloc(st, ObjType_VNode_AARCH64_l2, &l2);
 
-        printf("performing vnode_map!\n");
-
-        vnode_map(
+        err = vnode_map(
             l1,
             l2,
-            0,
-            VREGION_FLAGS_READ,
+            l1_offset,
+            VREGION_FLAGS_READ_WRITE,
             0,
             1,
             l2_mapping
         );
+
+        if (err_is_fail(err)) {
+            DEBUG_ERR(err, "failed to map l2 vnode");
+            return err;
+        }
 
 
         st->slot_alloc->alloc(st->slot_alloc, &l3_mapping);
@@ -353,32 +359,44 @@ errval_t paging_map_fixed_attr(struct paging_state *st, lvaddr_t vaddr,
 
         printf("performing vnode_map!\n");
 
-        vnode_map(
+        err = vnode_map(
             l2,
             l3,
-            0,
+            l2_offset,
             VREGION_FLAGS_READ,
             0,
             1,
             l3_mapping
         );
+        if (err_is_fail(err)) {
+            DEBUG_ERR(err, "failed to map l3 vnode");
+            return err;
+        }
+
         pt_initialized = 1;
     }
 
 
-    //pt_alloc(st, ObjType_VNode_AARCH64_l3, &cap);
-    return vnode_map(
-        l3,
-        frame,
-        0,
-        VREGION_FLAGS_READ_WRITE,
-        0,
-        1,
-        mapping
-    );
+    //for (int i = 0; i < bytes/4096; i++) {
+        struct capref mapping;
+        st->slot_alloc->alloc(st->slot_alloc, &mapping);
+        errval_t err = vnode_map(
+            l3,
+            frame,
+            l3_offset,
+            VREGION_FLAGS_READ_WRITE,
+            0,
+            bytes/4096,
+            mapping
+        );
+        if (err_is_fail(err)) {
+            DEBUG_ERR(err, "error mapping frame");
+            return err;
+        }
+    //}
 
-    //return SYS_ERR_OK;
-    //return LIB_ERR_NOT_IMPLEMENTED;
+
+    return SYS_ERR_OK;
 }
 
 /**

@@ -46,10 +46,10 @@ struct paging_region {
     // TODO: if needed add struct members for tracking state
 };
 
-
 // struct to store the paging status of a process
 struct paging_state {
     struct slot_allocator *slot_alloc;
+    struct paging_region region;
 };
 
 

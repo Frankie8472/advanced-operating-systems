@@ -90,12 +90,14 @@ errval_t slot_alloc_prealloc(void *inst, uint64_t nslots, struct capref *ret)
 
     /* Check if enough space */
     if (this->meta[this->current].free < nslots) {
-        /*
-        debug_printf("slot_prealloc: switching cnodes %d->%d\n",
-                this->current, !this->current);
-        */
+        //debug_printf("slot_prealloc: switching cnodes %d->%d\n",
+        //        this->current, !this->current);
         // Allocate from next cnode
         this->current = !this->current;
+        slot_prealloc_refill(this);
+    }
+    if (this->meta[!this->current].free == 0) {
+        slot_prealloc_refill(this);
     }
 
     if (this->meta[this->current].free < nslots) {

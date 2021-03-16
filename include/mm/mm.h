@@ -79,6 +79,9 @@ errval_t mm_free(struct mm *mm, struct capref cap, genpaddr_t base, gensize_t si
 void mm_dump_mmnodes(struct mm *mm);
 void mm_destroy(struct mm *mm);
 
+
+void print_mm_state(struct mm *mm);
+
 __END_DECLS
 
 #endif /* AOS_MM_H */

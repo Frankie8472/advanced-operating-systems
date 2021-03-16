@@ -29,8 +29,7 @@ void mm_destroy(struct mm *mm)
     assert(!"NYI");
 }
 
-void insert_node_as_head(struct mm *mm, struct mmnode *node);
-void insert_node_as_head(struct mm *mm, struct mmnode *node)
+static void insert_node_as_head(struct mm *mm, struct mmnode *node)
 {
     struct mmnode *old_head = mm->head;
 
@@ -42,6 +41,32 @@ void insert_node_as_head(struct mm *mm, struct mmnode *node)
     node->prev = NULL;
 }
 
+static errval_t split_node(struct mm *mm, struct mmnode *node, size_t offset, struct mmnode **a, struct mmnode **b)
+{
+    struct mmnode *new_node = slab_alloc(&mm->slabs);
+    if (!new_node) {
+        return LIB_ERR_SLAB_ALLOC_FAIL;
+    }
+
+    *a = node;
+    *b = new_node;
+
+    **b = **a;
+    (*b)->base = (*a)->base + offset;
+    (*b)->size = (*a)->size - offset;
+
+    (*a)->size = offset;
+
+    (*b)->prev = *a;
+    (*a)->next = *b;
+
+    if ((*b)->next != NULL) {
+        (*b)->next->prev = *b;
+    }
+
+    return SYS_ERR_OK;
+}
+
 errval_t mm_add(struct mm *mm, struct capref cap, genpaddr_t base, size_t size)
 {
     struct mmnode *new_node = slab_alloc(&mm->slabs);
@@ -49,9 +74,11 @@ errval_t mm_add(struct mm *mm, struct capref cap, genpaddr_t base, size_t size)
     insert_node_as_head(mm, new_node);
 
     new_node->type = NodeType_Free;
-    new_node->cap.cap = cap;
-    new_node->cap.base = base;
-    new_node->cap.size = size;
+    new_node->cap = (struct capinfo) {
+        .cap = cap,
+        .base = base,
+        .size = size
+    };
     new_node->base = base;
     new_node->size = size;
 
@@ -62,18 +89,30 @@ errval_t mm_add(struct mm *mm, struct capref cap, genpaddr_t base, size_t size)
 
 errval_t mm_alloc_aligned(struct mm *mm, size_t size, size_t alignment, struct capref *retcap)
 {
-    printf("calling mm_alloc_aligned!\n");
+    mm->slot_alloc(mm->slot_alloc_inst, 1, retcap);
 
-    struct mmnode* node = mm->head;
-
+    struct mmnode *node = mm->head;
     size_t size_rounded_up = size;//(size & 0xFFF) ? ((size & ~0xFFF) + 0x1000) : size;
 
     while(node != NULL) {
         if (node->type == NodeType_Free && node->size >= size) {
-            struct capref slots[1];
-            mm->slot_alloc(mm->slot_alloc_inst, 1, slots);
+            struct mmnode *a, *b;
 
-            errval_t err = cap_retype(slots[0],
+            if (node->base % alignment != 0) {
+                uint64_t offset = alignment - (node->base % alignment);
+                if (node->size - offset < size) {
+                    node = node->next;
+                    continue;
+                }
+                errval_t err = split_node(mm, node, offset, &a, &b);
+                if (err_is_fail(err)) {
+                    DEBUG_ERR(err, "could not align memory");
+                    return err;
+                }
+                node = b;
+            }
+
+            errval_t err = cap_retype(*retcap,
                 node->cap.cap,
                 node->base - node->cap.base,
                 mm->objtype,
@@ -82,38 +121,86 @@ errval_t mm_alloc_aligned(struct mm *mm, size_t size, size_t alignment, struct c
             );
 
             if (err_is_fail(err)) {
-                DEBUG_ERR(err, "could not retype");
+                DEBUG_ERR(err, "could not retype region cap");
                 return err;
             }
 
-            struct mmnode* new_node = slab_alloc(&mm->slabs);
-            if (new_node == NULL) {
-                errval_t errv;
-                err_push(errv, LIB_ERR_SLAB_ALLOC_FAIL);
-                return errv;
+            err = split_node(mm, node, size_rounded_up, &a, &b);
+            if (err_is_fail(err)) {
+                DEBUG_ERR(err, "error splitting mmnodes");
+                return err;
             }
-            new_node->base = node->base;
-            new_node->size = size_rounded_up;
-            new_node->cap = node->cap;
-            new_node->type = NodeType_Allocated;
-            insert_node_as_head(mm, new_node);
 
-            node->base += size_rounded_up;
-
-            *retcap = slots[0];
-            printf("allocated a frame!\n");
-            return SYS_ERR_OK;
+            a->type = NodeType_Allocated;
+            goto ok_refill;
         }
         node = node->next;
     }
 
-    printf("could not allocate a frame!\n");
-    return LIB_ERR_NOT_IMPLEMENTED;
+    //printf("could not allocate a frame!\n");
+    return LIB_ERR_RAM_ALLOC_FIXED_EXHAUSTED;
+
+
+    static volatile bool refilling = false;
+ok_refill:
+    if (!refilling) {
+        int freec = slab_freecount(&mm->slabs);
+        //printf("free slabs: %d\n", freec);
+        if (freec <= 4) {
+            refilling = true;
+            //printf("refilling slab allocator\n");
+            slab_default_refill(&mm->slabs);
+            refilling = false;
+        }
+    }
+    return SYS_ERR_OK;
 }
 
 errval_t mm_alloc(struct mm *mm, size_t size, struct capref *retcap)
 {
     return mm_alloc_aligned(mm, size, BASE_PAGE_SIZE, retcap);
+}
+
+
+/**
+ * \brief merges two free adjacent mmnodes and returns the merged node
+ * 
+ * \return the merged node or <code>NULL</code> if no merging was done
+ */
+static struct mmnode* merge(struct mm *mm, struct mmnode *node) {
+    struct mmnode *left = node->prev;
+    if (left != NULL) {
+        if (capcmp(left->cap.cap, node->cap.cap)
+            && node->type == NodeType_Free
+            && left->type == NodeType_Free) {
+            assert(left->base + left->size == node->base);
+            left->size += node->size;
+            left->next = node->next;
+            if (left->next != NULL) {
+                left->next->prev = left;
+            }
+            slab_free(&mm->slabs, node);
+            return left;
+        }
+    }
+
+    struct mmnode *right = node->next;
+    if (right != NULL) {
+        if (capcmp(right->cap.cap, node->cap.cap)
+            && node->type == NodeType_Free
+            && right->type == NodeType_Free) {
+            assert(node->base + node->size == right->base);
+            node->size += right->size;
+            node->next = right->next;
+            if (node->next != NULL) {
+                node->next->prev = left;
+            }
+            slab_free(&mm->slabs, right);
+            return node;
+        }
+    }
+
+    return NULL;
 }
 
 
@@ -123,9 +210,37 @@ errval_t mm_free(struct mm *mm, struct capref cap, genpaddr_t base, gensize_t si
     while(node != NULL) {
         if (node->base == base && node->size == size) {
             node->type = NodeType_Free;
-            return cap_destroy(cap);
-        }
-    }
-    return LIB_ERR_CAP_COPY_FAIL;
+            /*errval_t err = cap_revoke(cap);
+            if (err_is_fail(err)) {
+                DEBUG_ERR(err, "could not revoke ram cap");
+                return err;
+            }*/
 
+            errval_t err = cap_destroy(cap);
+            if (err_is_fail(err)) {
+                DEBUG_ERR(err, "could not destroy ram cap");
+                return err;
+            }
+
+            // merge until no mergeing can be done anymore
+            while((node = merge(mm, node)));
+            return SYS_ERR_OK;
+        }
+        node = node->next;
+    }
+    return LIB_ERR_RAM_ALLOC_WRONG_SIZE;
+}
+
+
+void print_mm_state(struct mm *mm)
+{
+    for (struct mmnode* node = mm->head; node != NULL; node = node->next) {
+        if (node->type == NodeType_Free) {
+            printf("free   ");
+        }
+        else {
+            printf("unfree ");
+        }
+        printf("mmnode with base 0x%x size 0x%x\n", node->base, node->size);
+    }
 }
