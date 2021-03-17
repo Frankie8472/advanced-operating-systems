@@ -21,6 +21,7 @@ errval_t mm_init(struct mm *mm, enum objtype objtype,
     mm->slot_alloc = slot_alloc_func;
     mm->slot_refill = slot_refill_func;
     mm->slot_alloc_inst = slot_alloc_inst;
+    mm->refilling = false;
     return SYS_ERR_OK;
 }
 
@@ -67,6 +68,20 @@ static errval_t split_node(struct mm *mm, struct mmnode *node, size_t offset, st
     return SYS_ERR_OK;
 }
 
+static void mm_check_refill(struct mm *mm)
+{
+    if (!mm->refilling) {
+        int freec = slab_freecount(&mm->slabs);
+        //printf("free slabs: %d\n", freec);
+        if (freec <= 6) {
+            mm->refilling = true;
+            //printf("refilling slab allocator\n");
+            slab_default_refill(&mm->slabs);
+            mm->refilling = false;
+        }
+    }
+}
+
 errval_t mm_add(struct mm *mm, struct capref cap, genpaddr_t base, size_t size)
 {
     struct mmnode *new_node = slab_alloc(&mm->slabs);
@@ -82,7 +97,7 @@ errval_t mm_add(struct mm *mm, struct capref cap, genpaddr_t base, size_t size)
     new_node->base = base;
     new_node->size = size;
 
-    printf("memory region added!\n");
+    //DEBUG_PRINTF("memory region added!\n");
     return SYS_ERR_OK;
 }
 
@@ -140,19 +155,8 @@ errval_t mm_alloc_aligned(struct mm *mm, size_t size, size_t alignment, struct c
     //printf("could not allocate a frame!\n");
     return LIB_ERR_RAM_ALLOC_FIXED_EXHAUSTED;
 
-
-    static volatile bool refilling = false;
 ok_refill:
-    if (!refilling) {
-        int freec = slab_freecount(&mm->slabs);
-        //printf("free slabs: %d\n", freec);
-        if (freec <= 4) {
-            refilling = true;
-            //printf("refilling slab allocator\n");
-            slab_default_refill(&mm->slabs);
-            refilling = false;
-        }
-    }
+    mm_check_refill(mm);
     return SYS_ERR_OK;
 }
 

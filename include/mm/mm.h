@@ -64,6 +64,8 @@ struct mm {
     /* statistics */
     gensize_t stats_bytes_max;
     gensize_t stats_bytes_available;
+
+    bool refilling;
 };
 
 errval_t mm_init(struct mm *mm, enum objtype objtype,

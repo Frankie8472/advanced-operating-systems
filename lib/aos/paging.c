@@ -384,7 +384,7 @@ errval_t paging_map_fixed_attr(struct paging_state *st, lvaddr_t vaddr,
             l3,
             frame,
             l3_offset,
-            VREGION_FLAGS_READ_WRITE,
+            flags,
             0,
             bytes/4096,
             mapping
