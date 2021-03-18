@@ -845,13 +845,10 @@ static struct sysret dispatcher_dump_ptables(
     struct capability* to, arch_registers_state_t* context, int argc)
 {
     assert(to->type == ObjType_Dispatcher);
-    assert(2 == argc);
+    assert(3 == argc);
 
-    printf("kernel_dump_ptables\n");
-
-   // struct dcb *dispatcher = to->u.dispatcher.dcb;
-
-   // paging_dump_tables(dispatcher);
+   struct dcb *dispatcher = to->u.dispatcher.dcb;
+   paging_dump_tables(dispatcher);
 
     return SYSRET(SYS_ERR_OK);
 }
