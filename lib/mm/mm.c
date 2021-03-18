@@ -8,6 +8,9 @@
 #include <aos/solution.h>
 
 
+const size_t SLAB_REFILL_THRESHOLD = 6;
+
+
 
 errval_t mm_init(struct mm *mm, enum objtype objtype,
                      slab_refill_func_t slab_refill_func,
@@ -42,6 +45,7 @@ static void insert_node_as_head(struct mm *mm, struct mmnode *node)
     node->prev = NULL;
 }
 
+// TODO: maybe rewrite with less pointer clusterfuck
 static errval_t split_node(struct mm *mm, struct mmnode *node, size_t offset, struct mmnode **a, struct mmnode **b)
 {
     struct mmnode *new_node = slab_alloc(&mm->slabs);
@@ -73,7 +77,7 @@ static void mm_check_refill(struct mm *mm)
     if (!mm->refilling) {
         int freec = slab_freecount(&mm->slabs);
         //printf("free slabs: %d\n", freec);
-        if (freec <= 6) {
+        if (freec <= SLAB_REFILL_THRESHOLD) {
             mm->refilling = true;
             //printf("refilling slab allocator\n");
             slab_default_refill(&mm->slabs);
@@ -104,10 +108,16 @@ errval_t mm_add(struct mm *mm, struct capref cap, genpaddr_t base, size_t size)
 
 errval_t mm_alloc_aligned(struct mm *mm, size_t size, size_t alignment, struct capref *retcap)
 {
+    if (alignment == 0) {
+        DEBUG_PRINTF("invalid alignment of 0, using 1 instead");
+        alignment = 1;
+    }
+
     mm->slot_alloc(mm->slot_alloc_inst, 1, retcap);
 
     struct mmnode *node = mm->head;
-    size_t size_rounded_up = size;//(size & 0xFFF) ? ((size & ~0xFFF) + 0x1000) : size;
+
+    errval_t err = SYS_ERR_OK;
 
     while(node != NULL) {
         if (node->type == NodeType_Free && node->size >= size) {
@@ -119,7 +129,7 @@ errval_t mm_alloc_aligned(struct mm *mm, size_t size, size_t alignment, struct c
                     node = node->next;
                     continue;
                 }
-                errval_t err = split_node(mm, node, offset, &a, &b);
+                err = split_node(mm, node, offset, &a, &b);
                 if (err_is_fail(err)) {
                     DEBUG_ERR(err, "could not align memory");
                     return err;
@@ -127,11 +137,11 @@ errval_t mm_alloc_aligned(struct mm *mm, size_t size, size_t alignment, struct c
                 node = b;
             }
 
-            errval_t err = cap_retype(*retcap,
+            err = cap_retype(*retcap,
                 node->cap.cap,
                 node->base - node->cap.base,
                 mm->objtype,
-                size_rounded_up,
+                size,
                 1
             );
 
@@ -140,13 +150,16 @@ errval_t mm_alloc_aligned(struct mm *mm, size_t size, size_t alignment, struct c
                 return err;
             }
 
-            err = split_node(mm, node, size_rounded_up, &a, &b);
-            if (err_is_fail(err)) {
-                DEBUG_ERR(err, "error splitting mmnodes");
-                return err;
+            if (size < node->size) {
+                err = split_node(mm, node, size, &a, &b);
+                if (err_is_fail(err)) {
+                    DEBUG_ERR(err, "error splitting mmnodes");
+                    return err;
+                }
+                node = a;
             }
 
-            a->type = NodeType_Allocated;
+            node->type = NodeType_Allocated;
             goto ok_refill;
         }
         node = node->next;

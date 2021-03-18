@@ -35,13 +35,20 @@ coreid_t my_core_id;
 
 __attribute__((unused)) static void test_free_coalesce(void)
 {
-    struct capref caps[1000];
-    for (int i = 0; i < 1000; i++) {
+    const size_t n = 256;
+    struct capref caps[n];
+    for (int i = 0; i < n; i++) {
         ram_alloc_aligned(&caps[i], 4096, 1);
     }
-    for (int i = 0; i < 1000; i++) {
+    for (int i = 0; i < n; i++) {
         if ((i / 10) % 2) {
             aos_ram_free(caps[i]);
+        }
+    }
+    print_mm_state(&aos_mm);
+    for (int i = 0; i < n; i++) {
+        if ((i / 10) % 2) {
+            ram_alloc_aligned(&caps[i], 4096, 1);
         }
     }
 
@@ -129,7 +136,7 @@ bsp_main(int argc, char *argv[]) {
 
     // TODO: initialize mem allocator, vspace management here
 
-    //test();
+    test();
     
     // Grading 
     grading_test_early();
