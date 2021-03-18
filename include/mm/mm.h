@@ -55,7 +55,7 @@ struct mmnode {
  */
 struct mm {
     struct slab_allocator slabs; ///< Slab allocator used for allocating nodes
-    slot_alloc_t slot_alloc;     ///< Slot allocator for allocating cspace
+    slot_alloc_t slot_alloc_priv;     ///< Slot allocator for allocating cspace
     slot_refill_t slot_refill;   ///< Slot allocator refill function
     void *slot_alloc_inst;       ///< Opaque instance pointer for slot allocator
     enum objtype objtype;        ///< Type of capabilities stored
@@ -65,6 +65,7 @@ struct mm {
     gensize_t stats_bytes_max;
     gensize_t stats_bytes_available;
 
+    bool initialized_slot;
     bool refilling;
 };
 

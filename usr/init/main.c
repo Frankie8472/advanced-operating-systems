@@ -35,7 +35,7 @@ coreid_t my_core_id;
 
 __attribute__((unused)) static void test_free_coalesce(void)
 {
-    const size_t n = 512;
+    const size_t n = 64;
     struct capref caps[n];
     for (int i = 0; i < n; i++) {
         ram_alloc_aligned(&caps[i], 4096, 1);
@@ -114,7 +114,8 @@ __attribute__((unused)) static void test(void)
     printf("start experiment!\n");
     //test_align();
     //many_allocs_and_frees();
-    test_free_coalesce();
+    //test_free_coalesce();
+    test_big_mappings();
 
     struct capref my_frame;
     size_t f_size;

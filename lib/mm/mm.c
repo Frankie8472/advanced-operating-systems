@@ -10,7 +10,16 @@
 
 const size_t SLAB_REFILL_THRESHOLD = 6;
 
-
+static errval_t mm_slot_alloc(struct mm *mm, struct capref *ret)
+{
+    if (mm->initialized_slot) {
+        struct slot_allocator* da = get_default_slot_allocator();
+        return da->alloc(da, ret);
+    }
+    else {
+        return mm->slot_alloc_priv(mm->slot_alloc_inst, 1, ret);
+    }
+}
 
 errval_t mm_init(struct mm *mm, enum objtype objtype,
                      slab_refill_func_t slab_refill_func,
@@ -21,9 +30,10 @@ errval_t mm_init(struct mm *mm, enum objtype objtype,
     slab_init(&mm->slabs, sizeof(struct mmnode), slab_refill_func);
     mm->head = NULL;
     mm->objtype = objtype;
-    mm->slot_alloc = slot_alloc_func;
+    mm->slot_alloc_priv = slot_alloc_func;
     mm->slot_refill = slot_refill_func;
     mm->slot_alloc_inst = slot_alloc_inst;
+    mm->initialized_slot = false;
     mm->refilling = false;
     return SYS_ERR_OK;
 }
@@ -84,18 +94,6 @@ static void mm_check_refill(struct mm *mm)
             mm->refilling = false;
         }
     }
-
-    static bool init = false;
-    if (!init) {
-
-        errval_t alloc(void* inst, uint64_t i, struct capref *cap) {
-            return ((struct multi_slot_allocator*) inst)->a.alloc(inst, cap);
-        }
-
-        mm->slot_alloc_inst = get_default_slot_allocator();
-        mm->slot_alloc = alloc;
-        init = true;
-    }
 }
 
 errval_t mm_add(struct mm *mm, struct capref cap, genpaddr_t base, size_t size)
@@ -125,7 +123,7 @@ errval_t mm_alloc_aligned(struct mm *mm, size_t size, size_t alignment, struct c
         alignment = 1;
     }
 
-    mm->slot_alloc(mm->slot_alloc_inst, 1, retcap);
+    mm_slot_alloc(mm, retcap);
 
     struct mmnode *node = mm->head;
 
@@ -179,7 +177,7 @@ errval_t mm_alloc_aligned(struct mm *mm, size_t size, size_t alignment, struct c
 
     //printf("could not allocate a frame!\n");
     return LIB_ERR_RAM_ALLOC_FIXED_EXHAUSTED;
-
+    mm->initialized_slot = true;
 ok_refill:
     mm_check_refill(mm);
     return SYS_ERR_OK;
