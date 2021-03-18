@@ -35,7 +35,7 @@ coreid_t my_core_id;
 
 __attribute__((unused)) static void test_free_coalesce(void)
 {
-    const size_t n = 256;
+    const size_t n = 512;
     struct capref caps[n];
     for (int i = 0; i < n; i++) {
         ram_alloc_aligned(&caps[i], 4096, 1);
@@ -45,11 +45,24 @@ __attribute__((unused)) static void test_free_coalesce(void)
             aos_ram_free(caps[i]);
         }
     }
-    print_mm_state(&aos_mm);
+    //print_mm_state(&aos_mm);
     for (int i = 0; i < n; i++) {
         if ((i / 10) % 2) {
             ram_alloc_aligned(&caps[i], 4096, 1);
         }
+    }
+
+    print_mm_state(&aos_mm);
+}
+
+
+__attribute__((unused)) static void many_allocs_and_frees(void)
+{
+    const size_t n = 100000;
+    for (int i = 0; i < n; i++) {
+        struct capref cap;
+        ram_alloc_aligned(&cap, 4096, 1);
+        aos_ram_free(cap);
     }
 
     print_mm_state(&aos_mm);
@@ -88,9 +101,9 @@ __attribute__((unused)) static void test(void)
 {
     // begin experiment
     printf("start experiment!\n");
-    test_align();
+    //test_align();
 
-    test_free_coalesce();
+    //test_free_coalesce();
 
     test_map_frame_8192();
 
@@ -115,6 +128,14 @@ __attribute__((unused)) static void test(void)
     ram_alloc_aligned(&a_page, 4096, 4096);*/
     printf("end experiment!\n");
     // end experiment
+}
+
+
+__attribute__((unused)) static void faulty_allocations(void)
+{
+    struct capref cap;
+    ram_alloc_aligned(&cap, 4096, 1024 * 1024 * 1024);
+    print_mm_state(&aos_mm);
 }
 
 

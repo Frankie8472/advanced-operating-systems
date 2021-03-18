@@ -116,6 +116,11 @@ errval_t paging_init(void)
 {
     debug_printf("paging_init\n");
     current.slot_alloc = get_default_slot_allocator();
+
+    slab_init(&current.mappings_alloc, sizeof(struct mapping_table), NULL);
+    static char init_mem[SLAB_STATIC_SIZE(32, sizeof(struct mapping_table))];
+    slab_grow(&current.mappings_alloc, init_mem, sizeof(init_mem));
+
     // TODO (M2): Call paging_init_state for &current
     // TODO (M4): initialize self-paging handler
     // TIP: use thread_set_exception_handler() to setup a page fault handler
@@ -306,98 +311,124 @@ errval_t paging_map_fixed_attr(struct paging_state *st, lvaddr_t vaddr,
     uint64_t l2_offset = (vaddr >> (12 + 1 * 9)) & 0x1FF;
     uint64_t l3_offset = (vaddr >> (12 + 0 * 9)) & 0x1FF;
 
-    static struct capref l3;
-    static struct capref l3_mapping;
+    struct mapping_table *shadow_table_l0 = &st->map_l0;
+    struct mapping_table *shadow_table_l1 = NULL;
+    struct mapping_table *shadow_table_l2 = NULL;
+    struct mapping_table *shadow_table_l3 = NULL;
 
-    static int pt_initialized = 0;
-    if (!pt_initialized) {
+    errval_t err;
+
+    shadow_table_l1 = shadow_table_l0->children[l0_offset];
+
+    if (shadow_table_l1 == NULL) { // if there is no l1 pt in l0
         struct capref l1;
         struct capref l1_mapping;
         st->slot_alloc->alloc(st->slot_alloc, &l1_mapping);
         pt_alloc(st, ObjType_VNode_AARCH64_l1, &l1);
 
-        printf("performing vnode_map!\n");
-
-        errval_t err = vnode_map(
-            root_pagetable,
-            l1,
-            l0_offset,
-            VREGION_FLAGS_READ,
-            0,
-            1,
-            l1_mapping
-        );
+        printf("mapping l1 node\n");
+        err = vnode_map(root_pagetable, l1, l0_offset, VREGION_FLAGS_READ, 0, 1, l1_mapping);
 
         if (err_is_fail(err)) {
             DEBUG_ERR(err, "failed to map l1 vnode");
             return err;
         }
 
+        shadow_table_l1 = slab_alloc(&st->mappings_alloc);
+        if (shadow_table_l1 == NULL) {
+            DEBUG_PRINTF("shadow pt structure alloc failed");
+            return LIB_ERR_SLAB_ALLOC_FAIL;
+        }
+        init_mapping_table(shadow_table_l1);
+        shadow_table_l1->pt_cap = l1;
+        shadow_table_l0->children[l0_offset] = shadow_table_l1;
+        shadow_table_l0->mapping_caps[l0_offset] = l1_mapping;
+    }
+
+    shadow_table_l2 = shadow_table_l1->children[l1_offset];
+
+    if (shadow_table_l2 == NULL) { // if there is no l2 pt in l1
         struct capref l2;
         struct capref l2_mapping;
         st->slot_alloc->alloc(st->slot_alloc, &l2_mapping);
         pt_alloc(st, ObjType_VNode_AARCH64_l2, &l2);
 
-        err = vnode_map(
-            l1,
-            l2,
-            l1_offset,
-            VREGION_FLAGS_READ_WRITE,
-            0,
-            1,
-            l2_mapping
-        );
+        printf("mapping l2 node\n");
+        err = vnode_map(shadow_table_l1->pt_cap, l2, l1_offset, VREGION_FLAGS_READ, 0, 1, l2_mapping);
 
         if (err_is_fail(err)) {
             DEBUG_ERR(err, "failed to map l2 vnode");
             return err;
         }
 
+        shadow_table_l2 = slab_alloc(&st->mappings_alloc);
+        if (shadow_table_l2 == NULL) {
+            DEBUG_PRINTF("shadow pt structure alloc failed");
+            return LIB_ERR_SLAB_ALLOC_FAIL;
+        }
+        init_mapping_table(shadow_table_l2);
+        shadow_table_l2->pt_cap = l2;
+        shadow_table_l1->children[l1_offset] = shadow_table_l2;
+        shadow_table_l1->mapping_caps[l1_offset] = l2_mapping;
+    }
 
+    shadow_table_l3 = shadow_table_l2->children[l2_offset];
+
+    if (shadow_table_l3 == NULL) { // if there is no l3 pt in l2
+        struct capref l3;
+        struct capref l3_mapping;
         st->slot_alloc->alloc(st->slot_alloc, &l3_mapping);
         pt_alloc(st, ObjType_VNode_AARCH64_l3, &l3);
 
-        printf("performing vnode_map!\n");
+        printf("mapping l3 node\n");
+        err = vnode_map(shadow_table_l2->pt_cap, l3, l2_offset, VREGION_FLAGS_READ, 0, 1, l3_mapping);
 
-        err = vnode_map(
-            l2,
-            l3,
-            l2_offset,
-            VREGION_FLAGS_READ,
-            0,
-            1,
-            l3_mapping
-        );
         if (err_is_fail(err)) {
             DEBUG_ERR(err, "failed to map l3 vnode");
             return err;
         }
 
-        pt_initialized = 1;
+        shadow_table_l3 = slab_alloc(&st->mappings_alloc);
+        if (shadow_table_l3 == NULL) {
+            DEBUG_PRINTF("shadow pt structure alloc failed\n");
+            return LIB_ERR_SLAB_ALLOC_FAIL;
+        }
+        init_mapping_table(shadow_table_l3);
+        shadow_table_l3->pt_cap = l3;
+        shadow_table_l2->children[l2_offset] = shadow_table_l3;
+        shadow_table_l2->mapping_caps[l2_offset] = l3_mapping;
     }
 
+    for (int i = 0; i < bytes / BASE_PAGE_SIZE; i++) {
+        if (!capcmp(shadow_table_l3->mapping_caps[l3_offset + i], NULL_CAP)) {
+            DEBUG_PRINTF("attempting to map already mapped page\n");
+            return LIB_ERR_PMAP_ADDR_NOT_FREE;
+        }
 
-    //for (int i = 0; i < bytes/4096; i++) {
         struct capref mapping;
         st->slot_alloc->alloc(st->slot_alloc, &mapping);
-        errval_t err = vnode_map(
-            l3,
+
+        printf("mapping frame at off: 0x%x\n", l3_offset + i);
+        err = vnode_map (
+            shadow_table_l3->pt_cap,
             frame,
-            l3_offset,
+            l3_offset + i,
             flags,
-            0,
-            bytes/4096,
+            i * BASE_PAGE_SIZE,
+            1, // TODO: possible bigger mappings
             mapping
         );
         if (err_is_fail(err)) {
             DEBUG_ERR(err, "error mapping frame");
             return err;
         }
-    //}
+        shadow_table_l3->mapping_caps[l3_offset + i] = mapping;
+    }
 
 
     return SYS_ERR_OK;
 }
+
 
 /**
  * \brief unmap a user provided frame, and return the VA of the mapped

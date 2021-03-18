@@ -16,6 +16,9 @@
 #define PAGING_TYPES_H_ 1
 
 #include <aos/solution.h>
+#include <arch/aarch64/barrelfish_kpi/paging_arch.h>
+#include <aos/slab.h>
+#include <string.h>
 
 #define VADDR_OFFSET ((lvaddr_t)512UL*1024*1024*1024) // 1GB
 #define VREGION_FLAGS_READ     0x01 // Reading allowed
@@ -46,21 +49,33 @@ struct paging_region {
     // TODO: if needed add struct members for tracking state
 };
 
-struct mappings_node;
 
-struct mapping {
-    struct capref cap;
-    struct mappings_node *node;
+/**
+ * \brief shadow page table
+ */
+struct mapping_table
+{
+    /// capref to the pagetable
+    struct capref pt_cap;
+
+    /// entries in
+    struct capref mapping_caps[PTABLE_ENTRIES];
+    struct mapping_table *children[PTABLE_ENTRIES];
 };
 
-struct mappings_node {
-    struct mapping mappings[512];
-};
 
 // struct to store the paging status of a process
 struct paging_state {
     struct slot_allocator *slot_alloc;
+
+    struct mapping_table map_l0;
+    struct slab_allocator mappings_alloc;
 };
 
+
+__attribute__((unused)) static void init_mapping_table(struct mapping_table *mt)
+{
+    memset(mt, 0, sizeof(struct mapping_table));
+}
 
 #endif  /// PAGING_TYPES_H_
