@@ -592,6 +592,7 @@ errval_t cnode_create_raw(struct capref dest, struct cnoderef *cnoderef,
     }
 
     // Allocate some memory
+    
     err = ram_alloc(&ram, slots * OBJSIZE_CTE);
     if (err_is_fail(err)) {
         return err_push(err, LIB_ERR_RAM_ALLOC);
@@ -606,7 +607,6 @@ errval_t cnode_create_raw(struct capref dest, struct cnoderef *cnoderef,
     if (err_is_fail(err)) {
         return err_push(err, LIB_ERR_CAP_DESTROY);
     }
-
     return SYS_ERR_OK;
 }
 

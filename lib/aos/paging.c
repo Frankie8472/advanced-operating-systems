@@ -115,11 +115,14 @@ errval_t paging_init_state_foreign(struct paging_state *st, lvaddr_t start_vaddr
 errval_t paging_init(void)
 {
     debug_printf("paging_init\n");
+    slot_alloc_init();
     current.slot_alloc = get_default_slot_allocator();
+    
 
     slab_init(&current.mappings_alloc, sizeof(struct mapping_table), NULL);
     static char init_mem[SLAB_STATIC_SIZE(32, sizeof(struct mapping_table))];
     slab_grow(&current.mappings_alloc, init_mem, sizeof(init_mem));
+    current.mappings_alloc_is_refilling = false;
 
     // TODO (M2): Call paging_init_state for &current
     // TODO (M4): initialize self-paging handler
@@ -289,6 +292,26 @@ errval_t slab_refill_no_pagefault(struct slab_allocator *slabs, struct capref fr
     return LIB_ERR_NOT_IMPLEMENTED;
 }
 
+static errval_t slab_big_refill(struct paging_state *st, struct slab_allocator *slabs)
+{
+    const size_t bytes = BASE_PAGE_SIZE * PTABLE_ENTRIES / 4;
+    struct capref fr;
+    size_t size;
+    frame_alloc(&fr, bytes, &size);
+    static lvaddr_t addr = VADDR_OFFSET + 0x40000000UL; // we just assume that we can do this
+    // TODO: as soon as we have usable virtual memory allocation, replace this lottery
+    errval_t err = paging_map_fixed(st, addr, fr, bytes);
+    
+    if (err_is_fail(err)) {
+        DEBUG_ERR(err, "error refilling slab allocator");
+        return err;
+    }
+    //debug_printf("growing slab\n");
+    slab_grow(slabs, (void*) addr, size);
+    addr += bytes;
+    return SYS_ERR_OK;
+}
+
 errval_t paging_map_fixed_attr(struct paging_state *st, lvaddr_t vaddr,
                                struct capref frame, size_t bytes, int flags)
 {
@@ -326,7 +349,7 @@ errval_t paging_map_fixed_attr(struct paging_state *st, lvaddr_t vaddr,
         st->slot_alloc->alloc(st->slot_alloc, &l1_mapping);
         pt_alloc(st, ObjType_VNode_AARCH64_l1, &l1);
 
-        printf("mapping l1 node\n");
+        //printf("mapping l1 node\n");
         err = vnode_map(root_pagetable, l1, l0_offset, VREGION_FLAGS_READ, 0, 1, l1_mapping);
 
         if (err_is_fail(err)) {
@@ -353,7 +376,7 @@ errval_t paging_map_fixed_attr(struct paging_state *st, lvaddr_t vaddr,
         st->slot_alloc->alloc(st->slot_alloc, &l2_mapping);
         pt_alloc(st, ObjType_VNode_AARCH64_l2, &l2);
 
-        printf("mapping l2 node\n");
+        //printf("mapping l2 node\n");
         err = vnode_map(shadow_table_l1->pt_cap, l2, l1_offset, VREGION_FLAGS_READ, 0, 1, l2_mapping);
 
         if (err_is_fail(err)) {
@@ -380,7 +403,7 @@ errval_t paging_map_fixed_attr(struct paging_state *st, lvaddr_t vaddr,
         st->slot_alloc->alloc(st->slot_alloc, &l3_mapping);
         pt_alloc(st, ObjType_VNode_AARCH64_l3, &l3);
 
-        printf("mapping l3 node\n");
+        //printf("mapping l3 node\n");
         err = vnode_map(shadow_table_l2->pt_cap, l3, l2_offset, VREGION_FLAGS_READ, 0, 1, l3_mapping);
 
         if (err_is_fail(err)) {
@@ -399,7 +422,11 @@ errval_t paging_map_fixed_attr(struct paging_state *st, lvaddr_t vaddr,
         shadow_table_l2->mapping_caps[l2_offset] = l3_mapping;
     }
 
-    for (int i = 0; i < bytes / BASE_PAGE_SIZE; i++) {
+    for (size_t i = 0; i < bytes / BASE_PAGE_SIZE; i++) {
+
+        // Milestone one assumption
+        assert(l3_offset + i < PTABLE_ENTRIES);
+
         if (!capcmp(shadow_table_l3->mapping_caps[l3_offset + i], NULL_CAP)) {
             DEBUG_PRINTF("attempting to map already mapped page\n");
             return LIB_ERR_PMAP_ADDR_NOT_FREE;
@@ -408,23 +435,35 @@ errval_t paging_map_fixed_attr(struct paging_state *st, lvaddr_t vaddr,
         struct capref mapping;
         st->slot_alloc->alloc(st->slot_alloc, &mapping);
 
-        printf("mapping frame at off: 0x%x\n", l3_offset + i);
+        //debug_printf("mapping frame at off: 0x%x\n", l3_offset + i);
         err = vnode_map (
             shadow_table_l3->pt_cap,
             frame,
             l3_offset + i,
             flags,
             i * BASE_PAGE_SIZE,
-            1, // TODO: possible bigger mappings
+            1,
             mapping
         );
         if (err_is_fail(err)) {
             DEBUG_ERR(err, "error mapping frame");
             return err;
         }
+        //debug_printf("mapped frame at off: 0x%x\n", l3_offset + i);
         shadow_table_l3->mapping_caps[l3_offset + i] = mapping;
     }
 
+    if (slab_freecount(&st->mappings_alloc) < 10) {
+        if (!st->mappings_alloc_is_refilling) {
+            //debug_printf("refilling!\n");
+            st->mappings_alloc_is_refilling = true;
+            slab_big_refill(st, &st->mappings_alloc);
+            st->mappings_alloc_is_refilling = false;
+        }
+    }
+    else {
+        //debug_printf("no need to refill\n");
+    }
 
     return SYS_ERR_OK;
 }

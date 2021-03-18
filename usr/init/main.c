@@ -45,7 +45,8 @@ __attribute__((unused)) static void test_free_coalesce(void)
             aos_ram_free(caps[i]);
         }
     }
-    //print_mm_state(&aos_mm);
+    print_mm_state(&aos_mm);
+
     for (int i = 0; i < n; i++) {
         if ((i / 10) % 2) {
             ram_alloc_aligned(&caps[i], 4096, 1);
@@ -69,23 +70,33 @@ __attribute__((unused)) static void many_allocs_and_frees(void)
 }
 
 
-__attribute__((unused)) static void test_map_frame_8192(void)
+__attribute__((unused)) static void test_map_big(lvaddr_t base, size_t size)
 {
     struct capref my_frame;
     size_t f_size;
-    frame_alloc(&my_frame, 8192, &f_size);
+    frame_alloc(&my_frame, size, &f_size);
 
-    lvaddr_t addr = VADDR_OFFSET + 0x125000;
-    paging_map_fixed_attr(get_current_paging_state(), addr, my_frame, 8192, VREGION_FLAGS_READ_WRITE);
+    lvaddr_t addr = base;
+    paging_map_fixed_attr(get_current_paging_state(), addr, my_frame, size, VREGION_FLAGS_READ_WRITE);
 
     long* pointer = (long*) addr;
-    for (int i = 0; i < 1024; i++) {
+    for (int i = 0; i < size / sizeof(long); i++) {
         pointer[i] = i;
     }
-    for (int i = 0; i < 1024; i++) {
+    for (int i = 0; i < size / sizeof(long); i++) {
         pointer[0] += pointer[i];
     }
+    printf("mapped and accessed 0x%x bytes of memory\n", size);
     printf("value in memory at v-address %p: %d\n", pointer, pointer[0]);
+}
+
+
+__attribute__((unused)) static void test_big_mappings(void)
+{
+    lvaddr_t base = VADDR_OFFSET + 0x10000000UL;
+    for (int i = 1; i < 35; i++) {
+        test_map_big(base + 0x40000000UL * i, i * BASE_PAGE_SIZE);
+    }
 }
 
 
@@ -102,10 +113,8 @@ __attribute__((unused)) static void test(void)
     // begin experiment
     printf("start experiment!\n");
     //test_align();
-
-    //test_free_coalesce();
-
-    test_map_frame_8192();
+    //many_allocs_and_frees();
+    test_free_coalesce();
 
     struct capref my_frame;
     size_t f_size;

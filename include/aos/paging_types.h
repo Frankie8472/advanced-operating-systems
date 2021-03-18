@@ -70,6 +70,7 @@ struct paging_state {
 
     struct mapping_table map_l0;
     struct slab_allocator mappings_alloc;
+    bool mappings_alloc_is_refilling;
 };
 
 
