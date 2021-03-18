@@ -180,44 +180,39 @@ errval_t mm_alloc(struct mm *mm, size_t size, struct capref *retcap)
 
 
 /**
- * \brief merges two free adjacent mmnodes and returns the merged node
+ * \brief tries to merge an mmnode with its right neighbour
  * 
- * \return the merged node or <code>NULL</code> if no merging was done
+ * The merging only happens if they are adjacent and both free
+ * 
+ * \return <code>true</code> if any merging was done
  */
-static struct mmnode* merge(struct mm *mm, struct mmnode *node) {
-    struct mmnode *left = node->prev;
-    if (left != NULL) {
-        if (capcmp(left->cap.cap, node->cap.cap)
-            && node->type == NodeType_Free
-            && left->type == NodeType_Free) {
-            assert(left->base + left->size == node->base);
-            left->size += node->size;
-            left->next = node->next;
-            if (left->next != NULL) {
-                left->next->prev = left;
-            }
-            slab_free(&mm->slabs, node);
-            return left;
-        }
+static bool coalesce(struct mm *mm, struct mmnode *node)
+{
+    if (node == NULL) {
+        return false;
     }
 
     struct mmnode *right = node->next;
-    if (right != NULL) {
-        if (capcmp(right->cap.cap, node->cap.cap)
-            && node->type == NodeType_Free
-            && right->type == NodeType_Free) {
-            assert(node->base + node->size == right->base);
-            node->size += right->size;
-            node->next = right->next;
-            if (node->next != NULL) {
-                node->next->prev = left;
-            }
-            slab_free(&mm->slabs, right);
-            return node;
-        }
+    if (right == NULL) {
+        return false;
     }
+    if (!capcmp(right->cap.cap, node->cap.cap)) {
+        return false;
+    }
+    if (node->type == NodeType_Free && right->type == NodeType_Free) {
+        assert(node->base + node->size == right->base);
 
-    return NULL;
+        node->size += right->size;
+        node->next = right->next;
+
+        if (node->next != NULL) {
+            node->next->prev = node;
+        }
+
+        slab_free(&mm->slabs, right);
+        return true;
+    }
+    return false;
 }
 
 
@@ -227,20 +222,15 @@ errval_t mm_free(struct mm *mm, struct capref cap, genpaddr_t base, gensize_t si
     while(node != NULL) {
         if (node->base == base && node->size == size) {
             node->type = NodeType_Free;
-            /*errval_t err = cap_revoke(cap);
-            if (err_is_fail(err)) {
-                DEBUG_ERR(err, "could not revoke ram cap");
-                return err;
-            }*/
-
             errval_t err = cap_destroy(cap);
             if (err_is_fail(err)) {
                 DEBUG_ERR(err, "could not destroy ram cap");
                 return err;
             }
 
-            // merge until no mergeing can be done anymore
-            while((node = merge(mm, node)));
+            coalesce(mm, node);
+            coalesce(mm, node->prev);
+
             return SYS_ERR_OK;
         }
         node = node->next;
