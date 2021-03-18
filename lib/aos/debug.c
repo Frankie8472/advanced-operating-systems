@@ -140,11 +140,11 @@ int debug_print_cap(char *buf, size_t len, struct capability *cap)
     switch (cap->type) {
     case ObjType_PhysAddr:
         return snprintf(buf, len,
-                        "physical address range cap (0x%" PRIxGENPADDR ":0x%" PRIuGENSIZE ")",
+                        "physical address range cap (0x%" PRIxGENPADDR ":%" PRIuGENSIZE ")",
                         cap->u.physaddr.base, cap->u.physaddr.bytes);
 
     case ObjType_RAM:
-        return snprintf(buf, len, "RAM cap (0x%" PRIxGENPADDR ":0x%" PRIuGENSIZE ")",
+        return snprintf(buf, len, "RAM cap (0x%" PRIxGENPADDR ":%" PRIuGENSIZE ")",
                         cap->u.ram.base, cap->u.ram.bytes);
 
     case ObjType_L1CNode: {
@@ -164,7 +164,7 @@ int debug_print_cap(char *buf, size_t len, struct capability *cap)
     }
 
     case ObjType_EndPointUMP:
-        return snprintf(buf, len, "EndPoint UMP cap (0x%" PRIxGENPADDR ":0x%"
+        return snprintf(buf, len, "EndPoint UMP cap (0x%" PRIxGENPADDR ":%"
                                    PRIuGENSIZE "), if=%" PRIu32,
                         cap->u.endpointump.base, cap->u.endpointump.bytes,
                         cap->u.endpointump.iftype);
@@ -173,7 +173,7 @@ int debug_print_cap(char *buf, size_t len, struct capability *cap)
         return snprintf(buf, len, "Dispatcher cap %p", cap->u.dispatcher.dcb);
 
     case ObjType_Frame:
-        return snprintf(buf, len, "Frame cap (0x%" PRIxGENPADDR ":0x%" PRIuGENSIZE ")",
+        return snprintf(buf, len, "Frame cap (0x%" PRIxGENPADDR ":%" PRIuGENSIZE ")",
                         cap->u.frame.base, cap->u.frame.bytes);
 
     case ObjType_DevFrame:
