@@ -84,6 +84,18 @@ static void mm_check_refill(struct mm *mm)
             mm->refilling = false;
         }
     }
+
+    static bool init = false;
+    if (!init) {
+
+        errval_t alloc(void* inst, uint64_t i, struct capref *cap) {
+            return ((struct multi_slot_allocator*) inst)->a.alloc(inst, cap);
+        }
+
+        mm->slot_alloc_inst = get_default_slot_allocator();
+        mm->slot_alloc = alloc;
+        init = true;
+    }
 }
 
 errval_t mm_add(struct mm *mm, struct capref cap, genpaddr_t base, size_t size)
