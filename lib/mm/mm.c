@@ -10,15 +10,19 @@
 
 const size_t SLAB_REFILL_THRESHOLD = 6;
 
+/**
+ * \brief manages slot allocation for mm-internal operations
+ */
 static errval_t mm_slot_alloc(struct mm *mm, struct capref *ret)
 {
-    if (mm->initialized_slot) {
+    return mm->slot_alloc_priv(mm->slot_alloc_inst, 1, ret);
+    /*if (mm->initialized_slot) {
         struct slot_allocator* da = get_default_slot_allocator();
         return da->alloc(da, ret);
     }
     else {
         return mm->slot_alloc_priv(mm->slot_alloc_inst, 1, ret);
-    }
+    }*/
 }
 
 errval_t mm_init(struct mm *mm, enum objtype objtype,
@@ -43,6 +47,9 @@ void mm_destroy(struct mm *mm)
     assert(!"NYI");
 }
 
+/**
+ * \brief simply insert a new node at the front of our linked list structure
+ */
 static void insert_node_as_head(struct mm *mm, struct mmnode *node)
 {
     struct mmnode *old_head = mm->head;
@@ -82,14 +89,18 @@ static errval_t split_node(struct mm *mm, struct mmnode *node, size_t offset, st
     return SYS_ERR_OK;
 }
 
+/**
+ * \brief checks whether the slab allocator needs a refill
+ */
 static void mm_check_refill(struct mm *mm)
 {
     if (!mm->refilling) {
         int freec = slab_freecount(&mm->slabs);
-        //printf("free slabs: %d\n", freec);
+        // if we have less slabs left than a certain threshold,
+        // we preemptively refill.
+        // This is done in case we need to allocate some slabs during the refilling
         if (freec <= SLAB_REFILL_THRESHOLD) {
             mm->refilling = true;
-            //printf("refilling slab allocator\n");
             slab_default_refill(&mm->slabs);
             mm->refilling = false;
         }
