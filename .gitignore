@@ -48,3 +48,8 @@ bin/
 # clang
 .clang_complete
 compile_commands.json
+
+# IDE stuff
+.idea
+CMakeLists.txt
+cmake-build-debug
