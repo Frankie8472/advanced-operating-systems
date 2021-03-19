@@ -113,9 +113,9 @@ __attribute__((unused)) static void test(void)
     // begin experiment
     printf("start experiment!\n");
     //test_align();
-    //many_allocs_and_frees();
+    many_allocs_and_frees();
     //test_free_coalesce();
-    test_big_mappings();
+    //test_big_mappings();
 
     struct capref my_frame;
     size_t f_size;
