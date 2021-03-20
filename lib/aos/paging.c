@@ -138,10 +138,18 @@ errval_t paging_init(void)
         .slot  = 0
     };
 
-    paging_init_state(&current, VADDR_OFFSET, root_pagetable, get_default_slot_allocator());
+    errval_t err;
+    err = paging_init_state(&current, VADDR_OFFSET, root_pagetable, get_default_slot_allocator());
+    if (err_is_fail(err)) {
+        return err_push(err, LIB_ERR_VSPACE_INIT);
+    }
+
     set_current_paging_state(&current);
 
-    slot_alloc_init();
+    err = slot_alloc_init();
+    if (err_is_fail(err)) {
+        return err_push(err, LIB_ERR_SLOT_ALLOC_INIT);
+    }
 
     return SYS_ERR_OK;
 }
@@ -169,6 +177,9 @@ errval_t paging_region_init_fixed(struct paging_state *st, struct paging_region 
 
     //TODO(M2): Add the region to a datastructure and ensure paging_alloc
     //will return non-overlapping regions.
+    if (st->current_address < pr->base_addr + pr->region_size) {
+        st->current_address = pr->base_addr + pr->region_size;
+    }
     return SYS_ERR_OK;
 }
 
@@ -302,8 +313,18 @@ errval_t paging_map_frame_attr(struct paging_state *st, void **buf, size_t bytes
     // TODO(M2): Implement me
     // - Call paging_alloc to get a free virtual address region of the requested size
     // - Map the user provided frame at the free virtual address
+    errval_t err;
+    err = paging_alloc(st, buf, bytes, 1);
+    if (err_is_fail(err)) {
+        return err_push(err, LIB_ERR_VSPACE_MAP);
+    }
 
-    return LIB_ERR_NOT_IMPLEMENTED;
+    err = paging_map_fixed_attr(st, (lvaddr_t) *buf, frame, bytes, flags);
+    if (err_is_fail(err)) {
+        return err_push(err, LIB_ERR_PMAP_DO_MAP);
+    }
+
+    return SYS_ERR_OK;
 
 }
 
