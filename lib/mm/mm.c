@@ -25,12 +25,26 @@ static errval_t mm_slot_alloc(struct mm *mm, struct capref *ret)
     }*/
 }
 
+/**
+ * \brief Initializes an mmnode to the given MM allocator instance data
+ *
+ * \param mm Pointer to MM allocator instance data
+ * \param objtype Type of the allocator and its nodes
+ * \param slab_refill_func Pointer to function to call when out of memory (or NULL)
+ * \param slot_alloc_func Slot allocator for allocating cspace
+ * \param slot_refill_func Slot allocator refill function
+ * \param slot_alloc_inst Opaque instance pointer for slot allocator
+ */
 errval_t mm_init(struct mm *mm, enum objtype objtype,
                      slab_refill_func_t slab_refill_func,
                      slot_alloc_t slot_alloc_func,
                      slot_refill_t slot_refill_func,
                      void *slot_alloc_inst)
 {
+    if (mm == NULL) {
+        DEBUG_ERR(MM_ERR_NOT_FOUND, "mm.c/mm_init: mm is null");
+        return MM_ERR_NOT_FOUND;
+    }
     slab_init(&mm->slabs, sizeof(struct mmnode), slab_refill_func);
     mm->head = NULL;
     mm->objtype = objtype;
@@ -39,12 +53,44 @@ errval_t mm_init(struct mm *mm, enum objtype objtype,
     mm->slot_alloc_inst = slot_alloc_inst;
     mm->initialized_slot = false;
     mm->refilling = false;
+    mm->stats_bytes_max = 0;
+    mm->stats_bytes_available = 0;
     return SYS_ERR_OK;
 }
 
+/**
+ * \brief Destroys an MM allocator instance data with all its nodes and capabilities
+ *
+ * \param mm Pointer to MM allocator instance data
+ */
 void mm_destroy(struct mm *mm)
 {
-    assert(!"NYI");
+    errval_t err;
+    if (mm == NULL) {
+        DEBUG_ERR(MM_ERR_NOT_FOUND, "mm.c/mm_destroy: mm is null");
+        return;
+    }
+
+    struct mmnode *cm, *nm;
+    for (cm = mm->head; cm != NULL; cm = nm) {
+        for (nm = cm->next; nm != NULL && capcmp(cm->cap.cap, nm->cap.cap); nm = cm->next) {
+            cm->next = nm->next;
+            slab_free(&(mm->slabs), nm);
+        }
+        err = cap_revoke(cm->cap.cap);
+        if (err) {
+            DEBUG_ERR(LIB_ERR_REMOTE_REVOKE, "mm.c/mm_destroy: cap_revoke error");
+            return;
+        }
+
+        err = cap_destroy(cm->cap.cap);
+        if (err) {
+            DEBUG_ERR(LIB_ERR_CAP_DESTROY, "mm.c/mm_destroy: cap_destroy error");
+            return;
+        }
+
+        slab_free(&(mm->slabs), cm);
+    }
 }
 
 /**
@@ -90,7 +136,12 @@ static errval_t split_node(struct mm *mm, struct mmnode *node, size_t offset, st
 }
 
 /**
- * \brief checks whether the slab allocator needs a refill
+ * \brief Adds an mmnode to the given MM allocator instance data
+ *
+ * \param mm Pointer to MM allocator instance data
+ * \param cap Capability to the given RAM space
+ * \param base Start_add of the RAM to allocate
+ * \param size Amount of RAM to allocate, in bytes
  */
 static void mm_check_refill(struct mm *mm)
 {
@@ -121,12 +172,21 @@ errval_t mm_add(struct mm *mm, struct capref cap, genpaddr_t base, size_t size)
     };
     new_node->base = base;
     new_node->size = size;
+    mm->stats_bytes_available += size;
+    mm->stats_bytes_max += size;
 
     //DEBUG_PRINTF("memory region added!\n");
     return SYS_ERR_OK;
 }
 
-
+/**
+ * \brief Allocates aligned memory in the form of a RAM capability
+ *
+ * \param mm Pointer to MM allocator instance data
+ * \param size Amount of RAM to allocate, in bytes
+ * \param alignment Alignment of RAM to allocate slot used for the cap in #ret, if any
+ * \param retcap Pointer to capref struct, filled-in with allocated cap location
+ */
 errval_t mm_alloc_aligned(struct mm *mm, size_t size, size_t alignment, struct capref *retcap)
 {
     if (alignment == 0) {
@@ -181,6 +241,7 @@ errval_t mm_alloc_aligned(struct mm *mm, size_t size, size_t alignment, struct c
             }
 
             node->type = NodeType_Allocated;
+            mm->stats_bytes_available -= node->size;
             goto ok_refill;
         }
         node = node->next;
@@ -201,12 +262,14 @@ errval_t mm_alloc(struct mm *mm, size_t size, struct capref *retcap)
 
 
 /**
- * \brief tries to merge an mmnode with its right neighbour
- * 
- * The merging only happens if they are adjacent and both free
- * 
- * \return <code>true</code> if any merging was done
+ * \brief Tries to merge an mmnode with its right neighbour.
+ *        The merging only happens if they are adjacent and both free.
+ *
+ * \param mm Pointer to MM allocator instance data
+ * \param mmnode Pointer to the mmnode
  */
+
+
 static bool coalesce(struct mm *mm, struct mmnode *node)
 {
     if (node == NULL) {
@@ -236,7 +299,14 @@ static bool coalesce(struct mm *mm, struct mmnode *node)
     return false;
 }
 
-
+/**
+ * \brief Freeing allocated RAM and associated capability
+ *
+ * \param mm Pointer to MM allocator instance data
+ * \param cap The capability fot the allocated RAM
+ * \param base The start_addr for allocated RAM the cap is for
+ * \param size The size of the allocated RAM the capability is for
+ */
 errval_t mm_free(struct mm *mm, struct capref cap, genpaddr_t base, gensize_t size)
 {
     struct mmnode* node = mm->head;
@@ -255,6 +325,8 @@ errval_t mm_free(struct mm *mm, struct capref cap, genpaddr_t base, gensize_t si
                 DEBUG_ERR(err, "could not destroy ram cap");
                 return err;
             }
+
+            mm->stats_bytes_available += size;
 
             coalesce(mm, node);
             coalesce(mm, node->prev);

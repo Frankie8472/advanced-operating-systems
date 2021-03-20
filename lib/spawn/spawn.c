@@ -22,7 +22,7 @@ extern coreid_t my_core_id;
 
 /**
  * \brief Set the base address of the .got (Global Offset Table) section of the ELF binary
- * 
+ *
  * \param arch_load_info This must be the base address of the .got section (local to the
  * child's VSpace). Must not be NULL.
  * \param handle The handle for the new dispatcher that is to be spawned. Must not be NULL.
@@ -56,11 +56,11 @@ static void armv8_set_registers(void *arch_load_info,
 /**
  * TODO(M2): Implement this function.
  * \brief Spawn a new dispatcher called 'argv[0]' with 'argc' arguments.
- * 
+ *
  * This function spawns a new dispatcher running the ELF binary called
  * 'argv[0]' with 'argc' - 1 additional arguments. It fills out 'si'
  * and 'pid'.
- * 
+ *
  * \param argc The number of command line arguments. Must be > 0.
  * \param argv An array storing 'argc' command line arguments.
  * \param si A pointer to the spawninfo struct representing
@@ -90,13 +90,13 @@ errval_t spawn_load_argv(int argc, char *argv[], struct spawninfo *si,
 /**
  * TODO(M2): Implement this function.
  * \brief Spawn a new dispatcher executing 'binary_name'
- * 
+ *
  * \param binary_name The name of the binary.
  * \param si A pointer to a spawninfo struct that will be
  * filled out by spawn_load_by_name. Must not be NULL.
  * \param pid A pointer to a domainid_t that will be
  * filled out by spawn_load_by_name. Must not be NULL.
- * 
+ *
  * \return Either SYS_ERR_OK if no error occured or an error
  * indicating what went wrong otherwise.
  */
@@ -106,9 +106,7 @@ errval_t spawn_load_by_name(char *binary_name, struct spawninfo * si,
     // - Get the mem_region from the multiboot image
     // - Fill in argc/argv from the multiboot command line
     // - Call spawn_load_argv
-
+    // mem_region *module;
+    // char * 
     return LIB_ERR_NOT_IMPLEMENTED;
 }
-
-
-
