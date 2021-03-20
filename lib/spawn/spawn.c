@@ -106,6 +106,7 @@ errval_t spawn_load_by_name(char *binary_name, struct spawninfo * si,
     // - Get the mem_region from the multiboot image
     // - Fill in argc/argv from the multiboot command line
     // - Call spawn_load_argv
-
+    // mem_region *module;
+    // char * 
     return LIB_ERR_NOT_IMPLEMENTED;
 }
