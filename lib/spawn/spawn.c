@@ -82,6 +82,14 @@ errval_t spawn_load_argv(int argc, char *argv[], struct spawninfo *si,
     // - Setup the dispatcher
     // - Setup the environment
     // - Make the new dispatcher runnable
+    errval_t err;
+    char* name = argv[0];
+    DEBUG_PRINTF("Spawning process: %s",name);
+    err = spawn_load_by_name(name,si,pid);
+    if(err_is_fail(err)){
+      return err;
+    }
+
 
     return LIB_ERR_NOT_IMPLEMENTED;
 }
@@ -102,7 +110,6 @@ errval_t spawn_load_argv(int argc, char *argv[], struct spawninfo *si,
  */
 errval_t spawn_load_by_name(char *binary_name, struct spawninfo * si,
                             domainid_t *pid) {
-    // TODO: Implement me
     // - Get the mem_region from the multiboot image
     // - Fill in argc/argv from the multiboot command line
     // - Call spawn_load_argv
@@ -127,6 +134,6 @@ errval_t spawn_load_by_name(char *binary_name, struct spawninfo * si,
     for(int i = 0; i < 3; ++i){
       printf("%c ",elf_address[i]);
     }
-    printf("\n");
+    printf("BOI\n");
     return err;
 }
