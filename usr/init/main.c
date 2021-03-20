@@ -23,6 +23,8 @@
 #include <mm/mm.h>
 #include <grading.h>
 
+
+#include <spawn/spawn.h>
 #include "mem_alloc.h"
 
 
@@ -119,34 +121,58 @@ __attribute__((unused)) static void test_align(void)
 }
 
 
+
+
+__attribute__((unused)) static void test_spawn_load_argv(void){
+  //=============SPAWN PROCESS HELLO==================//
+  errval_t err;
+  printf("Trying to spawn process hello\n" );
+  char* p_argv [1];
+  p_argv[0] = "hello";
+  struct spawninfo si;
+  domainid_t pid;
+  err = spawn_load_argv(1,p_argv,&si,&pid);
+  if(err_is_fail(err)){
+    DEBUG_ERR(err, "spawn loading failed");
+  }
+
+  //===========================================//
+
+}
+
+
+
+
 __attribute__((unused)) static void test(void)
 {
     // begin experiment
     printf("start experiment!\n");
     //test_align();
     //many_allocs_and_frees();
-    //test_free_coalesce();
-    test_big_mappings();
-
-    struct capref my_frame;
-    size_t f_size;
-    frame_alloc(&my_frame, 4096, &f_size);
-
-    lvaddr_t addr = VADDR_OFFSET + 0x123000;
-    paging_map_fixed_attr(get_current_paging_state(), addr, my_frame, 4096, VREGION_FLAGS_READ_WRITE);
-
-    int* pointer = (int*) addr;
-    for (int i = 0; i < 100; i++) {
-        pointer[i] = i;
-    }
-    for (int i = 0; i < 100; i++) {
-        pointer[0] += pointer[i];
-    }
-    printf("value in memory at v-address %p: %d\n", pointer, pointer[0]);
+    // //test_free_coalesce();
+    // test_big_mappings();
+    //
+    // struct capref my_frame;
+    // size_t f_size;
+    // frame_alloc(&my_frame, 4096, &f_size);
+    //
+    // lvaddr_t addr = VADDR_OFFSET + 0x123000;
+    // paging_map_fixed_attr(get_current_paging_state(), addr, my_frame, 4096, VREGION_FLAGS_READ_WRITE);
+    //
+    // int* pointer = (int*) addr;
+    // for (int i = 0; i < 100; i++) {
+    //     pointer[i] = i;
+    // }
+    // for (int i = 0; i < 100; i++) {
+    //     pointer[0] += pointer[i];
+    // }
+    // printf("value in memory at v-address %p: %d\n", pointer, pointer[0]);
     /*ram_alloc_aligned(&a_page, 4096, 4096);
     ram_alloc_aligned(&a_page, 4096, 4096);
     ram_alloc_aligned(&a_page, 4096, 4096);
     ram_alloc_aligned(&a_page, 4096, 4096);*/
+
+    // test_spawn_load_argv();
     printf("end experiment!\n");
     // end experiment
 }
@@ -158,6 +184,11 @@ __attribute__((unused)) static void faulty_allocations(void)
     ram_alloc_aligned(&cap, 4096, 1024 * 1024 * 1024);
     print_mm_state(&aos_mm);
 }
+
+
+
+
+
 
 
 static int
@@ -182,8 +213,11 @@ bsp_main(int argc, char *argv[]) {
 
     // Grading
     grading_test_early();
-
     // TODO: Spawn system processes, boot second core etc. here
+
+
+
+
 
     // Grading
     grading_test_late();
@@ -230,6 +264,8 @@ int main(int argc, char *argv[])
     }
     printf("\n");
     fflush(stdout);
+
+
 
     if(my_core_id == 0) return bsp_main(argc, argv);
     else                return app_main(argc, argv);

@@ -82,6 +82,14 @@ errval_t spawn_load_argv(int argc, char *argv[], struct spawninfo *si,
     // - Setup the dispatcher
     // - Setup the environment
     // - Make the new dispatcher runnable
+    errval_t err;
+    char* name = argv[0];
+    DEBUG_PRINTF("Spawning process: %s",name);
+    err = spawn_load_by_name(name,si,pid);
+    if(err_is_fail(err)){
+      return err;
+    }
+
 
     return LIB_ERR_NOT_IMPLEMENTED;
 }
@@ -102,11 +110,30 @@ errval_t spawn_load_argv(int argc, char *argv[], struct spawninfo *si,
  */
 errval_t spawn_load_by_name(char *binary_name, struct spawninfo * si,
                             domainid_t *pid) {
-    // TODO: Implement me
     // - Get the mem_region from the multiboot image
     // - Fill in argc/argv from the multiboot command line
     // - Call spawn_load_argv
-    // mem_region *module;
-    // char * 
-    return LIB_ERR_NOT_IMPLEMENTED;
+    errval_t err = SYS_ERR_OK;
+
+    //TODO: is  bi correctly initialized by the init/usr/main.c
+    struct mem_region* mem_region = multiboot_find_module(bi,binary_name);
+    //this mem_region should be of type module
+    assert(mem_region -> mr_type == RegionType_Module);
+    struct capability cap;
+    struct capref child_frame = {
+      .cnode = cnode_module,
+      .slot = mem_region -> mrmod_slot
+    };
+    err = invoke_cap_identify(child_frame,&cap);
+    if(err_is_fail(err)){
+      return err;
+    }
+    char* elf_address = (char*) get_address(&cap);
+
+    printf("%ELF address = %lx\n",elf_address   );
+    for(int i = 0; i < 3; ++i){
+      printf("%c ",elf_address[i]);
+    }
+    printf("BOI\n");
+    return err;
 }
