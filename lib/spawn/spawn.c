@@ -90,6 +90,21 @@ errval_t spawn_load_argv(int argc, char *argv[], struct spawninfo *si,
       return err;
     }
 
+    struct capref cnode_child_l1;
+    struct cnoderef child_ref;
+    err = cnode_create_l1(&cnode_child_l1, &child_ref);
+    if (err_is_fail(err)) {
+      /* HERE; */
+      return err_push(err, SPAWN_ERR_CREATE_ROOTCN);
+    }
+
+    DEBUG_PRINTF("cnode_child_l1 slot is: %d\n", cnode_child_l1.slot);
+
+    /* struct cnoderef cnode_child_l2; */
+    /* err = cnode_create_foreign_l2(cnode_child_l1, cnode_child_l1.slot, &cnode_child_l2); */
+    HERE;
+    /* DEBUG_PRINTF("cnode_child_l2 slot is: %d", cnode_child_l2.slot); */
+
 
     return LIB_ERR_NOT_IMPLEMENTED;
 }
@@ -128,12 +143,16 @@ errval_t spawn_load_by_name(char *binary_name, struct spawninfo * si,
     if(err_is_fail(err)){
       return err;
     }
-    char* elf_address = (char*) get_address(&cap);
+    char* elf_address;
 
-    printf("%ELF address = %lx\n",elf_address   );
-    for(int i = 0; i < 3; ++i){
-      printf("%c ",elf_address[i]);
+    paging_map_frame_attr(get_current_paging_state(), (void **) &elf_address,
+                          4096, child_frame, VREGION_FLAGS_READ_WRITE, NULL, NULL);
+
+    debug_printf("ELF address = %lx\n", elf_address);
+    debug_printf("%x ", elf_address[0]);
+    for(int i = 1; i < 4; ++i){
+      debug_printf("%c ", elf_address[i]);
     }
-    printf("BOI\n");
+    debug_printf("BOI\n");
     return err;
 }
