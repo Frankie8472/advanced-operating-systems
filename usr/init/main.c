@@ -172,6 +172,9 @@ bsp_main(int argc, char *argv[]) {
     // Grading
     grading_test_early();
 
+
+
+
     // TODO: Spawn system processes, boot second core etc. here
 
     // Grading
