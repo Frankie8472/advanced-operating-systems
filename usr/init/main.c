@@ -172,7 +172,6 @@ __attribute__((unused)) static void test(void)
     ram_alloc_aligned(&a_page, 4096, 4096);
     ram_alloc_aligned(&a_page, 4096, 4096);*/
 
-    test_spawn_load_argv();
     printf("end experiment!\n");
     // end experiment
 }
@@ -210,6 +209,7 @@ bsp_main(int argc, char *argv[]) {
     // TODO: initialize mem allocator, vspace management here
 
     //test();
+    test_spawn_load_argv();
 
     // Grading
     grading_test_early();
