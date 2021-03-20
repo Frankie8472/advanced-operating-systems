@@ -172,7 +172,7 @@ __attribute__((unused)) static void test(void)
     ram_alloc_aligned(&a_page, 4096, 4096);
     ram_alloc_aligned(&a_page, 4096, 4096);*/
 
-    // test_spawn_load_argv();
+    test_spawn_load_argv();
     printf("end experiment!\n");
     // end experiment
 }
