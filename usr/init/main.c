@@ -70,6 +70,13 @@ __attribute__((unused)) static void many_allocs_and_frees(void)
 }
 
 
+__attribute__((unused)) static long sum_until(long m)
+{
+    long result = 0;
+    for (long i = 0; i < m; i++) result += i;
+    return result;
+}
+
 __attribute__((unused)) static void test_map_big(lvaddr_t base, size_t size)
 {
     printf("mapping big: 0x%lx\n", size);
@@ -88,6 +95,7 @@ __attribute__((unused)) static void test_map_big(lvaddr_t base, size_t size)
     for (int i = 0; i < size / sizeof(long); i++) {
         pointer[0] += pointer[i];
     }
+    assert(pointer[0] == sum_until(size / sizeof(long)));
     printf("mapped and accessed 0x%x bytes of memory\n", size);
     printf("value in memory at v-address %p: %d\n", pointer, pointer[0]);
 }
@@ -97,7 +105,8 @@ __attribute__((unused)) static void test_big_mappings(void)
 {
     lvaddr_t base = VADDR_OFFSET + 0x10000000UL;
     for (int i = 1; i < 120; i++) {
-        test_map_big(base + 0x40000000UL * i, i * BASE_PAGE_SIZE);
+        test_map_big(base, i * BASE_PAGE_SIZE);
+        base += i * BASE_PAGE_SIZE;
     }
 }
 

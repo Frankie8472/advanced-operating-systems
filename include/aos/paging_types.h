@@ -40,7 +40,6 @@
 
 typedef int paging_flags_t;
 
-
 struct paging_region {
     lvaddr_t base_addr;
     lvaddr_t current_addr;
@@ -71,6 +70,10 @@ struct paging_state {
     struct mapping_table map_l0;
     struct slab_allocator mappings_alloc;
     bool mappings_alloc_is_refilling;
+
+    /// primitive address
+    /// \todo implement free here
+    lvaddr_t current_address;
 };
 
 
