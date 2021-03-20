@@ -53,6 +53,8 @@ errval_t mm_init(struct mm *mm, enum objtype objtype,
     mm->slot_alloc_inst = slot_alloc_inst;
     mm->initialized_slot = false;
     mm->refilling = false;
+    mm->stats_bytes_max = 0;
+    mm->stats_bytes_available = 0;
     return SYS_ERR_OK;
 }
 
@@ -170,6 +172,8 @@ errval_t mm_add(struct mm *mm, struct capref cap, genpaddr_t base, size_t size)
     };
     new_node->base = base;
     new_node->size = size;
+    mm->stats_bytes_available += size;
+    mm->stats_bytes_max += size;
 
     //DEBUG_PRINTF("memory region added!\n");
     return SYS_ERR_OK;
@@ -237,6 +241,7 @@ errval_t mm_alloc_aligned(struct mm *mm, size_t size, size_t alignment, struct c
             }
 
             node->type = NodeType_Allocated;
+            mm->stats_bytes_available -= node->size;
             goto ok_refill;
         }
         node = node->next;
@@ -313,6 +318,8 @@ errval_t mm_free(struct mm *mm, struct capref cap, genpaddr_t base, gensize_t si
                 DEBUG_ERR(err, "could not destroy ram cap");
                 return err;
             }
+
+            mm->stats_bytes_available += size;
 
             coalesce(mm, node);
             coalesce(mm, node->prev);
