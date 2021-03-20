@@ -314,6 +314,13 @@ errval_t mm_free(struct mm *mm, struct capref cap, genpaddr_t base, gensize_t si
         if (node->base == base && node->size == size) {
             node->type = NodeType_Free;
             errval_t err = cap_destroy(cap);
+            if (err_no(err) == LIB_ERR_WHILE_FREEING_SLOT) {
+                err = err_pop(err);
+                if (err_no(err) == LIB_ERR_SLOT_ALLOC_WRONG_CNODE) {
+                    err = mm_slot_free(mm, cap);
+                }
+            }
+
             if (err_is_fail(err)) {
                 DEBUG_ERR(err, "could not destroy ram cap");
                 return err;
@@ -329,6 +336,12 @@ errval_t mm_free(struct mm *mm, struct capref cap, genpaddr_t base, gensize_t si
         node = node->next;
     }
     return LIB_ERR_RAM_ALLOC_WRONG_SIZE;
+}
+
+
+errval_t mm_slot_free(struct mm *mm, struct capref cap)
+{
+    return slot_prealloc_free((struct slot_prealloc*) mm->slot_alloc_inst, cap);
 }
 
 

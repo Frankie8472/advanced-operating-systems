@@ -33,6 +33,13 @@ errval_t slot_refill_dynamic(void *inst);
 
 struct mm; // forward declaration
 
+/// list of capability slots
+struct cap_list {
+    size_t capacity;
+    size_t used;
+    struct capref *caps;
+};
+
 /// Instance data for pre-allocating slot allocator for 2 level cspace
 struct slot_prealloc {
     /// Metadata for next place from which to allocate slots
@@ -46,6 +53,9 @@ struct slot_prealloc {
 
     /// RAM allocator to allocate space for new cnodes
     struct mm *mm;
+
+    struct cap_list free_cap_list;
+    bool cap_list_overflowed;
 };
 
 /// Initialiser for the pre-allocating implementation
@@ -56,6 +66,9 @@ errval_t slot_prealloc_init(struct slot_prealloc *slot_alloc,
 /// Refill function for the pre-allocating implementation
 errval_t slot_prealloc_refill(void *inst);
 
+
+errval_t slot_prealloc_free(void *inst, struct capref ref);
+
 /// Instance data for simple base-cnode allocator
 struct slot_alloc_basecn {
     struct capref cap;          ///< Next cap to allocate
@@ -65,6 +78,13 @@ struct slot_alloc_basecn {
 /// Initialiser for the single-cnode implementation
 errval_t slot_alloc_basecn_init(struct slot_alloc_basecn *slot_alloc);
 
+
+
+void init_free_cap_list(struct cap_list *this, size_t capacity, void *buf);
+errval_t cap_list_insert(struct cap_list *this, struct capref cap);
+int cap_list_pop(struct cap_list *this, struct capref *cap);
+
 __END_DECLS
+
 
 #endif // MM_SLOT_ALLOC_H

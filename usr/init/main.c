@@ -72,6 +72,7 @@ __attribute__((unused)) static void many_allocs_and_frees(void)
 
 __attribute__((unused)) static void test_map_big(lvaddr_t base, size_t size)
 {
+    printf("mapping big: 0x%lx\n", size);
     struct capref my_frame;
     size_t f_size;
     frame_alloc(&my_frame, size, &f_size);
@@ -79,6 +80,7 @@ __attribute__((unused)) static void test_map_big(lvaddr_t base, size_t size)
     lvaddr_t addr = base;
     paging_map_fixed_attr(get_current_paging_state(), addr, my_frame, size, VREGION_FLAGS_READ_WRITE);
 
+    printf("mapped big: 0x%lx\n", size);
     long* pointer = (long*) addr;
     for (int i = 0; i < size / sizeof(long); i++) {
         pointer[i] = i;
@@ -94,7 +96,7 @@ __attribute__((unused)) static void test_map_big(lvaddr_t base, size_t size)
 __attribute__((unused)) static void test_big_mappings(void)
 {
     lvaddr_t base = VADDR_OFFSET + 0x10000000UL;
-    for (int i = 1; i < 35; i++) {
+    for (int i = 1; i < 120; i++) {
         test_map_big(base + 0x40000000UL * i, i * BASE_PAGE_SIZE);
     }
 }
@@ -113,9 +115,9 @@ __attribute__((unused)) static void test(void)
     // begin experiment
     printf("start experiment!\n");
     //test_align();
-    many_allocs_and_frees();
+    //many_allocs_and_frees();
     //test_free_coalesce();
-    //test_big_mappings();
+    test_big_mappings();
 
     struct capref my_frame;
     size_t f_size;

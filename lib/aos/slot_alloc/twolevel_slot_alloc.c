@@ -42,6 +42,11 @@ errval_t two_level_alloc(struct slot_allocator *ca, struct capref *ret)
         }
         //prev = walk;
         walk = walk->next;
+
+        if (walk == mca->head) {
+            debug_printf("walk\n");
+            break;
+        }
     }
     if (err_is_fail(err)) {
         thread_mutex_unlock(&ca->mutex);

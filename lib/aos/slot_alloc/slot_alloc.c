@@ -20,6 +20,7 @@
 #include <aos/aos.h>
 #include <aos/core_state.h>
 #include <aos/caddr.h>
+#include <mm/mm.h>
 #include "internal.h"
 
 
@@ -150,6 +151,7 @@ errval_t root_slot_allocator_refill(cn_ram_alloc_func_t myalloc, void *allocst)
  */
 errval_t slot_free(struct capref ret)
 {
+    debug_printf("freeing slot: %d, %d\n", ret.cnode.cnode, ret.slot);
     struct slot_alloc_state *state = get_slot_alloc_state();
 
     if (cnodecmp(ret.cnode, cnode_base)) { // Detect frees in basecn
@@ -163,9 +165,10 @@ errval_t slot_free(struct capref ret)
 
     struct slot_allocator *ca = (struct slot_allocator*)(&state->defca);
     errval_t err = ca->free(ca, ret);
-    // XXX: Detect frees in special case of init and mem_serv
+
+    // Detect frees in special case of init and mem_serv
     if (err_no(err) == LIB_ERR_SLOT_ALLOC_WRONG_CNODE) {
-        return SYS_ERR_OK;
+        return err;
     }
     return err;
 }
