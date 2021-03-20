@@ -209,7 +209,7 @@ bsp_main(int argc, char *argv[]) {
 
     // TODO: initialize mem allocator, vspace management here
 
-    test();
+    //test();
 
     // Grading
     grading_test_early();
