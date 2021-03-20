@@ -115,7 +115,10 @@ errval_t paging_init_state_foreign(struct paging_state *st, lvaddr_t start_vaddr
     // TODO (M2): Implement state struct initialization
     // TODO (M4): Implement page fault handler that installs frames when a page fault
     // occurs and keeps track of the virtual address space.
-    return LIB_ERR_NOT_IMPLEMENTED;
+    st->current_address = start_vaddr;
+    st->map_l0.pt_cap = pdir;
+    st->slot_alloc = ca;
+    return SYS_ERR_OK;
 }
 
 /**
@@ -309,7 +312,6 @@ errval_t paging_alloc(struct paging_state *st, void **buf, size_t bytes, size_t 
 errval_t paging_map_frame_attr(struct paging_state *st, void **buf, size_t bytes,
                                struct capref frame, int flags, void *arg1, void *arg2)
 {
-
     // TODO(M2): Implement me
     // - Call paging_alloc to get a free virtual address region of the requested size
     // - Map the user provided frame at the free virtual address
