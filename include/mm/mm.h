@@ -82,6 +82,8 @@ errval_t mm_free(struct mm *mm, struct capref cap, genpaddr_t base, gensize_t si
 void mm_dump_mmnodes(struct mm *mm);
 void mm_destroy(struct mm *mm);
 
+errval_t mm_slot_free(struct mm *mm, struct capref cap);
+
 
 void print_mm_state(struct mm *mm);
 

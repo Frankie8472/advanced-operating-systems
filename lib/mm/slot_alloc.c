@@ -83,10 +83,29 @@ out:
     return err;
 }
 
+
+errval_t slot_prealloc_free(void *inst, struct capref ref)
+{
+    //return SYS_ERR_OK;
+    struct slot_prealloc *this = inst;
+    errval_t err = cap_list_insert(&this->free_cap_list, ref);
+    if (err_is_fail(err)) {
+        this->cap_list_overflowed = true;
+    }
+    return SYS_ERR_OK;
+}
+
+
 errval_t slot_alloc_prealloc(void *inst, uint64_t nslots, struct capref *ret)
 {
     struct slot_prealloc *this = inst;
     assert(nslots < L2_CNODE_SLOTS);
+
+    if (nslots == 1) {
+        if (cap_list_pop(&this->free_cap_list, ret)) {
+            return SYS_ERR_OK;
+        }
+    }
 
     /* Check if enough space */
     if (this->meta[this->current].free < nslots) {
@@ -111,6 +130,7 @@ errval_t slot_alloc_prealloc(void *inst, uint64_t nslots, struct capref *ret)
 
     return SYS_ERR_OK;
 }
+
 
 /**
  * \brief Initialise preallocating slot allocator instance
@@ -137,6 +157,10 @@ errval_t slot_prealloc_init(struct slot_prealloc *this,
     this->meta[0].cap       = initial_cnode;
     this->meta[0].free      = initial_space;
     this->meta[1].free      = 0;
+
+    this->cap_list_overflowed = false;
+    static struct capref static_cap_list[64];
+    init_free_cap_list(&this->free_cap_list, 64, &static_cap_list);
 
     return SYS_ERR_OK;
 }
@@ -204,4 +228,38 @@ errval_t slot_alloc_dynamic(void *alloc, uint64_t nslots, struct capref *ret)
 errval_t slot_refill_dynamic(void *alloc)
 {
     return range_slot_alloc_refill(alloc, L2_CNODE_SLOTS);
+}
+
+
+void init_free_cap_list(struct cap_list *this, size_t capacity, void *buf)
+{
+    this->capacity = capacity;
+    this->used = 0;
+    this->caps = buf;
+}
+
+
+errval_t cap_list_insert(struct cap_list *this, struct capref cap)
+{
+    if (this->used + 1 <= this->capacity) {
+        this->caps[this->used] = cap;
+        this->used++;
+        return SYS_ERR_OK;
+    }
+    else {
+        return LIB_ERR_SLOT_ALLOC;
+    }
+}
+
+
+int cap_list_pop(struct cap_list *this, struct capref *cap)
+{
+    if (this->used > 0) {
+        this->used--;
+        *cap = this->caps[this->used];
+        return 1;
+    }
+    else {
+        return 0;
+    }
 }

@@ -33,13 +33,14 @@ static errval_t pt_alloc(struct paging_state * st, enum objtype type,
                          struct capref *ret) 
 {
     errval_t err;
+    //err = slot_alloc(ret);
     err = st->slot_alloc->alloc(st->slot_alloc, ret);
     if (err_is_fail(err)) {
         debug_printf("slot_alloc failed: %s\n", err_getstring(err));
         return err;
     }
     err = vnode_create(*ret, type);
-    if (err_is_fail(err)) {
+    if (err_is_fail(err) && err_no(err) != LIB_ERR_CAP_DESTROY) {
         debug_printf("vnode_create failed: %s\n", err_getstring(err));
         return err;
     }
@@ -288,8 +289,22 @@ errval_t paging_map_frame_attr(struct paging_state *st, void **buf, size_t bytes
 errval_t slab_refill_no_pagefault(struct slab_allocator *slabs, struct capref frame,
                                   size_t minbytes)
 {
-    // Refill the two-level slot allocator without causing a page-fault
-    return LIB_ERR_NOT_IMPLEMENTED;
+
+    const size_t bytes = ROUND_UP(minbytes, BASE_PAGE_SIZE);
+    struct capref fr;
+    size_t size;
+    frame_alloc(&fr, bytes, &size);
+    static lvaddr_t addr = VADDR_OFFSET + 0x70000000UL; // we just assume that we can do this
+    // TODO: as soon as we have usable virtual memory allocation, replace this lottery
+    errval_t err = paging_map_fixed(get_current_paging_state(), addr, fr, bytes);
+    
+    if (err_is_fail(err)) {
+        DEBUG_ERR(err, "error refilling slab allocator");
+        return err;
+    }
+    slab_grow(slabs, (void*) addr, size);
+    addr += bytes;
+    return SYS_ERR_OK;
 }
 
 static errval_t slab_big_refill(struct paging_state *st, struct slab_allocator *slabs)
