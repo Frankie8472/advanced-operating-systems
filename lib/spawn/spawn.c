@@ -121,6 +121,21 @@ errval_t spawn_load_argv(int argc, char *argv[], struct spawninfo *si,
         return err_push(err, SPAWN_ERR_CREATE_PAGECN);
     }
 
+    for (int i = 0; i < 256; i++) {
+        struct capref counter = (struct capref) {
+            .cnode = basepagecn,
+            .slot = i
+        };
+        struct capref ram;
+        err = ram_alloc(&ram, BASE_PAGE_SIZE);
+        if (err_is_fail(err)) {
+            HERE;
+            return err_push(err, SPAWN_ERR_FILL_SMALLCN);
+        }
+        err = cap_copy(counter, ram);
+        if (err_is_fail(err)) { HERE; return err; }
+    }
+
     err = cnode_create_foreign_l2(cnode_child_l1, ROOTCN_SLOT_PAGECN, &pagecn);
     if (err_is_fail(err)) {
         HERE;
@@ -251,13 +266,13 @@ errval_t spawn_load_argv(int argc, char *argv[], struct spawninfo *si,
     char* argv_ptr = arg_ptr + sizeof(struct spawn_domain_params);
     for (int i = 0; i < argc; i++) {
         size_t len = strlen(argv[i]);
-        if (argv_ptr + len > ((char*)arg_ptr) + BASE_PAGE_SIZE) {
+        if (argv_ptr + len + 8 > ((char*)arg_ptr) + BASE_PAGE_SIZE) {
             return SPAWN_ERR_ARGSPG_OVERFLOW;
         }
-        memcpy(argv_ptr, argv[i], len);
+        memcpy(argv_ptr, argv[i], len + 1);
         sdp->argv[i] = (const char*) child_argv_ptr;
-        argv_ptr += len;
-        child_argv_ptr += len;
+        argv_ptr += len + 1;
+        child_argv_ptr += len + 1;
     }
 
     genvaddr_t retentry;
@@ -265,8 +280,6 @@ errval_t spawn_load_argv(int argc, char *argv[], struct spawninfo *si,
 
     struct Elf64_Shdr* got = elf64_find_section_header_name(si->mapped_elf, si->mapped_elf_size, ".got");
     lvaddr_t got_base_address_in_childs_vspace = got->sh_addr;
-
-    got_base_address_in_childs_vspace = got_base_address_in_childs_vspace; // use variable
 
     /* DEBUG_PRINTF("cnode_child_l2 slot is: %d", cnode_child_l2.slot); */
 
@@ -303,7 +316,7 @@ errval_t spawn_load_argv(int argc, char *argv[], struct spawninfo *si,
     disp_gen->core_id = disp_get_core_id(); // core id of the process
     disp->udisp = dispaddr; // Virtual address of the dispatcher frame in child’s VSpace
     disp->disabled = 1;// Start in disabled mode
-    strncpy(disp->name, "hello world!", DISP_NAME_LEN); // A name (for debugging)
+    strncpy(disp->name, "hello_world", DISP_NAME_LEN); // A name (for debugging)
     disabled_area->named.pc = retentry; // Set program counter (where it should start to execute)
     // Initialize offset registers
     // got_addr is the address of the .got in the child’s VSpace
@@ -328,8 +341,15 @@ errval_t spawn_load_argv(int argc, char *argv[], struct spawninfo *si,
         HERE;
         return err;
     }
-
+    
     dump_dispatcher(disp);
+
+    /*err = invoke_dispatcher(si->dispatcher, NULL_CAP, NULL_CAP, NULL_CAP, NULL_CAP, true);
+    if (err_is_fail(err)) {
+        HERE;
+        return err;
+    }
+    dump_dispatcher(disp);*/
     return SYS_ERR_OK;
 }
 
