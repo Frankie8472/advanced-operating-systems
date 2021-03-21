@@ -124,20 +124,20 @@ __attribute__((unused)) static void test_align(void)
 
 
 __attribute__((unused)) static void test_spawn_load_argv(void){
-  //=============SPAWN PROCESS HELLO==================//
-  errval_t err;
-  printf("Trying to spawn process hello\n" );
-  char* p_argv [1];
-  p_argv[0] = "hello";
-  struct spawninfo si;
-  domainid_t pid;
-  //err = spawn_load_by_name(1,p_argv,&si,&pid);
-  err = spawn_load_by_name("hello",&si,&pid);
-  if(err_is_fail(err)){
-    DEBUG_ERR(err, "spawn loading failed");
-  }
+    //=============SPAWN PROCESS HELLO==================//
+    errval_t err;
+    printf("Trying to spawn process hello\n" );
+    char* p_argv[1];
+    p_argv[0] = "hello";
+    struct spawninfo si;
+    domainid_t pid;
+    //err = spawn_load_by_name(1,p_argv,&si,&pid);
+    err = spawn_load_by_name("hello", &si, &pid);
+    if(err_is_fail(err)){
+        DEBUG_ERR(err, "spawn loading failed");
+    }
 
-  //===========================================//
+    //===========================================//
 
 }
 

@@ -32,6 +32,8 @@ struct spawninfo {
 
     struct paging_state ps;
 
+    struct capref dispatcher;
+
     // TODO(M2): Add fields you need to store state
     //           when spawning a new dispatcher,
     //           e.g. references to the child's
