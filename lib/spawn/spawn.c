@@ -184,7 +184,7 @@ errval_t spawn_load_argv(int argc, char *argv[], struct spawninfo *si,
         return err_push(err, SPAWN_ERR_COPY_MODULECN);
     }
     
-    err = frame_create(child_dispframe, BASE_PAGE_SIZE, NULL);
+    err = frame_create(child_dispframe, DISPATCHER_FRAME_SIZE, NULL);
     if (err_is_fail(err)) {
         HERE;
         return err_push(err, SPAWN_ERR_CREATE_DISPATCHER_FRAME);
@@ -243,6 +243,13 @@ errval_t spawn_load_argv(int argc, char *argv[], struct spawninfo *si,
     struct capref dispatcher;
     slot_alloc(&dispatcher);
     cap_copy(dispatcher, child_dispatcher);
+
+    paging_map_fixed_attr(&si->ps, 0x23423423424UL, child_dispframe, DISPATCHER_FRAME_SIZE, VREGION_FLAGS_READ_WRITE);
+
+    struct capref dispframe;
+    slot_alloc(&dispframe);
+    cap_copy(dispframe, child_dispframe);
+    paging_map_fixed_attr(get_current_paging_state(), 0x23423423424UL, dispframe, DISPATCHER_FRAME_SIZE, VREGION_FLAGS_READ_WRITE);
 
     return SYS_ERR_OK;
 }
