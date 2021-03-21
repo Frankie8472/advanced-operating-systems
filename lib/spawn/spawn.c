@@ -9,6 +9,7 @@
 #include <aos/lmp_chan.h>
 #include <aos/aos_rpc.h>
 #include <barrelfish_kpi/paging_arm_v8.h>
+#include <target/aarch64/aos/dispatcher_target.h>
 #include <barrelfish_kpi/domain_params.h>
 #include <spawn/multiboot.h>
 #include <spawn/argv.h>
@@ -234,24 +235,21 @@ errval_t spawn_load_argv(int argc, char *argv[], struct spawninfo *si,
     paging_init_state_foreign(&si->ps, VADDR_OFFSET, l0_vnode, get_default_slot_allocator());
 
     struct capref argframe;
-    err = slot_alloc(&argframe);
-    if (err_is_fail(err)) { HERE; return err; }
-
-    err = frame_create(child_argspage, BASE_PAGE_SIZE, NULL);
+    err = frame_alloc(&argframe, BASE_PAGE_SIZE, NULL);
     if (err_is_fail(err)) {
         HERE;
         return err_push(err, SPAWN_ERR_CREATE_ARGSPG);
     }
-    err = cap_copy(argframe, child_argspage);
+    err = cap_copy(child_argspage, argframe);
     if (err_is_fail(err)) { HERE; return err; }
 
-    // TODO: organize vspace
     void* arg_ptr;
     err = paging_map_frame_complete(get_current_paging_state(), &arg_ptr, argframe, NULL, NULL);
     if (err_is_fail(err)) {
         HERE;
         return err_push(err, SPAWN_ERR_MAP_ARGSPG_TO_SELF);
     }
+    // TODO: organize vspace
     lvaddr_t child_arg_ptr = 0x500000UL * 0x1000;
     err = paging_map_fixed_attr(&si->ps, child_arg_ptr, argframe, BASE_PAGE_SIZE, VREGION_FLAGS_READ_WRITE);
     if (err_is_fail(err)) {
@@ -266,7 +264,7 @@ errval_t spawn_load_argv(int argc, char *argv[], struct spawninfo *si,
     char* argv_ptr = arg_ptr + sizeof(struct spawn_domain_params);
     for (int i = 0; i < argc; i++) {
         size_t len = strlen(argv[i]);
-        if (argv_ptr + len + 8 > ((char*)arg_ptr) + BASE_PAGE_SIZE) {
+        if (argv_ptr + len + 1 > ((char*) arg_ptr) + BASE_PAGE_SIZE) {
             return SPAWN_ERR_ARGSPG_OVERFLOW;
         }
         memcpy(argv_ptr, argv[i], len + 1);
@@ -276,12 +274,16 @@ errval_t spawn_load_argv(int argc, char *argv[], struct spawninfo *si,
     }
 
     genvaddr_t retentry;
-    elf_load(EM_AARCH64, &allocate_elf_memory, &si->ps, si->mapped_elf, si->mapped_elf_size, &retentry);
+    err = elf_load(EM_AARCH64, &allocate_elf_memory, &si->ps, si->mapped_elf, si->mapped_elf_size, &retentry);
+    if (err_is_fail(err)) {
+        return err_push(err, SPAWN_ERR_LOAD);
+    }
 
-    struct Elf64_Shdr* got = elf64_find_section_header_name(si->mapped_elf, si->mapped_elf_size, ".got");
+    struct Elf64_Shdr *got = elf64_find_section_header_name(si->mapped_elf, si->mapped_elf_size, ".got");
+    debug_printf("0x%lx -> 0x%lx\n", si->mapped_elf, si->mapped_elf_size);
     lvaddr_t got_base_address_in_childs_vspace = got->sh_addr;
-
-    /* DEBUG_PRINTF("cnode_child_l2 slot is: %d", cnode_child_l2.slot); */
+    debug_printf("possible 0x%lx\n", got_base_address_in_childs_vspace);
+    //lvaddr_t got_base_offset = got->sh_addr - si->mapped_elf;
 
     struct capref dispframe;
     err = slot_alloc(&dispframe);
@@ -292,21 +294,26 @@ errval_t spawn_load_argv(int argc, char *argv[], struct spawninfo *si,
         return err_push(err, SPAWN_ERR_COPY_KERNEL_CAP);
     }
 
-    uint64_t dispaddr = 0x612345 * DISPATCHER_FRAME_SIZE;
+    uint64_t dispaddr = ROUND_UP(si->mapped_elf + si->mapped_elf_size, DISPATCHER_FRAME_SIZE);//0x612345 * DISPATCHER_FRAME_SIZE;
 
-    err = paging_map_fixed_attr(&si->ps, dispaddr, dispframe, DISPATCHER_FRAME_SIZE, VREGION_FLAGS_READ_WRITE_NOCACHE);
+    err = paging_map_fixed_attr(&si->ps, dispaddr, dispframe, DISPATCHER_FRAME_SIZE, VREGION_FLAGS_READ_WRITE);
 
     if (err_is_fail(err)) {
         HERE;
         return err_push(err, SPAWN_ERR_MAP_DISPATCHER_TO_NEW);
     }
-    err = paging_map_fixed_attr(get_current_paging_state(), dispaddr, dispframe, DISPATCHER_FRAME_SIZE, VREGION_FLAGS_READ_WRITE_NOCACHE);
+
+    void* dispaddr_init;
+    err = paging_map_frame(get_current_paging_state(), &dispaddr_init, DISPATCHER_FRAME_SIZE, dispframe, NULL, NULL);
     if (err_is_fail(err)) {
         HERE;
         return err_push(err, SPAWN_ERR_MAP_DISPATCHER_TO_SELF);
     }
-    dispatcher_handle_t handle = dispaddr;
+    memset(dispaddr_init, 0, DISPATCHER_FRAME_SIZE);
+
+    dispatcher_handle_t handle = (dispatcher_handle_t) dispaddr_init;
     struct dispatcher_shared_generic *disp = get_dispatcher_shared_generic(handle);
+    //struct dispatcher_aarch64 *disp_aarch64 = (struct dispatcher_aarch64*)handle;
     struct dispatcher_generic *disp_gen = get_dispatcher_generic(handle);
     arch_registers_state_t *enabled_area = dispatcher_get_enabled_save_area(handle);
     arch_registers_state_t *disabled_area = dispatcher_get_disabled_save_area(handle);
@@ -314,6 +321,7 @@ errval_t spawn_load_argv(int argc, char *argv[], struct spawninfo *si,
     registers_set_param(enabled_area, child_arg_ptr);
 
     disp_gen->core_id = disp_get_core_id(); // core id of the process
+    //disp_aarch64->generic.current;
     disp->udisp = dispaddr; // Virtual address of the dispatcher frame in child’s VSpace
     disp->disabled = 1;// Start in disabled mode
     strncpy(disp->name, "hello_world", DISP_NAME_LEN); // A name (for debugging)
@@ -342,7 +350,7 @@ errval_t spawn_load_argv(int argc, char *argv[], struct spawninfo *si,
         return err;
     }
     
-    dump_dispatcher(disp);
+    //dump_dispatcher(disp);
 
     /*err = invoke_dispatcher(si->dispatcher, NULL_CAP, NULL_CAP, NULL_CAP, NULL_CAP, true);
     if (err_is_fail(err)) {
@@ -357,6 +365,8 @@ errval_t spawn_load_argv(int argc, char *argv[], struct spawninfo *si,
 errval_t allocate_elf_memory(void* state, genvaddr_t base, size_t size, uint32_t flags, void **ret)
 {
     struct paging_state *st = (struct paging_state*) state;
+
+    debug_printf("ALLOC ELF STUFF: 0x%lx -> 0x%lx\n", base, base + size);
 
     errval_t err = SYS_ERR_OK;
     struct capref frame;
@@ -424,7 +434,7 @@ errval_t spawn_load_by_name(char *binary_name, struct spawninfo * si,
                           mapping_size, child_frame, VREGION_FLAGS_READ_WRITE, NULL, NULL);
 
     si->mapped_elf = (lvaddr_t) elf_address;
-    si->mapped_elf_size = (size_t) mapping_size;
+    si->mapped_elf_size = (size_t) mem_region->mrmod_size;
     debug_printf("ELF address = %lx\n", elf_address);
     debug_printf("%x, '%c', '%c', '%c'\n", elf_address[0], elf_address[1], elf_address[2], elf_address[3]);
     debug_printf("BOI\n");
