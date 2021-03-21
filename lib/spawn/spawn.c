@@ -132,21 +132,24 @@ errval_t spawn_load_by_name(char *binary_name, struct spawninfo * si,
 
     //TODO: is  bi correctly initialized by the init/usr/main.c
     struct mem_region* mem_region = multiboot_find_module(bi,binary_name);
+    
     //this mem_region should be of type module
-    assert(mem_region -> mr_type == RegionType_Module);
+    assert(mem_region->mr_type == RegionType_Module);
     struct capability cap;
     struct capref child_frame = {
       .cnode = cnode_module,
       .slot = mem_region -> mrmod_slot
     };
-    err = invoke_cap_identify(child_frame,&cap);
+
+    err = invoke_cap_identify(child_frame, &cap);
     if(err_is_fail(err)){
       return err;
     }
-    char* elf_address;
 
+    size_t mapping_size = get_size(&cap);
+    char* elf_address;
     paging_map_frame_attr(get_current_paging_state(), (void **) &elf_address,
-                          4096, child_frame, VREGION_FLAGS_READ_WRITE, NULL, NULL);
+                          mapping_size, child_frame, VREGION_FLAGS_READ_WRITE, NULL, NULL);
 
     debug_printf("ELF address = %lx\n", elf_address);
     debug_printf("%x ", elf_address[0]);
