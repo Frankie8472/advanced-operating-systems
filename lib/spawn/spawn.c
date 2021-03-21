@@ -191,60 +191,36 @@ errval_t spawn_load_argv(int argc, char *argv[], struct spawninfo *si,
     }
 
 
-    struct capref child_vnodecap = (struct capref) {
+    // ===========================================
+    // create l0 vnode and initialize paging state
+    // ===========================================
+    struct capref child_l0_vnodecap = (struct capref) {
         .cnode = pagecn,
         .slot = 0
     };
+    struct capref l0_vnode;
 
-    enum objtype vnode_types[4] = {
-        ObjType_VNode_AARCH64_l0,
-        ObjType_VNode_AARCH64_l1,
-        ObjType_VNode_AARCH64_l2,
-        ObjType_VNode_AARCH64_l3,
-    };
-    struct capref vnodes[4];
-
-
-    for (int i = 0; i < 1; i++) {
-        err = slot_alloc(&vnodes[i]);
-        if (err_is_fail(err)) {
-            HERE;
-            return err;
-        }
-        err = vnode_create(child_vnodecap, vnode_types[i]);
-        if (err_is_fail(err)) {
-            HERE;
-            return err_push(err, SPAWN_ERR_CREATE_VNODE);
-        }
-        err = cap_copy(vnodes[i], child_vnodecap);
-        if (err_is_fail(err)) {
-            HERE;
-            return err_push(err, SPAWN_ERR_COPY_VNODE);
-        }
-        child_vnodecap.slot++;
+    err = slot_alloc(&l0_vnode);
+    if (err_is_fail(err)) {
+        HERE;
+        return err;
+    }
+    err = vnode_create(child_l0_vnodecap, ObjType_VNode_AARCH64_l0);
+    if (err_is_fail(err)) {
+        HERE;
+        return err_push(err, SPAWN_ERR_CREATE_VNODE);
+    }
+    err = cap_copy(l0_vnode, child_l0_vnodecap);
+    if (err_is_fail(err)) {
+        HERE;
+        return err_push(err, SPAWN_ERR_COPY_VNODE);
     }
 
-    paging_init_state_foreign(&si->ps, VADDR_OFFSET, vnodes[0], get_default_slot_allocator());
-
-    /*struct capref mappings[3];
-    for (int i = 0; i < 3; i++) {
-        err = slot_alloc(&mappings[i]);
-        if (err_is_fail(err)) {
-            HERE; return err;
-        }
-        err = vnode_map(vnodes[i], vnodes[i + 1], 0, VREGION_FLAGS_READ, 0, 1, mappings[i]);
-        if (err_is_fail(err)) {
-            HERE;
-            return err_push(err, SPAWN_ERR_VSPACE_MAP);
-        }
-    }*/
+    paging_init_state_foreign(&si->ps, VADDR_OFFSET, l0_vnode, get_default_slot_allocator());
 
     struct capref argframe;
-    //struct capref argframe_mapping;
     err = slot_alloc(&argframe);
     if (err_is_fail(err)) { HERE; return err; }
-    //err = slot_alloc(&argframe_mapping);
-    //if (err_is_fail(err)) { HERE; return err; }
 
     err = frame_create(argframe, BASE_PAGE_SIZE, NULL);
     if (err_is_fail(err)) {
@@ -254,21 +230,19 @@ errval_t spawn_load_argv(int argc, char *argv[], struct spawninfo *si,
 
     paging_map_fixed_attr(&si->ps, 0x500000UL * 0x1000, argframe, BASE_PAGE_SIZE, VREGION_FLAGS_READ_WRITE);
 
-    /*err = vnode_map(vnodes[3], argframe, 1, VREGION_FLAGS_READ_WRITE, 0, 1, argframe_mapping);
-    if (err_is_fail(err)) {
-        HERE;
-        return err_push(err, SPAWN_ERR_MAP_ARGSPG_TO_NEW);
-    }*/
-
-    struct Elf64_Ehdr *head = (struct Elf64_Ehdr *) si->mapped_elf;
-    debug_printf("is elf: %d\n",  IS_ELF(*head));
-
     genvaddr_t retentry;
     elf_load(EM_AARCH64, &allocate_elf_memory, &si->ps, si->mapped_elf, si->mapped_elf_size, &retentry);
 
+    struct Elf64_Shdr* got = elf64_find_section_header_name(si->mapped_elf, si->mapped_elf_size, ".got");
+    lvaddr_t got_base_address_in_childs_vspace = got->sh_addr;
+
+    got_base_address_in_childs_vspace = got_base_address_in_childs_vspace; // use variable
 
     /* DEBUG_PRINTF("cnode_child_l2 slot is: %d", cnode_child_l2.slot); */
 
+    struct capref dispatcher;
+    slot_alloc(&dispatcher);
+    cap_copy(dispatcher, child_dispatcher);
 
     return SYS_ERR_OK;
 }
@@ -346,10 +320,7 @@ errval_t spawn_load_by_name(char *binary_name, struct spawninfo * si,
     si->mapped_elf = (lvaddr_t) elf_address;
     si->mapped_elf_size = (size_t) mapping_size;
     debug_printf("ELF address = %lx\n", elf_address);
-    debug_printf("%x ", elf_address[0]);
-    for (int i = 1; i < 4; ++i) {
-        debug_printf("%c ", elf_address[i]);
-    }
+    debug_printf("%x, '%c', '%c', '%c'\n", elf_address[0], elf_address[1], elf_address[2], elf_address[3]);
     debug_printf("BOI\n");
 
     char *argv[1] = { binary_name };
