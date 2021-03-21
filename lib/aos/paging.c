@@ -405,8 +405,8 @@ static errval_t paging_map_fixed_attr_with_offset(struct paging_state *st, lvadd
      * TODO(M2): General case
      */
 
-    // only able to map whole pages
-    assert(bytes % BASE_PAGE_SIZE == 0);
+    // only able to map whole pages, round up to next page boundary
+    bytes = ROUND_UP(bytes, BASE_PAGE_SIZE);
 
     // offset into frames must be page-aligned
     assert(offset % BASE_PAGE_SIZE == 0);

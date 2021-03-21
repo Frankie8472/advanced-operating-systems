@@ -87,15 +87,15 @@ errval_t spawn_load_argv(int argc, char *argv[], struct spawninfo *si,
     DEBUG_PRINTF("Spawning process: %s",name);
     err = spawn_load_by_name(name,si,pid);
     if(err_is_fail(err)){
-      return err;
+        return err;
     }
 
     struct capref cnode_child_l1;
     struct cnoderef child_ref;
     err = cnode_create_l1(&cnode_child_l1, &child_ref);
     if (err_is_fail(err)) {
-      /* HERE; */
-      return err_push(err, SPAWN_ERR_CREATE_ROOTCN);
+        /* HERE; */
+        return err_push(err, SPAWN_ERR_CREATE_ROOTCN);
     }
 
     DEBUG_PRINTF("cnode_child_l1 slot is: %d\n", cnode_child_l1.slot);
@@ -137,13 +137,13 @@ errval_t spawn_load_by_name(char *binary_name, struct spawninfo * si,
     assert(mem_region->mr_type == RegionType_Module);
     struct capability cap;
     struct capref child_frame = {
-      .cnode = cnode_module,
-      .slot = mem_region -> mrmod_slot
+        .cnode = cnode_module,
+        .slot = mem_region -> mrmod_slot
     };
 
     err = invoke_cap_identify(child_frame, &cap);
     if(err_is_fail(err)){
-      return err;
+        return err;
     }
 
     size_t mapping_size = get_size(&cap);
@@ -154,7 +154,7 @@ errval_t spawn_load_by_name(char *binary_name, struct spawninfo * si,
     debug_printf("ELF address = %lx\n", elf_address);
     debug_printf("%x ", elf_address[0]);
     for(int i = 1; i < 4; ++i){
-      debug_printf("%c ", elf_address[i]);
+        debug_printf("%c ", elf_address[i]);
     }
     debug_printf("BOI\n");
     return err;
