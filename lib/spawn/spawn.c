@@ -84,31 +84,223 @@ errval_t spawn_load_argv(int argc, char *argv[], struct spawninfo *si,
     // - Make the new dispatcher runnable
     errval_t err;
     char* name = argv[0];
-    DEBUG_PRINTF("Spawning process: %s",name);
-    err = spawn_load_by_name(name,si,pid);
-    if(err_is_fail(err)){
+    DEBUG_PRINTF("Spawning process: %s\n", name);
+    /*err = spawn_load_by_name(name, si, pid);
+    if (err_is_fail(err)){
         return err;
-    }
+    }*/
+
 
     struct capref cnode_child_l1;
     struct cnoderef child_ref;
     err = cnode_create_l1(&cnode_child_l1, &child_ref);
     if (err_is_fail(err)) {
-        /* HERE; */
+        HERE;
         return err_push(err, SPAWN_ERR_CREATE_ROOTCN);
     }
 
     DEBUG_PRINTF("cnode_child_l1 slot is: %d\n", cnode_child_l1.slot);
 
-    /* struct cnoderef cnode_child_l2; */
-    /* err = cnode_create_foreign_l2(cnode_child_l1, cnode_child_l1.slot, &cnode_child_l2); */
-    HERE;
+    struct cnoderef taskcn;
+    struct cnoderef basepagecn;
+    struct cnoderef pagecn;
+    
+    struct cnoderef alloc0;
+    struct cnoderef alloc1;
+    struct cnoderef alloc2;
+    
+    err = cnode_create_foreign_l2(cnode_child_l1, ROOTCN_SLOT_TASKCN, &taskcn);
+    if (err_is_fail(err)) {
+        HERE;
+        return err_push(err, SPAWN_ERR_CREATE_TASKCN);
+    }
+
+    err = cnode_create_foreign_l2(cnode_child_l1, ROOTCN_SLOT_BASE_PAGE_CN, &basepagecn);
+    if (err_is_fail(err)) {
+        HERE;
+        return err_push(err, SPAWN_ERR_CREATE_PAGECN);
+    }
+
+    err = cnode_create_foreign_l2(cnode_child_l1, ROOTCN_SLOT_PAGECN, &pagecn);
+    if (err_is_fail(err)) {
+        HERE;
+        return err_push(err, SPAWN_ERR_CREATE_PAGECN);
+    }
+
+    err = cnode_create_foreign_l2(cnode_child_l1, ROOTCN_SLOT_SLOT_ALLOC0, &alloc0);
+    if (err_is_fail(err)) {
+        HERE;
+        return err_push(err, SPAWN_ERR_CREATE_SLOTALLOC_CNODE);
+    }
+
+    err = cnode_create_foreign_l2(cnode_child_l1, ROOTCN_SLOT_SLOT_ALLOC1, &alloc1);
+    if (err_is_fail(err)) {
+        HERE;
+        return err_push(err, SPAWN_ERR_CREATE_SLOTALLOC_CNODE);
+    }
+
+    err = cnode_create_foreign_l2(cnode_child_l1, ROOTCN_SLOT_SLOT_ALLOC2, &alloc2);
+    if (err_is_fail(err)) {
+        HERE;
+        return err_push(err, SPAWN_ERR_CREATE_SLOTALLOC_CNODE);
+    }
+
+    struct capref child_selfep = (struct capref) {
+        .cnode = taskcn,
+        .slot = TASKCN_SLOT_SELFEP
+    };
+    struct capref child_dispatcher = (struct capref) {
+        .cnode = taskcn,
+        .slot = TASKCN_SLOT_DISPATCHER
+    };
+    struct capref child_rootcn = (struct capref) {
+        .cnode = taskcn,
+        .slot = TASKCN_SLOT_ROOTCN
+    };
+    struct capref child_dispframe = (struct capref) {
+        .cnode = taskcn,
+        .slot = TASKCN_SLOT_DISPFRAME
+    };
+    /*struct capref child_argspage = (struct capref) {
+        .cnode = taskcn,
+        .slot = TASKCN_SLOT_ARGSPAGE
+    };*/
+
+    err = dispatcher_create(child_dispatcher);
+    if (err_is_fail(err)) {
+        HERE;
+        return err_push(err, SPAWN_ERR_CREATE_DISPATCHER);
+    }
+
+    err = cap_retype(child_selfep, child_dispatcher, 0, ObjType_EndPointLMP, 0, 1);
+    if (err_is_fail(err)) {
+        HERE;
+        return err_push(err, SPAWN_ERR_CREATE_SELFEP);
+    }
+
+    err = cap_copy(child_rootcn, cnode_child_l1);
+    if (err_is_fail(err)) {
+        HERE;
+        return err_push(err, SPAWN_ERR_COPY_MODULECN);
+    }
+    
+    err = frame_create(child_dispframe, BASE_PAGE_SIZE, NULL);
+    if (err_is_fail(err)) {
+        HERE;
+        return err_push(err, SPAWN_ERR_CREATE_DISPATCHER_FRAME);
+    }
+
+
+    struct capref child_vnodecap = (struct capref) {
+        .cnode = pagecn,
+        .slot = 0
+    };
+
+    enum objtype vnode_types[4] = {
+        ObjType_VNode_AARCH64_l0,
+        ObjType_VNode_AARCH64_l1,
+        ObjType_VNode_AARCH64_l2,
+        ObjType_VNode_AARCH64_l3,
+    };
+    struct capref vnodes[4];
+
+
+    for (int i = 0; i < 1; i++) {
+        err = slot_alloc(&vnodes[i]);
+        if (err_is_fail(err)) {
+            HERE;
+            return err;
+        }
+        err = vnode_create(child_vnodecap, vnode_types[i]);
+        if (err_is_fail(err)) {
+            HERE;
+            return err_push(err, SPAWN_ERR_CREATE_VNODE);
+        }
+        err = cap_copy(vnodes[i], child_vnodecap);
+        if (err_is_fail(err)) {
+            HERE;
+            return err_push(err, SPAWN_ERR_COPY_VNODE);
+        }
+        child_vnodecap.slot++;
+    }
+
+    paging_init_state_foreign(&si->ps, VADDR_OFFSET, vnodes[0], get_default_slot_allocator());
+
+    /*struct capref mappings[3];
+    for (int i = 0; i < 3; i++) {
+        err = slot_alloc(&mappings[i]);
+        if (err_is_fail(err)) {
+            HERE; return err;
+        }
+        err = vnode_map(vnodes[i], vnodes[i + 1], 0, VREGION_FLAGS_READ, 0, 1, mappings[i]);
+        if (err_is_fail(err)) {
+            HERE;
+            return err_push(err, SPAWN_ERR_VSPACE_MAP);
+        }
+    }*/
+
+    struct capref argframe;
+    //struct capref argframe_mapping;
+    err = slot_alloc(&argframe);
+    if (err_is_fail(err)) { HERE; return err; }
+    //err = slot_alloc(&argframe_mapping);
+    //if (err_is_fail(err)) { HERE; return err; }
+
+    err = frame_create(argframe, BASE_PAGE_SIZE, NULL);
+    if (err_is_fail(err)) {
+        HERE;
+        return err_push(err, SPAWN_ERR_CREATE_ARGSPG);
+    }
+
+    paging_map_fixed_attr(&si->ps, 0x500000UL * 0x1000, argframe, BASE_PAGE_SIZE, VREGION_FLAGS_READ_WRITE);
+
+    /*err = vnode_map(vnodes[3], argframe, 1, VREGION_FLAGS_READ_WRITE, 0, 1, argframe_mapping);
+    if (err_is_fail(err)) {
+        HERE;
+        return err_push(err, SPAWN_ERR_MAP_ARGSPG_TO_NEW);
+    }*/
+
+    struct Elf64_Ehdr *head = (struct Elf64_Ehdr *) si->mapped_elf;
+    debug_printf("is elf: %d\n",  IS_ELF(*head));
+
+    genvaddr_t retentry;
+    elf_load(EM_AARCH64, &allocate_elf_memory, &si->ps, si->mapped_elf, si->mapped_elf_size, &retentry);
+
+
     /* DEBUG_PRINTF("cnode_child_l2 slot is: %d", cnode_child_l2.slot); */
 
 
-    return LIB_ERR_NOT_IMPLEMENTED;
+    return SYS_ERR_OK;
 }
 
+
+errval_t allocate_elf_memory(void* state, genvaddr_t base, size_t size, uint32_t flags, void **ret)
+{
+    struct paging_state *st = (struct paging_state*) state;
+
+    errval_t err = SYS_ERR_OK;
+    struct capref frame;
+    size_t actual_size;
+    err = frame_alloc(&frame, size, &actual_size);
+    if (err_is_fail(err)) {
+        HERE;
+        return err_push(err, SPAWN_ERR_MAP_MODULE);
+    }
+
+    err = paging_map_fixed_attr(st, base, frame, actual_size, flags);
+    if (err_is_fail(err)) {
+        HERE;
+        return err_push(err, SPAWN_ERR_MAP_MODULE);
+    }
+
+    err = paging_map_frame(get_current_paging_state(), ret, actual_size, frame, NULL, NULL);
+    if (err_is_fail(err)) {
+        HERE;
+        return err_push(err, SPAWN_ERR_MAP_MODULE);
+    }
+
+    return err;
+}
 
 /**
  * TODO(M2): Implement this function.
@@ -131,18 +323,18 @@ errval_t spawn_load_by_name(char *binary_name, struct spawninfo * si,
     errval_t err = SYS_ERR_OK;
 
     //TODO: is  bi correctly initialized by the init/usr/main.c
-    struct mem_region* mem_region = multiboot_find_module(bi,binary_name);
+    struct mem_region* mem_region = multiboot_find_module(bi, binary_name);
     
     //this mem_region should be of type module
     assert(mem_region->mr_type == RegionType_Module);
     struct capability cap;
     struct capref child_frame = {
         .cnode = cnode_module,
-        .slot = mem_region -> mrmod_slot
+        .slot = mem_region->mrmod_slot
     };
 
     err = invoke_cap_identify(child_frame, &cap);
-    if(err_is_fail(err)){
+    if (err_is_fail(err)) {
         return err;
     }
 
@@ -151,11 +343,15 @@ errval_t spawn_load_by_name(char *binary_name, struct spawninfo * si,
     paging_map_frame_attr(get_current_paging_state(), (void **) &elf_address,
                           mapping_size, child_frame, VREGION_FLAGS_READ_WRITE, NULL, NULL);
 
+    si->mapped_elf = (lvaddr_t) elf_address;
+    si->mapped_elf_size = (size_t) mapping_size;
     debug_printf("ELF address = %lx\n", elf_address);
     debug_printf("%x ", elf_address[0]);
-    for(int i = 1; i < 4; ++i){
+    for (int i = 1; i < 4; ++i) {
         debug_printf("%c ", elf_address[i]);
     }
     debug_printf("BOI\n");
-    return err;
+
+    char *argv[1] = { binary_name };
+    return spawn_load_argv(1, argv, si, pid);
 }

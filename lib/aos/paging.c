@@ -118,6 +118,18 @@ errval_t paging_init_state_foreign(struct paging_state *st, lvaddr_t start_vaddr
     st->current_address = start_vaddr;
     st->map_l0.pt_cap = pdir;
     st->slot_alloc = ca;
+
+    errval_t err;
+    struct capref frame;
+    size_t actual_size;
+    err = frame_alloc(&frame, ROUND_UP(sizeof(struct mapping_table) * 32, BASE_PAGE_SIZE), &actual_size);
+
+    void *slab_memory;
+    err = paging_map_frame_complete(get_current_paging_state(), &slab_memory, frame, NULL, NULL);
+
+    slab_init(&st->mappings_alloc, sizeof(struct mapping_table), NULL);
+    slab_grow(&st->mappings_alloc, slab_memory, actual_size);
+
     return SYS_ERR_OK;
 }
 
@@ -431,10 +443,11 @@ static errval_t paging_map_fixed_attr_with_offset(struct paging_state *st, lvadd
         st->slot_alloc->alloc(st->slot_alloc, &l1_mapping);
         pt_alloc(st, ObjType_VNode_AARCH64_l1, &l1);
 
-        //printf("mapping l1 node\n");
+        //printf("mapping l1 node 0x%lx\n", l0_offset);
         err = vnode_map(shadow_table_l0->pt_cap, l1, l0_offset, VREGION_FLAGS_READ, 0, 1, l1_mapping);
 
         if (err_is_fail(err)) {
+            HERE;
             DEBUG_ERR(err, "failed to map l1 vnode");
             return err;
         }
@@ -458,10 +471,11 @@ static errval_t paging_map_fixed_attr_with_offset(struct paging_state *st, lvadd
         st->slot_alloc->alloc(st->slot_alloc, &l2_mapping);
         pt_alloc(st, ObjType_VNode_AARCH64_l2, &l2);
 
-        //printf("mapping l2 node\n");
+        //printf("mapping l2 node 0x%lx\n", l1_offset);
         err = vnode_map(shadow_table_l1->pt_cap, l2, l1_offset, VREGION_FLAGS_READ, 0, 1, l2_mapping);
 
         if (err_is_fail(err)) {
+            HERE;
             DEBUG_ERR(err, "failed to map l2 vnode");
             return err;
         }

@@ -25,7 +25,12 @@ struct spawninfo {
     struct spawninfo *next; 
 
     // Information about the binary
-    char * binary_name;     // Name of the binary
+    char *binary_name;     // Name of the binary
+
+    lvaddr_t mapped_elf;
+    size_t mapped_elf_size;
+
+    struct paging_state ps;
 
     // TODO(M2): Add fields you need to store state
     //           when spawning a new dispatcher,
@@ -35,7 +40,7 @@ struct spawninfo {
 };
 
 // Start a child process using the multiboot command line. Fills in si.
-errval_t spawn_load_by_name(char *binary_name, struct spawninfo * si,
+errval_t spawn_load_by_name(char *binary_name, struct spawninfo *si,
                             domainid_t *pid);
 
 // Start a child with an explicit command line. Fills in si.
@@ -44,5 +49,7 @@ errval_t spawn_load_argv(int argc, char *argv[], struct spawninfo *si,
 
 
 
+/// elf callback function
+errval_t allocate_elf_memory(void* state, genvaddr_t base, size_t size, uint32_t flags, void **ret);
 
 #endif /* _INIT_SPAWN_H_ */
