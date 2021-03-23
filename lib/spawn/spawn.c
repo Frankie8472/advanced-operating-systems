@@ -399,12 +399,8 @@ errval_t allocate_elf_memory(void* state, genvaddr_t base, size_t size, uint32_t
         HERE;
         return err_push(err, SPAWN_ERR_MAP_MODULE);
     }
-
     *ret += offset_in_page;
-
-    if (real_base == 0x454000) {
-        init_got = (lvaddr_t) ret;
-    }
+    
     return err;
 }
 
@@ -430,6 +426,7 @@ errval_t spawn_load_by_name(char *binary_name, struct spawninfo * si,
 
     //TODO: is  bi correctly initialized by the init/usr/main.c
     struct mem_region* mem_region = multiboot_find_module(bi, binary_name);
+    const char* arguments = multiboot_module_opts(mem_region);
 
     //this mem_region should be of type module
     assert(mem_region->mr_type == RegionType_Module);
@@ -455,6 +452,6 @@ errval_t spawn_load_by_name(char *binary_name, struct spawninfo * si,
     debug_printf("%x, '%c', '%c', '%c'\n", elf_address[0], elf_address[1], elf_address[2], elf_address[3]);
     debug_printf("BOI\n");
 
-    char *argv[] = { binary_name, "argument 1", "argument 2" };
-    return spawn_load_argv(3, argv, si, pid);
+    const char *const argv[] = { arguments };
+    return spawn_load_argv(1, argv, si, pid);
 }
