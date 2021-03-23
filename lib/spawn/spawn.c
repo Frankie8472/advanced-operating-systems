@@ -420,6 +420,31 @@ errval_t allocate_elf_memory(void* state, genvaddr_t base, size_t size, uint32_t
  * \return Either SYS_ERR_OK if no error occured or an error
  * indicating what went wrong otherwise.
  */
+
+
+static int get_argc(char * args){
+   int argc = 1;
+   int i = 0;
+   while(args[i] != '\0'){
+     if(args[i] == ' '){argc++;}
+     i++;
+   }
+   return argc;
+ }
+static void create_argv(char* args,char *argv[]){
+  int i = 0;
+  int j = 1;
+  argv[0] = &args[0];
+  while(args[i] != '\0'){
+    if(args[i] == ' '){
+      // while(args[i] == ' '){i++;}
+      args[i] = '\0';
+      argv[j] = &args[i + 1];
+      j++;
+    }
+    i++;
+  }
+}
 errval_t spawn_load_by_name(char *binary_name, struct spawninfo * si,
                             domainid_t *pid) {
     // - Get the mem_region from the multiboot image
@@ -461,24 +486,10 @@ errval_t spawn_load_by_name(char *binary_name, struct spawninfo * si,
     char copy[strlen(args_string)];
     strcpy(copy,args_string);
 
-    int argc = 1;
-    int i = 0;
-    while(copy[i] != '\0'){
-      if(copy[i] == ' '){argc++;}
-      i++;
-    }
-    char const *argv[argc];
 
-    i = 0;
-    int j = 1;
-    argv[0] = &copy[0];
-    while(copy[i] != '\0'){
-      if(copy[i] == ' '){
-        copy[i] = '\0';
-        argv[j] = &copy[i + 1];
-        j++;
-      }
-      i++;
-    }
+    int argc = get_argc(copy);
+    char  const *argv[argc];
+    create_argv(copy, (char **) argv);
+
     return spawn_load_argv(argc,argv , si, pid);
 }
