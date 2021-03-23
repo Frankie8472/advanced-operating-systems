@@ -437,7 +437,6 @@ static void create_argv(char* args,char *argv[]){
   argv[0] = &args[0];
   while(args[i] != '\0'){
     if(args[i] == ' '){
-      // while(args[i] == ' '){i++;}
       args[i] = '\0';
       argv[j] = &args[i + 1];
       j++;
@@ -445,6 +444,16 @@ static void create_argv(char* args,char *argv[]){
     i++;
   }
 }
+
+static void strip_extra_spaces(char* str) {
+  int i, x;
+  for(i=x=0; str[i]; ++i)
+    if(!isspace(str[i]) || (i > 0 && !isspace(str[i-1])))
+      str[x++] = str[i];
+  str[x] = '\0';
+}
+
+
 errval_t spawn_load_by_name(char *binary_name, struct spawninfo * si,
                             domainid_t *pid) {
     // - Get the mem_region from the multiboot image
@@ -485,7 +494,7 @@ errval_t spawn_load_by_name(char *binary_name, struct spawninfo * si,
     char *args_string = (char *)  multiboot_module_opts(mem_region);
     char copy[strlen(args_string)];
     strcpy(copy,args_string);
-
+    strip_extra_spaces(copy);
 
     int argc = get_argc(copy);
     char  const *argv[argc];
