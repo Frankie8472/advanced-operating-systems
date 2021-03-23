@@ -13,6 +13,7 @@
 #include <barrelfish_kpi/domain_params.h>
 #include <spawn/multiboot.h>
 #include <spawn/argv.h>
+#include <string.h>
 
 extern struct bootinfo *bi;
 extern coreid_t my_core_id;
@@ -170,7 +171,7 @@ errval_t spawn_load_argv(int argc, const char *const argv[], struct spawninfo *s
     struct cnoderef taskcn;
     struct cnoderef basepagecn;
     struct cnoderef pagecn;
-    
+
     struct cnoderef alloc0;
     struct cnoderef alloc1;
     struct cnoderef alloc2;
@@ -221,7 +222,7 @@ errval_t spawn_load_argv(int argc, const char *const argv[], struct spawninfo *s
         HERE;
         return err_push(err, SPAWN_ERR_COPY_MODULECN);
     }
-    
+
     err = frame_create(child_dispframe, DISPATCHER_FRAME_SIZE, NULL);
     if (err_is_fail(err)) {
         HERE;
@@ -373,7 +374,7 @@ errval_t spawn_load_argv(int argc, const char *const argv[], struct spawninfo *s
         HERE;
         return err;
     }
-    
+
     //dump_dispatcher(disp);
 
     /*err = invoke_dispatcher(si->dispatcher, NULL_CAP, NULL_CAP, NULL_CAP, NULL_CAP, true);
@@ -427,12 +428,8 @@ errval_t allocate_elf_memory(void* state, genvaddr_t base, size_t size, uint32_t
         HERE;
         return err_push(err, SPAWN_ERR_MAP_MODULE);
     }
-
     *ret += offset_in_page;
-
-    if (real_base == 0x454000) {
-        init_got = (lvaddr_t) ret;
-    }
+    
     return err;
 }
 
@@ -483,6 +480,29 @@ errval_t spawn_load_by_name(char *binary_name, struct spawninfo * si,
     debug_printf("%x, '%c', '%c', '%c'\n", elf_address[0], elf_address[1], elf_address[2], elf_address[3]);
     debug_printf("BOI\n");
 
-    char *argv[] = { binary_name, "argument 1", "argument 2" };
-    return spawn_load_argv(3, argv, si, pid);
+
+    char *args_string = (char *)  multiboot_module_opts(mem_region);
+    char copy[strlen(args_string)];
+    strcpy(copy,args_string);
+
+    int argc = 1;
+    int i = 0;
+    while(copy[i] != '\0'){
+      if(copy[i] == ' '){argc++;}
+      i++;
+    }
+    char const *argv[argc];
+
+    i = 0;
+    int j = 1;
+    argv[0] = &copy[0];
+    while(copy[i] != '\0'){
+      if(copy[i] == ' '){
+        copy[i] = '\0';
+        argv[j] = &copy[i + 1];
+        j++;
+      }
+      i++;
+    }
+    return spawn_load_argv(argc,argv , si, pid);
 }
