@@ -108,7 +108,21 @@ static void insert_node_as_head(struct mm *mm, struct mmnode *node)
     node->prev = NULL;
 }
 
-// TODO: maybe rewrite with less pointer clusterfuck
+/**
+ * TODO: maybe rewrite with less pointer clusterfuck
+ * Also, maybe param "a" could be removed, as it will just point
+ * to "node" anyways.
+ * \brief Split the provided mmnode to create one node with the
+ * requested size and one with the remaining size.
+ *
+ * \param mm Pointer to MM allocator instance data.
+ * \param node Existing mmnode that will be split.
+ * \param offset Requested size of the newly created node "a".
+ * \param a Location where a pointer to a newly created node will
+ * be stored. That node will be of size "offset".
+ * \param b Location where a pointer to another newly created node
+ * will be stored.
+ */
 static errval_t split_node(struct mm *mm, struct mmnode *node, size_t offset, struct mmnode **a, struct mmnode **b)
 {
     struct mmnode *new_node = slab_alloc(&mm->slabs);
@@ -116,32 +130,32 @@ static errval_t split_node(struct mm *mm, struct mmnode *node, size_t offset, st
         return LIB_ERR_SLAB_ALLOC_FAIL;
     }
 
+
+    *new_node = *node;
+    new_node->base += offset;
+    new_node->size -= offset;
+
+    node->size = offset;
+
+    new_node->prev = node;
+    node->next = new_node;
+
+    if (new_node->next != NULL) {
+        new_node->next->prev = new_node;
+    }
+
     *a = node;
     *b = new_node;
-
-    **b = **a;
-    (*b)->base = (*a)->base + offset;
-    (*b)->size = (*a)->size - offset;
-
-    (*a)->size = offset;
-
-    (*b)->prev = *a;
-    (*a)->next = *b;
-
-    if ((*b)->next != NULL) {
-        (*b)->next->prev = *b;
-    }
 
     return SYS_ERR_OK;
 }
 
 /**
- * \brief Adds an mmnode to the given MM allocator instance data
+ * QUESTION: should the check for refilling be closer to the function call?
+ * \brief Check if the slab allocator requires a refill, and refill it
+ * if necessary.
  *
- * \param mm Pointer to MM allocator instance data
- * \param cap Capability to the given RAM space
- * \param base Start_add of the RAM to allocate
- * \param size Amount of RAM to allocate, in bytes
+ * \param mm Pointer to MM allocator instance data.
  */
 static void mm_check_refill(struct mm *mm)
 {
@@ -158,6 +172,14 @@ static void mm_check_refill(struct mm *mm)
     }
 }
 
+/**
+ * \brief Adds an mmnode to the given MM allocator instance data
+ *
+ * \param mm Pointer to MM allocator instance data
+ * \param cap Capability to the given RAM space
+ * \param base Start_add of the RAM to allocate
+ * \param size Amount of RAM to allocate, in bytes
+ */
 errval_t mm_add(struct mm *mm, struct capref cap, genpaddr_t base, size_t size)
 {
     struct mmnode *new_node = slab_alloc(&mm->slabs);
