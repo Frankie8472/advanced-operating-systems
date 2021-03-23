@@ -46,7 +46,7 @@ errval_t spawn_load_by_name(char *binary_name, struct spawninfo *si,
                             domainid_t *pid);
 
 // Start a child with an explicit command line. Fills in si.
-errval_t spawn_load_argv(int argc, char *argv[], struct spawninfo *si,
+errval_t spawn_load_argv(int argc, const char *const argv[], struct spawninfo *si,
                          domainid_t *pid);
 
 

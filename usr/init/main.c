@@ -129,13 +129,18 @@ __attribute__((unused)) static void test_spawn_load_argv(void){
     printf("Trying to spawn process hello\n" );
     char* p_argv[1];
     p_argv[0] = "hello";
-    struct spawninfo si;
-    domainid_t pid;
     //err = spawn_load_by_name(1,p_argv,&si,&pid);
-    err = spawn_load_by_name("hello", &si, &pid);
-    if(err_is_fail(err)){
-        DEBUG_ERR(err, "spawn loading failed");
+    for (int i = 0; i < 5; i++) {
+        struct spawninfo *si = malloc(sizeof(struct spawninfo));
+        domainid_t *pid = malloc(sizeof(domainid_t));
+        err = spawn_load_by_name("hello", si, pid);
+        if(err_is_fail(err)){
+            DEBUG_ERR(err, "spawn loading failed");
+        }
+        free(si);
+        free(pid);
     }
+    //print_mm_state(&aos_mm);
 
     //===========================================//
 

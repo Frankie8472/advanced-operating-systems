@@ -48,12 +48,6 @@ static void armv8_set_registers(void *arch_load_info,
 
 
 
-
-lvaddr_t init_got = 0;
-
-
-
-
 /**
  * TODO(M2): Implement this function.
  * \brief Spawn a new dispatcher called 'argv[0]' with 'argc' arguments.
@@ -71,7 +65,7 @@ lvaddr_t init_got = 0;
  * \return Either SYS_ERR_OK if no error occured or an error
  * indicating what went wrong otherwise.
  */
-errval_t spawn_load_argv(int argc, char *argv[], struct spawninfo *si,
+errval_t spawn_load_argv(int argc, const char *const argv[], struct spawninfo *si,
                 domainid_t *pid) {
     // TODO: Implement me
     // - Initialize the spawn_info struct
@@ -84,7 +78,7 @@ errval_t spawn_load_argv(int argc, char *argv[], struct spawninfo *si,
     // - Setup the environment
     // - Make the new dispatcher runnable
     errval_t err;
-    char* name = argv[0];
+    const char* name = argv[0];
     DEBUG_PRINTF("Spawning process: %s\n", name);
     /*err = spawn_load_by_name(name, si, pid);
     if (err_is_fail(err)){
@@ -382,7 +376,7 @@ errval_t allocate_elf_memory(void* state, genvaddr_t base, size_t size, uint32_t
     if (flags & PF_X)
         actual_flags |= VREGION_FLAGS_EXECUTE;
 
-    debug_printf("ALLOC ELF STUFF: 0x%lx -> 0x%lx\n", base, base + size);
+    //debug_printf("ALLOC ELF STUFF: 0x%lx -> 0x%lx\n", base, base + size);
 
     errval_t err = SYS_ERR_OK;
     struct capref frame;
@@ -393,7 +387,7 @@ errval_t allocate_elf_memory(void* state, genvaddr_t base, size_t size, uint32_t
         return err_push(err, SPAWN_ERR_MAP_MODULE);
     }
 
-    debug_printf("MAPPING ELF STUFF: 0x%lx -> 0x%lx\n", real_base, real_base + actual_size);
+    //debug_printf("MAPPING ELF STUFF: 0x%lx -> 0x%lx\n", real_base, real_base + actual_size);
     err = paging_map_fixed_attr(st, real_base, frame, actual_size, actual_flags);
     if (err_is_fail(err)) {
         HERE;
@@ -461,6 +455,6 @@ errval_t spawn_load_by_name(char *binary_name, struct spawninfo * si,
     debug_printf("%x, '%c', '%c', '%c'\n", elf_address[0], elf_address[1], elf_address[2], elf_address[3]);
     debug_printf("BOI\n");
 
-    char *argv[] = { binary_name, "argument 1", "argument 2" };
-    return spawn_load_argv(3, argv, si, pid);
+    const char *const argv[] = { arguments };
+    return spawn_load_argv(1, argv, si, pid);
 }
