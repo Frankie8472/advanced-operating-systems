@@ -22,5 +22,10 @@ int main(int argc, char *argv[])
 {
     
     printf("Hello, world! from userspace\n");
+
+    printf("I was called with %d arguments\n", argc);
+    for (int i = 0; i < argc; i++) {
+        printf("argument[%d] = %s\n", i, argv[i]);
+    }
     return EXIT_SUCCESS;
 }
