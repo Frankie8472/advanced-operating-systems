@@ -461,6 +461,6 @@ errval_t spawn_load_by_name(char *binary_name, struct spawninfo * si,
     debug_printf("%x, '%c', '%c', '%c'\n", elf_address[0], elf_address[1], elf_address[2], elf_address[3]);
     debug_printf("BOI\n");
 
-    char *argv[] = { binary_name };
-    return spawn_load_argv(1, argv, si, pid);
+    char *argv[] = { binary_name, "argument 1", "argument 2" };
+    return spawn_load_argv(3, argv, si, pid);
 }
