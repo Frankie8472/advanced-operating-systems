@@ -297,7 +297,7 @@ errval_t paging_alloc(struct paging_state *st, void **buf, size_t bytes, size_t 
     }
 
     lvaddr_t base = ROUND_UP(st->current_address, alignment);
-    st->current_address = base + ROUND_UP(bytes, BASE_PAGE_SIZE);
+    st->current_address = ROUND_UP(base + ROUND_UP(bytes, BASE_PAGE_SIZE), BASE_PAGE_SIZE);
 
     *buf = (void*) base;
 

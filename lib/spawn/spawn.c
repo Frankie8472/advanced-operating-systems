@@ -39,7 +39,7 @@ static void armv8_set_registers(void *arch_load_info,
     assert(arch_load_info != NULL);
     uintptr_t got_base = (uintptr_t) arch_load_info;
 
-    struct dispatcher_shared_aarch64 * disp_arm = get_dispatcher_shared_aarch64(handle);
+    struct dispatcher_shared_aarch64 *disp_arm = get_dispatcher_shared_aarch64(handle);
     disp_arm->got_base = got_base;
 
     enabled_area->regs[REG_OFFSET(PIC_REGISTER)] = got_base;
@@ -49,7 +49,7 @@ static void armv8_set_registers(void *arch_load_info,
 
 
 
-
+lvaddr_t init_got = 0;
 
 
 
@@ -250,7 +250,7 @@ errval_t spawn_load_argv(int argc, char *argv[], struct spawninfo *si,
         return err_push(err, SPAWN_ERR_MAP_ARGSPG_TO_SELF);
     }
     // TODO: organize vspace
-    lvaddr_t child_arg_ptr = 0x500000UL * 0x1000;
+    lvaddr_t child_arg_ptr = 0x700000UL * 0x1000;
     err = paging_map_fixed_attr(&si->ps, child_arg_ptr, argframe, BASE_PAGE_SIZE, VREGION_FLAGS_READ_WRITE);
     if (err_is_fail(err)) {
         HERE;
@@ -280,6 +280,9 @@ errval_t spawn_load_argv(int argc, char *argv[], struct spawninfo *si,
     }
 
     struct Elf64_Shdr *got = elf64_find_section_header_name(si->mapped_elf, si->mapped_elf_size, ".got");
+    if (got == NULL) {
+        return SPAWN_ERR_LOAD;
+    }
     debug_printf("0x%lx -> 0x%lx\n", si->mapped_elf, si->mapped_elf_size);
     lvaddr_t got_base_address_in_childs_vspace = got->sh_addr;
     debug_printf("possible 0x%lx\n", got_base_address_in_childs_vspace);
@@ -294,7 +297,7 @@ errval_t spawn_load_argv(int argc, char *argv[], struct spawninfo *si,
         return err_push(err, SPAWN_ERR_COPY_KERNEL_CAP);
     }
 
-    uint64_t dispaddr = ROUND_UP(si->mapped_elf + si->mapped_elf_size, DISPATCHER_FRAME_SIZE);//0x612345 * DISPATCHER_FRAME_SIZE;
+    uint64_t dispaddr = ROUND_UP(0x12345678, DISPATCHER_FRAME_SIZE);
 
     err = paging_map_fixed_attr(&si->ps, dispaddr, dispframe, DISPATCHER_FRAME_SIZE, VREGION_FLAGS_READ_WRITE);
 
@@ -334,7 +337,6 @@ errval_t spawn_load_argv(int argc, char *argv[], struct spawninfo *si,
     disp_gen->eh_frame_hdr = 0;
     disp_gen->eh_frame_hdr_size = 0;
 
-
     err = slot_alloc(&si->dispatcher);
     if (err_is_fail(err)) { HERE; return err; }
 
@@ -366,18 +368,33 @@ errval_t allocate_elf_memory(void* state, genvaddr_t base, size_t size, uint32_t
 {
     struct paging_state *st = (struct paging_state*) state;
 
+    genvaddr_t real_base = ROUND_DOWN(base, BASE_PAGE_SIZE);
+    genvaddr_t real_size = ROUND_UP(size + (base - real_base), BASE_PAGE_SIZE);
+
+    int64_t offset_in_page = base - real_base;
+
+
+    int actual_flags = 0;
+    if (flags & PF_R)
+        actual_flags |= VREGION_FLAGS_READ;
+    if (flags & PF_W)
+        actual_flags |= VREGION_FLAGS_WRITE;
+    if (flags & PF_X)
+        actual_flags |= VREGION_FLAGS_EXECUTE;
+
     debug_printf("ALLOC ELF STUFF: 0x%lx -> 0x%lx\n", base, base + size);
 
     errval_t err = SYS_ERR_OK;
     struct capref frame;
     size_t actual_size;
-    err = frame_alloc(&frame, size, &actual_size);
+    err = frame_alloc(&frame, real_size, &actual_size);
     if (err_is_fail(err)) {
         HERE;
         return err_push(err, SPAWN_ERR_MAP_MODULE);
     }
 
-    err = paging_map_fixed_attr(st, base, frame, actual_size, flags);
+    debug_printf("MAPPING ELF STUFF: 0x%lx -> 0x%lx\n", real_base, real_base + actual_size);
+    err = paging_map_fixed_attr(st, real_base, frame, actual_size, actual_flags);
     if (err_is_fail(err)) {
         HERE;
         return err_push(err, SPAWN_ERR_MAP_MODULE);
@@ -389,6 +406,11 @@ errval_t allocate_elf_memory(void* state, genvaddr_t base, size_t size, uint32_t
         return err_push(err, SPAWN_ERR_MAP_MODULE);
     }
 
+    *ret += offset_in_page;
+
+    if (real_base == 0x454000) {
+        init_got = (lvaddr_t) ret;
+    }
     return err;
 }
 
@@ -439,6 +461,6 @@ errval_t spawn_load_by_name(char *binary_name, struct spawninfo * si,
     debug_printf("%x, '%c', '%c', '%c'\n", elf_address[0], elf_address[1], elf_address[2], elf_address[3]);
     debug_printf("BOI\n");
 
-    char *argv[1] = { binary_name };
+    char *argv[] = { binary_name };
     return spawn_load_argv(1, argv, si, pid);
 }
