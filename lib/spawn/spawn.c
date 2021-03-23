@@ -47,7 +47,78 @@ static void armv8_set_registers(void *arch_load_info,
     disabled_area->regs[REG_OFFSET(PIC_REGISTER)] = got_base;
 }
 
+/**
+ * \brief Setup the C-Space for a new dispatcher
+ * \param cnode_child_l1 L1 CNode of the new C-Space.
+ * \param taskcn References to Level 2 CNodes to initialize.
+ * \param basepagecn
+ * \param pagecn
+ * \param alloc0
+ * \param alloc1
+ * \param alloc2
+ * \return Either SYS_ERR_OK if no error occured or an error
+ * indicating what went wrong otherwise.
+ */
+errval_t setup_c_space(struct capref cnode_l1,
+                       struct cnoderef * taskcn,
+                       struct cnoderef * basepagecn,
+                       struct cnoderef * pagecn,
+                       struct cnoderef * alloc0,
+                       struct cnoderef * alloc1,
+                       struct cnoderef * alloc2) {
+    errval_t err = cnode_create_foreign_l2(cnode_l1, ROOTCN_SLOT_TASKCN, taskcn);
+    if (err_is_fail(err)) {
+        HERE;
+        return err_push(err, SPAWN_ERR_CREATE_TASKCN);
+    }
 
+    err = cnode_create_foreign_l2(cnode_l1, ROOTCN_SLOT_BASE_PAGE_CN, basepagecn);
+    if (err_is_fail(err)) {
+        HERE;
+        return err_push(err, SPAWN_ERR_CREATE_PAGECN);
+    }
+
+    for (int i = 0; i < 256; i++) {
+        struct capref counter = (struct capref) {
+            .cnode = *basepagecn,
+            .slot = i
+        };
+        struct capref ram;
+        err = ram_alloc(&ram, BASE_PAGE_SIZE);
+        if (err_is_fail(err)) {
+            HERE;
+            return err_push(err, SPAWN_ERR_FILL_SMALLCN);
+        }
+        err = cap_copy(counter, ram);
+        if (err_is_fail(err)) { HERE; return err; }
+    }
+
+    err = cnode_create_foreign_l2(cnode_l1, ROOTCN_SLOT_PAGECN, pagecn);
+    if (err_is_fail(err)) {
+        HERE;
+        return err_push(err, SPAWN_ERR_CREATE_PAGECN);
+    }
+
+    err = cnode_create_foreign_l2(cnode_l1, ROOTCN_SLOT_SLOT_ALLOC0, alloc0);
+    if (err_is_fail(err)) {
+        HERE;
+        return err_push(err, SPAWN_ERR_CREATE_SLOTALLOC_CNODE);
+    }
+
+    err = cnode_create_foreign_l2(cnode_l1, ROOTCN_SLOT_SLOT_ALLOC1, alloc1);
+    if (err_is_fail(err)) {
+        HERE;
+        return err_push(err, SPAWN_ERR_CREATE_SLOTALLOC_CNODE);
+    }
+
+    err = cnode_create_foreign_l2(cnode_l1, ROOTCN_SLOT_SLOT_ALLOC2, alloc2);
+    if (err_is_fail(err)) {
+        HERE;
+        return err_push(err, SPAWN_ERR_CREATE_SLOTALLOC_CNODE);
+    }
+
+    return SYS_ERR_OK;
+}
 
 /**
  * TODO(M2): Implement this function.
@@ -105,56 +176,13 @@ errval_t spawn_load_argv(int argc, const char *const argv[], struct spawninfo *s
     struct cnoderef alloc1;
     struct cnoderef alloc2;
 
-    err = cnode_create_foreign_l2(cnode_child_l1, ROOTCN_SLOT_TASKCN, &taskcn);
-    if (err_is_fail(err)) {
-        HERE;
-        return err_push(err, SPAWN_ERR_CREATE_TASKCN);
-    }
-
-    err = cnode_create_foreign_l2(cnode_child_l1, ROOTCN_SLOT_BASE_PAGE_CN, &basepagecn);
-    if (err_is_fail(err)) {
-        HERE;
-        return err_push(err, SPAWN_ERR_CREATE_PAGECN);
-    }
-
-    for (int i = 0; i < 256; i++) {
-        struct capref counter = (struct capref) {
-            .cnode = basepagecn,
-            .slot = i
-        };
-        struct capref ram;
-        err = ram_alloc(&ram, BASE_PAGE_SIZE);
-        if (err_is_fail(err)) {
-            HERE;
-            return err_push(err, SPAWN_ERR_FILL_SMALLCN);
-        }
-        err = cap_copy(counter, ram);
-        if (err_is_fail(err)) { HERE; return err; }
-    }
-
-    err = cnode_create_foreign_l2(cnode_child_l1, ROOTCN_SLOT_PAGECN, &pagecn);
-    if (err_is_fail(err)) {
-        HERE;
-        return err_push(err, SPAWN_ERR_CREATE_PAGECN);
-    }
-
-    err = cnode_create_foreign_l2(cnode_child_l1, ROOTCN_SLOT_SLOT_ALLOC0, &alloc0);
-    if (err_is_fail(err)) {
-        HERE;
-        return err_push(err, SPAWN_ERR_CREATE_SLOTALLOC_CNODE);
-    }
-
-    err = cnode_create_foreign_l2(cnode_child_l1, ROOTCN_SLOT_SLOT_ALLOC1, &alloc1);
-    if (err_is_fail(err)) {
-        HERE;
-        return err_push(err, SPAWN_ERR_CREATE_SLOTALLOC_CNODE);
-    }
-
-    err = cnode_create_foreign_l2(cnode_child_l1, ROOTCN_SLOT_SLOT_ALLOC2, &alloc2);
-    if (err_is_fail(err)) {
-        HERE;
-        return err_push(err, SPAWN_ERR_CREATE_SLOTALLOC_CNODE);
-    }
+    err = setup_c_space(cnode_child_l1,
+                        &taskcn,
+                        &basepagecn,
+                        &pagecn,
+                        &alloc0,
+                        &alloc1,
+                        &alloc2);
 
     struct capref child_selfep = (struct capref) {
         .cnode = taskcn,
@@ -400,10 +428,8 @@ errval_t allocate_elf_memory(void* state, genvaddr_t base, size_t size, uint32_t
         HERE;
         return err_push(err, SPAWN_ERR_MAP_MODULE);
     }
-
     *ret += offset_in_page;
-
-
+    
     return err;
 }
 
@@ -487,8 +513,6 @@ errval_t spawn_load_by_name(char *binary_name, struct spawninfo * si,
     debug_printf("ELF address = %lx\n", elf_address);
     debug_printf("%x, '%c', '%c', '%c'\n", elf_address[0], elf_address[1], elf_address[2], elf_address[3]);
     debug_printf("BOI\n");
-
-
 
 
     char *args_string = (char *)  multiboot_module_opts(mem_region);
