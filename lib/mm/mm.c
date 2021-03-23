@@ -347,13 +347,18 @@ errval_t mm_slot_free(struct mm *mm, struct capref cap)
 
 void print_mm_state(struct mm *mm)
 {
+    size_t free_nodes = 0;
+    size_t unfree_nodes = 0;
     for (struct mmnode* node = mm->head; node != NULL; node = node->next) {
         if (node->type == NodeType_Free) {
             printf("free   ");
+            free_nodes++;
         }
         else {
             printf("unfree ");
+            unfree_nodes++;
         }
         printf("mmnode with base 0x%x size 0x%x\n", node->base, node->size);
     }
+    printf("free nodes: %d, unfree nodes: %d\n", free_nodes, unfree_nodes);
 }
