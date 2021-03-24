@@ -47,6 +47,7 @@ errval_t mm_init(struct mm *mm, enum objtype objtype,
     }
     slab_init(&mm->slabs, sizeof(struct mmnode), slab_refill_func);
     mm->head = NULL;
+    mm->free_head = NULL;
     mm->objtype = objtype;
     mm->slot_alloc_priv = slot_alloc_func;
     mm->slot_refill = slot_refill_func;
@@ -94,7 +95,48 @@ void mm_destroy(struct mm *mm)
 }
 
 /**
- * \brief simply insert a new node at the front of our linked list structure
+ * \brief Add a node to the list of free nodes.
+ *
+ * \param mm Pointer to MM allocator instance data.
+ * \param node Node to add to the list of free nodes.
+ */
+static void add_node_to_free_list(struct mm *mm, struct mmnode *node)
+{
+    struct mmnode *free_old_head = mm->free_head;
+
+    if (free_old_head)
+        free_old_head->free_prev = node;
+
+    mm->free_head = node;
+    node->free_next = free_old_head;
+    node->free_prev = NULL;
+}
+
+/**
+ * \brief Remove a node from the list of free nodes. This is necessary
+ * for cases like coalesce, since two nodes to coalesce might not be
+ * adjacent in the free_list.
+ *
+ * \param mm Pointer to MM allocator instance data.
+ * \param node Node to remove from the list of free nodes.
+ */
+static void remove_node_from_free_list(struct mm *mm, struct mmnode *node)
+{
+    if (node->free_prev)
+        node->free_prev->free_next = node->free_next;
+
+    if (node->free_next)
+        node->free_next->free_prev = node->free_prev;
+
+    node->free_next = NULL;
+    node->free_prev = NULL;
+}
+
+/**
+ * DONE: also insert to free list
+ * \brief simply insert a new node at the front of our linked list structure.
+ * If the provided node is of type "NodeType_Free", it is also placed at the
+ * head of the free list.
  */
 static void insert_node_as_head(struct mm *mm, struct mmnode *node)
 {
@@ -106,9 +148,18 @@ static void insert_node_as_head(struct mm *mm, struct mmnode *node)
     mm->head = node;
     node->next = old_head;
     node->prev = NULL;
+
+    // maybe also insert into free list
+    if (node->type == NodeType_Free) {
+        add_node_to_free_list(mm, node);
+    } else {
+        node->free_next = NULL;
+        node->free_prev = NULL;
+    }
 }
 
 /**
+ * DONE: consider free list
  * TODO: maybe rewrite with less pointer clusterfuck
  * Also, maybe param "a" could be removed, as it will just point
  * to "node" anyways.
@@ -144,6 +195,9 @@ static errval_t split_node(struct mm *mm, struct mmnode *node, size_t offset, st
         new_node->next->prev = new_node;
     }
 
+    if (new_node->type == NodeType_Free)
+        add_node_to_free_list(mm, new_node);
+
     *a = node;
     *b = new_node;
 
@@ -173,6 +227,7 @@ static void mm_check_refill(struct mm *mm)
 }
 
 /**
+ * DONE: free list?
  * \brief Adds an mmnode to the given MM allocator instance data
  *
  * \param mm Pointer to MM allocator instance data
@@ -184,14 +239,16 @@ errval_t mm_add(struct mm *mm, struct capref cap, genpaddr_t base, size_t size)
 {
     struct mmnode *new_node = slab_alloc(&mm->slabs);
 
-    insert_node_as_head(mm, new_node);
-
-    new_node->type = NodeType_Free;
     new_node->cap = (struct capinfo) {
         .cap = cap,
         .base = base,
         .size = size
     };
+
+    new_node->type = NodeType_Free;
+
+    insert_node_as_head(mm, new_node);
+
     new_node->base = base;
     new_node->size = size;
     mm->stats_bytes_available += size;
@@ -202,6 +259,7 @@ errval_t mm_add(struct mm *mm, struct capref cap, genpaddr_t base, size_t size)
 }
 
 /**
+ * DONE: loop free list
  * \brief Allocates aligned memory in the form of a RAM capability
  *
  * \param mm Pointer to MM allocator instance data
@@ -218,18 +276,19 @@ errval_t mm_alloc_aligned(struct mm *mm, size_t size, size_t alignment, struct c
 
     mm_slot_alloc(mm, retcap);
 
-    struct mmnode *node = mm->head;
+    struct mmnode *node = mm->free_head;
 
     errval_t err = SYS_ERR_OK;
 
-    while(node != NULL) {
+    while(node != NULL) { // TODO: maybe use a for loop?
+        assert(node->type == NodeType_Free);
         if (node->type == NodeType_Free && node->size >= size) {
             struct mmnode *a, *b;
 
             if (node->base % alignment != 0) {
                 uint64_t offset = alignment - (node->base % alignment);
                 if (node->size - offset < size) {
-                    node = node->next;
+                    node = node->free_next;
                     continue;
                 }
                 err = split_node(mm, node, offset, &a, &b);
@@ -263,10 +322,11 @@ errval_t mm_alloc_aligned(struct mm *mm, size_t size, size_t alignment, struct c
             }
 
             node->type = NodeType_Allocated;
+            remove_node_from_free_list(mm, node);
             mm->stats_bytes_available -= node->size;
             goto ok_refill;
         }
-        node = node->next;
+        node = node->free_next;
     }
 
     //printf("could not allocate a frame!\n");
@@ -284,14 +344,14 @@ errval_t mm_alloc(struct mm *mm, size_t size, struct capref *retcap)
 
 
 /**
+ * TODO: on success, should we call coalesce again?
+ * DONE: update free list
  * \brief Tries to merge an mmnode with its right neighbour.
  *        The merging only happens if they are adjacent and both free.
  *
  * \param mm Pointer to MM allocator instance data
  * \param mmnode Pointer to the mmnode
  */
-
-
 static bool coalesce(struct mm *mm, struct mmnode *node)
 {
     if (node == NULL) {
@@ -315,6 +375,7 @@ static bool coalesce(struct mm *mm, struct mmnode *node)
             node->next->prev = node;
         }
 
+        remove_node_from_free_list(mm, right); // right node no longer usable
         slab_free(&mm->slabs, right);
         return true;
     }
@@ -322,6 +383,7 @@ static bool coalesce(struct mm *mm, struct mmnode *node)
 }
 
 /**
+ * DONE: add to free list
  * \brief Freeing allocated RAM and associated capability
  *
  * \param mm Pointer to MM allocator instance data
@@ -351,7 +413,16 @@ errval_t mm_free(struct mm *mm, struct capref cap, genpaddr_t base, gensize_t si
             mm->stats_bytes_available += size;
 
             coalesce(mm, node);
-            coalesce(mm, node->prev);
+
+            // cache previous node in case we can coalesce the current one with its
+            // previoius one
+            struct mmnode *tmp = node->prev;
+
+            // add either the current or its previous node to the list of free nodes
+            if(coalesce(mm, node->prev))
+                add_node_to_free_list(mm, tmp);
+            else
+                add_node_to_free_list(mm, node);
 
             return SYS_ERR_OK;
         }
