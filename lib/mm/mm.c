@@ -48,6 +48,7 @@ errval_t mm_init(struct mm *mm, enum objtype objtype,
     slab_init(&mm->slabs, sizeof(struct mmnode), slab_refill_func);
     mm->head = NULL;
     mm->free_head = NULL;
+    mm->free_last = NULL;
     mm->objtype = objtype;
     mm->slot_alloc_priv = slot_alloc_func;
     mm->slot_refill = slot_refill_func;
@@ -102,14 +103,14 @@ void mm_destroy(struct mm *mm)
  */
 static void add_node_to_free_list(struct mm *mm, struct mmnode *node)
 {
-    struct mmnode *free_old_head = mm->free_head;
+    node->free_prev = mm->free_last;
+    if (mm->free_last)
+        mm->free_last->free_next = node;
+    else // if no last exists, also overwrite first
+        mm->free_head = node;
 
-    if (free_old_head)
-        free_old_head->free_prev = node;
-
-    mm->free_head = node;
-    node->free_next = free_old_head;
-    node->free_prev = NULL;
+    mm->free_last = node;
+    node->free_next = NULL;
 }
 
 /**
@@ -122,10 +123,18 @@ static void add_node_to_free_list(struct mm *mm, struct mmnode *node)
  */
 static void remove_node_from_free_list(struct mm *mm, struct mmnode *node)
 {
-    if (node->free_prev)
+    if (node == mm->free_head) {
+        mm->free_head = node->free_next;
+        if (mm->free_head)
+            mm->free_head->free_prev = NULL;
+    } else
         node->free_prev->free_next = node->free_next;
 
-    if (node->free_next)
+    if (node == mm->free_last) {
+        mm->free_last = node->free_prev;
+        if (mm->free_last)
+            mm->free_last->free_next = NULL;
+    } else
         node->free_next->free_prev = node->free_prev;
 
     node->free_next = NULL;
@@ -281,8 +290,8 @@ errval_t mm_alloc_aligned(struct mm *mm, size_t size, size_t alignment, struct c
     errval_t err = SYS_ERR_OK;
 
     for (node = mm->free_head; node; node = node->free_next) {
-        assert(node->type == NodeType_Free);
-        if (node->type == NodeType_Free && node->size >= size) {
+        /* assert(node->type == NodeType_Free); */
+        if (node->size >= size) {
             struct mmnode *a, *b;
 
             if (node->base % alignment != 0) {
@@ -453,4 +462,9 @@ void print_mm_state(struct mm *mm)
         printf("mmnode with base 0x%x size 0x%x\n", node->base, node->size);
     }
     printf("free nodes: %d, unfree nodes: %d\n", free_nodes, unfree_nodes);
+
+    int free_count = 0;
+    for (struct mmnode* node = mm->free_head; node; node = node->free_next)
+        free_count++;
+    printf("%d nodes in free list\n", free_count);
 }
