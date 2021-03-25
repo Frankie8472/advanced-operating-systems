@@ -346,31 +346,22 @@ caps_map_l0(struct capability* dest,
     //
 
     if (slot >= VMSAv8_64_PTABLE_NUM_ENTRIES) {
-        printf("slot = %"PRIuCSLOT"\n",slot);
-        panic("oops: slot id >= %d", VMSAv8_64_PTABLE_NUM_ENTRIES);
+        debug(SUBSYS_PAGING, "slot = %"PRIuCSLOT"\n",slot);
         return SYS_ERR_VNODE_SLOT_INVALID;
     }
 
     if (pte_count != 1) {
-        printf("pte_count = %zu\n",(size_t)pte_count);
-        panic("oops: pte_count");
+        debug(SUBSYS_PAGING, "pte_count = %zu\n",(size_t)pte_count);
         return SYS_ERR_VM_MAP_SIZE;
     }
 
     if (src->type != ObjType_VNode_AARCH64_l1) {
         char buf[128];
         sprint_cap(buf, 128, src);
-        printf("src: %s\n", buf);
-        panic("oops: l0 wrong src type");
+        debug(SUBSYS_PAGING, "src: %s\n", buf);
         return SYS_ERR_WRONG_MAPPING;
     }
 
-//    if (slot >= VMSAv8_64_PTABLE_NUM_ENTRIES) {
-//        printf("slot = %"PRIuCSLOT", max=%d MEMORY_OFFSET=%p\n", slot, VMSAv8_64_L0_INDEX(MEMORY_OFFSET),MEMORY_OFFSET);
-//        panic("oops: l0 slot id");
-//        return SYS_ERR_VNODE_SLOT_RESERVED;
-//    }
-//
     // Destination
     lpaddr_t dest_lpaddr = gen_phys_to_local_phys(get_address(dest));
     lvaddr_t dest_lvaddr = local_phys_to_mem(dest_lpaddr);
@@ -428,25 +419,21 @@ caps_map_l1(struct capability* dest,
     //
 
     if (slot >= VMSAv8_64_PTABLE_NUM_ENTRIES) {
-        printf("slot = %"PRIuCSLOT"\n",slot);
-        panic("oops: slot id >= %d", VMSAv8_64_PTABLE_NUM_ENTRIES);
+        debug(SUBSYS_PAGING, "slot = %"PRIuCSLOT"\n",slot);
         return SYS_ERR_VNODE_SLOT_INVALID;
     }
 
     if (pte_count != 1) {
-        printf("pte_count = %zu\n",(size_t)pte_count);
-        panic("oops: pte_count");
+        debug(SUBSYS_PAGING, "pte_count = %zu\n",(size_t)pte_count);
         return SYS_ERR_VM_MAP_SIZE;
     }
 
     if (src->type != ObjType_VNode_AARCH64_l2) {
-        panic("oops: l1 wrong src type");
         return SYS_ERR_WRONG_MAPPING;
     }
 
     if (slot >= VMSAv8_64_PTABLE_NUM_ENTRIES) {
-        printf("slot = %"PRIuCSLOT"\n",slot);
-        panic("oops: l1 slot id");
+        debug(SUBSYS_PAGING, "slot = %"PRIuCSLOT"\n",slot);
         return SYS_ERR_VNODE_SLOT_RESERVED;
     }
 
@@ -501,25 +488,21 @@ caps_map_l2(struct capability* dest,
     // See lib/barrelfish/arch/arm/pmap_arch.c for more discussion.
     //
     if (slot >= VMSAv8_64_PTABLE_NUM_ENTRIES) {
-        printf("slot = %"PRIuCSLOT"\n", slot);
-        panic("oops: slot id >= 512");
+        debug(SUBSYS_PAGING, "slot = %"PRIuCSLOT"\n", slot);
         return SYS_ERR_VNODE_SLOT_INVALID;
     }
 
     if (pte_count != 1) {
-        printf("pte_count = %zu\n",(size_t) pte_count);
-        panic("oops: pte_count");
+        debug(SUBSYS_PAGING, "pte_count = %zu\n",(size_t) pte_count);
         return SYS_ERR_VM_MAP_SIZE;
     }
 
     if (src->type != ObjType_VNode_AARCH64_l3) {
-        panic("oops: l2 wrong src type");
         return SYS_ERR_WRONG_MAPPING;
     }
 
     if (slot > VMSAv8_64_PTABLE_NUM_ENTRIES) {
-        printf("slot = %"PRIuCSLOT"\n",slot);
-        panic("oops: l2 slot id");
+        debug(SUBSYS_PAGING, "slot = %"PRIuCSLOT"\n",slot);
         return SYS_ERR_VNODE_SLOT_RESERVED;
     }
 
@@ -566,19 +549,16 @@ caps_map_l3(struct capability* dest,
     // ARM L3 has 256 entries, but we treat a 4K page as a consecutive
     // region of L3 with a single index. 4K == 4 * 1K
     if (slot >= VMSAv8_64_PTABLE_NUM_ENTRIES) {
-        panic("oops: slot >= 512");
         return SYS_ERR_VNODE_SLOT_INVALID;
     }
 
     if (src->type != ObjType_Frame && src->type != ObjType_DevFrame) {
-        panic("oops: src->type != ObjType_Frame && src->type != ObjType_DevFrame");
         return SYS_ERR_WRONG_MAPPING;
     }
 
     // check offset within frame
     if ((offset + BASE_PAGE_SIZE > get_size(src)) ||
         ((offset % BASE_PAGE_SIZE) != 0)) {
-        panic("oops: frame offset invalid");
         return SYS_ERR_FRAME_OFFSET_INVALID;
     }
 
@@ -593,12 +573,12 @@ caps_map_l3(struct capability* dest,
 
     union armv8_ttable_entry *entry = (union armv8_ttable_entry *)dest_lvaddr + slot;
     if (entry->page.valid) {
-        panic("Remapping valid page.");
+        return SYS_ERR_VM_ALREADY_MAPPED;
     }
 
     lpaddr_t src_lpaddr = gen_phys_to_local_phys(get_address(src) + offset);
     if ((src_lpaddr & (BASE_PAGE_SIZE - 1))) {
-        panic("Invalid target");
+        return SYS_ERR_VM_FRAME_UNALIGNED;
     }
 
     create_mapping_cap(mapping_cte, src, cte_for_cap(dest), slot, pte_count);
