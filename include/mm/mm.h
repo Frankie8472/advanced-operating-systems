@@ -63,6 +63,7 @@ struct mm {
     enum objtype objtype;         ///< Type of capabilities stored
     struct mmnode *head;          ///< Head of doubly-linked list of nodes in order
     struct mmnode *free_head;     ///< Head of unordered doubly-linked list of free nodes
+    struct mmnode *free_last;     ///< Last of unordered doubly-linked list of free nodes
 
     /* statistics */
     gensize_t stats_bytes_max;
