@@ -19,9 +19,6 @@ extern struct bootinfo *bi;
 extern coreid_t my_core_id;
 
 
-
-
-
 /**
  * \brief Set the base address of the .got (Global Offset Table) section of the ELF binary
  *
@@ -79,12 +76,10 @@ errval_t setup_c_space(struct capref cnode_l1,
         };
         struct capref ram;
         err = ram_alloc(&ram, BASE_PAGE_SIZE);
-        if (err_is_fail(err)) {
-            HERE;
-            return err_push(err, SPAWN_ERR_FILL_SMALLCN);
-        }
+        ON_ERR_PUSH_RETURN(err, SPAWN_ERR_FILL_SMALLCN);
+
         err = cap_copy(counter, ram);
-        if (err_is_fail(err)) { HERE; return err; }
+        ON_ERR_RETURN(err);
     }
 
     err = cnode_create_foreign_l2(cnode_l1, ROOTCN_SLOT_PAGECN, pagecn);
@@ -150,13 +145,7 @@ errval_t spawn_load_argv(int argc, const char *const argv[], struct spawninfo *s
     struct cnoderef alloc1;
     struct cnoderef alloc2;
 
-    err = setup_c_space(cnode_child_l1,
-                        &taskcn,
-                        &basepagecn,
-                        &pagecn,
-                        &alloc0,
-                        &alloc1,
-                        &alloc2);
+    err = setup_c_space(cnode_child_l1, &taskcn, &basepagecn, &pagecn, &alloc0, &alloc1, &alloc2);
 
     struct capref child_selfep = (struct capref) {
         .cnode = taskcn,
@@ -237,7 +226,7 @@ errval_t spawn_load_argv(int argc, const char *const argv[], struct spawninfo *s
     for (int i = 0; i < argc; i++) {
         size_t len = strlen(argv[i]);
         if (argv_ptr + len + 1 > ((char*) arg_ptr) + BASE_PAGE_SIZE) {
-            return SPAWN_ERR_ARGSPG_OVERFLOW;
+            return err_push(err, SPAWN_ERR_ARGSPG_OVERFLOW);
         }
         memcpy(argv_ptr, argv[i], len + 1);
         sdp->argv[i] = (const char*) child_argv_ptr;
@@ -250,9 +239,7 @@ errval_t spawn_load_argv(int argc, const char *const argv[], struct spawninfo *s
     ON_ERR_PUSH_RETURN(err, SPAWN_ERR_LOAD);
 
     struct Elf64_Shdr *got = elf64_find_section_header_name(si->mapped_elf, si->mapped_elf_size, ".got");
-    if (got == NULL) {
-        return SPAWN_ERR_LOAD;
-    }
+    NULLPTR_CHECK(got, SPAWN_ERR_LOAD);
     
     debug_printf("0x%lx -> 0x%lx\n", si->mapped_elf, si->mapped_elf_size);
     lvaddr_t got_base_address_in_childs_vspace = got->sh_addr;
@@ -349,7 +336,7 @@ errval_t allocate_elf_memory(void* state, genvaddr_t base, size_t size, uint32_t
 
     *ret += offset_in_page;
     
-    return err;
+    return SYS_ERR_OK;
 }
 
 /**

@@ -30,6 +30,7 @@
 struct slot_allocator *get_default_slot_allocator(void)
 {
     struct slot_alloc_state *state = get_slot_alloc_state();
+    assert(state != NULL);
     return (struct slot_allocator*)(&state->defca);
 }
 
@@ -43,6 +44,7 @@ struct slot_allocator *get_default_slot_allocator(void)
 errval_t slot_alloc(struct capref *ret)
 {
     struct slot_allocator *ca = get_default_slot_allocator();
+    assert(ca != NULL);
     return ca->alloc(ca, ret);
 }
 
@@ -57,6 +59,8 @@ errval_t slot_alloc_root(struct capref *ret)
 {
     errval_t err;
     struct slot_alloc_state *state = get_slot_alloc_state();
+    assert(state != NULL);
+
     size_t rootcn_free = single_slot_alloc_freecount(&state->rootca);
     // If there's two root cnode slots left, we need to trigger refill as
     // the multi slot allocator might need a root cnode slot as well if it's
@@ -66,9 +70,8 @@ errval_t slot_alloc_root(struct capref *ret)
     if ((rootcn_free == 2) && !state->rootca.refilling) {
         state->rootca.refilling = true;
         err = root_slot_allocator_refill(NULL, NULL);
-        if (err_is_fail(err)) {
-            return err_push(err, LIB_ERR_ROOTSA_RESIZE);
-        }
+        ON_ERR_PUSH_RETURN(err, LIB_ERR_ROOTSA_RESIZE);
+
         state->rootca.refilling = false;
     }
     struct slot_allocator *ca = (struct slot_allocator*)(&state->rootca);
@@ -100,37 +103,26 @@ errval_t root_slot_allocator_refill(cn_ram_alloc_func_t myalloc, void *allocst)
         myalloc = rootcn_alloc;
     }
     err = myalloc(allocst, nslots * 2 * OBJSIZE_CTE, &root_ram);
-    if (err_is_fail(err)) {
-        return err_push(err, MM_ERR_SLOT_MM_ALLOC);
-    }
+    ON_ERR_PUSH_RETURN(err, MM_ERR_SLOT_MM_ALLOC);
+
     err = slot_alloc(&newroot_cap);
-    if (err_is_fail(err)) {
-        return err_push(err, LIB_ERR_SLOT_ALLOC);
-    }
+    ON_ERR_PUSH_RETURN(err, MM_ERR_SLOT_MM_ALLOC);
+
     err = cnode_create_from_mem(newroot_cap, root_ram, ObjType_L1CNode,
             NULL, nslots * 2);
-    if (err_is_fail(err)) {
-        return err_push(err, LIB_ERR_CNODE_CREATE_FROM_MEM);
-    }
+    ON_ERR_PUSH_RETURN(err, LIB_ERR_CNODE_CREATE_FROM_MEM);
+
     // Delete RAM cap of new CNode
     err = cap_delete(root_ram);
-    if (err_is_fail(err)) {
-        return err_push(err, LIB_ERR_CAP_DELETE);
-    }
+    ON_ERR_PUSH_RETURN(err, LIB_ERR_CAP_DELETE);
 
     // Resize rootcn
     err = root_cnode_resize(newroot_cap, root_ram);
-    if (err_is_fail(err)) {
-        DEBUG_ERR(err, "resizing root cnode");
-        return err;
-    }
+    ON_ERR_PUSH_RETURN(err, LIB_ERR_CNODE_CREATE);
 
     // Delete old Root CNode and free slot
     err = cap_destroy(root_ram);
-    if (err_is_fail(err)) {
-        DEBUG_ERR(err, "deleting old root cnode");
-        return err_push(err, LIB_ERR_CAP_DESTROY);
-    }
+    ON_ERR_PUSH_RETURN(err, LIB_ERR_CAP_DESTROY);
 
     // update root slot allocator size and our metadata
     return single_slot_alloc_resize(sca, nslots * 2);
@@ -153,6 +145,8 @@ errval_t slot_free(struct capref ret)
 {
     debug_printf("freeing slot: %d, %d\n", ret.cnode.cnode, ret.slot);
     struct slot_alloc_state *state = get_slot_alloc_state();
+
+    assert(state != NULL);
 
     if (cnodecmp(ret.cnode, cnode_base)) { // Detect frees in basecn
         return SYS_ERR_OK;
@@ -178,6 +172,7 @@ errval_t slot_alloc_init(void)
     errval_t err;
 
     struct slot_alloc_state *state = get_slot_alloc_state();
+    assert(state != NULL);
 
     /* Default allocator */
     // While initializing, other domains will call into it. Be careful
@@ -205,9 +200,7 @@ errval_t slot_alloc_init(void)
     err = single_slot_alloc_init_raw(&def->head->a, cap, cnode,
                                      SLOT_ALLOC_CNODE_SLOTS, state->head_buf,
                                      sizeof(state->head_buf));
-    if (err_is_fail(err)) {
-        return err_push(err, LIB_ERR_SINGLE_SLOT_ALLOC_INIT_RAW);
-    }
+    ON_ERR_PUSH_RETURN(err, LIB_ERR_SINGLE_SLOT_ALLOC_INIT_RAW);
 
     // Reserve
     cap.cnode = cnode_root;
@@ -216,9 +209,7 @@ errval_t slot_alloc_init(void)
     err = single_slot_alloc_init_raw(&def->reserve->a, cap, cnode,
                                      SLOT_ALLOC_CNODE_SLOTS, state->reserve_buf,
                                      sizeof(state->reserve_buf));
-    if (err_is_fail(err)) {
-        return err_push(err, LIB_ERR_SINGLE_SLOT_ALLOC_INIT_RAW);
-    }
+    ON_ERR_PUSH_RETURN(err, LIB_ERR_SINGLE_SLOT_ALLOC_INIT_RAW);
 
     // Slab
     size_t allocation_unit = sizeof(struct slot_allocator_list) +
@@ -232,17 +223,14 @@ errval_t slot_alloc_init(void)
     err = paging_region_init(get_current_paging_state(), &def->region,
                              allocation_unit * SLOT_ALLOC_CNODE_SLOTS * 20,
                              VREGION_FLAGS_READ_WRITE);
-    if (err_is_fail(err)) {
-        return err_push(err, LIB_ERR_VSPACE_MMU_AWARE_INIT);
-    }
+    ON_ERR_PUSH_RETURN(err, LIB_ERR_VSPACE_MMU_AWARE_INIT);
 
     /* Root allocator */
     err = single_slot_alloc_init_raw(&state->rootca, cap_root, cnode_root,
                                      L2_CNODE_SLOTS, state->root_buf,
                                      sizeof(state->root_buf));
-    if (err_is_fail(err)) {
-        return err_push(err, LIB_ERR_SINGLE_SLOT_ALLOC_INIT_RAW);
-    }
+    ON_ERR_PUSH_RETURN(err, LIB_ERR_SINGLE_SLOT_ALLOC_INIT_RAW);
+
     state->rootca.a.space     = L2_CNODE_SLOTS - ROOTCN_FREE_SLOTS;
     state->rootca.head->space = L2_CNODE_SLOTS - ROOTCN_FREE_SLOTS;
     state->rootca.head->slot  = ROOTCN_FREE_SLOTS;
