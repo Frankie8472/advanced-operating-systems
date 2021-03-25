@@ -8,7 +8,7 @@
 #include <aos/solution.h>
 
 
-const size_t SLAB_REFILL_THRESHOLD = 6;
+const size_t SLAB_REFILL_THRESHOLD = 7;
 
 /**
  * \brief manages slot allocation for mm-internal operations
@@ -159,8 +159,8 @@ static void insert_node_as_head(struct mm *mm, struct mmnode *node)
 }
 
 /**
- * DONE: consider free list
  * TODO: maybe rewrite with less pointer clusterfuck
+ * DONE: consider free list
  * Also, maybe param "a" could be removed, as it will just point
  * to "node" anyways.
  * \brief Split the provided mmnode to create one node with the
@@ -276,11 +276,11 @@ errval_t mm_alloc_aligned(struct mm *mm, size_t size, size_t alignment, struct c
 
     mm_slot_alloc(mm, retcap);
 
-    struct mmnode *node = mm->free_head;
+    struct mmnode *node;
 
     errval_t err = SYS_ERR_OK;
 
-    while(node != NULL) { // TODO: maybe use a for loop?
+    for (node = mm->free_head; node; node = node->free_next) {
         assert(node->type == NodeType_Free);
         if (node->type == NodeType_Free && node->size >= size) {
             struct mmnode *a, *b;
@@ -288,7 +288,6 @@ errval_t mm_alloc_aligned(struct mm *mm, size_t size, size_t alignment, struct c
             if (node->base % alignment != 0) {
                 uint64_t offset = alignment - (node->base % alignment);
                 if (node->size - offset < size) {
-                    node = node->free_next;
                     continue;
                 }
                 err = split_node(mm, node, offset, &a, &b);
@@ -326,7 +325,6 @@ errval_t mm_alloc_aligned(struct mm *mm, size_t size, size_t alignment, struct c
             mm->stats_bytes_available -= node->size;
             goto ok_refill;
         }
-        node = node->free_next;
     }
 
     //printf("could not allocate a frame!\n");
@@ -344,7 +342,6 @@ errval_t mm_alloc(struct mm *mm, size_t size, struct capref *retcap)
 
 
 /**
- * TODO: on success, should we call coalesce again?
  * DONE: update free list
  * \brief Tries to merge an mmnode with its right neighbour.
  *        The merging only happens if they are adjacent and both free.
@@ -394,7 +391,7 @@ static bool coalesce(struct mm *mm, struct mmnode *node)
 errval_t mm_free(struct mm *mm, struct capref cap, genpaddr_t base, gensize_t size)
 {
     struct mmnode* node = mm->head;
-    while(node != NULL) {
+    for (node = mm->head; node; node = node->next) {
         if (node->base == base && node->size == size) {
             node->type = NodeType_Free;
             errval_t err = cap_destroy(cap);
@@ -414,19 +411,15 @@ errval_t mm_free(struct mm *mm, struct capref cap, genpaddr_t base, gensize_t si
 
             coalesce(mm, node);
 
-            // cache previous node in case we can coalesce the current one with its
-            // previoius one
-            struct mmnode *tmp = node->prev;
+            // if node can be coalesced with its predecessor, that one is added to
+            // the free list, otherwise just add node
+            struct mmnode *new_free = node->prev;
+            new_free = coalesce(mm, new_free) ? new_free : node;
 
-            // add either the current or its previous node to the list of free nodes
-            if(coalesce(mm, node->prev))
-                add_node_to_free_list(mm, tmp);
-            else
-                add_node_to_free_list(mm, node);
+            add_node_to_free_list(mm, new_free);
 
             return SYS_ERR_OK;
         }
-        node = node->next;
     }
     return LIB_ERR_RAM_ALLOC_WRONG_SIZE;
 }
@@ -438,6 +431,12 @@ errval_t mm_slot_free(struct mm *mm, struct capref cap)
 }
 
 
+/**
+ * \brief Print the state of an mm-instance: how many free nodes exist, how
+ * many unfree ones etc.
+ *
+ * \param mm Pointer to MM allocator instance data
+ */
 void print_mm_state(struct mm *mm)
 {
     size_t free_nodes = 0;
