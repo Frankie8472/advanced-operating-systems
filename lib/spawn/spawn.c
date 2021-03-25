@@ -385,7 +385,19 @@ static void strip_extra_spaces(char* str) {
   str[x] = '\0';
 }
 
-
+/**
+ * TODO(M2): Implement this function.
+ * \brief Spawn a new dispatcher executing 'binary_name'
+ *
+ * \param binary_name The name of the binary.
+ * \param si A pointer to a spawninfo struct that will be
+ * filled out by spawn_load_by_name. Must not be NULL.
+ * \param pid A pointer to a domainid_t that will be
+ * filled out by spawn_load_by_name. Must not be NULL.
+ *
+ * \return Either SYS_ERR_OK if no error occured or an error
+ * indicating what went wrong otherwise.
+ */
 errval_t spawn_load_by_name(char *binary_name, struct spawninfo * si,
                             domainid_t *pid) {
     // - Get the mem_region from the multiboot image
