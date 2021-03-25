@@ -339,21 +339,6 @@ errval_t allocate_elf_memory(void* state, genvaddr_t base, size_t size, uint32_t
     return SYS_ERR_OK;
 }
 
-/**
- * TODO(M2): Implement this function.
- * \brief Spawn a new dispatcher executing 'binary_name'
- *
- * \param binary_name The name of the binary.
- * \param si A pointer to a spawninfo struct that will be
- * filled out by spawn_load_by_name. Must not be NULL.
- * \param pid A pointer to a domainid_t that will be
- * filled out by spawn_load_by_name. Must not be NULL.
- *
- * \return Either SYS_ERR_OK if no error occured or an error
- * indicating what went wrong otherwise.
- */
-
-
 static int get_argc(char * args){
    int argc = 1;
    int i = 0;
