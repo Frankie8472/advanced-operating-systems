@@ -59,7 +59,7 @@ void user_panic_fn(const char *file, const char *func, int line,
 # define DEBUG_PRINTF(fmt...) debug_printf(fmt);
 # define DEBUG_ERR(err, msg...) debug_err(__FILE__, __func__, __LINE__, err, msg)
 # include <aos/dispatch.h>
-# define HERE fprintf(stderr, "Disp %.*s.%u: %s, %s, %u\n", \
+# define HERE fprintf(stderr, "Disp %.*s.%u: %s, %s, %u\n",             \
                         DISP_NAME_LEN, disp_name(), disp_get_core_id(), \
                       __FILE__, __func__, __LINE__)
 #endif
@@ -73,6 +73,16 @@ void user_panic_fn(const char *file, const char *func, int line,
 } while (0)
 
 /**
+ * \brief Null ptr check with err return
+ */
+#define NULLPTR_CHECK(ptr, err) do {                    \
+    if (ptr == NULL) {                                  \
+        HERE;                                           \
+        return err;                                     \
+    }                                                   \
+} while (0)
+
+/**
  * \brief Prints out a string and abort the domain
  */
 #define USER_PANIC(msg...)                                 \
@@ -83,6 +93,7 @@ void user_panic_fn(const char *file, const char *func, int line,
  */
 #define ON_ERR_RETURN(err) do {                        \
     if (err_is_fail(err)) {                            \
+        HERE;                                          \
         return err;                                    \
     }                                                  \
 } while (0)
@@ -95,6 +106,17 @@ void user_panic_fn(const char *file, const char *func, int line,
         HERE;                                          \
         return err_push(err, code);                    \
     }                                                  \
+} while (0)
+
+/**
+ * \brief Returns an error on fail
+ */
+#define ON_ERR_NO_RETURN(err) do {                      \
+    if (err_is_fail(err)) {                             \
+        HERE;                                           \
+        DEBUG_ERR(err, "");                             \
+        return;                                         \
+    }                                                   \
 } while (0)
 
 __END_DECLS
