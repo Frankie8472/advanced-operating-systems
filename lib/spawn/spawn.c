@@ -67,16 +67,10 @@ errval_t setup_c_space(struct capref cnode_l1,
                        struct cnoderef * alloc1,
                        struct cnoderef * alloc2) {
     errval_t err = cnode_create_foreign_l2(cnode_l1, ROOTCN_SLOT_TASKCN, taskcn);
-    if (err_is_fail(err)) {
-        HERE;
-        return err_push(err, SPAWN_ERR_CREATE_TASKCN);
-    }
+    ON_ERR_PUSH_RETURN(err, SPAWN_ERR_CREATE_TASKCN);
 
     err = cnode_create_foreign_l2(cnode_l1, ROOTCN_SLOT_BASE_PAGE_CN, basepagecn);
-    if (err_is_fail(err)) {
-        HERE;
-        return err_push(err, SPAWN_ERR_CREATE_PAGECN);
-    }
+    ON_ERR_PUSH_RETURN(err, SPAWN_ERR_CREATE_PAGECN);
 
     for (int i = 0; i < 256; i++) {
         struct capref counter = (struct capref) {
@@ -94,28 +88,16 @@ errval_t setup_c_space(struct capref cnode_l1,
     }
 
     err = cnode_create_foreign_l2(cnode_l1, ROOTCN_SLOT_PAGECN, pagecn);
-    if (err_is_fail(err)) {
-        HERE;
-        return err_push(err, SPAWN_ERR_CREATE_PAGECN);
-    }
-
+    ON_ERR_PUSH_RETURN(err, SPAWN_ERR_CREATE_PAGECN);
+    
     err = cnode_create_foreign_l2(cnode_l1, ROOTCN_SLOT_SLOT_ALLOC0, alloc0);
-    if (err_is_fail(err)) {
-        HERE;
-        return err_push(err, SPAWN_ERR_CREATE_SLOTALLOC_CNODE);
-    }
+    ON_ERR_PUSH_RETURN(err, SPAWN_ERR_CREATE_SLOTALLOC_CNODE);
 
     err = cnode_create_foreign_l2(cnode_l1, ROOTCN_SLOT_SLOT_ALLOC1, alloc1);
-    if (err_is_fail(err)) {
-        HERE;
-        return err_push(err, SPAWN_ERR_CREATE_SLOTALLOC_CNODE);
-    }
+    ON_ERR_PUSH_RETURN(err, SPAWN_ERR_CREATE_SLOTALLOC_CNODE);
 
     err = cnode_create_foreign_l2(cnode_l1, ROOTCN_SLOT_SLOT_ALLOC2, alloc2);
-    if (err_is_fail(err)) {
-        HERE;
-        return err_push(err, SPAWN_ERR_CREATE_SLOTALLOC_CNODE);
-    }
+    ON_ERR_PUSH_RETURN(err, SPAWN_ERR_CREATE_SLOTALLOC_CNODE);
 
     return SYS_ERR_OK;
 }
@@ -152,19 +134,11 @@ errval_t spawn_load_argv(int argc, const char *const argv[], struct spawninfo *s
     errval_t err;
     const char* name = argv[0];
     DEBUG_PRINTF("Spawning process: %s\n", name);
-    /*err = spawn_load_by_name(name, si, pid);
-    if (err_is_fail(err)){
-        return err;
-    }*/
-
 
     struct capref cnode_child_l1;
     struct cnoderef child_ref;
     err = cnode_create_l1(&cnode_child_l1, &child_ref);
-    if (err_is_fail(err)) {
-        HERE;
-        return err_push(err, SPAWN_ERR_CREATE_ROOTCN);
-    }
+    ON_ERR_PUSH_RETURN(err, SPAWN_ERR_CREATE_ROOTCN);
 
     DEBUG_PRINTF("cnode_child_l1 slot is: %d\n", cnode_child_l1.slot);
 
@@ -206,28 +180,16 @@ errval_t spawn_load_argv(int argc, const char *const argv[], struct spawninfo *s
     };
 
     err = dispatcher_create(child_dispatcher);
-    if (err_is_fail(err)) {
-        HERE;
-        return err_push(err, SPAWN_ERR_CREATE_DISPATCHER);
-    }
+    ON_ERR_PUSH_RETURN(err, SPAWN_ERR_CREATE_DISPATCHER);
 
     err = cap_retype(child_selfep, child_dispatcher, 0, ObjType_EndPointLMP, 0, 1);
-    if (err_is_fail(err)) {
-        HERE;
-        return err_push(err, SPAWN_ERR_CREATE_SELFEP);
-    }
+    ON_ERR_PUSH_RETURN(err, SPAWN_ERR_CREATE_SELFEP);
 
     err = cap_copy(child_rootcn, cnode_child_l1);
-    if (err_is_fail(err)) {
-        HERE;
-        return err_push(err, SPAWN_ERR_COPY_MODULECN);
-    }
+    ON_ERR_PUSH_RETURN(err, SPAWN_ERR_COPY_MODULECN);
 
     err = frame_create(child_dispframe, DISPATCHER_FRAME_SIZE, NULL);
-    if (err_is_fail(err)) {
-        HERE;
-        return err_push(err, SPAWN_ERR_CREATE_DISPATCHER_FRAME);
-    }
+    ON_ERR_PUSH_RETURN(err, SPAWN_ERR_CREATE_DISPATCHER_FRAME);
 
 
     // ===========================================
@@ -240,45 +202,32 @@ errval_t spawn_load_argv(int argc, const char *const argv[], struct spawninfo *s
     struct capref l0_vnode;
 
     err = slot_alloc(&l0_vnode);
-    if (err_is_fail(err)) {
-        HERE;
-        return err;
-    }
+    ON_ERR_RETURN(err);
+
     err = vnode_create(child_l0_vnodecap, ObjType_VNode_AARCH64_l0);
-    if (err_is_fail(err)) {
-        HERE;
-        return err_push(err, SPAWN_ERR_CREATE_VNODE);
-    }
+    ON_ERR_PUSH_RETURN(err, SPAWN_ERR_CREATE_VNODE);
+
     err = cap_copy(l0_vnode, child_l0_vnodecap);
-    if (err_is_fail(err)) {
-        HERE;
-        return err_push(err, SPAWN_ERR_COPY_VNODE);
-    }
+    ON_ERR_PUSH_RETURN(err, SPAWN_ERR_COPY_VNODE);
 
     paging_init_state_foreign(&si->ps, VADDR_OFFSET, l0_vnode, get_default_slot_allocator());
 
     struct capref argframe;
     err = frame_alloc(&argframe, BASE_PAGE_SIZE, NULL);
-    if (err_is_fail(err)) {
-        HERE;
-        return err_push(err, SPAWN_ERR_CREATE_ARGSPG);
-    }
+    ON_ERR_PUSH_RETURN(err, SPAWN_ERR_CREATE_ARGSPG);
+
     err = cap_copy(child_argspage, argframe);
-    if (err_is_fail(err)) { HERE; return err; }
+    ON_ERR_RETURN(err);
 
     void* arg_ptr;
     err = paging_map_frame_complete(get_current_paging_state(), &arg_ptr, argframe, NULL, NULL);
-    if (err_is_fail(err)) {
-        HERE;
-        return err_push(err, SPAWN_ERR_MAP_ARGSPG_TO_SELF);
-    }
+    ON_ERR_PUSH_RETURN(err, SPAWN_ERR_MAP_ARGSPG_TO_SELF);
+
+
     // TODO: organize vspace
     lvaddr_t child_arg_ptr = 0x700000UL * 0x1000;
     err = paging_map_fixed_attr(&si->ps, child_arg_ptr, argframe, BASE_PAGE_SIZE, VREGION_FLAGS_READ_WRITE);
-    if (err_is_fail(err)) {
-        HERE;
-        return err_push(err, SPAWN_ERR_MAP_ARGSPG_TO_NEW);
-    }
+    ON_ERR_PUSH_RETURN(err, SPAWN_ERR_MAP_ARGSPG_TO_NEW);
 
     memset(arg_ptr, 0, BASE_PAGE_SIZE);
     struct spawn_domain_params *sdp = arg_ptr;
@@ -298,14 +247,13 @@ errval_t spawn_load_argv(int argc, const char *const argv[], struct spawninfo *s
 
     genvaddr_t retentry;
     err = elf_load(EM_AARCH64, &allocate_elf_memory, &si->ps, si->mapped_elf, si->mapped_elf_size, &retentry);
-    if (err_is_fail(err)) {
-        return err_push(err, SPAWN_ERR_LOAD);
-    }
+    ON_ERR_PUSH_RETURN(err, SPAWN_ERR_LOAD);
 
     struct Elf64_Shdr *got = elf64_find_section_header_name(si->mapped_elf, si->mapped_elf_size, ".got");
     if (got == NULL) {
         return SPAWN_ERR_LOAD;
     }
+    
     debug_printf("0x%lx -> 0x%lx\n", si->mapped_elf, si->mapped_elf_size);
     lvaddr_t got_base_address_in_childs_vspace = got->sh_addr;
     debug_printf("possible 0x%lx\n", got_base_address_in_childs_vspace);
@@ -313,28 +261,20 @@ errval_t spawn_load_argv(int argc, const char *const argv[], struct spawninfo *s
 
     struct capref dispframe;
     err = slot_alloc(&dispframe);
-    if (err_is_fail(err)) { HERE; return err; }
+    ON_ERR_RETURN(err);
+
     err = cap_copy(dispframe, child_dispframe);
-    if (err_is_fail(err)) {
-        HERE;
-        return err_push(err, SPAWN_ERR_COPY_KERNEL_CAP);
-    }
+    ON_ERR_PUSH_RETURN(err, SPAWN_ERR_COPY_KERNEL_CAP);
 
     uint64_t dispaddr = ROUND_UP(0x12345678, DISPATCHER_FRAME_SIZE);
 
     err = paging_map_fixed_attr(&si->ps, dispaddr, dispframe, DISPATCHER_FRAME_SIZE, VREGION_FLAGS_READ_WRITE);
-
-    if (err_is_fail(err)) {
-        HERE;
-        return err_push(err, SPAWN_ERR_MAP_DISPATCHER_TO_NEW);
-    }
+    ON_ERR_PUSH_RETURN(err, SPAWN_ERR_MAP_DISPATCHER_TO_NEW);
 
     void* dispaddr_init;
     err = paging_map_frame(get_current_paging_state(), &dispaddr_init, DISPATCHER_FRAME_SIZE, dispframe, NULL, NULL);
-    if (err_is_fail(err)) {
-        HERE;
-        return err_push(err, SPAWN_ERR_MAP_DISPATCHER_TO_SELF);
-    }
+    ON_ERR_PUSH_RETURN(err, SPAWN_ERR_MAP_DISPATCHER_TO_SELF);
+
     memset(dispaddr_init, 0, DISPATCHER_FRAME_SIZE);
 
     dispatcher_handle_t handle = (dispatcher_handle_t) dispaddr_init;
@@ -352,8 +292,8 @@ errval_t spawn_load_argv(int argc, const char *const argv[], struct spawninfo *s
     disp->disabled = 1;// Start in disabled mode
     strncpy(disp->name, "hello_world", DISP_NAME_LEN); // A name (for debugging)
     disabled_area->named.pc = retentry; // Set program counter (where it should start to execute)
+    
     // Initialize offset registers
-    // got_addr is the address of the .got in the child’s VSpace
     armv8_set_registers((void*) got_base_address_in_childs_vspace, handle, enabled_area, disabled_area);
     disp_gen->eh_frame = 0;
     disp_gen->eh_frame_size = 0;
@@ -361,28 +301,15 @@ errval_t spawn_load_argv(int argc, const char *const argv[], struct spawninfo *s
     disp_gen->eh_frame_hdr_size = 0;
 
     err = slot_alloc(&si->dispatcher);
-    if (err_is_fail(err)) { HERE; return err; }
+    ON_ERR_RETURN(err);
 
     err = cap_copy(si->dispatcher, child_dispatcher);
-    if (err_is_fail(err)) {
-        HERE;
-        return err_push(err, SPAWN_ERR_COPY_KERNEL_CAP);
-    }
+    ON_ERR_PUSH_RETURN(err, SPAWN_ERR_COPY_KERNEL_CAP);
 
     err = invoke_dispatcher(si->dispatcher, cap_dispatcher, cnode_child_l1, child_l0_vnodecap, child_dispframe, true);
-    if (err_is_fail(err)) {
-        HERE;
-        return err;
-    }
+    ON_ERR_RETURN(err);
 
     //dump_dispatcher(disp);
-
-    /*err = invoke_dispatcher(si->dispatcher, NULL_CAP, NULL_CAP, NULL_CAP, NULL_CAP, true);
-    if (err_is_fail(err)) {
-        HERE;
-        return err;
-    }
-    dump_dispatcher(disp);*/
     return SYS_ERR_OK;
 }
 
@@ -411,23 +338,15 @@ errval_t allocate_elf_memory(void* state, genvaddr_t base, size_t size, uint32_t
     struct capref frame;
     size_t actual_size;
     err = frame_alloc(&frame, real_size, &actual_size);
-    if (err_is_fail(err)) {
-        HERE;
-        return err_push(err, SPAWN_ERR_MAP_MODULE);
-    }
+    ON_ERR_PUSH_RETURN(err, SPAWN_ERR_MAP_MODULE);
 
     //debug_printf("MAPPING ELF STUFF: 0x%lx -> 0x%lx\n", real_base, real_base + actual_size);
     err = paging_map_fixed_attr(st, real_base, frame, actual_size, actual_flags);
-    if (err_is_fail(err)) {
-        HERE;
-        return err_push(err, SPAWN_ERR_MAP_MODULE);
-    }
+    ON_ERR_PUSH_RETURN(err, SPAWN_ERR_MAP_MODULE);
 
     err = paging_map_frame(get_current_paging_state(), ret, actual_size, frame, NULL, NULL);
-    if (err_is_fail(err)) {
-        HERE;
-        return err_push(err, SPAWN_ERR_MAP_MODULE);
-    }
+    ON_ERR_PUSH_RETURN(err, SPAWN_ERR_MAP_MODULE);
+
     *ret += offset_in_page;
     
     return err;
@@ -499,9 +418,7 @@ errval_t spawn_load_by_name(char *binary_name, struct spawninfo * si,
     };
 
     err = invoke_cap_identify(child_frame, &cap);
-    if (err_is_fail(err)) {
-        return err;
-    }
+    ON_ERR_RETURN(err);
 
     size_t mapping_size = get_size(&cap);
     char* elf_address;
@@ -513,7 +430,6 @@ errval_t spawn_load_by_name(char *binary_name, struct spawninfo * si,
     debug_printf("ELF address = %lx\n", elf_address);
     debug_printf("%x, '%c', '%c', '%c'\n", elf_address[0], elf_address[1], elf_address[2], elf_address[3]);
     debug_printf("BOI\n");
-
 
     char *args_string = (char *)  multiboot_module_opts(mem_region);
     char copy[strlen(args_string)];

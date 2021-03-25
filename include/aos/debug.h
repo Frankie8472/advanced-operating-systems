@@ -78,6 +78,25 @@ void user_panic_fn(const char *file, const char *func, int line,
 #define USER_PANIC(msg...)                                 \
     user_panic_fn(__FILE__, __func__, __LINE__, msg);      \
 
+/**
+ * \brief Returns an error on fail
+ */
+#define ON_ERR_RETURN(err) do {                        \
+    if (err_is_fail(err)) {                            \
+        return err;                                    \
+    }                                                  \
+} while (0)
+
+/**
+ * \brief Pushes an error-code into the error and returns it on fail
+ */
+#define ON_ERR_PUSH_RETURN(err, code) do {             \
+    if (err_is_fail(err)) {                            \
+        HERE;                                          \
+        return err_push(err, code);                    \
+    }                                                  \
+} while (0)
+
 __END_DECLS
 
 #endif //BARRELFISH_DEBUG_H
