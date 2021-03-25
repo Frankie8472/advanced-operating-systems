@@ -193,6 +193,7 @@ errval_t paging_region_init_fixed(struct paging_state *st, struct paging_region 
 
     //TODO(M2): Add the region to a datastructure and ensure paging_alloc
     //will return non-overlapping regions.
+    // TODO inspect this; maybe replace with smarter allocating algorithm
     if (st->current_address < pr->base_addr + pr->region_size) {
         st->current_address = pr->base_addr + pr->region_size;
     }
@@ -213,7 +214,10 @@ errval_t paging_region_init_aligned(struct paging_state *st, struct paging_regio
         return err_push(err, LIB_ERR_VSPACE_MMU_AWARE_INIT);
     }
 
-    return paging_region_init_fixed(st, pr, (lvaddr_t)base, size, flags);
+    err = paging_region_init_fixed(st, pr, (lvaddr_t)base, size, flags);
+    ON_ERR_PUSH_RETURN(err, LIB_ERR_PMAP_DO_MAP);
+
+    return SYS_ERR_OK;
 }
 
 /**

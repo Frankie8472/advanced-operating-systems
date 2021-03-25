@@ -40,6 +40,11 @@
 
 typedef int paging_flags_t;
 
+struct paging_region_segment {
+    struct paging_region_segment *next;
+    size_t free_space;
+};
+
 struct paging_region {
     lvaddr_t base_addr;
     lvaddr_t current_addr;
