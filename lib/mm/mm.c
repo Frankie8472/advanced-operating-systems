@@ -8,7 +8,7 @@
 #include <aos/solution.h>
 
 
-const size_t SLAB_REFILL_THRESHOLD = 6;
+const size_t SLAB_REFILL_THRESHOLD = 7;
 
 /**
  * \brief manages slot allocation for mm-internal operations
@@ -47,6 +47,8 @@ errval_t mm_init(struct mm *mm, enum objtype objtype,
     }
     slab_init(&mm->slabs, sizeof(struct mmnode), slab_refill_func);
     mm->head = NULL;
+    mm->free_head = NULL;
+    mm->free_last = NULL;
     mm->objtype = objtype;
     mm->slot_alloc_priv = slot_alloc_func;
     mm->slot_refill = slot_refill_func;
@@ -94,7 +96,56 @@ void mm_destroy(struct mm *mm)
 }
 
 /**
- * \brief simply insert a new node at the front of our linked list structure
+ * \brief Add a node to the list of free nodes.
+ *
+ * \param mm Pointer to MM allocator instance data.
+ * \param node Node to add to the list of free nodes.
+ */
+static void add_node_to_free_list(struct mm *mm, struct mmnode *node)
+{
+    node->free_prev = mm->free_last;
+    if (mm->free_last)
+        mm->free_last->free_next = node;
+    else // if no last exists, also overwrite first
+        mm->free_head = node;
+
+    mm->free_last = node;
+    node->free_next = NULL;
+}
+
+/**
+ * \brief Remove a node from the list of free nodes. This is necessary
+ * for cases like coalesce, since two nodes to coalesce might not be
+ * adjacent in the free_list.
+ *
+ * \param mm Pointer to MM allocator instance data.
+ * \param node Node to remove from the list of free nodes.
+ */
+static void remove_node_from_free_list(struct mm *mm, struct mmnode *node)
+{
+    if (node == mm->free_head) {
+        mm->free_head = node->free_next;
+        if (mm->free_head)
+            mm->free_head->free_prev = NULL;
+    } else
+        node->free_prev->free_next = node->free_next;
+
+    if (node == mm->free_last) {
+        mm->free_last = node->free_prev;
+        if (mm->free_last)
+            mm->free_last->free_next = NULL;
+    } else
+        node->free_next->free_prev = node->free_prev;
+
+    node->free_next = NULL;
+    node->free_prev = NULL;
+}
+
+/**
+ * DONE: also insert to free list
+ * \brief simply insert a new node at the front of our linked list structure.
+ * If the provided node is of type "NodeType_Free", it is also placed at the
+ * head of the free list.
  */
 static void insert_node_as_head(struct mm *mm, struct mmnode *node)
 {
@@ -106,10 +157,19 @@ static void insert_node_as_head(struct mm *mm, struct mmnode *node)
     mm->head = node;
     node->next = old_head;
     node->prev = NULL;
+
+    // maybe also insert into free list
+    if (node->type == NodeType_Free) {
+        add_node_to_free_list(mm, node);
+    } else {
+        node->free_next = NULL;
+        node->free_prev = NULL;
+    }
 }
 
 /**
  * TODO: maybe rewrite with less pointer clusterfuck
+ * DONE: consider free list
  * Also, maybe param "a" could be removed, as it will just point
  * to "node" anyways.
  * \brief Split the provided mmnode to create one node with the
@@ -144,6 +204,9 @@ static errval_t split_node(struct mm *mm, struct mmnode *node, size_t offset, st
         new_node->next->prev = new_node;
     }
 
+    if (new_node->type == NodeType_Free)
+        add_node_to_free_list(mm, new_node);
+
     *a = node;
     *b = new_node;
 
@@ -173,6 +236,7 @@ static void mm_check_refill(struct mm *mm)
 }
 
 /**
+ * DONE: free list?
  * \brief Adds an mmnode to the given MM allocator instance data
  *
  * \param mm Pointer to MM allocator instance data
@@ -184,14 +248,16 @@ errval_t mm_add(struct mm *mm, struct capref cap, genpaddr_t base, size_t size)
 {
     struct mmnode *new_node = slab_alloc(&mm->slabs);
 
-    insert_node_as_head(mm, new_node);
-
-    new_node->type = NodeType_Free;
     new_node->cap = (struct capinfo) {
         .cap = cap,
         .base = base,
         .size = size
     };
+
+    new_node->type = NodeType_Free;
+
+    insert_node_as_head(mm, new_node);
+
     new_node->base = base;
     new_node->size = size;
     mm->stats_bytes_available += size;
@@ -202,6 +268,7 @@ errval_t mm_add(struct mm *mm, struct capref cap, genpaddr_t base, size_t size)
 }
 
 /**
+ * DONE: loop free list
  * \brief Allocates aligned memory in the form of a RAM capability
  *
  * \param mm Pointer to MM allocator instance data
@@ -218,18 +285,18 @@ errval_t mm_alloc_aligned(struct mm *mm, size_t size, size_t alignment, struct c
 
     mm_slot_alloc(mm, retcap);
 
-    struct mmnode *node = mm->head;
+    struct mmnode *node;
 
     errval_t err = SYS_ERR_OK;
 
-    while(node != NULL) {
-        if (node->type == NodeType_Free && node->size >= size) {
+    for (node = mm->free_head; node; node = node->free_next) {
+        /* assert(node->type == NodeType_Free); */
+        if (node->size >= size) {
             struct mmnode *a, *b;
 
             if (node->base % alignment != 0) {
                 uint64_t offset = alignment - (node->base % alignment);
                 if (node->size - offset < size) {
-                    node = node->next;
                     continue;
                 }
                 err = split_node(mm, node, offset, &a, &b);
@@ -263,10 +330,10 @@ errval_t mm_alloc_aligned(struct mm *mm, size_t size, size_t alignment, struct c
             }
 
             node->type = NodeType_Allocated;
+            remove_node_from_free_list(mm, node);
             mm->stats_bytes_available -= node->size;
             goto ok_refill;
         }
-        node = node->next;
     }
 
     //printf("could not allocate a frame!\n");
@@ -284,14 +351,13 @@ errval_t mm_alloc(struct mm *mm, size_t size, struct capref *retcap)
 
 
 /**
+ * DONE: update free list
  * \brief Tries to merge an mmnode with its right neighbour.
  *        The merging only happens if they are adjacent and both free.
  *
  * \param mm Pointer to MM allocator instance data
  * \param mmnode Pointer to the mmnode
  */
-
-
 static bool coalesce(struct mm *mm, struct mmnode *node)
 {
     if (node == NULL) {
@@ -315,6 +381,7 @@ static bool coalesce(struct mm *mm, struct mmnode *node)
             node->next->prev = node;
         }
 
+        remove_node_from_free_list(mm, right); // right node no longer usable
         slab_free(&mm->slabs, right);
         return true;
     }
@@ -322,6 +389,7 @@ static bool coalesce(struct mm *mm, struct mmnode *node)
 }
 
 /**
+ * DONE: add to free list
  * \brief Freeing allocated RAM and associated capability
  *
  * \param mm Pointer to MM allocator instance data
@@ -332,7 +400,7 @@ static bool coalesce(struct mm *mm, struct mmnode *node)
 errval_t mm_free(struct mm *mm, struct capref cap, genpaddr_t base, gensize_t size)
 {
     struct mmnode* node = mm->head;
-    while(node != NULL) {
+    for (node = mm->head; node; node = node->next) {
         if (node->base == base && node->size == size) {
             node->type = NodeType_Free;
             errval_t err = cap_destroy(cap);
@@ -351,11 +419,16 @@ errval_t mm_free(struct mm *mm, struct capref cap, genpaddr_t base, gensize_t si
             mm->stats_bytes_available += size;
 
             coalesce(mm, node);
-            coalesce(mm, node->prev);
+
+            // if node can be coalesced with its predecessor, that one is added to
+            // the free list, otherwise just add node
+            struct mmnode *new_free = node->prev;
+            new_free = coalesce(mm, new_free) ? new_free : node;
+
+            add_node_to_free_list(mm, new_free);
 
             return SYS_ERR_OK;
         }
-        node = node->next;
     }
     return LIB_ERR_RAM_ALLOC_WRONG_SIZE;
 }
@@ -367,6 +440,12 @@ errval_t mm_slot_free(struct mm *mm, struct capref cap)
 }
 
 
+/**
+ * \brief Print the state of an mm-instance: how many free nodes exist, how
+ * many unfree ones etc.
+ *
+ * \param mm Pointer to MM allocator instance data
+ */
 void print_mm_state(struct mm *mm)
 {
     size_t free_nodes = 0;
@@ -383,4 +462,9 @@ void print_mm_state(struct mm *mm)
         printf("mmnode with base 0x%x size 0x%x\n", node->base, node->size);
     }
     printf("free nodes: %d, unfree nodes: %d\n", free_nodes, unfree_nodes);
+
+    int free_count = 0;
+    for (struct mmnode* node = mm->free_head; node; node = node->free_next)
+        free_count++;
+    printf("%d nodes in free list\n", free_count);
 }

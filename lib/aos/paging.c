@@ -346,21 +346,18 @@ errval_t paging_map_frame_attr(struct paging_state *st, void **buf, size_t bytes
 errval_t slab_refill_no_pagefault(struct slab_allocator *slabs, struct capref frame,
                                   size_t minbytes)
 {
-
     const size_t bytes = ROUND_UP(minbytes, BASE_PAGE_SIZE);
     struct capref fr;
     size_t size;
     frame_alloc(&fr, bytes, &size);
-    static lvaddr_t addr = VADDR_OFFSET + 0x70000000UL; // we just assume that we can do this
-    // TODO: as soon as we have usable virtual memory allocation, replace this lottery
-    errval_t err = paging_map_fixed(get_current_paging_state(), addr, fr, bytes);
+    void* buf = NULL;
+    errval_t err = paging_map_frame_complete(get_current_paging_state(), &buf, fr, NULL, NULL);
     
     if (err_is_fail(err)) {
         DEBUG_ERR(err, "error refilling slab allocator");
         return err;
     }
-    slab_grow(slabs, (void*) addr, size);
-    addr += bytes;
+    slab_grow(slabs, buf, size);
     return SYS_ERR_OK;
 }
 

@@ -39,12 +39,14 @@ struct capinfo {
  * \brief Node in Memory manager
  */
 struct mmnode {
-    enum nodetype type;    ///< Type of `this` node.
-    struct capinfo cap;    ///< Cap in which this region exists
-    struct mmnode *prev;   ///< Previous node in the list.
-    struct mmnode *next;   ///< Next node in the list.
-    genpaddr_t base;       ///< Base address of this region
-    gensize_t size;        ///< Size of this free region in cap
+    enum nodetype type;       ///< Type of `this` node.
+    struct capinfo cap;       ///< Cap in which this region exists
+    struct mmnode *prev;      ///< Previous node in the list.
+    struct mmnode *next;      ///< Next node in the list.
+    struct mmnode *free_next; ///< next node in the free-list
+    struct mmnode *free_prev; ///< previous node in the free-list
+    genpaddr_t base;          ///< Base address of this region
+    gensize_t size;           ///< Size of this free region in cap
 };
 
 /**
@@ -54,12 +56,14 @@ struct mmnode {
  * them to allocate its memory, we declare it in the public header.
  */
 struct mm {
-    struct slab_allocator slabs; ///< Slab allocator used for allocating nodes
-    slot_alloc_t slot_alloc_priv;     ///< Slot allocator for allocating cspace
-    slot_refill_t slot_refill;   ///< Slot allocator refill function
-    void *slot_alloc_inst;       ///< Opaque instance pointer for slot allocator
-    enum objtype objtype;        ///< Type of capabilities stored
-    struct mmnode *head;         ///< Head of doubly-linked list of nodes in order
+    struct slab_allocator slabs;  ///< Slab allocator used for allocating nodes
+    slot_alloc_t slot_alloc_priv; ///< Slot allocator for allocating cspace
+    slot_refill_t slot_refill;    ///< Slot allocator refill function
+    void *slot_alloc_inst;        ///< Opaque instance pointer for slot allocator
+    enum objtype objtype;         ///< Type of capabilities stored
+    struct mmnode *head;          ///< Head of doubly-linked list of nodes in order
+    struct mmnode *free_head;     ///< Head of unordered doubly-linked list of free nodes
+    struct mmnode *free_last;     ///< Last of unordered doubly-linked list of free nodes
 
     /* statistics */
     gensize_t stats_bytes_max;
