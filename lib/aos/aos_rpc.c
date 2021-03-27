@@ -19,12 +19,6 @@
 
 
 
-errval_t
-aos_rpc_init(struct aos_rpc *rpc) {
-    lmp_chan_init(&rpc->channel);
-    return SYS_ERR_OK;
-}
-
 
 errval_t
 aos_rpc_send_number(struct aos_rpc *rpc, uintptr_t num) {
@@ -103,7 +97,7 @@ aos_rpc_process_get_all_pids(struct aos_rpc *rpc, domainid_t **pids,
  */
 struct aos_rpc *aos_rpc_get_init_channel(void)
 {
-    static struct aos_rpc init;
+    /*static struct aos_rpc init;
     static bool initialized = false;
     if (!initialized) {
         aos_rpc_init(&init);
@@ -116,6 +110,27 @@ struct aos_rpc *aos_rpc_get_init_channel(void)
 
     debug_printf("aos_rpc_get_init_channel\n");
     return &init;
+    */
+    //TODO: Return channel to talk to init process
+    debug_printf("aos_rpc_get_init_channel NYI\n");
+    //
+    struct capref self_ep_cap = (struct capref){
+      .cnode = cnode_task,
+      .slot = TASKCN_SLOT_SELFEP
+    };
+
+    struct capref init_ep_cap = (struct capref){
+      .cnode = cnode_task,
+      .slot = TASKCN_SLOT_INITEP
+    };
+    struct aos_rpc* rpc = (struct aos_rpc *) malloc(sizeof(struct aos_rpc));
+    lmp_chan_init(&rpc -> channel);
+    rpc -> channel.local_cap = self_ep_cap;
+    rpc -> channel.remote_cap = init_ep_cap;
+
+
+
+    return rpc;
 }
 
 /**
@@ -150,4 +165,3 @@ struct aos_rpc *aos_rpc_get_serial_channel(void)
     debug_printf("aos_rpc_get_serial_channel NYI\n");
     return NULL;
 }
-

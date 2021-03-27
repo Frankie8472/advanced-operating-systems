@@ -186,6 +186,7 @@ errval_t spawn_load_argv(int argc, const char *const argv[], struct spawninfo *s
     err = frame_create(child_dispframe, DISPATCHER_FRAME_SIZE, NULL);
     ON_ERR_PUSH_RETURN(err, SPAWN_ERR_CREATE_DISPATCHER_FRAME);
 
+
     struct lmp_endpoint *lmp_ep;
     endpoint_create(4, &child_initep, &lmp_ep);
 
