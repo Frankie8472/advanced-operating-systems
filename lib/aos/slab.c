@@ -35,6 +35,8 @@ STATIC_ASSERT_SIZEOF(struct block_head, SLAB_BLOCK_HDRSIZE);
 void slab_init(struct slab_allocator *slabs, size_t blocksize,
                slab_refill_func_t refill_func)
 {
+    assert(slabs != NULL);
+
     slabs->slabs = NULL;
     slabs->blocksize = SLAB_REAL_BLOCKSIZE(blocksize);
     slabs->refill_func = refill_func;
@@ -50,6 +52,8 @@ void slab_init(struct slab_allocator *slabs, size_t blocksize,
  */
 void slab_grow(struct slab_allocator *slabs, void *buf, size_t buflen)
 {
+    assert(slabs != NULL);
+
     /* setup slab_head structure at top of buffer */
     assert(buflen > sizeof(struct slab_head));
     struct slab_head *head = buf;
@@ -85,6 +89,8 @@ void slab_grow(struct slab_allocator *slabs, void *buf, size_t buflen)
  */
 void *slab_alloc(struct slab_allocator *slabs)
 {
+    assert(slabs != NULL);
+
     errval_t err;
     /* find a slab with free blocks */
     struct slab_head *sh;
@@ -160,6 +166,8 @@ void slab_free(struct slab_allocator *slabs, void *block)
  */
 size_t slab_freecount(struct slab_allocator *slabs)
 {
+    assert(slabs != NULL);
+
     size_t ret = 0;
 
     for (struct slab_head *sh = slabs->slabs; sh != NULL; sh = sh->next) {
@@ -179,6 +187,8 @@ size_t slab_freecount(struct slab_allocator *slabs)
  */
 static errval_t slab_refill_pages(struct slab_allocator *slabs, size_t bytes)
 {
+    assert(slabs != NULL);
+
     struct capref fr;
     size_t size;
     frame_alloc(&fr, bytes, &size);
@@ -187,17 +197,10 @@ static errval_t slab_refill_pages(struct slab_allocator *slabs, size_t bytes)
     errval_t err;
 
     err = paging_alloc(get_current_paging_state(), &addr, size, 1);
-    if (err_is_fail(err)) {
-        return err;
-    }
+    ON_ERR_RETURN(err);
 
     err = paging_map_fixed(get_current_paging_state(), (lvaddr_t) addr, fr, bytes);
-    
-    if (err_is_fail(err)) {
-        HERE;
-        DEBUG_ERR(err, "error refilling slab allocator");
-        return err;
-    }
+    ON_ERR_RETURN(err);
 
     slab_grow(slabs, (void*) addr, size);
     return SYS_ERR_OK;
@@ -213,5 +216,7 @@ static errval_t slab_refill_pages(struct slab_allocator *slabs, size_t bytes)
  */
 errval_t slab_default_refill(struct slab_allocator *slabs)
 {
+    assert(slabs != NULL);
+
     return slab_refill_pages(slabs, BASE_PAGE_SIZE);
 }

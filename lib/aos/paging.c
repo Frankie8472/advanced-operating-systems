@@ -115,6 +115,8 @@ errval_t paging_init_state_foreign(struct paging_state *st, lvaddr_t start_vaddr
     // TODO (M2): Implement state struct initialization
     // TODO (M4): Implement page fault handler that installs frames when a page fault
     // occurs and keeps track of the virtual address space.
+    assert(st != NULL);
+
     memset(st, 0, sizeof(struct paging_state));
     st->current_address = start_vaddr;
     st->map_l0.pt_cap = pdir;
@@ -156,16 +158,12 @@ errval_t paging_init(void)
 
     errval_t err;
     err = paging_init_state(&current, VADDR_OFFSET, root_pagetable, get_default_slot_allocator());
-    if (err_is_fail(err)) {
-        return err_push(err, LIB_ERR_VSPACE_INIT);
-    }
+    ON_ERR_PUSH_RETURN(err, LIB_ERR_VSPACE_INIT);
 
     set_current_paging_state(&current);
 
     err = slot_alloc_init();
-    if (err_is_fail(err)) {
-        return err_push(err, LIB_ERR_SLOT_ALLOC_INIT);
-    }
+    ON_ERR_PUSH_RETURN(err, LIB_ERR_SLOT_ALLOC_INIT);
 
     return SYS_ERR_OK;
 }
@@ -176,6 +174,7 @@ errval_t paging_init(void)
  */
 void paging_init_onthread(struct thread *t)
 {
+    assert(t != NULL);
     // TODO (M4): setup exception handler for thread `t'.
 }
 
@@ -186,6 +185,8 @@ void paging_init_onthread(struct thread *t)
 errval_t paging_region_init_fixed(struct paging_state *st, struct paging_region *pr,
                                   lvaddr_t base, size_t size, paging_flags_t flags)
 {
+    assert(st != NULL && pr != NULL);
+
     pr->base_addr = (lvaddr_t) base;
     pr->current_addr = pr->base_addr;
     pr->region_size = size;
@@ -207,12 +208,11 @@ errval_t paging_region_init_fixed(struct paging_state *st, struct paging_region 
 errval_t paging_region_init_aligned(struct paging_state *st, struct paging_region *pr,
                                     size_t size, size_t alignment, paging_flags_t flags)
 {
+    assert(st != NULL && pr != NULL);
+
     void *base;
     errval_t err = paging_alloc(st, &base, size, alignment);
-    if (err_is_fail(err)) {
-        DEBUG_ERR(err, "paging_region_init: paging_alloc failed\n");
-        return err_push(err, LIB_ERR_VSPACE_MMU_AWARE_INIT);
-    }
+    ON_ERR_PUSH_RETURN(err, LIB_ERR_VSPACE_MMU_AWARE_INIT);
 
     err = paging_region_init_fixed(st, pr, (lvaddr_t)base, size, flags);
     ON_ERR_PUSH_RETURN(err, LIB_ERR_PMAP_DO_MAP);
@@ -230,6 +230,7 @@ errval_t paging_region_init_aligned(struct paging_state *st, struct paging_regio
 errval_t paging_region_init(struct paging_state *st, struct paging_region *pr,
                             size_t size, paging_flags_t flags)
 {
+    assert(st != NULL && pr != NULL);
     return paging_region_init_aligned(st, pr, size, BASE_PAGE_SIZE, flags);
 }
 
@@ -241,6 +242,8 @@ errval_t paging_region_init(struct paging_state *st, struct paging_region *pr,
 errval_t paging_region_map(struct paging_region *pr, size_t req_size, void **retbuf,
                            size_t *ret_size)
 {
+    assert(pr != NULL);
+
     lvaddr_t end_addr = pr->base_addr + pr->region_size;
     ssize_t rem = end_addr - pr->current_addr;
     if (rem > req_size) {
@@ -271,6 +274,8 @@ errval_t paging_region_unmap(struct paging_region *pr, lvaddr_t base, size_t byt
 {
     // XXX: should free up some space in paging region, however need to track
     //      holes for non-trivial case
+    assert(pr != NULL);
+
     return LIB_ERR_NOT_IMPLEMENTED;
 }
 
@@ -294,6 +299,7 @@ errval_t paging_alloc(struct paging_state *st, void **buf, size_t bytes, size_t 
      * \brief Find a bit of free virtual address space that is large enough to
      *        accomodate a buffer of size `bytes`.
      */
+    assert(st != NULL);
 
     if (st->current_address + bytes < st->current_address) {
         HERE;
@@ -334,14 +340,10 @@ errval_t paging_map_frame_attr(struct paging_state *st, void **buf, size_t bytes
     // - Map the user provided frame at the free virtual address
     errval_t err;
     err = paging_alloc(st, buf, bytes, 1);
-    if (err_is_fail(err)) {
-        return err_push(err, LIB_ERR_VSPACE_MAP);
-    }
+    ON_ERR_PUSH_RETURN(err, LIB_ERR_VSPACE_MAP);
 
     err = paging_map_fixed_attr(st, (lvaddr_t) *buf, frame, bytes, flags);
-    if (err_is_fail(err)) {
-        return err_push(err, LIB_ERR_PMAP_DO_MAP);
-    }
+    ON_ERR_PUSH_RETURN(err, LIB_ERR_PMAP_DO_MAP);
 
     return SYS_ERR_OK;
 
@@ -350,50 +352,43 @@ errval_t paging_map_frame_attr(struct paging_state *st, void **buf, size_t bytes
 errval_t slab_refill_no_pagefault(struct slab_allocator *slabs, struct capref frame,
                                   size_t minbytes)
 {
+    assert(slabs != NULL);
+
     const size_t bytes = ROUND_UP(minbytes, BASE_PAGE_SIZE);
     struct capref fr;
     size_t size;
     frame_alloc(&fr, bytes, &size);
     void* buf = NULL;
     errval_t err = paging_map_frame_complete(get_current_paging_state(), &buf, fr, NULL, NULL);
-    
-    if (err_is_fail(err)) {
-        DEBUG_ERR(err, "error refilling slab allocator");
-        return err;
-    }
+    ON_ERR_RETURN(err);
+
     slab_grow(slabs, buf, size);
     return SYS_ERR_OK;
 }
 
 static errval_t slab_big_refill(struct paging_state *st, struct slab_allocator *slabs)
 {
+    assert(st != NULL && slabs != NULL);
+
     const size_t bytes = BASE_PAGE_SIZE * PTABLE_ENTRIES / 4;
     struct capref fr;
     size_t size;
     errval_t err;
 
     err = frame_alloc(&fr, bytes, &size);
-    if (err_is_fail(err)) {
-        DEBUG_ERR(err, "error refilling slab allocator");
-        return err;
-    }
+    ON_ERR_RETURN(err);
 
     void* addr = NULL;
     err = paging_alloc(st, &addr, bytes, 1);
-    if (err_is_fail(err)) {
-        DEBUG_ERR(err, "error refilling slab allocator");
-        return err;
-    }
+    ON_ERR_RETURN(err);
 
     err = paging_map_fixed(st, (lvaddr_t) addr, fr, bytes);
-    
-    if (err_is_fail(err)) {
-        DEBUG_ERR(err, "error refilling slab allocator");
-        return err;
-    }
+    ON_ERR_RETURN(err);
+
     //debug_printf("growing slab\n");
     slab_grow(slabs, (void*) addr, size);
     addr += bytes;
+
     return SYS_ERR_OK;
 }
 
@@ -404,6 +399,8 @@ static errval_t paging_map_fixed_attr_with_offset(struct paging_state *st, lvadd
 errval_t paging_map_fixed_attr(struct paging_state *st, lvaddr_t vaddr,
                                struct capref frame, size_t bytes, int flags)
 {
+    assert(st != NULL);
+
     return paging_map_fixed_attr_with_offset(st, vaddr, frame, 0, bytes, flags);
 }
 
@@ -418,6 +415,7 @@ static errval_t paging_map_fixed_attr_with_offset(struct paging_state *st, lvadd
      * TODO(M1): Map a frame assuming all mappings will fit into one last level pt
      * TODO(M2): General case
      */
+    assert(st != NULL);
 
     // only able to map whole pages, round up to next page boundary
     bytes = ROUND_UP(bytes, BASE_PAGE_SIZE);
@@ -447,18 +445,12 @@ static errval_t paging_map_fixed_attr_with_offset(struct paging_state *st, lvadd
 
         //printf("mapping l1 node 0x%lx\n", l0_offset);
         err = vnode_map(shadow_table_l0->pt_cap, l1, l0_offset, VREGION_FLAGS_READ, 0, 1, l1_mapping);
+        ON_ERR_RETURN(err);
 
-        if (err_is_fail(err)) {
-            HERE;
-            DEBUG_ERR(err, "failed to map l1 vnode");
-            return err;
-        }
 
         shadow_table_l1 = slab_alloc(&st->mappings_alloc);
-        if (shadow_table_l1 == NULL) {
-            DEBUG_PRINTF("shadow pt structure alloc failed");
-            return LIB_ERR_SLAB_ALLOC_FAIL;
-        }
+        NULLPTR_CHECK(shadow_table_l1, LIB_ERR_SLAB_ALLOC_FAIL);
+
         init_mapping_table(shadow_table_l1);
         shadow_table_l1->pt_cap = l1;
         shadow_table_l0->children[l0_offset] = shadow_table_l1;
@@ -475,18 +467,11 @@ static errval_t paging_map_fixed_attr_with_offset(struct paging_state *st, lvadd
 
         //printf("mapping l2 node 0x%lx\n", l1_offset);
         err = vnode_map(shadow_table_l1->pt_cap, l2, l1_offset, VREGION_FLAGS_READ, 0, 1, l2_mapping);
-
-        if (err_is_fail(err)) {
-            HERE;
-            DEBUG_ERR(err, "failed to map l2 vnode");
-            return err;
-        }
+        ON_ERR_RETURN(err);
 
         shadow_table_l2 = slab_alloc(&st->mappings_alloc);
-        if (shadow_table_l2 == NULL) {
-            DEBUG_PRINTF("shadow pt structure alloc failed");
-            return LIB_ERR_SLAB_ALLOC_FAIL;
-        }
+        NULLPTR_CHECK(shadow_table_l2, LIB_ERR_SLAB_ALLOC_FAIL);
+
         init_mapping_table(shadow_table_l2);
         shadow_table_l2->pt_cap = l2;
         shadow_table_l1->children[l1_offset] = shadow_table_l2;
@@ -503,17 +488,11 @@ static errval_t paging_map_fixed_attr_with_offset(struct paging_state *st, lvadd
 
         //printf("mapping l3 node\n");
         err = vnode_map(shadow_table_l2->pt_cap, l3, l2_offset, VREGION_FLAGS_READ, 0, 1, l3_mapping);
-
-        if (err_is_fail(err)) {
-            DEBUG_ERR(err, "failed to map l3 vnode");
-            return err;
-        }
+        ON_ERR_RETURN(err);
 
         shadow_table_l3 = slab_alloc(&st->mappings_alloc);
-        if (shadow_table_l3 == NULL) {
-            DEBUG_PRINTF("shadow pt structure alloc failed\n");
-            return LIB_ERR_SLAB_ALLOC_FAIL;
-        }
+        NULLPTR_CHECK(shadow_table_l3, LIB_ERR_SLAB_ALLOC_FAIL);
+
         init_mapping_table(shadow_table_l3);
         shadow_table_l3->pt_cap = l3;
         shadow_table_l2->children[l2_offset] = shadow_table_l3;
@@ -551,10 +530,8 @@ static errval_t paging_map_fixed_attr_with_offset(struct paging_state *st, lvadd
             1,
             mapping
         );
-        if (err_is_fail(err)) {
-            DEBUG_ERR(err, "error mapping frame");
-            return err;
-        }
+        ON_ERR_RETURN(err);
+
         //debug_printf("mapped frame at off: 0x%x\n", l3_offset + i);
         shadow_table_l3->mapping_caps[l3_offset + i] = mapping;
     }
@@ -582,5 +559,6 @@ static errval_t paging_map_fixed_attr_with_offset(struct paging_state *st, lvadd
  */
 errval_t paging_unmap(struct paging_state *st, const void *region)
 {
+    assert(st != NULL);
     return LIB_ERR_NOT_IMPLEMENTED;
 }

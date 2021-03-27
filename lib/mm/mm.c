@@ -330,7 +330,7 @@ errval_t mm_alloc_aligned(struct mm *mm, size_t size, size_t alignment, struct c
             mm->stats_bytes_available -= node->size;
 
             mm_check_refill(mm);
-            return err;
+            return SYS_ERR_OK;
         }
     }
     return LIB_ERR_RAM_ALLOC_FIXED_EXHAUSTED;
@@ -421,7 +421,7 @@ errval_t mm_free(struct mm *mm, struct capref cap, genpaddr_t base, gensize_t si
 
             add_node_to_free_list(mm, new_free);
 
-            return err;
+            return SYS_ERR_OK;
         }
     }
     return LIB_ERR_RAM_ALLOC_WRONG_SIZE;
