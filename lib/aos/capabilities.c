@@ -763,7 +763,8 @@ errval_t dispatcher_create(struct capref dest)
  * \brief Create endpoint to caller on current dispatcher.
  *
  * \param buflen  Length of incoming LMP buffer, in words
- * \param retcap  Pointer to capref struct, filled-in with location of cap
+ * \param retcap  Pointer to capref struct, filled-in with location of cap, it contains therefore a capability.
+ *                this cap can be invoked or not whichever you like (see capabilities.h for more information)
  * \param retep   Double pointer to LMP endpoint, filled-in with allocated EP
  */
 errval_t endpoint_create(size_t buflen, struct capref *retcap,

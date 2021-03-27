@@ -201,6 +201,16 @@ __attribute__((unused)) static void faulty_allocations(void)
 
 
 
+__attribute__((unused)) static void spawn_memeater(void)
+{
+    struct spawninfo *si1 = malloc(sizeof(struct spawninfo));
+    domainid_t *pid1 = malloc(sizeof(domainid_t));
+    errval_t err = spawn_load_by_name("memeater", si1, pid1);
+    if(err_is_fail(err)){
+        DEBUG_ERR(err, "spawn loading failed");
+    }
+}
+
 
 
 
@@ -223,7 +233,7 @@ bsp_main(int argc, char *argv[]) {
     // TODO: initialize mem allocator, vspace management here
 
     //test();
-    test_spawn_load_argv();
+    spawn_memeater();
 
     // Grading
     grading_test_early();

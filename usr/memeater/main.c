@@ -154,10 +154,10 @@ int main(int argc, char *argv[])
         USER_PANIC_ERR(err, "init RPC channel NULL?\n");
     }
 
-    mem_rpc = aos_rpc_get_memory_channel();
+    /*mem_rpc = aos_rpc_get_memory_channel();
     if (!mem_rpc) {
         USER_PANIC_ERR(err, "memory RPC channel NULL?\n");
-    }
+    }*/
 
     err = test_basic_rpc();
     if (err_is_fail(err)) {

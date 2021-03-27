@@ -20,6 +20,8 @@
 
 /* An RPC binding, which may be transported over LMP or UMP. */
 struct aos_rpc {
+    struct capref endpoint;
+    struct lmp_chan channel;
     // TODO(M3): Add state
 };
 

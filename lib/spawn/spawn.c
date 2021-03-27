@@ -169,6 +169,10 @@ errval_t spawn_load_argv(int argc, const char *const argv[], struct spawninfo *s
         .cnode = taskcn,
         .slot = TASKCN_SLOT_ARGSPAGE
     };
+    struct capref child_initep = (struct capref) {
+        .cnode = taskcn,
+        .slot = TASKCN_SLOT_INITEP
+    };
 
     err = dispatcher_create(child_dispatcher);
     ON_ERR_PUSH_RETURN(err, SPAWN_ERR_CREATE_DISPATCHER);
@@ -182,6 +186,8 @@ errval_t spawn_load_argv(int argc, const char *const argv[], struct spawninfo *s
     err = frame_create(child_dispframe, DISPATCHER_FRAME_SIZE, NULL);
     ON_ERR_PUSH_RETURN(err, SPAWN_ERR_CREATE_DISPATCHER_FRAME);
 
+    struct lmp_endpoint *lmp_ep;
+    endpoint_create(4, &child_initep, &lmp_ep);
 
     // ===========================================
     // create l0 vnode and initialize paging state
@@ -279,7 +285,7 @@ errval_t spawn_load_argv(int argc, const char *const argv[], struct spawninfo *s
     //disp_aarch64->generic.current;
     disp->udisp = dispaddr; // Virtual address of the dispatcher frame in child’s VSpace
     disp->disabled = 1;// Start in disabled mode
-    strncpy(disp->name, "hello_world", DISP_NAME_LEN); // A name (for debugging)
+    strncpy(disp->name, si->binary_name, DISP_NAME_LEN); // A name (for debugging)
     disabled_area->named.pc = retentry; // Set program counter (where it should start to execute)
 
     // Initialize offset registers
@@ -387,7 +393,7 @@ static void strip_extra_spaces(char* str) {
  * \return Either SYS_ERR_OK if no error occured or an error
  * indicating what went wrong otherwise.
  */
-errval_t spawn_load_by_name(char *binary_name, struct spawninfo * si,
+errval_t spawn_load_by_name(char *binary_name, struct spawninfo *si,
                             domainid_t *pid) {
     // - Get the mem_region from the multiboot image
     // - Fill in argc/argv from the multiboot command line
@@ -427,6 +433,9 @@ errval_t spawn_load_by_name(char *binary_name, struct spawninfo * si,
     int argc = get_argc(copy);
     char  const *argv[argc];
     create_argv(copy, (char **) argv);
+
+    // set binary name to full name
+    si->binary_name = binary_name;
 
     return spawn_load_argv(argc,argv , si, pid);
 }
