@@ -84,7 +84,7 @@ errval_t setup_c_space(struct capref cnode_l1,
 
     err = cnode_create_foreign_l2(cnode_l1, ROOTCN_SLOT_PAGECN, pagecn);
     ON_ERR_PUSH_RETURN(err, SPAWN_ERR_CREATE_PAGECN);
-    
+
     err = cnode_create_foreign_l2(cnode_l1, ROOTCN_SLOT_SLOT_ALLOC0, alloc0);
     ON_ERR_PUSH_RETURN(err, SPAWN_ERR_CREATE_SLOTALLOC_CNODE);
 
@@ -240,7 +240,7 @@ errval_t spawn_load_argv(int argc, const char *const argv[], struct spawninfo *s
 
     struct Elf64_Shdr *got = elf64_find_section_header_name(si->mapped_elf, si->mapped_elf_size, ".got");
     NULLPTR_CHECK(got, SPAWN_ERR_LOAD);
-    
+
     debug_printf("0x%lx -> 0x%lx\n", si->mapped_elf, si->mapped_elf_size);
     lvaddr_t got_base_address_in_childs_vspace = got->sh_addr;
     debug_printf("possible 0x%lx\n", got_base_address_in_childs_vspace);
@@ -279,7 +279,7 @@ errval_t spawn_load_argv(int argc, const char *const argv[], struct spawninfo *s
     disp->disabled = 1;// Start in disabled mode
     strncpy(disp->name, "hello_world", DISP_NAME_LEN); // A name (for debugging)
     disabled_area->named.pc = retentry; // Set program counter (where it should start to execute)
-    
+
     // Initialize offset registers
     armv8_set_registers((void*) got_base_address_in_childs_vspace, handle, enabled_area, disabled_area);
     disp_gen->eh_frame = 0;
@@ -335,7 +335,7 @@ errval_t allocate_elf_memory(void* state, genvaddr_t base, size_t size, uint32_t
     ON_ERR_PUSH_RETURN(err, SPAWN_ERR_MAP_MODULE);
 
     *ret += offset_in_page;
-    
+
     return SYS_ERR_OK;
 }
 
@@ -343,9 +343,11 @@ static int get_argc(char * args){
    int argc = 1;
    int i = 0;
    while(args[i] != '\0'){
-     if(args[i] == ' '){argc++;}
+     if(args[i] == ' ' && args[i + 1] != '\0'){argc++;}
+
      i++;
    }
+   // if(argc >= 1){argc++;}
    return argc;
  }
 static void create_argv(char* args,char *argv[]){
