@@ -60,12 +60,13 @@ static void armv8_set_registers(void *arch_load_info,
  * indicating what went wrong otherwise.
  */
 errval_t setup_c_space(struct capref cnode_l1,
-                       struct cnoderef * taskcn,
-                       struct cnoderef * basepagecn,
-                       struct cnoderef * pagecn,
-                       struct cnoderef * alloc0,
-                       struct cnoderef * alloc1,
-                       struct cnoderef * alloc2) {
+                       struct cnoderef *taskcn,
+                       struct cnoderef *basepagecn,
+                       struct cnoderef *pagecn,
+                       struct cnoderef *alloc0,
+                       struct cnoderef *alloc1,
+                       struct cnoderef *alloc2)
+{
     errval_t err = cnode_create_foreign_l2(cnode_l1, ROOTCN_SLOT_TASKCN, taskcn);
     ON_ERR_PUSH_RETURN(err, SPAWN_ERR_CREATE_TASKCN);
 
@@ -79,12 +80,10 @@ errval_t setup_c_space(struct capref cnode_l1,
         };
         struct capref ram;
         err = ram_alloc(&ram, BASE_PAGE_SIZE);
-        if (err_is_fail(err)) {
-            HERE;
-            return err_push(err, SPAWN_ERR_FILL_SMALLCN);
+        ON_ERR_PUSH_RETURN(err, SPAWN_ERR_FILL_SMALLCN);
         }
         err = cap_copy(counter, ram);
-        if (err_is_fail(err)) { HERE; return err; }
+        ON_ERR_RETURN(err);
     }
 
     err = cnode_create_foreign_l2(cnode_l1, ROOTCN_SLOT_PAGECN, pagecn);
@@ -158,6 +157,7 @@ errval_t spawn_load_argv(int argc, const char *const argv[], struct spawninfo *s
                         &alloc1,
                         &alloc2);
 
+    // endpoint to itself in child cspace
     struct capref child_selfep = (struct capref) {
         .cnode = taskcn,
         .slot = TASKCN_SLOT_SELFEP
@@ -190,6 +190,8 @@ errval_t spawn_load_argv(int argc, const char *const argv[], struct spawninfo *s
 
     err = frame_create(child_dispframe, DISPATCHER_FRAME_SIZE, NULL);
     ON_ERR_PUSH_RETURN(err, SPAWN_ERR_CREATE_DISPATCHER_FRAME);
+
+    lmp_endpoint_register();
 
 
     // ===========================================
