@@ -14,6 +14,7 @@
 
 #include <aos/aos.h>
 #include <aos/aos_rpc.h>
+#include <arch/aarch64/aos/lmp_chan_arch.h>
 
 
 
@@ -25,14 +26,19 @@ aos_rpc_init(struct aos_rpc *rpc) {
 }
 
 
-
 errval_t
 aos_rpc_send_number(struct aos_rpc *rpc, uintptr_t num) {
     // TODO: implement functionality to send a number over the channel
     // given channel and wait until the ack gets returned.
 
-    //lmp_chan_register_send(&rpc->channel, 
+    void dosend(void* a) {
+        debug_printf("dosend\n");
+    }
 
+    struct event_closure closure = MKCLOSURE(&dosend, rpc);
+    struct waitset *ws = get_default_waitset();
+    lmp_chan_register_send(&rpc->channel, ws, closure);
+    lmp_chan_send1(&rpc->channel, LMP_SEND_FLAGS_DEFAULT, NULL_CAP, num);
     return SYS_ERR_OK;
 }
 
@@ -105,6 +111,7 @@ struct aos_rpc *aos_rpc_get_init_channel(void)
             .cnode = cnode_task,
             .slot = TASKCN_SLOT_INITEP
         };
+        lmp_chan_init(&init.channel);
     }
 
     debug_printf("aos_rpc_get_init_channel\n");
