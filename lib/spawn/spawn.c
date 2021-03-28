@@ -190,7 +190,14 @@ errval_t spawn_load_argv(int argc, const char *const argv[], struct spawninfo *s
     //setup the channel from the init side
 
     struct lmp_endpoint *lmp_ep;
-    endpoint_create(4, &init_ep_cap, &lmp_ep);
+    err = cap_retype(init_ep_cap, cap_dispatcher, 0, ObjType_EndPointLMP, 0, 1);
+    //err = cap_copy(init_ep_cap, cap_dispatcher);
+    struct capref ourcap;
+    endpoint_create(LMP_MSG_LENGTH, &ourcap, &lmp_ep);
+
+    char capmsg[512];
+    debug_print_cap_at_capref(capmsg, sizeof capmsg, child_ep_cap);
+    debug_printf("cap is: %s\n", capmsg);
 
     lmp_chan_init(&si -> channel);
     si -> channel.local_cap = init_ep_cap;
