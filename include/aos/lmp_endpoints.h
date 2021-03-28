@@ -40,6 +40,7 @@ struct lmp_endpoint {
                             ///< not necessarily consumed by the user
     struct lmp_endpoint_kern k; ///< Public part (shared with kernel)
     /* buffer beyond end of struct */
+    
 };
 
 
@@ -55,7 +56,7 @@ struct lmp_recv_buf {
 };
 
 /// Compute the size needed for an lmp_recv_buf buffer
-#define LMP_RECV_BUF_SIZE(n) (sizeof(struct lmp_recv_buf) + ((n)*sizeof(uintptr_t)))
+#define LMP_RECV_BUF_SIZE(n) (asizeof(struct lmp_recv_buf) + ((n)*sizeof(uintptr_t)))
 
 /// Fixed-length version of #lmp_recv_buf
 struct lmp_recv_msg {

@@ -31,7 +31,7 @@ const char *str = "Lorem ipsum dolor sit amet, consectetur adipiscing elit, "
                   "occaecat cupidatat non proident, sunt in culpa qui officia "
                   "deserunt mollit anim id est laborum.";
 
-static errval_t request_and_map_memory(void)
+__attribute__((unused))  static errval_t request_and_map_memory(void)
 {
     errval_t err;
 
@@ -110,7 +110,7 @@ static errval_t request_and_map_memory(void)
 
 }
 
-static errval_t test_basic_rpc(void)
+__attribute__((unused))  static errval_t test_basic_rpc(void)
 {
     errval_t err;
 
@@ -158,23 +158,23 @@ int main(int argc, char *argv[])
     if (!mem_rpc) {
         USER_PANIC_ERR(err, "memory RPC channel NULL?\n");
     }*/
-
-    err = test_basic_rpc();
-    if (err_is_fail(err)) {
-        USER_PANIC_ERR(err, "failure in testing basic RPC\n");
-    }
-
-    err = request_and_map_memory();
-    if (err_is_fail(err)) {
-        USER_PANIC_ERR(err, "could not request and map memory\n");
-    }
+    //
+    // err = test_basic_rpc();
+    // if (err_is_fail(err)) {
+    //     USER_PANIC_ERR(err, "failure in testing basic RPC\n");
+    // }
+    //
+    // err = request_and_map_memory();
+    // if (err_is_fail(err)) {
+    //     USER_PANIC_ERR(err, "could not request and map memory\n");
+    // }
 
 
     /* test printf functionality */
-    debug_printf("testing terminal printf function...\n");
-
-    printf("Hello world using terminal service\n");
-    debug_printf("memeater terminated....\n");
+    // debug_printf("testing terminal printf function...\n");
+    //
+    // printf("Hello world using terminal service\n");
+    // debug_printf("memeater terminated....\n");
 
     return EXIT_SUCCESS;
 }

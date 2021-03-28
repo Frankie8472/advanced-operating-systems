@@ -22,7 +22,7 @@
 
 struct spawninfo {
     // the next in the list of spawned domains
-    struct spawninfo *next; 
+    struct spawninfo *next;
 
     // Information about the binary
     char *binary_name;     // Name of the binary
@@ -33,6 +33,8 @@ struct spawninfo {
     struct paging_state ps;
 
     struct capref dispatcher;
+
+    struct lmp_chan  channel;
 
     // TODO(M2): Add fields you need to store state
     //           when spawning a new dispatcher,

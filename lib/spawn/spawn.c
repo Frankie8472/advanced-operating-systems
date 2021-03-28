@@ -149,7 +149,7 @@ errval_t spawn_load_argv(int argc, const char *const argv[], struct spawninfo *s
     err = setup_c_space(cnode_child_l1, &taskcn, &basepagecn, &pagecn, &alloc0, &alloc1, &alloc2);
 
     // endpoint to itself in child cspace
-    struct capref child_selfep = (struct capref) {
+    struct capref child_ep_cap = (struct capref) {
         .cnode = taskcn,
         .slot = TASKCN_SLOT_SELFEP
     };
@@ -169,7 +169,7 @@ errval_t spawn_load_argv(int argc, const char *const argv[], struct spawninfo *s
         .cnode = taskcn,
         .slot = TASKCN_SLOT_ARGSPAGE
     };
-    struct capref child_initep = (struct capref) {
+    struct capref init_ep_cap = (struct capref) {
         .cnode = taskcn,
         .slot = TASKCN_SLOT_INITEP
     };
@@ -177,7 +177,7 @@ errval_t spawn_load_argv(int argc, const char *const argv[], struct spawninfo *s
     err = dispatcher_create(child_dispatcher);
     ON_ERR_PUSH_RETURN(err, SPAWN_ERR_CREATE_DISPATCHER);
 
-    err = cap_retype(child_selfep, child_dispatcher, 0, ObjType_EndPointLMP, 0, 1);
+    err = cap_retype(child_ep_cap, child_dispatcher, 0, ObjType_EndPointLMP, 0, 1);
     ON_ERR_PUSH_RETURN(err, SPAWN_ERR_CREATE_SELFEP);
 
     err = cap_copy(child_rootcn, cnode_child_l1);
@@ -187,8 +187,18 @@ errval_t spawn_load_argv(int argc, const char *const argv[], struct spawninfo *s
     ON_ERR_PUSH_RETURN(err, SPAWN_ERR_CREATE_DISPATCHER_FRAME);
 
 
+    //setup the channel from the init side
+
     struct lmp_endpoint *lmp_ep;
-    endpoint_create(4, &child_initep, &lmp_ep);
+    endpoint_create(4, &init_ep_cap, &lmp_ep);
+
+    lmp_chan_init(&si -> channel);
+    si -> channel.local_cap = init_ep_cap;
+    si -> channel.remote_cap = child_ep_cap;
+    si -> channel.endpoint = lmp_ep;
+    si -> channel.buflen_words = 4;
+    //
+
 
     // ===========================================
     // create l0 vnode and initialize paging state

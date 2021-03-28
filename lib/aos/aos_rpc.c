@@ -112,7 +112,7 @@ struct aos_rpc *aos_rpc_get_init_channel(void)
     return &init;
     */
     //TODO: Return channel to talk to init process
-    debug_printf("aos_rpc_get_init_channel NYI\n");
+    // debug_printf("aos_rpc_get_init_channel NYI\n");
     //
     struct capref self_ep_cap = (struct capref){
       .cnode = cnode_task,
@@ -123,12 +123,23 @@ struct aos_rpc *aos_rpc_get_init_channel(void)
       .cnode = cnode_task,
       .slot = TASKCN_SLOT_INITEP
     };
+
+
+    struct lmp_endpoint *lmp_ep;
+    endpoint_create(4, &self_ep_cap, &lmp_ep);
     struct aos_rpc* rpc = (struct aos_rpc *) malloc(sizeof(struct aos_rpc));
     lmp_chan_init(&rpc -> channel);
     rpc -> channel.local_cap = self_ep_cap;
     rpc -> channel.remote_cap = init_ep_cap;
 
 
+    printf("Sending word: 5\n");
+    errval_t err = lmp_chan_send1(&rpc -> channel,LMP_SEND_FLAGS_DEFAULT,NULL_CAP,5);
+    if(err_is_fail(err)){
+      DEBUG_ERR(err,"failed to call lmp_chan_send");
+    }
+    //try to send to a message to init
+    // uint32_t * buffer
 
     return rpc;
 }
