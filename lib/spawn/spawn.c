@@ -188,32 +188,34 @@ errval_t spawn_load_argv(int argc, const char *const argv[], struct spawninfo *s
 
 
     //setup the channel from the init side
-    //dispatcher_handle_t init_handle = curdispatcher();
-    //struct dispatcher_generic *init_disp = get_dispatcher_generic(init_handle);
-    //err = cap_copy(init_ep_cap, init_disp->dcb_cap);
+
+
+
+    err = cap_retype(cap_selfep, cap_dispatcher, 0, ObjType_EndPointLMP, 0, 1);
 
     struct lmp_endpoint *lmp_ep;
-    err = cap_retype(cap_selfep, cap_dispatcher, 0, ObjType_EndPointLMP, 0, 1);
-    //DEBUG_ERR(err, "hmmm");
-    //err = cap_retype(init_ep_cap, cap_dispatcher, 0, ObjType_EndPointLMP, 0, 1);
-    //err = cap_copy(init_ep_cap, cap_selfep);
     struct capref ourcap;
     err = endpoint_create(256, &ourcap, &lmp_ep);
-    //DEBUG_ERR(err, "hmmm");
+    cap_copy(init_ep_cap, ourcap);
+
+
     char capmsg[512];
     debug_print_cap_at_capref(capmsg, sizeof capmsg, ourcap);
-    debug_printf("cap is: %s\n", capmsg);
-    cap_copy(init_ep_cap, ourcap);
+    debug_printf("local cap in init is: %s\n", capmsg);
+
 
     struct capref child_ep_in_ours;
     slot_alloc(&child_ep_in_ours);
     cap_copy(child_ep_in_ours, child_ep_cap);
 
+    debug_print_cap_at_capref(capmsg, sizeof capmsg, child_ep_in_ours);
+    debug_printf("remote cap in init is: %s\n", capmsg);
+
     lmp_chan_init(&si -> channel);
     si -> channel.local_cap = init_ep_cap;
     si -> channel.remote_cap = child_ep_in_ours;
     si -> channel.endpoint = lmp_ep;
-    si -> channel.buflen_words = 4;
+    si -> channel.buflen_words = 256;
     //
 
 
