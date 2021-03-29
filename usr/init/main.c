@@ -213,12 +213,12 @@ __attribute__((unused)) static void spawn_memeater(void)
     printf("Trying to receive\n");
     bool can_receive = lmp_chan_can_recv(&si1 -> channel);
     printf("Can receive: %d\n",can_receive );
-    //struct lmp_recv_msg msg;
-    //struct capref rec_cap;
+    struct lmp_recv_msg msg;
+    struct capref rec_cap;
     printf("Trying to receive a message:\n");
-    //err = lmp_chan_recv(&si1 -> channel,&msg,&rec_cap);
-    //uint32_t rec_word = *msg.words;
-    //printf("Received message: %d\n",rec_word );
+    err = lmp_chan_recv(&si1 -> channel, &msg, &rec_cap);
+    uint32_t rec_word = *msg.words;
+    printf("Received message: %d\n",rec_word );
     printf("Received message\n");
 }
 
