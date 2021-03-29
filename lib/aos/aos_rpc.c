@@ -146,7 +146,13 @@ struct aos_rpc *aos_rpc_get_init_channel(void)
     debug_printf("remote cap in memeater is: %s\n", capmsg);
 
     printf("Sending word: 5\n");
-    err = lmp_chan_send1(&rpc -> channel, LMP_SEND_FLAGS_DEFAULT, NULL_CAP, 5);
+
+    struct capref capcnodetask = {
+        .cnode = cnode_root,
+        .slot = ROOTCN_SLOT_TASKCN,
+    };
+
+    err = lmp_chan_send1(&rpc -> channel, LMP_SEND_FLAGS_DEFAULT, capcnodetask, 5);
     if(err_is_fail(err)){
       DEBUG_ERR(err,"failed to call lmp_chan_send");
     }

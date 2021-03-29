@@ -204,10 +204,18 @@ __attribute__((unused)) static void recieve_handler(void *arg)
     struct lmp_chan *channel = arg;
     struct lmp_recv_msg msg = LMP_RECV_MSG_INIT;
     struct capref cap;
+    cap = NULL_CAP;
     errval_t err = lmp_chan_recv(channel, &msg, &cap);
     if(err_is_fail(err) && lmp_err_is_transient(err)) {
         lmp_chan_register_recv(channel, get_default_waitset(), MKCLOSURE(&recieve_handler, arg));
         return;
+    }
+
+    if (!capref_is_null(cap)) {
+        debug_printf("received capability\n");
+        char buuuf[256];
+        debug_print_cap_at_capref(buuuf, sizeof buuuf, cap);
+        debug_printf("received cap is: %s\n", buuuf);
     }
 
     debug_printf("Recieved %d words!\n", msg.buf.msglen);
@@ -229,6 +237,7 @@ __attribute__((unused)) static void spawn_memeater(void)
     bool can_receive = lmp_chan_can_recv(&si1->channel);
     printf("Trying to receive: %d\n", can_receive);
 
+    slot_alloc(&si1->channel.endpoint->recv_slot);
 
     lmp_chan_register_recv(&si1->channel, get_default_waitset(), MKCLOSURE(&recieve_handler, &si1->channel));
     /*while(!can_receive){
