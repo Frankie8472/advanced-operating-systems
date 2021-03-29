@@ -199,7 +199,23 @@ __attribute__((unused)) static void faulty_allocations(void)
 }
 
 
+__attribute__((unused)) static void recieve_handler(void *arg)
+{
+    struct lmp_chan *channel = arg;
+    struct lmp_recv_msg msg = LMP_RECV_MSG_INIT;
+    struct capref cap;
+    errval_t err = lmp_chan_recv(channel, &msg, &cap);
+    if(err_is_fail(err) && lmp_err_is_transient(err)) {
+        lmp_chan_register_recv(channel, get_default_waitset(), MKCLOSURE(&recieve_handler, arg));
+        return;
+    }
 
+    debug_printf("Recieved %d words!\n", msg.buf.msglen);
+    for (int i = 0; i < msg.buf.msglen; i++) {
+        debug_printf("%d: %ld\n", i, msg.words[0]);
+    }
+    lmp_chan_register_recv(channel, get_default_waitset(), MKCLOSURE(&recieve_handler, arg));
+}
 
 __attribute__((unused)) static void spawn_memeater(void)
 {
@@ -210,21 +226,24 @@ __attribute__((unused)) static void spawn_memeater(void)
         DEBUG_ERR(err, "spawn loading failed");
     }
     //
-    bool can_receive = lmp_chan_can_recv(&si1 -> channel);
-    printf("Trying to receive\n");
+    bool can_receive = lmp_chan_can_recv(&si1->channel);
+    printf("Trying to receive: %d\n", can_receive);
 
-    while(!can_receive){
+
+    lmp_chan_register_recv(&si1->channel, get_default_waitset(), MKCLOSURE(&recieve_handler, &si1->channel));
+    /*while(!can_receive){
       can_receive = lmp_chan_can_recv(&si1 -> channel);
     }
 
-    printf("Can receive: %d\n",can_receive );
+
+    printf("Can receive: %d\n", can_receive);
     struct lmp_recv_msg msg;
     msg.buf.buflen = LMP_MSG_LENGTH;
     struct capref rec_cap;
     printf("Trying to receive a message:\n");
     err = lmp_chan_recv(&si1 -> channel, &msg, &rec_cap);
     uint32_t rec_word = *msg.words;
-    printf("Received message: %d\n",rec_word );
+    printf("Received message: %d\n",rec_word );*/
 }
 
 
