@@ -123,11 +123,13 @@ struct aos_rpc *aos_rpc_get_init_channel(void)
       .cnode = cnode_task,
       .slot = TASKCN_SLOT_INITEP
     };
+    lmp_endpoint_init();
 
     // struct capref new_cap;
     struct lmp_endpoint *lmp_ep;
     errval_t err = endpoint_create(16, &self_ep_cap, &lmp_ep);
     DEBUG_ERR(err, "err");
+    
 
     //char capmsgg[512];
     //debug_print_cap_at_capref(capmsgg, sizeof capmsgg, lmp_ep->recv_slot);
@@ -147,14 +149,10 @@ struct aos_rpc *aos_rpc_get_init_channel(void)
 
     printf("Sending word: 5\n");
 
-    struct capref capcnodetask = {
-        .cnode = cnode_root,
-        .slot = ROOTCN_SLOT_TASKCN,
-    };
 
-    err = lmp_chan_send1(&rpc -> channel, LMP_SEND_FLAGS_DEFAULT, capcnodetask, 5);
+    err = lmp_chan_send1(&rpc -> channel, LMP_SEND_FLAGS_DEFAULT, self_ep_cap, 123);
     if(err_is_fail(err)){
-      DEBUG_ERR(err,"failed to call lmp_chan_send");
+        DEBUG_ERR(err,"failed to call lmp_chan_send");
     }
     //try to send to a message to init
     // uint32_t * buffer
