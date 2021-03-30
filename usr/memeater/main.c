@@ -119,10 +119,22 @@ __attribute__((unused))  static errval_t test_basic_rpc(void)
     debug_printf("RPC: sending number...\n");
     err =  aos_rpc_send_number(init_rpc, 42);
     if (err_is_fail(err)) {
-        DEBUG_ERR(err, "could not send a string\n");
+        DEBUG_ERR(err, "could not send a number\n");
         return err;
     }
 
+
+    err =  aos_rpc_send_number(init_rpc, 102);
+    if (err_is_fail(err)) {
+        DEBUG_ERR(err, "could not send a number\n");
+        return err;
+    }
+
+    err =  aos_rpc_send_number(init_rpc, 13);
+    if (err_is_fail(err)) {
+        DEBUG_ERR(err, "could not send a number\n");
+        return err;
+    }
     debug_printf("RPC: sending small string...\n");
     err =  aos_rpc_send_string(init_rpc, "Hello init");
     if (err_is_fail(err)) {

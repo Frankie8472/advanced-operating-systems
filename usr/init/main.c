@@ -205,7 +205,7 @@ __attribute__((unused)) static void faulty_allocations(void)
 
 __attribute__((unused)) static void init_handler(void *arg)
 {
-    debug_printf("init_handler called\n");
+    // debug_printf("init_handler called\n");
     struct lmp_chan *channel = arg;
     struct lmp_recv_msg msg = LMP_RECV_MSG_INIT;
     struct capref cap;
@@ -238,11 +238,11 @@ __attribute__((unused)) static void init_handler(void *arg)
         break;
         //END case INIT
 
-      case NUMBER:
+      case AOS_RPC_NUMBER:
         //CASE number
         // int num = msg.words[1];
         debug_printf("Received number: %d\n",msg.words[1]);
-        err = lmp_chan_send1(channel,LMP_SEND_FLAGS_DEFAULT,NULL_CAP,ACK);
+        err = lmp_chan_send1(channel,LMP_SEND_FLAGS_DEFAULT,NULL_CAP,AOS_RPC_ACK);
         if(err_is_fail(err)){
           DEBUG_ERR(err,"Could not send ack for number");
         }

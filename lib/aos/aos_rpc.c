@@ -24,42 +24,27 @@
 
 errval_t
 aos_rpc_send_number(struct aos_rpc *rpc, uintptr_t num) {
-    // TODO: implement functionality to send a number over the channel
-    // given channel and wait until the ack gets returned.
+    bool can_receive = lmp_chan_can_recv(&rpc->channel);
+    // debug_printf("Curr can_receive: %d\n",can_receive);
 
-    // void dosend(void* a) {
-    //     debug_printf("dosend\n");
-    // }
-    //
-    // struct event_closure closure = MKCLOSURE(&dosend, rpc);
-    // struct waitset *ws = get_default_waitset();
-    // lmp_chan_register_send(&rpc->channel, ws, closure);
-    // lmp_chan_send1(&rpc->channel, LMP_SEND_FLAGS_DEFAULT, NULL_CAP, num);
-    // errval_t err = SYS_ERR_OK;
-    // err = lmp_chan_send2(&rpc -> channel, LMP_SEND_FLAGS_DEFAULT,NULL_CAP,NUMBER,num);
-    // if(err_is_fail(err)){
-    //   DEBUG_ERR(err,"failed to send number");
-    // }
-    //TODO waiting for acks
+    // debug_printf("Waiting to receive ACK\n");
     errval_t err = SYS_ERR_OK;
-    err = lmp_chan_send2(&rpc -> channel, LMP_SEND_FLAGS_DEFAULT,NULL_CAP,NUMBER,num);
+    err = lmp_chan_send2(&rpc -> channel, LMP_SEND_FLAGS_DEFAULT,NULL_CAP,AOS_RPC_NUMBER,num);
     if(err_is_fail(err)){
       DEBUG_ERR(err,"failed to send number");
     }
-
-    debug_printf("Waiting to receive ACK\n");
-    bool can_receive = lmp_chan_can_recv(&rpc->channel);
     while(!can_receive){
       can_receive = lmp_chan_can_recv(&rpc->channel);
     }
+    // debug_printf("can_receive after send: %d\n",can_receive);
+
     struct lmp_recv_msg msg = LMP_RECV_MSG_INIT;
     err = lmp_chan_recv(&rpc -> channel, &msg, &NULL_CAP);
-    if(err_is_fail(err) || msg.words[0] != ACK){
+    if(err_is_fail(err) || msg.words[0] != AOS_RPC_ACK){
       debug_printf("First word should be ACK, is: %d\n",msg.words[0]);
       DEBUG_ERR(err,"Could not get receive for sent number");
     }
-    debug_printf("Acks has been received, number has been received!\n");
-
+    debug_printf("Acks for: %d has been received!\n",num);
     return err;
 }
 
