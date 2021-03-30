@@ -329,6 +329,11 @@ __attribute__((unused)) static void init_handler(void *arg)
             err = lmp_chan_send1(channel, LMP_SEND_FLAGS_DEFAULT, NULL_CAP, pid);
             // TODO: ERR
 
+            err = lmp_chan_alloc_recv_slot(&si->channel);
+            DEBUG_ERR(err, "alloc recv slot");
+
+            err = lmp_chan_register_recv(&si->channel, get_default_waitset(),
+                                        MKCLOSURE(&init_handler, &si->channel));
             break;
         }
         default: {
