@@ -197,7 +197,7 @@ errval_t spawn_load_argv(int argc, const char *const argv[], struct spawninfo *s
     struct capref ourcap;
     err = endpoint_create(256, &ourcap, &lmp_ep);
     cap_copy(init_ep_cap, ourcap);
-
+    si->our_endpoint = ourcap;
 
     char capmsg[512];
     debug_print_cap_at_capref(capmsg, sizeof capmsg, ourcap);

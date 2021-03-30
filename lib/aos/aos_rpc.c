@@ -41,7 +41,7 @@ aos_rpc_send_number(struct aos_rpc *rpc, uintptr_t num) {
     //   DEBUG_ERR(err,"failed to send number");
     // }
     //TODO waiting for acks
-    return err;
+    return SYS_ERR_OK;
 }
 
 errval_t
@@ -109,23 +109,7 @@ aos_rpc_process_get_all_pids(struct aos_rpc *rpc, domainid_t **pids,
  */
 struct aos_rpc *aos_rpc_get_init_channel(void)
 {
-    /*static struct aos_rpc init;
-    static bool initialized = false;
-    if (!initialized) {
-        aos_rpc_init(&init);
-        init.endpoint = (struct capref) {
-            .cnode = cnode_task,
-            .slot = TASKCN_SLOT_INITEP
-        };
-        lmp_chan_init(&init.channel);
-    }
 
-    debug_printf("aos_rpc_get_init_channel\n");
-    return &init;
-    */
-    //TODO: Return channel to talk to init process
-    // debug_printf("aos_rpc_get_init_channel NYI\n");
-    //
     struct capref self_ep_cap = (struct capref){
       .cnode = cnode_task,
       .slot = TASKCN_SLOT_SELFEP
@@ -135,41 +119,38 @@ struct aos_rpc *aos_rpc_get_init_channel(void)
       .cnode = cnode_task,
       .slot = TASKCN_SLOT_INITEP
     };
+    lmp_endpoint_init();
 
     // struct capref new_cap;
     struct lmp_endpoint *lmp_ep;
     errval_t err = endpoint_create(16, &self_ep_cap, &lmp_ep);
     DEBUG_ERR(err, "err");
 
-    //char capmsgg[512];
-    //debug_print_cap_at_capref(capmsgg, sizeof capmsgg, lmp_ep->recv_slot);
-    //debug_printf("lmp_ep->recv_slot is: %s\n", capmsgg);
-
     lmp_ep->recv_slot = init_ep_cap;
     struct aos_rpc* rpc = (struct aos_rpc *) malloc(sizeof(struct aos_rpc));
     lmp_chan_init(&rpc -> channel);
     rpc -> channel.local_cap = self_ep_cap;
     rpc -> channel.remote_cap = init_ep_cap;
+    rpc -> channel.endpoint = lmp_ep;
+    debug_printf("Trying to establish channel with init:\n");
 
-    char capmsg[512];
-    debug_print_cap_at_capref(capmsg, sizeof capmsg, self_ep_cap);
-    debug_printf("local cap in memeater is: %s\n", capmsg);
-    debug_print_cap_at_capref(capmsg, sizeof capmsg, init_ep_cap);
-    debug_printf("remote cap in memeater is: %s\n", capmsg);
-
-    printf("Sending word: 5\n");
-
-    struct capref capcnodetask = {
-        .cnode = cnode_root,
-        .slot = ROOTCN_SLOT_TASKCN,
-    };
-
-    err = lmp_chan_send1(&rpc -> channel, LMP_SEND_FLAGS_DEFAULT, capcnodetask, 5);
+    err = lmp_chan_send1(&rpc -> channel, LMP_SEND_FLAGS_DEFAULT, self_ep_cap, INIT);
     if(err_is_fail(err)){
-      DEBUG_ERR(err,"failed to call lmp_chan_send");
+        DEBUG_ERR(err,"failed to call lmp_chan_send");
     }
-    //try to send to a message to init
-    // uint32_t * buffer
+
+    debug_printf("Waiting to get ack\n");
+    bool can_receive = lmp_chan_can_recv(&rpc->channel);
+    while(!can_receive){
+      can_receive = lmp_chan_can_recv(&rpc->channel);
+    }
+    struct lmp_recv_msg msg = LMP_RECV_MSG_INIT;
+    err = lmp_chan_recv(&rpc -> channel, &msg, &NULL_CAP);
+    if(err_is_fail(err) || msg.words[0] != ACK){
+      debug_printf("First word should be ACK, is: %d\n",msg.words[0]);
+      DEBUG_ERR(err,"Could not setup bi direction with init");
+    }
+    debug_printf("Acks has been received, channel is setup!\n");
 
     return rpc;
 }

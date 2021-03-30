@@ -34,6 +34,7 @@ struct spawninfo {
 
     struct capref dispatcher;
 
+    struct capref our_endpoint;
     struct lmp_chan  channel;
 
     // TODO(M2): Add fields you need to store state
