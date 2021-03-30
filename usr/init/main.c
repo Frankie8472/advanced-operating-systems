@@ -205,7 +205,7 @@ __attribute__((unused)) static void faulty_allocations(void)
 
 __attribute__((unused)) static void init_handler(void *arg)
 {
-    debug_printf("init_handler called\n");
+    // debug_printf("init_handler called\n");
     struct lmp_chan *channel = arg;
     struct lmp_recv_msg msg = LMP_RECV_MSG_INIT;
     struct capref cap;
@@ -233,6 +233,7 @@ __attribute__((unused)) static void init_handler(void *arg)
         else {
             debug_printf("no cap received");
         }
+<<<<<<< HEAD
 
         //END case INIT
         break;
@@ -249,6 +250,25 @@ __attribute__((unused)) static void init_handler(void *arg)
                 err = lmp_chan_send1(channel, LMP_SEND_FLAGS_DEFAULT, ramcap, AOS_RPC_RAM_SEND);
             }
         }
+=======
+        // channel -> endpoint -> k.consumed = true;
+        lmp_chan_register_recv(channel, get_default_waitset(), MKCLOSURE(&init_handler, arg));
+        break;
+        //END case INIT
+
+      case AOS_RPC_NUMBER:
+        //CASE number
+        // int num = msg.words[1];
+        debug_printf("Received number: %d\n",msg.words[1]);
+        err = lmp_chan_send1(channel,LMP_SEND_FLAGS_DEFAULT,NULL_CAP,AOS_RPC_ACK);
+        if(err_is_fail(err)){
+          DEBUG_ERR(err,"Could not send ack for number");
+        }
+        //END CASE NUMBER
+      default:
+        lmp_chan_register_recv(channel, get_default_waitset(), MKCLOSURE(&init_handler, arg));
+
+>>>>>>> 75e17e8d65de0154f5a2c055846b72cadc19ce50
     }
     lmp_chan_register_recv(channel, get_default_waitset(), MKCLOSURE(&init_handler, arg));
 
