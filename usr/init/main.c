@@ -336,6 +336,10 @@ __attribute__((unused)) static void init_handler(void *arg)
                                         MKCLOSURE(&init_handler, &si->channel));
             break;
         }
+        case AOS_RPC_PUTCHAR: {
+          char c = (char) msg.words[1];
+          putchar(c);
+        }
         default: {
             break;
         }

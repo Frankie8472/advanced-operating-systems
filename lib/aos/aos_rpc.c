@@ -144,9 +144,13 @@ aos_rpc_serial_getchar(struct aos_rpc *rpc, char *retc) {
 
 errval_t
 aos_rpc_serial_putchar(struct aos_rpc *rpc, char c) {
-    // TODO implement functionality to send a character to the
-    // serial port.
-    return SYS_ERR_OK;
+
+    errval_t err = SYS_ERR_OK;
+    err = lmp_chan_send2(&rpc -> channel, LMP_SEND_FLAGS_DEFAULT,NULL_CAP,AOS_RPC_PUTCHAR,c);
+    if(err_is_fail(err)){
+      DEBUG_ERR(err,"Failed to send character to serial port");
+    }
+    return err;
 }
 
 errval_t

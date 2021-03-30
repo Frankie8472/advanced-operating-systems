@@ -26,6 +26,8 @@ typedef enum msg_type {
     AOS_RPC_RAM_SEND,
     AOS_RPC_RAM_ALLOC_FAIL,
     AOS_RPC_PROC_SPAWN_REQUEST,
+    AOS_RPC_PUTCHAR,
+    AOS_RPC_GETCAHAR,
 } msg_type_t;
 
 

@@ -157,46 +157,46 @@ __attribute__((unused))  static errval_t test_basic_rpc(void)
 
 int main(int argc, char *argv[])
 {
-    errval_t err = SYS_ERR_OK;
+    // errval_t err = SYS_ERR_OK;
 
-    debug_printf("memeater started....\n");
-
-    init_rpc = get_init_rpc();
-    if (!init_rpc) {
-        USER_PANIC_ERR(err, "init RPC channel NULL?\n");
-    }
-
-    //mem_rpc = aos_rpc_get_memory_channel();
-    mem_rpc = init_rpc;
-    if (!mem_rpc) {
-        USER_PANIC_ERR(err, "memory RPC channel NULL?\n");
-    }
+    // debug_printf("memeater started....\n");
     //
-    err = test_basic_rpc();
-    if (err_is_fail(err)) {
-        USER_PANIC_ERR(err, "failure in testing basic RPC\n");
-    }
+    // init_rpc = get_init_rpc();
+    // if (!init_rpc) {
+    //     USER_PANIC_ERR(err, "init RPC channel NULL?\n");
+    // }
     //
-    errval_t get_sum_ram(struct capref *ret, size_t size, size_t alignment) {
-        return aos_rpc_get_ram_cap(init_rpc, size, alignment, ret, NULL);
-    }
-
-    ram_alloc_set(&get_sum_ram);
-    err = request_and_map_memory();
-    if (err_is_fail(err)) {
-        USER_PANIC_ERR(err, "could not request and map memory\n");
-    }
-
-    domainid_t pid;
-    aos_rpc_process_spawn(init_rpc, "hello", disp_get_current_core_id(), &pid);
-    debug_printf("wololooooo FIN %d\n", pid);
+    // //mem_rpc = aos_rpc_get_memory_channel();
+    // mem_rpc = init_rpc;
+    // if (!mem_rpc) {
+    //     USER_PANIC_ERR(err, "memory RPC channel NULL?\n");
+    // }
+    // //
+    // err = test_basic_rpc();
+    // if (err_is_fail(err)) {
+    //     USER_PANIC_ERR(err, "failure in testing basic RPC\n");
+    // }
+    // //
+    // errval_t get_sum_ram(struct capref *ret, size_t size, size_t alignment) {
+    //     return aos_rpc_get_ram_cap(init_rpc, size, alignment, ret, NULL);
+    // }
+    //
+    // ram_alloc_set(&get_sum_ram);
+    // err = request_and_map_memory();
+    // if (err_is_fail(err)) {
+    //     USER_PANIC_ERR(err, "could not request and map memory\n");
+    // }
+    //
+    // domainid_t pid;
+    // aos_rpc_process_spawn(init_rpc, "hello", disp_get_current_core_id(), &pid);
+    // debug_printf("wololooooo FIN %d\n", pid);
 
 
     /* test printf functionality */
-    // debug_printf("testing terminal printf function...\n");
-    //
-    // printf("Hello world using terminal service\n");
-    // debug_printf("memeater terminated....\n");
+    debug_printf("testing terminal printf function...\n");
+
+    printf("Hello world using terminal service\n");
+    debug_printf("memeater terminated....\n");
 
     return EXIT_SUCCESS;
 }
