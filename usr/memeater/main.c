@@ -166,20 +166,26 @@ int main(int argc, char *argv[])
         USER_PANIC_ERR(err, "init RPC channel NULL?\n");
     }
 
-    /*mem_rpc = aos_rpc_get_memory_channel();
+    //mem_rpc = aos_rpc_get_memory_channel();
+    mem_rpc = init_rpc;
     if (!mem_rpc) {
         USER_PANIC_ERR(err, "memory RPC channel NULL?\n");
-    }*/
+    }
     //
     err = test_basic_rpc();
     if (err_is_fail(err)) {
         USER_PANIC_ERR(err, "failure in testing basic RPC\n");
     }
     //
-    // err = request_and_map_memory();
-    // if (err_is_fail(err)) {
-    //     USER_PANIC_ERR(err, "could not request and map memory\n");
-    // }
+    errval_t get_sum_ram(struct capref *ret, size_t size, size_t alignment) {
+        return aos_rpc_get_ram_cap(init_rpc, size, alignment, ret, NULL);
+    }
+
+    ram_alloc_set(&get_sum_ram);
+    err = request_and_map_memory();
+    if (err_is_fail(err)) {
+        USER_PANIC_ERR(err, "could not request and map memory\n");
+    }
 
 
     /* test printf functionality */

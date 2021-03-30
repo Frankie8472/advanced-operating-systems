@@ -108,11 +108,30 @@ aos_rpc_get_ram_cap(struct aos_rpc *rpc, size_t bytes, size_t alignment,
     // TODO: implement functionality to request a RAM capability over the
     // given channel and wait until it is delivered.
 
+    errval_t err;
 
-    /*err = lmp_chan_send1(&rpc -> channel, LMP_SEND_FLAGS_DEFAULT, self_ep_cap, AOS_RPC_INIT);
-    if(err_is_fail(err)){
-        DEBUG_ERR(err,"failed to call lmp_chan_send");
-    }*/
+    err = lmp_chan_alloc_recv_slot(&rpc->channel);
+    ON_ERR_RETURN(err);
+
+    debug_printf("senmding request\n");
+    err = lmp_chan_send3(&rpc->channel, LMP_SEND_FLAGS_DEFAULT, NULL_CAP, AOS_RPC_RAM_REQUEST, bytes, alignment);
+    if(err_is_fail(err)) {
+        DEBUG_ERR(err, "failed to call lmp_chan_send");
+    }
+
+    debug_printf("recieving answqer\n");
+    bool can_receive = lmp_chan_can_recv(&rpc->channel);
+    while(!can_receive) {
+        can_receive = lmp_chan_can_recv(&rpc->channel);
+    }
+    struct lmp_recv_msg msg = LMP_RECV_MSG_INIT;
+    err = lmp_chan_recv(&rpc->channel, &msg, ret_cap);
+
+    if(err_is_fail(err) || msg.words[0] != AOS_RPC_RAM_SEND){
+        DEBUG_ERR(err, "did not receive ram cap");
+        return err;
+    }
+
     return SYS_ERR_OK;
 }
 
@@ -215,7 +234,8 @@ struct aos_rpc *aos_rpc_get_memory_channel(void)
 {
     //TODO: Return channel to talk to memory server process (or whoever
     //implements memory server functionality)
-    debug_printf("aos_rpc_get_memory_channel NYI\n");
+    //debug_printf("aos_rpc_get_memory_channel NYI\n");
+    return aos_rpc_get_init_channel();
     return NULL;
 }
 
