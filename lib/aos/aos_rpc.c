@@ -138,7 +138,30 @@ errval_t
 aos_rpc_serial_getchar(struct aos_rpc *rpc, char *retc) {
     // TODO implement functionality to request a character from
     // the serial driver.
-    return SYS_ERR_OK;
+    errval_t err = SYS_ERR_OK;
+    if (!retc) { // if retcap NULL was given, just return OK
+        return err;
+    }
+
+    err = lmp_chan_send1(&rpc -> channel, LMP_SEND_FLAGS_DEFAULT,NULL_CAP,AOS_RPC_GETCHAR);
+    if (err_is_fail(err)) {
+        DEBUG_ERR(err,"Failed to send character to serial port");
+    }
+
+    while (!lmp_chan_can_recv(&rpc->channel))
+        ;
+
+    struct lmp_recv_msg msg = LMP_RECV_MSG_INIT;
+    err = lmp_chan_recv(&rpc->channel, &msg, &NULL_CAP);
+
+    if (err_is_fail(err) || msg.words[0] != AOS_RPC_STRING) {
+        DEBUG_ERR(err, "getchar did not receive a string as response");
+        return err;
+    }
+
+    *retc = msg.words[1];
+
+    return err;
 }
 
 

@@ -75,6 +75,7 @@ static size_t syscall_terminal_write(const char *buf, size_t len)
 }
 
 
+// TODO
 __attribute__((__used__))
 static size_t syscall_terminal_read(char* buf,size_t len){
 
@@ -94,10 +95,19 @@ static size_t aos_terminal_write(const char * buf,size_t len){
   return 0;
 }
 
+// XXXX: do we have to ensure that the enwer is '\0'?
 __attribute__((__used__))
 static size_t aos_terminal_read(char* buf,size_t len){
-
-  return 0;
+    struct aos_rpc * rpc = get_init_rpc();
+    errval_t err;
+    for (size_t i = 0; i < len; i++) {
+        err = aos_rpc_serial_getchar(rpc, &buf[i]);
+        if (err_is_fail(err)) {
+            DEBUG_ERR(err, "error while reading");
+            return i;
+        }
+    }
+    return 0;
 }
 
 

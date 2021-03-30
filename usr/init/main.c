@@ -337,8 +337,21 @@ __attribute__((unused)) static void init_handler(void *arg)
             break;
         }
         case AOS_RPC_PUTCHAR: {
-          char c = (char) msg.words[1];
-          putchar(c);
+            char c = (char) msg.words[1];
+            putchar(c);
+            break;
+        }
+        case AOS_RPC_GETCHAR: {
+            char c;
+            err = sys_getchar(&c);
+            if (err_is_fail(err)) {
+                DEBUG_ERR(err, "readchar error\n");
+            }
+            /* debug_printf("=================== we read sometihng: %c\n", c); */
+
+            // send gotten char
+            err = lmp_chan_send2(channel, LMP_SEND_FLAGS_DEFAULT, NULL_CAP, AOS_RPC_STRING, c);
+            break;
         }
         default: {
             break;
