@@ -159,10 +159,10 @@ int main(int argc, char *argv[])
         USER_PANIC_ERR(err, "memory RPC channel NULL?\n");
     }*/
     //
-    // err = test_basic_rpc();
-    // if (err_is_fail(err)) {
-    //     USER_PANIC_ERR(err, "failure in testing basic RPC\n");
-    // }
+    err = test_basic_rpc();
+    if (err_is_fail(err)) {
+        USER_PANIC_ERR(err, "failure in testing basic RPC\n");
+    }
     //
     // err = request_and_map_memory();
     // if (err_is_fail(err)) {

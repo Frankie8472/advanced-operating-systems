@@ -41,7 +41,26 @@ aos_rpc_send_number(struct aos_rpc *rpc, uintptr_t num) {
     //   DEBUG_ERR(err,"failed to send number");
     // }
     //TODO waiting for acks
-    return SYS_ERR_OK;
+    errval_t err = SYS_ERR_OK;
+    err = lmp_chan_send2(&rpc -> channel, LMP_SEND_FLAGS_DEFAULT,NULL_CAP,NUMBER,num);
+    if(err_is_fail(err)){
+      DEBUG_ERR(err,"failed to send number");
+    }
+
+    debug_printf("Waiting to receive ACK\n");
+    bool can_receive = lmp_chan_can_recv(&rpc->channel);
+    while(!can_receive){
+      can_receive = lmp_chan_can_recv(&rpc->channel);
+    }
+    struct lmp_recv_msg msg = LMP_RECV_MSG_INIT;
+    err = lmp_chan_recv(&rpc -> channel, &msg, &NULL_CAP);
+    if(err_is_fail(err) || msg.words[0] != ACK){
+      debug_printf("First word should be ACK, is: %d\n",msg.words[0]);
+      DEBUG_ERR(err,"Could not get receive for sent number");
+    }
+    debug_printf("Acks has been received, number has been received!\n");
+
+    return err;
 }
 
 errval_t
@@ -55,11 +74,14 @@ aos_rpc_send_string(struct aos_rpc *rpc, const char *string) {
     return SYS_ERR_OK;
 }
 
+
+
 errval_t
 aos_rpc_get_ram_cap(struct aos_rpc *rpc, size_t bytes, size_t alignment,
                     struct capref *ret_cap, size_t *ret_bytes) {
     // TODO: implement functionality to request a RAM capability over the
     // given channel and wait until it is delivered.
+
     return SYS_ERR_OK;
 }
 

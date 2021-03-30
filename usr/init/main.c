@@ -233,10 +233,22 @@ __attribute__((unused)) static void init_handler(void *arg)
         else {
             debug_printf("no cap received");
         }
-
+        // channel -> endpoint -> k.consumed = true;
         lmp_chan_register_recv(channel, get_default_waitset(), MKCLOSURE(&init_handler, arg));
+        break;
         //END case INIT
 
+      case NUMBER:
+        //CASE number
+        // int num = msg.words[1];
+        debug_printf("Received number: %d\n",msg.words[1]);
+        err = lmp_chan_send1(channel,LMP_SEND_FLAGS_DEFAULT,NULL_CAP,ACK);
+        if(err_is_fail(err)){
+          DEBUG_ERR(err,"Could not send ack for number");
+        }
+        //END CASE NUMBER
+      default:
+        lmp_chan_register_recv(channel, get_default_waitset(), MKCLOSURE(&init_handler, arg));
 
     }
 
