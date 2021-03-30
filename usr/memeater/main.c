@@ -161,7 +161,7 @@ int main(int argc, char *argv[])
 
     debug_printf("memeater started....\n");
 
-    init_rpc = aos_rpc_get_init_channel();
+    init_rpc = get_init_rpc();
     if (!init_rpc) {
         USER_PANIC_ERR(err, "init RPC channel NULL?\n");
     }
@@ -186,6 +186,10 @@ int main(int argc, char *argv[])
     if (err_is_fail(err)) {
         USER_PANIC_ERR(err, "could not request and map memory\n");
     }
+
+    domainid_t pid;
+    aos_rpc_process_spawn(init_rpc, "hello", disp_get_current_core_id(), &pid);
+    debug_printf("wololooooo FIN %d\n", pid);
 
 
     /* test printf functionality */

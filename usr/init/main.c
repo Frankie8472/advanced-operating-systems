@@ -28,8 +28,6 @@
 #include "mem_alloc.h"
 
 
-
-
 struct bootinfo *bi;
 
 coreid_t my_core_id;
@@ -75,7 +73,8 @@ __attribute__((unused)) static void many_allocs_and_frees(void)
 __attribute__((unused)) static long sum_until(long m)
 {
     long result = 0;
-    for (long i = 0; i < m; i++) result += i;
+    for (long i = 0; i < m; i++)
+        result += i;
     return result;
 }
 
@@ -87,10 +86,11 @@ __attribute__((unused)) static void test_map_big(lvaddr_t base, size_t size)
     frame_alloc(&my_frame, size, &f_size);
 
     lvaddr_t addr = base;
-    paging_map_fixed_attr(get_current_paging_state(), addr, my_frame, size, VREGION_FLAGS_READ_WRITE);
+    paging_map_fixed_attr(get_current_paging_state(), addr, my_frame, size,
+                          VREGION_FLAGS_READ_WRITE);
 
     printf("mapped big: 0x%lx\n", size);
-    long* pointer = (long*) addr;
+    long *pointer = (long *)addr;
     for (int i = 0; i < size / sizeof(long); i++) {
         pointer[i] = i;
     }
@@ -121,20 +121,19 @@ __attribute__((unused)) static void test_align(void)
 }
 
 
-
-
-__attribute__((unused)) static void test_spawn_load_argv(void){
+__attribute__((unused)) static void test_spawn_load_argv(void)
+{
     //=============SPAWN PROCESS HELLO==================//
     errval_t err;
-    printf("Trying to spawn process hello\n" );
+    printf("Trying to spawn process hello\n");
 
 
-    //err = spawn_load_by_name(1,p_argv,&si,&pid);
+    // err = spawn_load_by_name(1,p_argv,&si,&pid);
     for (int i = 0; i < 20; i++) {
         struct spawninfo *si = malloc(sizeof(struct spawninfo));
         domainid_t *pid = malloc(sizeof(domainid_t));
         err = spawn_load_by_name("hello", si, pid);
-        if(err_is_fail(err)){
+        if (err_is_fail(err)) {
             DEBUG_ERR(err, "spawn loading failed");
         }
         free(si);
@@ -145,24 +144,21 @@ __attribute__((unused)) static void test_spawn_load_argv(void){
     struct spawninfo si1;
     domainid_t pid1;
     err = spawn_load_by_name("hello", &si1, &pid1);
-    if(err_is_fail(err)){
+    if (err_is_fail(err)) {
         DEBUG_ERR(err, "spawn loading failed");
     }
     // err = spawn_load_by_name()
 
     //===========================================//
-
 }
-
-
 
 
 __attribute__((unused)) static void test(void)
 {
     // begin experiment
     printf("start experiment!\n");
-    //test_align();
-    //many_allocs_and_frees();
+    // test_align();
+    // many_allocs_and_frees();
     // //test_free_coalesce();
     // test_big_mappings();
     //
@@ -171,7 +167,8 @@ __attribute__((unused)) static void test(void)
     // frame_alloc(&my_frame, 4096, &f_size);
     //
     // lvaddr_t addr = VADDR_OFFSET + 0x123000;
-    // paging_map_fixed_attr(get_current_paging_state(), addr, my_frame, 4096, VREGION_FLAGS_READ_WRITE);
+    // paging_map_fixed_attr(get_current_paging_state(), addr, my_frame, 4096,
+    // VREGION_FLAGS_READ_WRITE);
     //
     // int* pointer = (int*) addr;
     // for (int i = 0; i < 100; i++) {
@@ -203,6 +200,11 @@ __attribute__((unused)) static void faulty_allocations(void)
 }
 
 
+/**
+ * \brief Callback function, called if init process receives a msg
+ *
+ * @param arg Multipl messages
+ */
 __attribute__((unused)) static void init_handler(void *arg)
 {
     // debug_printf("init_handler called\n");
@@ -211,123 +213,129 @@ __attribute__((unused)) static void init_handler(void *arg)
     struct capref cap;
     cap = NULL_CAP;
     errval_t err = lmp_chan_recv(channel, &msg, &cap);
-    if(err_is_fail(err)){
-      DEBUG_ERR(err,"Event called, but receive failed");
+    if (err_is_fail(err)) {
+        DEBUG_ERR(err, "Event called, but receive failed");
     }
-    //start switch
-    switch(msg.words[0]) {
-    case AOS_RPC_INIT:
-      //CASE INIT
-        if (!capref_is_null(cap)) {
-            debug_printf("received capability\n");
-            char buuuf[256];
-            debug_print_cap_at_capref(buuuf, sizeof buuuf, cap);
-            debug_printf("received cap is: %s\n", buuuf);
-            channel->remote_cap = cap;
+    // start switch
+    switch (msg.words[0]) {
+        case AOS_RPC_INIT: {
+            // CASE INIT
+            if (!capref_is_null(cap)) {
+                debug_printf("received capability\n");
+                char buuuf[256];
+                debug_print_cap_at_capref(buuuf, sizeof buuuf, cap);
+                debug_printf("received cap is: %s\n", buuuf);
+                channel->remote_cap = cap;
 
-            err = lmp_chan_send1(channel, LMP_SEND_FLAGS_DEFAULT, NULL_CAP, AOS_RPC_ACK);
-            if(err_is_fail(err)){
-                DEBUG_ERR(err,"Could not send ack for init");
+                err = lmp_chan_send1(channel, LMP_SEND_FLAGS_DEFAULT, NULL_CAP, AOS_RPC_ACK);
+                if (err_is_fail(err)) {
+                    DEBUG_ERR(err, "Could not send ack for init");
+                }
+            } else {
+                debug_printf("no cap received");
             }
-        }
-        else {
-            debug_printf("no cap received");
-        }
 
-        //END case INIT
-        break;
-    case AOS_RPC_RAM_REQUEST:
-        {
+            // END case INIT
+            break;
+        }
+        case AOS_RPC_RAM_REQUEST: {
             size_t size = msg.words[1];
             size_t alignment = msg.words[2];
             struct capref ramcap;
             err = ram_alloc_aligned(&ramcap, size, alignment);
             if (err_is_fail(err)) {
-                err = lmp_chan_send1(channel, LMP_SEND_FLAGS_DEFAULT, NULL_CAP, AOS_RPC_RAM_ALLOC_FAIL);
+                err = lmp_chan_send1(channel, LMP_SEND_FLAGS_DEFAULT, NULL_CAP,
+                                     AOS_RPC_RAM_ALLOC_FAIL);
+            } else {
+                err = lmp_chan_send1(channel, LMP_SEND_FLAGS_DEFAULT, ramcap,
+                                     AOS_RPC_RAM_SEND);
             }
-            else {
-                err = lmp_chan_send1(channel, LMP_SEND_FLAGS_DEFAULT, ramcap, AOS_RPC_RAM_SEND);
+            break;
+        }
+        case AOS_RPC_NUMBER: {
+            // CASE number
+            // int num = msg.words[1];
+            debug_printf("Received number: %d\n", msg.words[1]);
+            err = lmp_chan_send1(channel, LMP_SEND_FLAGS_DEFAULT, NULL_CAP, AOS_RPC_ACK);
+            if (err_is_fail(err)) {
+                DEBUG_ERR(err, "Could not send ack for number");
             }
+            break;
+            // END CASE NUMBER
         }
-        break;
-      case AOS_RPC_NUMBER:
-        //CASE number
-        // int num = msg.words[1];
-        debug_printf("Received number: %d\n",msg.words[1]);
-        err = lmp_chan_send1(channel,LMP_SEND_FLAGS_DEFAULT,NULL_CAP,AOS_RPC_ACK);
-        if(err_is_fail(err)){
-          DEBUG_ERR(err,"Could not send ack for number");
+        case AOS_RPC_STRING: {
+            size_t size = msg.words[1];
+
+            debug_printf("Expecting string of size: %d\n", msg.words[1]);
+            char *rec_string = (char *)malloc((size + 1) * sizeof(char));
+            rec_string[size] = '\0';
+
+            err = lmp_chan_send1(channel, LMP_SEND_FLAGS_DEFAULT, NULL_CAP, AOS_RPC_ACK);
+            if (err_is_fail(err)) {
+                DEBUG_ERR(err, "Could not send ack for starting string transfer");
+            }
+
+            // bool can_receive = lmp_chan_can_recv(channel);
+
+            bool can_receive;
+            size_t i = 0;
+            while (i < size) {
+                can_receive = lmp_chan_can_recv(channel);
+                while (!can_receive) {
+                    can_receive = lmp_chan_can_recv(channel);
+                }
+                struct lmp_recv_msg msg_string = LMP_RECV_MSG_INIT;
+                err = lmp_chan_recv(channel, &msg_string, &NULL_CAP);
+                if (err_is_fail(err)) {
+                    DEBUG_ERR(err, "Could not receive string at i:%d\n", i);
+                }
+                char c = (char)msg_string.words[0];
+                rec_string[i] = c;
+                err = lmp_chan_send1(channel, LMP_SEND_FLAGS_DEFAULT, NULL_CAP, AOS_RPC_ACK);
+                if (err_is_fail(err)) {
+                    DEBUG_ERR(err, "Could not send at ACK at string location i:%d\n", i);
+                }
+                ++i;
+            }
+            break;
         }
-        lmp_chan_register_recv(channel, get_default_waitset(), MKCLOSURE(&init_handler, arg));
-        break;
-        //END CASE NUMBER
-      case AOS_RPC_STRING: ;
-        size_t size = msg.words[1];
+        case AOS_RPC_PROC_SPAWN_REQUEST: {
+            size_t size = (size_t)msg.words[1];
+            //coreid_t core = (coreid_t)msg.words[2];
+            char *proc_name = (char *)malloc((size + 1) * sizeof(char));
+            proc_name[size] = '\0';
+            bool can_receive;
+            size_t i = 0;
+            while (i < size) {
+                can_receive = lmp_chan_can_recv(channel);
+                while (!can_receive) {
+                    can_receive = lmp_chan_can_recv(channel);
+                }
+                struct lmp_recv_msg msg_string = LMP_RECV_MSG_INIT;
+                err = lmp_chan_recv(channel, &msg_string, &NULL_CAP);
+                if (err_is_fail(err)) {
+                    DEBUG_ERR(err, "Could not receive string at i:%d\n", i);
+                }
+                char c = (char)msg_string.words[0];
+                proc_name[i] = c;
+                i++;
+            }
 
-        debug_printf("Expecting string of size: %d\n",msg.words[1]);
-        char * rec_string = (char *) malloc((size + 1) * sizeof(char));
-        rec_string[size] ='\0';
+            domainid_t pid;
+            struct spawninfo *si = (struct spawninfo *) malloc(sizeof(struct spawninfo));
+            debug_printf("============ %s\n", proc_name);
+            err = spawn_load_by_name(proc_name, si, &pid);
+            // TODO: ERR
+            err = lmp_chan_send1(channel, LMP_SEND_FLAGS_DEFAULT, NULL_CAP, pid);
+            // TODO: ERR
 
-        err = lmp_chan_send1(channel,LMP_SEND_FLAGS_DEFAULT,NULL_CAP,AOS_RPC_ACK);
-        if(err_is_fail(err)){
-          DEBUG_ERR(err,"Could not send ack for starting string transfer");
+            break;
         }
-
-        // bool can_receive = lmp_chan_can_recv(channel);
-
-        bool can_receive;
-        size_t i = 0;
-        while(i < size){
-          can_receive = lmp_chan_can_recv(channel);
-          while(!can_receive){
-            can_receive = lmp_chan_can_recv(channel);
-          }
-          struct lmp_recv_msg msg_string = LMP_RECV_MSG_INIT;
-          err = lmp_chan_recv(channel,&msg_string,&NULL_CAP);
-          if(err_is_fail(err)){
-            DEBUG_ERR(err,"Could not receive string at i:%d\n",i);
-          }
-          char  c = (char) msg_string.words[0];
-          rec_string[i] = c;
-          err = lmp_chan_send1(channel,LMP_SEND_FLAGS_DEFAULT,NULL_CAP,AOS_RPC_ACK);
-          if(err_is_fail(err)){
-            DEBUG_ERR(err,"Could not send at ACK at string location i:%d\n",i);
-          }
-          ++i;
+        default: {
+            break;
         }
-
-        debug_printf("Received string: %s\n",rec_string);
-
-        lmp_chan_register_recv(channel, get_default_waitset(), MKCLOSURE(&init_handler, arg));
-        break;
-      default:
-        lmp_chan_register_recv(channel, get_default_waitset(), MKCLOSURE(&init_handler, arg));
-
     }
     lmp_chan_register_recv(channel, get_default_waitset(), MKCLOSURE(&init_handler, arg));
-
-    //end switch
-    // if(err_is_fail(err) && lmp_err_is_transient(err)) {
-    //     lmp_chan_register_recv(channel, get_default_waitset(), MKCLOSURE(&init_handler, arg));
-    //     return;
-    // }
-    //
-    // if (!capref_is_null(cap)) {
-    //     debug_printf("received capability\n");
-    //     char buuuf[256];
-    //     debug_print_cap_at_capref(buuuf, sizeof buuuf, cap);
-    //     debug_printf("received cap is: %s\n", buuuf);
-    //     channel->remote_cap = cap;
-    // }
-    // else {
-    //     debug_printf("no cap received");
-    // }
-    //
-    // debug_printf("Recieved %d words!\n", msg.buf.msglen);
-    // for (int i = 0; i < msg.buf.msglen; i++) {
-    //     debug_printf("%d: %ld\n", i, msg.words[i]);
-    // }
-    // lmp_chan_register_recv(channel, get_default_waitset(), MKCLOSURE(&init_handler, arg));
 }
 
 __attribute__((unused)) static void spawn_memeater(void)
@@ -335,25 +343,26 @@ __attribute__((unused)) static void spawn_memeater(void)
     struct spawninfo *si1 = malloc(sizeof(struct spawninfo));
     domainid_t *pid1 = malloc(sizeof(domainid_t));
     errval_t err = spawn_load_by_name("memeater", si1, pid1);
-    if(err_is_fail(err)){
+    if (err_is_fail(err)) {
         DEBUG_ERR(err, "spawn loading failed");
     }
 
-    //err = lmp_chan_accept(&si1->channel, DEFAULT_LMP_BUF_WORDS, NULL_CAP);
-    //DEBUG_ERR(err, "accepting");
+    // err = lmp_chan_accept(&si1->channel, DEFAULT_LMP_BUF_WORDS, NULL_CAP);
+    // DEBUG_ERR(err, "accepting");
     //
-    //bool can_receive = lmp_chan_can_recv(&si1->channel);
-    //printf("Trying to receive: %d\n", can_receive);
+    // bool can_receive = lmp_chan_can_recv(&si1->channel);
+    // printf("Trying to receive: %d\n", can_receive);
 
-    //slot_alloc(&si1->channel.endpoint->recv_slot);
-    //struct cnoderef cnode;
-    //cnode_create_l2(&si1->channel.endpoint->recv_slot, &cnode);
-    //si1->channel.endpoint->k.recv_cspc = get_cap_addr();
+    // slot_alloc(&si1->channel.endpoint->recv_slot);
+    // struct cnoderef cnode;
+    // cnode_create_l2(&si1->channel.endpoint->recv_slot, &cnode);
+    // si1->channel.endpoint->k.recv_cspc = get_cap_addr();
 
     err = lmp_chan_alloc_recv_slot(&si1->channel);
     DEBUG_ERR(err, "alloc recv slot");
 
-    err = lmp_chan_register_recv(&si1->channel, get_default_waitset(), MKCLOSURE(&init_handler, &si1->channel));
+    err = lmp_chan_register_recv(&si1->channel, get_default_waitset(),
+                                 MKCLOSURE(&init_handler, &si1->channel));
     DEBUG_ERR(err, "register recv");
     /*while(!can_receive){
       can_receive = lmp_chan_can_recv(&si1 -> channel);
@@ -371,35 +380,30 @@ __attribute__((unused)) static void spawn_memeater(void)
 }
 
 
-
-
-static int
-bsp_main(int argc, char *argv[]) {
+static int bsp_main(int argc, char *argv[])
+{
     errval_t err;
 
     // Grading
     grading_setup_bsp_init(argc, argv);
 
     // First argument contains the bootinfo location, if it's not set
-    bi = (struct bootinfo*)strtol(argv[1], NULL, 10);
+    bi = (struct bootinfo *)strtol(argv[1], NULL, 10);
     assert(bi);
 
     err = initialize_ram_alloc();
-    if(err_is_fail(err)){
+    if (err_is_fail(err)) {
         DEBUG_ERR(err, "initialize_ram_alloc");
     }
 
     // TODO: initialize mem allocator, vspace management here
 
-    //test();
+    // test();
     spawn_memeater();
 
     // Grading
     grading_test_early();
     // TODO: Spawn system processes, boot second core etc. here
-
-
-
 
 
     // Grading
@@ -419,8 +423,8 @@ bsp_main(int argc, char *argv[]) {
     return EXIT_SUCCESS;
 }
 
-static int
-app_main(int argc, char *argv[]) {
+static int app_main(int argc, char *argv[])
+{
     // Implement me in Milestone 5
     // Remember to call
     // - grading_setup_app_init(..);
@@ -428,7 +432,6 @@ app_main(int argc, char *argv[]) {
     // - grading_test_late();
     return LIB_ERR_NOT_IMPLEMENTED;
 }
-
 
 
 int main(int argc, char *argv[])
@@ -443,13 +446,14 @@ int main(int argc, char *argv[])
 
     debug_printf("init: on core %" PRIuCOREID ", invoked as:", my_core_id);
     for (int i = 0; i < argc; i++) {
-       printf(" %s", argv[i]);
+        printf(" %s", argv[i]);
     }
     printf("\n");
     fflush(stdout);
 
 
-
-    if(my_core_id == 0) return bsp_main(argc, argv);
-    else                return app_main(argc, argv);
+    if (my_core_id == 0)
+        return bsp_main(argc, argv);
+    else
+        return app_main(argc, argv);
 }

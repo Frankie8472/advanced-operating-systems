@@ -155,6 +155,33 @@ errval_t
 aos_rpc_process_spawn(struct aos_rpc *rpc, char *cmdline,
                       coreid_t core, domainid_t *newpid) {
     // TODO (M5): implement spawn new process rpc
+    errval_t err;
+
+    err = lmp_chan_alloc_recv_slot(&rpc->channel);
+    ON_ERR_RETURN(err);
+    size_t len = strlen(cmdline);
+    err = lmp_chan_send3(&rpc->channel, LMP_SEND_FLAGS_DEFAULT, NULL_CAP, AOS_RPC_PROC_SPAWN_REQUEST, len, core);
+
+    for (int i = 0; i < len; i++) {
+        err = lmp_chan_send1(&rpc->channel, LMP_SEND_FLAGS_DEFAULT, NULL_CAP, cmdline[i]);
+        if(err_is_fail(err)) {
+            DEBUG_ERR(err, "failed to call lmp_chan_send");
+        }
+    }
+
+    bool can_receive = lmp_chan_can_recv(&rpc->channel);
+    while(!can_receive){
+        can_receive = lmp_chan_can_recv(&rpc->channel);
+    }
+
+    struct lmp_recv_msg msg_string = LMP_RECV_MSG_INIT;
+    err = lmp_chan_recv(&rpc->channel, &msg_string, &NULL_CAP);
+    if(err_is_fail(err)){
+        DEBUG_ERR(err,"Could not receive string\n");
+    }
+
+    *newpid = msg_string.words[0];
+
     return SYS_ERR_OK;
 }
 
