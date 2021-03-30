@@ -18,11 +18,13 @@
 #include <aos/aos.h>
 
 typedef enum msg_type {
-  AOS_RPC_INIT      = 1,
-  AOS_RPC_ACK       = 2, //do we need this
-  AOS_RPC_NUMBER    = 3,
-  AOS_RPC_STRING    = 4,
-  AOS_RPC_RAM       = 5,
+  AOS_RPC_INIT          = 1,
+  AOS_RPC_ACK           = 2, //do we need this
+  AOS_RPC_NUMBER        = 3,
+  AOS_RPC_STRING        = 4,
+  AOS_RPC_RAM_REQUEST   = 5,
+  AOS_RPC_RAM_SEND,
+  AOS_RPC_RAM_ALLOC_FAIL,
 } msg_type_t;
 
 

@@ -215,8 +215,8 @@ __attribute__((unused)) static void init_handler(void *arg)
       DEBUG_ERR(err,"Event called, but receive failed");
     }
     //start switch
-    switch(msg.words[0]){
-      case AOS_RPC_INIT:
+    switch(msg.words[0]) {
+    case AOS_RPC_INIT:
       //CASE INIT
         if (!capref_is_null(cap)) {
             debug_printf("received capability\n");
@@ -225,20 +225,32 @@ __attribute__((unused)) static void init_handler(void *arg)
             debug_printf("received cap is: %s\n", buuuf);
             channel->remote_cap = cap;
 
-            err = lmp_chan_send1(channel,LMP_SEND_FLAGS_DEFAULT,NULL_CAP, AOS_RPC_ACK);
+            err = lmp_chan_send1(channel, LMP_SEND_FLAGS_DEFAULT, NULL_CAP, AOS_RPC_ACK);
             if(err_is_fail(err)){
-              DEBUG_ERR(err,"Could not send ack for init");
+                DEBUG_ERR(err,"Could not send ack for init");
             }
         }
         else {
             debug_printf("no cap received");
         }
 
-        lmp_chan_register_recv(channel, get_default_waitset(), MKCLOSURE(&init_handler, arg));
         //END case INIT
-
-
+        break;
+    case AOS_RPC_RAM_REQUEST:
+        {
+            size_t size = msg.words[1];
+            size_t alignment = msg.words[2];
+            struct capref ramcap;
+            err = ram_alloc_aligned(&ramcap, size, alignment);
+            if (err_is_fail(err)) {
+                err = lmp_chan_send1(channel, LMP_SEND_FLAGS_DEFAULT, NULL_CAP, AOS_RPC_RAM_ALLOC_FAIL);
+            }
+            else {
+                err = lmp_chan_send1(channel, LMP_SEND_FLAGS_DEFAULT, ramcap, AOS_RPC_RAM_SEND);
+            }
+        }
     }
+    lmp_chan_register_recv(channel, get_default_waitset(), MKCLOSURE(&init_handler, arg));
 
     //end switch
     // if(err_is_fail(err) && lmp_err_is_transient(err)) {
