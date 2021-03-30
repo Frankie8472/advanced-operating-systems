@@ -20,7 +20,7 @@
 static errval_t ram_alloc_remote(struct capref *ret, size_t size, size_t alignment)
 {
     //TODO(M3): Implement me!
-    return LIB_ERR_NOT_IMPLEMENTED;
+    return aos_rpc_get_ram_cap(get_init_rpc(), size, alignment, ret, NULL);
 }
 
 
