@@ -291,6 +291,7 @@ struct aos_rpc *aos_rpc_get_process_channel(void)
     //TODO: Return channel to talk to process server process (or whoever
     //implements process server functionality)
     debug_printf("aos_rpc_get_process_channel NYI\n");
+    return aos_rpc_get_init_channel();
     return NULL;
 }
 
@@ -302,5 +303,6 @@ struct aos_rpc *aos_rpc_get_serial_channel(void)
     //TODO: Return channel to talk to serial driver/terminal process (whoever
     //implements print/read functionality)
     debug_printf("aos_rpc_get_serial_channel NYI\n");
+    return aos_rpc_get_init_channel();
     return NULL;
 }
