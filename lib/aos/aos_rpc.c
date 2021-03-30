@@ -17,7 +17,9 @@
 #include <arch/aarch64/aos/lmp_chan_arch.h>
 
 
-
+// __attribute__ ((unused)) static void receive_handler(void *arg){
+//
+// }
 
 
 errval_t
@@ -25,21 +27,31 @@ aos_rpc_send_number(struct aos_rpc *rpc, uintptr_t num) {
     // TODO: implement functionality to send a number over the channel
     // given channel and wait until the ack gets returned.
 
-    void dosend(void* a) {
-        debug_printf("dosend\n");
-    }
-
-    struct event_closure closure = MKCLOSURE(&dosend, rpc);
-    struct waitset *ws = get_default_waitset();
-    lmp_chan_register_send(&rpc->channel, ws, closure);
-    lmp_chan_send1(&rpc->channel, LMP_SEND_FLAGS_DEFAULT, NULL_CAP, num);
-    return SYS_ERR_OK;
+    // void dosend(void* a) {
+    //     debug_printf("dosend\n");
+    // }
+    //
+    // struct event_closure closure = MKCLOSURE(&dosend, rpc);
+    // struct waitset *ws = get_default_waitset();
+    // lmp_chan_register_send(&rpc->channel, ws, closure);
+    // lmp_chan_send1(&rpc->channel, LMP_SEND_FLAGS_DEFAULT, NULL_CAP, num);
+    // errval_t err = SYS_ERR_OK;
+    // err = lmp_chan_send2(&rpc -> channel, LMP_SEND_FLAGS_DEFAULT,NULL_CAP,NUMBER,num);
+    // if(err_is_fail(err)){
+    //   DEBUG_ERR(err,"failed to send number");
+    // }
+    //TODO waiting for acks
+    return err;
 }
 
 errval_t
 aos_rpc_send_string(struct aos_rpc *rpc, const char *string) {
     // TODO: implement functionality to send a string over the given channel
     // and wait for a response.
+    // errval_t err = SYS_ERR_OK;
+    //
+    // int i = 0;
+    // while(string[i] != '\0')
     return SYS_ERR_OK;
 }
 

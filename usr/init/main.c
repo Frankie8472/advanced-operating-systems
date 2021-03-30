@@ -201,6 +201,9 @@ __attribute__((unused)) static void faulty_allocations(void)
 
 __attribute__((unused)) static void recieve_handler(void *arg)
 {
+
+    
+
     struct lmp_chan *channel = arg;
     struct lmp_recv_msg msg = LMP_RECV_MSG_INIT;
     struct capref cap;

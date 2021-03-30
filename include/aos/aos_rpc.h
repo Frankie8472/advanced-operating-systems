@@ -17,6 +17,15 @@
 
 #include <aos/aos.h>
 
+typedef enum msg_type {
+  INIT      = 1,
+  ACK       = 2, //do we need this
+  NUMBER    = 3,
+  STRING    = 4,
+  RAM       = 5,
+} msg_type_t;
+
+
 
 /* An RPC binding, which may be transported over LMP or UMP. */
 struct aos_rpc {
