@@ -216,7 +216,7 @@ __attribute__((unused)) static void init_handler(void *arg)
     }
     //start switch
     switch(msg.words[0]){
-      case INIT:
+      case AOS_RPC_INIT:
       //CASE INIT
         if (!capref_is_null(cap)) {
             debug_printf("received capability\n");
@@ -225,7 +225,7 @@ __attribute__((unused)) static void init_handler(void *arg)
             debug_printf("received cap is: %s\n", buuuf);
             channel->remote_cap = cap;
 
-            err = lmp_chan_send1(channel,LMP_SEND_FLAGS_DEFAULT,NULL_CAP,ACK);
+            err = lmp_chan_send1(channel,LMP_SEND_FLAGS_DEFAULT,NULL_CAP, AOS_RPC_ACK);
             if(err_is_fail(err)){
               DEBUG_ERR(err,"Could not send ack for init");
             }

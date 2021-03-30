@@ -82,6 +82,11 @@ aos_rpc_get_ram_cap(struct aos_rpc *rpc, size_t bytes, size_t alignment,
     // TODO: implement functionality to request a RAM capability over the
     // given channel and wait until it is delivered.
 
+
+    /*err = lmp_chan_send1(&rpc -> channel, LMP_SEND_FLAGS_DEFAULT, self_ep_cap, AOS_RPC_INIT);
+    if(err_is_fail(err)){
+        DEBUG_ERR(err,"failed to call lmp_chan_send");
+    }*/
     return SYS_ERR_OK;
 }
 
@@ -156,7 +161,7 @@ struct aos_rpc *aos_rpc_get_init_channel(void)
     rpc -> channel.endpoint = lmp_ep;
     debug_printf("Trying to establish channel with init:\n");
 
-    err = lmp_chan_send1(&rpc -> channel, LMP_SEND_FLAGS_DEFAULT, self_ep_cap, INIT);
+    err = lmp_chan_send1(&rpc -> channel, LMP_SEND_FLAGS_DEFAULT, self_ep_cap, AOS_RPC_INIT);
     if(err_is_fail(err)){
         DEBUG_ERR(err,"failed to call lmp_chan_send");
     }
@@ -168,7 +173,7 @@ struct aos_rpc *aos_rpc_get_init_channel(void)
     }
     struct lmp_recv_msg msg = LMP_RECV_MSG_INIT;
     err = lmp_chan_recv(&rpc -> channel, &msg, &NULL_CAP);
-    if(err_is_fail(err) || msg.words[0] != ACK){
+    if(err_is_fail(err) || msg.words[0] != AOS_RPC_ACK){
       debug_printf("First word should be ACK, is: %d\n",msg.words[0]);
       DEBUG_ERR(err,"Could not setup bi direction with init");
     }
