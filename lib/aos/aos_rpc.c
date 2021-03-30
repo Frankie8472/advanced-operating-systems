@@ -113,13 +113,11 @@ aos_rpc_get_ram_cap(struct aos_rpc *rpc, size_t bytes, size_t alignment,
     err = lmp_chan_alloc_recv_slot(&rpc->channel);
     ON_ERR_RETURN(err);
 
-    debug_printf("senmding request\n");
     err = lmp_chan_send3(&rpc->channel, LMP_SEND_FLAGS_DEFAULT, NULL_CAP, AOS_RPC_RAM_REQUEST, bytes, alignment);
     if(err_is_fail(err)) {
         DEBUG_ERR(err, "failed to call lmp_chan_send");
     }
 
-    debug_printf("recieving answqer\n");
     bool can_receive = lmp_chan_can_recv(&rpc->channel);
     while(!can_receive) {
         can_receive = lmp_chan_can_recv(&rpc->channel);

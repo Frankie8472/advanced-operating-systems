@@ -258,7 +258,6 @@ __attribute__((unused)) static void init_handler(void *arg)
         if(err_is_fail(err)){
           DEBUG_ERR(err,"Could not send ack for number");
         }
-        lmp_chan_register_recv(channel, get_default_waitset(), MKCLOSURE(&init_handler, arg));
         break;
         //END CASE NUMBER
       case AOS_RPC_STRING: ;
@@ -298,7 +297,6 @@ __attribute__((unused)) static void init_handler(void *arg)
 
         debug_printf("Received string: %s\n",rec_string);
 
-        lmp_chan_register_recv(channel, get_default_waitset(), MKCLOSURE(&init_handler, arg));
         break;
       default:
         lmp_chan_register_recv(channel, get_default_waitset(), MKCLOSURE(&init_handler, arg));
