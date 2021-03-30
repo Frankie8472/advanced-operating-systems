@@ -216,7 +216,7 @@ __attribute__((unused)) static void init_handler(void *arg)
     }
     //start switch
     switch(msg.words[0]){
-      case AOS_RPC_INIT:
+      case AOS_RPC_INIT: ;
       //CASE INIT
         if (!capref_is_null(cap)) {
             debug_printf("received capability\n");
@@ -238,7 +238,7 @@ __attribute__((unused)) static void init_handler(void *arg)
         break;
         //END case INIT
 
-      case AOS_RPC_NUMBER:
+      case AOS_RPC_NUMBER: ;
         //CASE number
         // int num = msg.words[1];
         debug_printf("Received number: %d\n",msg.words[1]);
@@ -246,7 +246,48 @@ __attribute__((unused)) static void init_handler(void *arg)
         if(err_is_fail(err)){
           DEBUG_ERR(err,"Could not send ack for number");
         }
+        lmp_chan_register_recv(channel, get_default_waitset(), MKCLOSURE(&init_handler, arg));
+        break;
         //END CASE NUMBER
+      case AOS_RPC_STRING: ;
+        size_t size = msg.words[1];
+
+        debug_printf("Expecting string of size: %d\n",msg.words[1]);
+        char * rec_string = (char *) malloc((size + 1) * sizeof(char));
+        rec_string[size] ='\0';
+
+        err = lmp_chan_send1(channel,LMP_SEND_FLAGS_DEFAULT,NULL_CAP,AOS_RPC_ACK);
+        if(err_is_fail(err)){
+          DEBUG_ERR(err,"Could not send ack for starting string transfer");
+        }
+
+        // bool can_receive = lmp_chan_can_recv(channel);
+
+        bool can_receive;
+        size_t i = 0;
+        while(i < size){
+          can_receive = lmp_chan_can_recv(channel);
+          while(!can_receive){
+            can_receive = lmp_chan_can_recv(channel);
+          }
+          struct lmp_recv_msg msg_string = LMP_RECV_MSG_INIT;
+          err = lmp_chan_recv(channel,&msg_string,&NULL_CAP);
+          if(err_is_fail(err)){
+            DEBUG_ERR(err,"Could not receive string at i:%d\n",i);
+          }
+          char  c = (char) msg_string.words[0];
+          rec_string[i] = c;
+          err = lmp_chan_send1(channel,LMP_SEND_FLAGS_DEFAULT,NULL_CAP,AOS_RPC_ACK);
+          if(err_is_fail(err)){
+            DEBUG_ERR(err,"Could not send at ACK at string location i:%d\n",i);
+          }
+          ++i;
+        }
+
+        debug_printf("Received string: %s\n",rec_string);
+
+        lmp_chan_register_recv(channel, get_default_waitset(), MKCLOSURE(&init_handler, arg));
+        break;
       default:
         lmp_chan_register_recv(channel, get_default_waitset(), MKCLOSURE(&init_handler, arg));
 

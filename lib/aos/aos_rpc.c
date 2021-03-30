@@ -24,11 +24,12 @@
 
 errval_t
 aos_rpc_send_number(struct aos_rpc *rpc, uintptr_t num) {
+    errval_t err = SYS_ERR_OK;
+
     bool can_receive = lmp_chan_can_recv(&rpc->channel);
     // debug_printf("Curr can_receive: %d\n",can_receive);
 
     // debug_printf("Waiting to receive ACK\n");
-    errval_t err = SYS_ERR_OK;
     err = lmp_chan_send2(&rpc -> channel, LMP_SEND_FLAGS_DEFAULT,NULL_CAP,AOS_RPC_NUMBER,num);
     if(err_is_fail(err)){
       DEBUG_ERR(err,"failed to send number");
@@ -48,15 +49,55 @@ aos_rpc_send_number(struct aos_rpc *rpc, uintptr_t num) {
     return err;
 }
 
+
+
+
 errval_t
 aos_rpc_send_string(struct aos_rpc *rpc, const char *string) {
-    // TODO: implement functionality to send a string over the given channel
-    // and wait for a response.
-    // errval_t err = SYS_ERR_OK;
-    //
-    // int i = 0;
-    // while(string[i] != '\0')
-    return SYS_ERR_OK;
+
+    errval_t err = SYS_ERR_OK;
+    size_t size = 0;
+    struct lmp_recv_msg msg = LMP_RECV_MSG_INIT;
+
+    for(;true;++size){if(string[size] == '\0'){break;}}
+    debug_printf("Sending string of size: %d\n",size);
+    err = lmp_chan_send2(&rpc -> channel, LMP_SEND_FLAGS_DEFAULT,NULL_CAP,AOS_RPC_STRING,size);
+    if(err_is_fail(err)){
+      DEBUG_ERR(err,"Failed to send number");
+    }
+    bool can_receive = lmp_chan_can_recv(&rpc->channel);
+    while(!can_receive){
+      can_receive = lmp_chan_can_recv(&rpc->channel);
+    }
+
+    err = lmp_chan_recv(&rpc -> channel, &msg, &NULL_CAP);
+    if(err_is_fail(err) || msg.words[0] != AOS_RPC_ACK){
+      debug_printf("First word should be ACK, is: %d\n",msg.words[0]);
+      DEBUG_ERR(err,"Could not get receive for sent string size");
+    }
+
+
+    size_t i = 0;
+    // rpc -> channel.endpoint -> k.delivered = false;
+    while(i < size){
+      // debug_printf("Sending string at %c\n",string[i]);
+      err = lmp_chan_send1(&rpc -> channel, LMP_SEND_FLAGS_DEFAULT,NULL_CAP,string[i]);
+      if(err_is_fail(err)){
+        DEBUG_ERR(err,"Failed to send string character at: %d",i);
+      }
+      can_receive = lmp_chan_can_recv(&rpc->channel);
+      while(!can_receive){
+        can_receive = lmp_chan_can_recv(&rpc->channel);
+      }
+      err = lmp_chan_recv(&rpc -> channel, &msg, &NULL_CAP);
+      if(err_is_fail(err) || msg.words[0] != AOS_RPC_ACK){
+        debug_printf("First word should be ACK, is: %d\n",msg.words[0]);
+        DEBUG_ERR(err,"Could not get receive for sent string at i:%\n",i);
+      }
+
+      i++;
+    }
+    return err;
 }
 
 
