@@ -199,25 +199,10 @@ errval_t spawn_load_argv(int argc, const char *const argv[], struct spawninfo *s
     cap_copy(init_ep_cap, ourcap);
     si->our_endpoint = ourcap;
 
-    char capmsg[512];
-    debug_print_cap_at_capref(capmsg, sizeof capmsg, ourcap);
-    debug_printf("local cap in init is: %s\n", capmsg);
-
-
-    struct capref child_ep_in_ours;
-    slot_alloc(&child_ep_in_ours);
-    cap_copy(child_ep_in_ours, child_ep_cap);
-
-    debug_print_cap_at_capref(capmsg, sizeof capmsg, child_ep_in_ours);
-    debug_printf("remote cap in init is: %s\n", capmsg);
-
     lmp_chan_init(&si -> channel);
     si -> channel.local_cap = init_ep_cap;
-    si -> channel.remote_cap = child_ep_in_ours;
     si -> channel.endpoint = lmp_ep;
     si -> channel.buflen_words = 256;
-    //
-
 
     // ===========================================
     // create l0 vnode and initialize paging state
@@ -434,7 +419,7 @@ errval_t spawn_load_by_name(char *binary_name, struct spawninfo *si,
     struct mem_region* mem_region = multiboot_find_module(bi, binary_name);
 
     //this mem_region should be of type module
-    assert(mem_region->mr_type == RegionType_Module);
+    assert(mem_region != NULL && mem_region->mr_type == RegionType_Module);
     struct capability cap;
     struct capref child_frame = {
         .cnode = cnode_module,

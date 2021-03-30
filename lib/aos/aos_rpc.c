@@ -153,6 +153,33 @@ errval_t
 aos_rpc_process_spawn(struct aos_rpc *rpc, char *cmdline,
                       coreid_t core, domainid_t *newpid) {
     // TODO (M5): implement spawn new process rpc
+    errval_t err;
+
+    err = lmp_chan_alloc_recv_slot(&rpc->channel);
+    ON_ERR_RETURN(err);
+    size_t len = strlen(cmdline);
+    err = lmp_chan_send3(&rpc->channel, LMP_SEND_FLAGS_DEFAULT, NULL_CAP, AOS_RPC_PROC_SPAWN_REQUEST, len, core);
+
+    for (int i = 0; i < len; i++) {
+        err = lmp_chan_send1(&rpc->channel, LMP_SEND_FLAGS_DEFAULT, NULL_CAP, cmdline[i]);
+        if(err_is_fail(err)) {
+            DEBUG_ERR(err, "failed to call lmp_chan_send");
+        }
+    }
+
+    bool can_receive = lmp_chan_can_recv(&rpc->channel);
+    while(!can_receive){
+        can_receive = lmp_chan_can_recv(&rpc->channel);
+    }
+
+    struct lmp_recv_msg msg_string = LMP_RECV_MSG_INIT;
+    err = lmp_chan_recv(&rpc->channel, &msg_string, &NULL_CAP);
+    if(err_is_fail(err)){
+        DEBUG_ERR(err,"Could not receive string\n");
+    }
+
+    *newpid = msg_string.words[0];
+
     return SYS_ERR_OK;
 }
 
@@ -173,6 +200,46 @@ aos_rpc_process_get_all_pids(struct aos_rpc *rpc, domainid_t **pids,
 }
 
 
+/**
+ * NOTE: maybe add remote and local cap as parameters?
+ *       atm they have to be set before calling dis method
+ * i.e. rpc->channel.local_cap / remote_cap are used here
+ * and should be properly set beforehand
+ * \brief Initialize an aos_rpc struct.
+ */
+errval_t aos_rpc_init(struct aos_rpc* rpc) {
+    struct lmp_endpoint *lmp_ep;
+    errval_t err = endpoint_create(16, &rpc->channel.local_cap, &lmp_ep);
+    if (err_is_fail(err)) {
+        DEBUG_ERR(err, "err");
+        return err;
+    }
+
+    lmp_ep->recv_slot = rpc -> channel.remote_cap;
+    lmp_chan_init(&rpc -> channel);
+    rpc -> channel.endpoint = lmp_ep;
+    debug_printf("Trying to establish channel with init:\n");
+
+    err = lmp_chan_send1(&rpc -> channel, LMP_SEND_FLAGS_DEFAULT, rpc->channel.local_cap, AOS_RPC_INIT);
+    if(err_is_fail(err)){
+        DEBUG_ERR(err,"failed to call lmp_chan_send");
+    }
+
+    debug_printf("Waiting to get ack\n");
+    bool can_receive = lmp_chan_can_recv(&rpc->channel);
+    while(!can_receive){
+      can_receive = lmp_chan_can_recv(&rpc->channel);
+    }
+    struct lmp_recv_msg msg = LMP_RECV_MSG_INIT;
+    err = lmp_chan_recv(&rpc -> channel, &msg, &NULL_CAP);
+    if(err_is_fail(err) || msg.words[0] != AOS_RPC_ACK){
+      debug_printf("First word should be ACK, is: %d\n",msg.words[0]);
+      DEBUG_ERR(err,"Could not setup bi direction with init");
+    }
+    debug_printf("Acks has been received, channel is setup!\n");
+
+    return err;
+}
 
 /**
  * \brief Returns the RPC channel to init.
@@ -191,36 +258,11 @@ struct aos_rpc *aos_rpc_get_init_channel(void)
     };
     lmp_endpoint_init();
 
-    // struct capref new_cap;
-    struct lmp_endpoint *lmp_ep;
-    errval_t err = endpoint_create(16, &self_ep_cap, &lmp_ep);
-    DEBUG_ERR(err, "err");
-
-    lmp_ep->recv_slot = init_ep_cap;
+    // create and initialize rpc
     struct aos_rpc* rpc = (struct aos_rpc *) malloc(sizeof(struct aos_rpc));
-    lmp_chan_init(&rpc -> channel);
-    rpc -> channel.local_cap = self_ep_cap;
+    rpc -> channel.local_cap = self_ep_cap; // set required struct members
     rpc -> channel.remote_cap = init_ep_cap;
-    rpc -> channel.endpoint = lmp_ep;
-    debug_printf("Trying to establish channel with init:\n");
-
-    err = lmp_chan_send1(&rpc -> channel, LMP_SEND_FLAGS_DEFAULT, self_ep_cap, AOS_RPC_INIT);
-    if(err_is_fail(err)){
-        DEBUG_ERR(err,"failed to call lmp_chan_send");
-    }
-
-    debug_printf("Waiting to get ack\n");
-    bool can_receive = lmp_chan_can_recv(&rpc->channel);
-    while(!can_receive){
-      can_receive = lmp_chan_can_recv(&rpc->channel);
-    }
-    struct lmp_recv_msg msg = LMP_RECV_MSG_INIT;
-    err = lmp_chan_recv(&rpc -> channel, &msg, &NULL_CAP);
-    if(err_is_fail(err) || msg.words[0] != AOS_RPC_ACK){
-      debug_printf("First word should be ACK, is: %d\n",msg.words[0]);
-      DEBUG_ERR(err,"Could not setup bi direction with init");
-    }
-    debug_printf("Acks has been received, channel is setup!\n");
+    aos_rpc_init(rpc); // init rpc
 
     return rpc;
 }
