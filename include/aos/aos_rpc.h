@@ -19,7 +19,7 @@
 
 #include <aos/aos.h>
 
-#define AOS_RPC_RETURN_MASK 0x1000000
+#define AOS_RPC_RETURN_BIT 0x1000000
 
 typedef enum aos_rpc_msg_type {
     AOS_RPC_INITIATE = 1,
@@ -91,7 +91,7 @@ errval_t aos_rpc_call(struct aos_rpc *rpc, enum aos_rpc_msg_type binding, ...);
 errval_t aos_rpc_register_handler(struct aos_rpc *rpc, enum aos_rpc_msg_type binding,
                                   void* handler);
 
-void aos_rpc_test(struct capref c, uintptr_t a, uintptr_t b);
+void aos_rpc_test(uintptr_t x, uintptr_t y, uintptr_t z, uintptr_t w, uintptr_t a, uintptr_t b, uintptr_t c, uintptr_t d);
 
 void aos_rpc_on_message(void *rpc);
 

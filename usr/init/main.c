@@ -369,13 +369,29 @@ __attribute__((unused)) static void spawn_memeater(void)
     err = lmp_chan_alloc_recv_slot(&aos_rpc.channel);
     DEBUG_ERR(err, "alloc recv slot");
 
-    uintptr_t hand(struct capref cap) {
+    void hand(struct capref cap) {
         aos_rpc.channel.remote_cap = cap;
-        return 0;
+    }
+
+    void recv_number(uintptr_t number) {
+        debug_printf("recieved number: %ld\n", number);
+    }
+
+    void req_ram(uintptr_t size, uintptr_t alignment, struct capref *cap, uintptr_t *ret_size) {
+        debug_printf("args are: %ld, %ld, %p, %p", size, alignment, cap, ret_size);
+        ram_alloc_aligned(cap, size, alignment);
+        //*ret_size = size;
+        debug_printf("allocced some ram");
     }
 
     aos_rpc_initialize_binding(&aos_rpc, AOS_RPC_INITIATE, 1, 0, AOS_RPC_CAPABILITY);
     aos_rpc_register_handler(&aos_rpc, AOS_RPC_INITIATE, &hand);
+
+    aos_rpc_initialize_binding(&aos_rpc, AOS_RPC_SEND_NUMBER, 1, 0, AOS_RPC_WORD);
+    aos_rpc_register_handler(&aos_rpc, AOS_RPC_SEND_NUMBER, &recv_number);
+
+    aos_rpc_initialize_binding(&aos_rpc, AOS_RPC_REQUEST_RAM, 2, 2, AOS_RPC_WORD, AOS_RPC_WORD, AOS_RPC_CAPABILITY, AOS_RPC_WORD);
+    aos_rpc_register_handler(&aos_rpc, AOS_RPC_REQUEST_RAM, &req_ram);
 
     err = lmp_chan_register_recv(&aos_rpc.channel, get_default_waitset(), MKCLOSURE(&aos_rpc_on_message, &aos_rpc));
     //err = lmp_chan_register_recv(&si1->channel, get_default_waitset(),

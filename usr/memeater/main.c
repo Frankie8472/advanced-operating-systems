@@ -50,6 +50,9 @@ __attribute__((unused))  static errval_t request_and_map_memory(void)
         DEBUG_ERR(err, "could not get BASE_PAGE_SIZE cap\n");
         return err;
     }
+    char buf[128];
+    debug_print_cap_at_capref(buf, 128, cap1);
+    debug_printf("obtained cap: %s", buf);
 
     struct capref cap1_frame;
     err = slot_alloc(&cap1_frame);
