@@ -17,6 +17,7 @@
 
 #include "aos/slot_alloc.h"
 #include "aos/paging.h"
+#include "aos/aos_rpc.h"
 
 
 
@@ -30,10 +31,14 @@ struct spawninfo {
     lvaddr_t mapped_elf;
     size_t mapped_elf_size;
 
+    bool spawned;
+    domainid_t pid;
+
     struct paging_state ps;
     struct capref dispatcher;
     struct capref cap_ep;
     struct lmp_endpoint *lmp_ep;
+    struct aos_rpc rpc;
 
     // TODO(M2): Add fields you need to store state
     //           when spawning a new dispatcher,
