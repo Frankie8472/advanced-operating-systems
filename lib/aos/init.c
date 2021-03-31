@@ -78,8 +78,9 @@ static size_t syscall_terminal_write(const char *buf, size_t len)
 // TODO
 __attribute__((__used__))
 static size_t syscall_terminal_read(char* buf,size_t len){
-
-  return 0;
+    /* debug_printf("read syscall with len %d\n", len); */
+    sys_getchar(buf);
+    return *buf;
 }
 
 
