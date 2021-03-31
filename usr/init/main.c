@@ -388,6 +388,13 @@ __attribute__((unused)) static void spawn_memeater(void)
         debug_printf("allocced some ram\n");
     }
 
+    void spawn(struct aos_rpc *rpc, const char *name, uintptr_t core_id, uintptr_t *new_pid) {
+        struct spawninfo *si = malloc(sizeof(struct spawninfo));
+        domainid_t *pid = malloc(sizeof(domainid_t));
+        spawn_load_by_name((char*) name, si, pid);
+        *new_pid = *pid;
+    }
+
     //aos_rpc_initialize_binding(&aos_rpc, AOS_RPC_INITIATE, 1, 0, AOS_RPC_CAPABILITY);
     aos_rpc_register_handler(&aos_rpc, AOS_RPC_INITIATE, &hand);
 
@@ -397,6 +404,8 @@ __attribute__((unused)) static void spawn_memeater(void)
 
     //aos_rpc_initialize_binding(&aos_rpc, AOS_RPC_REQUEST_RAM, 2, 2, AOS_RPC_WORD, AOS_RPC_WORD, AOS_RPC_CAPABILITY, AOS_RPC_WORD);
     aos_rpc_register_handler(&aos_rpc, AOS_RPC_REQUEST_RAM, &req_ram);
+
+    aos_rpc_register_handler(&aos_rpc, AOS_RPC_PROC_SPAWN_REQUEST, &spawn);
 
     err = lmp_chan_register_recv(&aos_rpc.channel, get_default_waitset(), MKCLOSURE(&aos_rpc_on_message, &aos_rpc));
     //err = lmp_chan_register_recv(&si1->channel, get_default_waitset(),
