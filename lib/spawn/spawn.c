@@ -186,23 +186,13 @@ errval_t spawn_load_argv(int argc, const char *const argv[], struct spawninfo *s
     err = frame_create(child_dispframe, DISPATCHER_FRAME_SIZE, NULL);
     ON_ERR_PUSH_RETURN(err, SPAWN_ERR_CREATE_DISPATCHER_FRAME);
 
+    // setup the channel from the init side
 
-    //setup the channel from the init side
+    err = endpoint_create(256, &si->cap_ep, &si->lmp_ep);
+    ON_ERR_PUSH_RETURN(err, LIB_ERR_ENDPOINT_CREATE);
 
-
-
-    err = cap_retype(cap_selfep, cap_dispatcher, 0, ObjType_EndPointLMP, 0, 1);
-
-    struct lmp_endpoint *lmp_ep;
-    struct capref ourcap;
-    err = endpoint_create(256, &ourcap, &lmp_ep);
-    cap_copy(init_ep_cap, ourcap);
-    si->our_endpoint = ourcap;
-
-    lmp_chan_init(&si -> channel);
-    si -> channel.local_cap = init_ep_cap;
-    si -> channel.endpoint = lmp_ep;
-    si -> channel.buflen_words = 256;
+    err = cap_copy(init_ep_cap, si->cap_ep);
+    ON_ERR_PUSH_RETURN(err, LIB_ERR_CAP_COPY_FAIL);
 
     // ===========================================
     // create l0 vnode and initialize paging state

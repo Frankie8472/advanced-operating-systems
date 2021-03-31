@@ -31,11 +31,9 @@ struct spawninfo {
     size_t mapped_elf_size;
 
     struct paging_state ps;
-
     struct capref dispatcher;
-
-    struct capref our_endpoint;
-    struct lmp_chan  channel;
+    struct capref cap_ep;
+    struct lmp_endpoint *lmp_ep;
 
     // TODO(M2): Add fields you need to store state
     //           when spawning a new dispatcher,

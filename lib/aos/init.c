@@ -147,7 +147,8 @@ errval_t barrelfish_init_onthread(struct spawn_domain_params *params)
 
     // HINT: Use init_domain to check if we are the init domain.
     if (init_domain) { // init does not need a channel to itself
-        // TODO: is this all we have to do
+        err = cap_retype(cap_selfep, cap_dispatcher, 0, ObjType_EndPointLMP, 0, 1);
+        ON_ERR_PUSH_RETURN(err, LIB_ERR_CAP_RETYPE);
         return SYS_ERR_OK;
     }
 
@@ -171,7 +172,7 @@ errval_t barrelfish_init_onthread(struct spawn_domain_params *params)
     };
 
     // create and initialize rpc
-    aos_rpc_init(&init_rpc, self_ep_cap, init_ep_cap);
+    aos_rpc_init(&init_rpc, self_ep_cap, init_ep_cap, NULL);
     set_init_rpc(&init_rpc);
 
     // set ram_alloc function for non-init threads

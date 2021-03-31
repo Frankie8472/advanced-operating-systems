@@ -125,9 +125,10 @@ __attribute__((unused))  static errval_t test_basic_rpc(void)
         DEBUG_ERR(err, "could not send a number\n");
         return err;
     }
-
-
+    uint64_t cnt;
+    MEASURE_START(cnt, "Sending a Number");
     err =  aos_rpc_send_number(init_rpc, 102);
+    MEASURE_END(cnt);
     if (err_is_fail(err)) {
         DEBUG_ERR(err, "could not send a number\n");
         return err;
