@@ -264,9 +264,9 @@ errval_t spawn_load_argv(int argc, const char *const argv[], struct spawninfo *s
     struct Elf64_Shdr *got = elf64_find_section_header_name(si->mapped_elf, si->mapped_elf_size, ".got");
     NULLPTR_CHECK(got, SPAWN_ERR_LOAD);
 
-    debug_printf("0x%lx -> 0x%lx\n", si->mapped_elf, si->mapped_elf_size);
+    //debug_printf("0x%lx -> 0x%lx\n", si->mapped_elf, si->mapped_elf_size);
     lvaddr_t got_base_address_in_childs_vspace = got->sh_addr;
-    debug_printf("possible 0x%lx\n", got_base_address_in_childs_vspace);
+    //debug_printf("possible 0x%lx\n", got_base_address_in_childs_vspace);
     //lvaddr_t got_base_offset = got->sh_addr - si->mapped_elf;
 
     struct capref dispframe;

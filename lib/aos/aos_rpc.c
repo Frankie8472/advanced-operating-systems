@@ -501,7 +501,7 @@ void aos_rpc_on_message(void *arg)
     void *handler = rpc->handlers[msgtype];
     if (handler == NULL) {
         debug_printf("msgtype: %d no handler set\n");
-        err = LIB_ERR_NOT_IMPLEMENTED;
+        err = LIB_ERR_RPC_NO_HANDLER_SET;
         goto on_error;
     }
 
@@ -520,7 +520,7 @@ void aos_rpc_on_message(void *arg)
 
 
 //on_success:
-    debug_printf("reregister\n");
+    //debug_printf("reregister\n");
     err = lmp_chan_register_recv(channel, get_default_waitset(), MKCLOSURE(&aos_rpc_on_message, arg));
     return;
 
