@@ -191,9 +191,6 @@ int main(int argc, char *argv[])
         USER_PANIC_ERR(err, "could not request and map memory\n");
     }
 
-    domainid_t pid;
-    aos_rpc_process_spawn(init_rpc, "hello", disp_get_current_core_id(), &pid);
-    debug_printf("wololooooo FIN %d\n", pid);
 
 
     /* test printf functionality */
@@ -212,13 +209,17 @@ int main(int argc, char *argv[])
     debug_printf("Got terminal command : %s\n",command);
 
     char c = 'A';
-    while(c !=  13){
+    while(c != 13 && c != '\n'){
       c = getchar();
       printf("Char c = %c\n",c);
       //debug_printf("c = %d\n", c);
     }
 
 
+    domainid_t pid;
+    debug_printf("starting hello world process\n", pid);
+    aos_rpc_process_spawn(init_rpc, "hello", disp_get_current_core_id(), &pid);
+    debug_printf("hello started with pid %d\n", pid);
 
     debug_printf("memeater terminated....\n");
     return EXIT_SUCCESS;
