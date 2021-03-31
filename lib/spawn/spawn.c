@@ -13,6 +13,7 @@
 #include <barrelfish_kpi/domain_params.h>
 #include <spawn/multiboot.h>
 #include <spawn/argv.h>
+#include <spawn/process_manager.h>
 #include <string.h>
 
 extern struct bootinfo *bi;
@@ -136,7 +137,7 @@ errval_t spawn_load_argv(int argc, const char *const argv[], struct spawninfo *s
     err = cnode_create_l1(&cnode_child_l1, &child_ref);
     ON_ERR_PUSH_RETURN(err, SPAWN_ERR_CREATE_ROOTCN);
 
-    DEBUG_PRINTF("cnode_child_l1 slot is: %d\n", cnode_child_l1.slot);
+    //DEBUG_PRINTF("cnode_child_l1 slot is: %d\n", cnode_child_l1.slot);
 
     struct cnoderef taskcn;
     struct cnoderef basepagecn;
@@ -254,9 +255,9 @@ errval_t spawn_load_argv(int argc, const char *const argv[], struct spawninfo *s
     struct Elf64_Shdr *got = elf64_find_section_header_name(si->mapped_elf, si->mapped_elf_size, ".got");
     NULLPTR_CHECK(got, SPAWN_ERR_LOAD);
 
-    debug_printf("0x%lx -> 0x%lx\n", si->mapped_elf, si->mapped_elf_size);
+    //debug_printf("0x%lx -> 0x%lx\n", si->mapped_elf, si->mapped_elf_size);
     lvaddr_t got_base_address_in_childs_vspace = got->sh_addr;
-    debug_printf("possible 0x%lx\n", got_base_address_in_childs_vspace);
+    //debug_printf("possible 0x%lx\n", got_base_address_in_childs_vspace);
     //lvaddr_t got_base_offset = got->sh_addr - si->mapped_elf;
 
     struct capref dispframe;
@@ -283,6 +284,7 @@ errval_t spawn_load_argv(int argc, const char *const argv[], struct spawninfo *s
     struct dispatcher_generic *disp_gen = get_dispatcher_generic(handle);
     arch_registers_state_t *enabled_area = dispatcher_get_enabled_save_area(handle);
     arch_registers_state_t *disabled_area = dispatcher_get_disabled_save_area(handle);
+    disp_gen->domain_id = *pid = spawn_get_new_domainid();
 
     registers_set_param(enabled_area, child_arg_ptr);
 

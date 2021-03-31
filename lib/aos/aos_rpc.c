@@ -207,7 +207,8 @@ errval_t
 aos_rpc_serial_getchar(struct aos_rpc *rpc, char *retc) {
     // TODO implement functionality to request a character from
     // the serial driver.
-    errval_t err = SYS_ERR_OK;
+    return SYS_ERR_OK;
+    /*errval_t err = SYS_ERR_OK;
     if (!retc) { // if retcap NULL was given, just return OK
         return err;
     }
@@ -230,11 +231,12 @@ aos_rpc_serial_getchar(struct aos_rpc *rpc, char *retc) {
 
     *retc = msg.words[1];
 
-    return err;
+    return err;*/
 }
 
-errval_t aos_rpc_get_terminal_input(struct aos_rpc *rpc, char* buf,size_t len){
-  errval_t err = SYS_ERR_OK;
+errval_t aos_rpc_get_terminal_input(struct aos_rpc *rpc, char* buf, size_t len) {
+    return SYS_ERR_OK;
+  /*errval_t err = SYS_ERR_OK;
 
 
 
@@ -280,7 +282,7 @@ errval_t aos_rpc_get_terminal_input(struct aos_rpc *rpc, char* buf,size_t len){
       return err;
   }
 
-  return err;
+  return err;*/
 }
 
 
@@ -579,7 +581,7 @@ void aos_rpc_on_message(void *arg)
     void *handler = rpc->handlers[msgtype];
     if (handler == NULL) {
         debug_printf("msgtype: %d no handler set\n");
-        err = LIB_ERR_NOT_IMPLEMENTED;
+        err = LIB_ERR_RPC_NO_HANDLER_SET;
         goto on_error;
     }
 
@@ -598,7 +600,7 @@ void aos_rpc_on_message(void *arg)
 
 
 //on_success:
-    debug_printf("reregister\n");
+    //debug_printf("reregister\n");
     err = lmp_chan_register_recv(channel, get_default_waitset(), MKCLOSURE(&aos_rpc_on_message, arg));
     return;
 
