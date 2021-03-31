@@ -151,19 +151,34 @@ errval_t barrelfish_init_onthread(struct spawn_domain_params *params)
         return SYS_ERR_OK;
     }
 
-    // for other domains: allocate and set init_rpc
-    set_init_rpc(aos_rpc_get_init_channel());
 
-    // set ram_alloc function for non-init threads
-    errval_t rpc_ram_alloc(struct capref *ret, size_t size, size_t alignment) {
-        return aos_rpc_get_ram_cap(get_init_rpc(), size, alignment, ret, NULL);
-    }
-
-    err = ram_alloc_set(rpc_ram_alloc);
+    err = ram_alloc_set(NULL);
     if (err_is_fail(err)) {
         DEBUG_ERR(err, "unable to set ram_alloc func");
         return err;
     }
+
+    // for other domains: allocate and set init_rpc
+    static struct aos_rpc init_rpc;
+    struct capref self_ep_cap = (struct capref) {
+      .cnode = cnode_task,
+      .slot = TASKCN_SLOT_SELFEP
+    };
+
+    struct capref init_ep_cap = (struct capref) {
+      .cnode = cnode_task,
+      .slot = TASKCN_SLOT_INITEP
+    };
+
+    // create and initialize rpc
+    aos_rpc_init(&init_rpc, self_ep_cap, init_ep_cap);
+    set_init_rpc(&init_rpc);
+
+    // set ram_alloc function for non-init threads
+    /*errval_t rpc_ram_alloc(struct capref *ret, size_t size, size_t alignment) {
+        return aos_rpc_get_ram_cap(get_init_rpc(), size, alignment, ret, NULL);
+    }*/
+
 
     // TODO MILESTONE 3: register ourselves with init
     /* allocate lmp channel structure */

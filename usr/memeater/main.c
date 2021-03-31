@@ -180,11 +180,11 @@ int main(int argc, char *argv[])
         USER_PANIC_ERR(err, "failure in testing basic RPC\n");
     }
     //
-    errval_t get_sum_ram(struct capref *ret, size_t size, size_t alignment) {
+    /*errval_t get_sum_ram(struct capref *ret, size_t size, size_t alignment) {
         return aos_rpc_get_ram_cap(init_rpc, size, alignment, ret, NULL);
     }
 
-    ram_alloc_set(&get_sum_ram);
+    ram_alloc_set(&get_sum_ram);*/
     err = request_and_map_memory();
     if (err_is_fail(err)) {
         USER_PANIC_ERR(err, "could not request and map memory\n");

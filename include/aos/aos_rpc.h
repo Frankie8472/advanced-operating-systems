@@ -73,7 +73,7 @@ struct aos_rpc {
 /**
  * \brief Initialize an aos_rpc struct.
  */
-errval_t aos_rpc_init(struct aos_rpc *rpc);
+errval_t aos_rpc_init(struct aos_rpc *rpc, struct capref self_ep, struct capref end_ep);
 
 errval_t aos_rpc_initialize_binding(struct aos_rpc *rpc, enum aos_rpc_msg_type binding,
                                     int n_args, int n_rets, ...);

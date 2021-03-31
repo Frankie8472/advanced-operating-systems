@@ -25,6 +25,34 @@ static void aos_rpc_setup_page_handler(struct aos_rpc* rpc, uintptr_t port, uint
     }
 }
 
+
+static errval_t setup_buf_page(struct aos_rpc *rpc, enum aos_rpc_msg_type msg_type, uintptr_t size)
+{
+    struct capref frame;
+    errval_t err;
+    err = frame_alloc(&frame, size, NULL);
+    //err = aos_rpc_get_ram_cap(rpc, BASE_PAGE_SIZE, 1, &frame, NULL);
+    ON_ERR_PUSH_RETURN(err, LIB_ERR_FRAME_ALLOC);
+
+    char buf[128];
+    debug_print_cap_at_capref(buf, sizeof buf, frame);
+    debug_printf("frame: %s\n", buf);
+    
+    err = paging_map_frame_complete(get_current_paging_state(), &rpc->bindings[msg_type].buf_page, frame, NULL, NULL);
+    debug_printf("new buf_ptr %p\n", &rpc->bindings[msg_type].buf_page);
+    DEBUG_ERR(err, "asasasa");
+    ON_ERR_PUSH_RETURN(err, LIB_ERR_VSPACE_MAP);
+
+
+    debug_printf("seting up the buffer!\n");
+    err = aos_rpc_call(rpc, AOS_RPC_SEND_NUMBER, 12345);
+    err = aos_rpc_call(rpc, AOS_RPC_SEND_NUMBER, 54321);
+    err = aos_rpc_call(rpc, AOS_RPC_SETUP_PAGE, msg_type, size, frame);
+    ON_ERR_PUSH_RETURN(err, LIB_ERR_GET_MEM_IREF); // TODO: New error code
+    
+    return SYS_ERR_OK;
+}
+
 /**
  * NOTE: maybe add remote and local cap as parameters?
  *       atm they have to be set before calling dis method
@@ -32,10 +60,11 @@ static void aos_rpc_setup_page_handler(struct aos_rpc* rpc, uintptr_t port, uint
  * and should be properly set beforehand
  * \brief Initialize an aos_rpc struct.
  */
-errval_t aos_rpc_init(struct aos_rpc* rpc) {
-
-
+errval_t aos_rpc_init(struct aos_rpc* rpc, struct capref self_ep, struct capref end_ep) {
+    debug_printf("aos_rpc_init\n");
     lmp_chan_init(&rpc->channel);
+    rpc->channel.local_cap = self_ep;
+    rpc->channel.remote_cap = end_ep;
 
     memset(rpc->bindings, 0, sizeof rpc->bindings);
 
@@ -68,6 +97,8 @@ errval_t aos_rpc_init(struct aos_rpc* rpc) {
         // to make it known to init
         err = aos_rpc_call(rpc, AOS_RPC_INITIATE, rpc->channel.local_cap);
         ON_ERR_PUSH_RETURN(err, LIB_ERR_MONITOR_RPC_BIND);
+
+
     }
 
     return err;
@@ -252,30 +283,6 @@ static errval_t aos_rpc_unmarshall_retval_aarch64(
 }
 
 
-static errval_t setup_buf_page(struct aos_rpc *rpc, enum aos_rpc_msg_type msg_type, uintptr_t size)
-{
-    struct capref frame;
-    errval_t err;
-    err = frame_alloc(&frame, size, NULL);
-    ON_ERR_PUSH_RETURN(err, LIB_ERR_FRAME_ALLOC);
-
-    char buf[128];
-    debug_print_cap_at_capref(buf, sizeof buf, frame);
-    debug_printf("frame: %s\n", buf);
-    
-    for (volatile int i = 0; i < 1000000000; i++);
-
-    debug_printf("seting up the buffer!\n");
-    err = aos_rpc_call(rpc, AOS_RPC_SETUP_PAGE, msg_type, size, frame);
-    ON_ERR_PUSH_RETURN(err, LIB_ERR_GET_MEM_IREF); // TODO: New error code
-    debug_printf("set up the remote buffer!\n");
-    
-    err = paging_map_frame_complete(get_current_paging_state(), &rpc->bindings[msg_type].buf_page, frame, NULL, NULL);
-    ON_ERR_PUSH_RETURN(err, LIB_ERR_VSPACE_MAP);
-    return SYS_ERR_OK;
-}
-
-
 errval_t aos_rpc_call(struct aos_rpc *rpc, enum aos_rpc_msg_type msg_type, ...)
 {
     va_list args;
@@ -320,7 +327,7 @@ errval_t aos_rpc_call(struct aos_rpc *rpc, enum aos_rpc_msg_type msg_type, ...)
             retptrs[ret_ind++] = va_arg(args, void*);
         }
         va_end(args);
-        //debug_printf("sending call %ld, %ld, %ld, %ld\n", msg_type, words[0], words[1], words[2]);
+        debug_printf("sending call %ld, %ld, %ld, %ld\n", msg_type, words[0], words[1], words[2]);
         lmp_chan_send(&rpc->channel, LMP_SEND_FLAGS_DEFAULT, cap, n_args + 1,
                     msg_type, words[0], words[1], words[2]);
     }
@@ -333,7 +340,7 @@ errval_t aos_rpc_call(struct aos_rpc *rpc, enum aos_rpc_msg_type msg_type, ...)
     while(!can_receive) {
         can_receive = lmp_chan_can_recv(&rpc->channel);
     }
-    debug_printf("getting response\n");
+    //debug_printf("getting response\n");
 
     struct lmp_recv_msg msg = LMP_RECV_MSG_INIT;
     struct capref recieved_cap = NULL_CAP;
@@ -496,6 +503,10 @@ void aos_rpc_on_message(void *arg)
         goto on_error;
     }
 
+    if (!capref_is_null(recieved_cap)) {
+        lmp_chan_alloc_recv_slot(channel);
+    }
+
     uintptr_t msgtype = msg.buf.words[0];
 
     bool is_response = false;
@@ -550,7 +561,8 @@ on_error:
  */
 struct aos_rpc *aos_rpc_get_init_channel(void)
 {
-
+    return get_init_rpc();
+/*
     struct capref self_ep_cap = (struct capref){
       .cnode = cnode_task,
       .slot = TASKCN_SLOT_SELFEP
@@ -568,7 +580,7 @@ struct aos_rpc *aos_rpc_get_init_channel(void)
     rpc -> channel.remote_cap = init_ep_cap;
     aos_rpc_init(rpc); // init rpc
 
-    return rpc;
+    return rpc;*/
 }
 
 /**
@@ -579,8 +591,7 @@ struct aos_rpc *aos_rpc_get_memory_channel(void)
     //TODO: Return channel to talk to memory server process (or whoever
     //implements memory server functionality)
     //debug_printf("aos_rpc_get_memory_channel NYI\n");
-    return aos_rpc_get_init_channel();
-    return NULL;
+    return get_init_rpc();
 }
 
 /**

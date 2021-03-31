@@ -363,7 +363,7 @@ __attribute__((unused)) static void spawn_memeater(void)
     // cnode_create_l2(&si1->channel.endpoint->recv_slot, &cnode);
     // si1->channel.endpoint->k.recv_cspc = get_cap_addr();
     static struct aos_rpc aos_rpc;
-    aos_rpc_init(&aos_rpc);
+    aos_rpc_init(&aos_rpc, cap_selfep, NULL_CAP);
     aos_rpc.channel = si1->channel;
 
     err = lmp_chan_alloc_recv_slot(&aos_rpc.channel);
@@ -383,7 +383,7 @@ __attribute__((unused)) static void spawn_memeater(void)
     }
 
     void req_ram(struct aos_rpc *rpc, uintptr_t size, uintptr_t alignment, struct capref *cap, uintptr_t *ret_size) {
-        debug_printf("args are: %ld, %ld, %p, %p", size, alignment, cap, ret_size);
+        debug_printf("args are: %ld, %ld, %p, %p\n", size, alignment, cap, ret_size);
         ram_alloc_aligned(cap, size, alignment);
         //*ret_size = size;
         debug_printf("allocced some ram\n");
