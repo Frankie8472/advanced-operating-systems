@@ -78,28 +78,9 @@ static size_t syscall_terminal_write(const char *buf, size_t len)
 
 
 
-// TODO
-// __attribute__((__used__))
-// static size_t syscall_terminal_read(char* buf,size_t len){
-//     debug_printf("read syscall with len %d\n", len);
-//     // sys_getchar(buf);
-//     // return *buf;
-//     for(int i = 0;i < len; ++i){
-//       sys_getchar(&buf[i]);
-//       debug_printf("Char is: %d\n",buf[i]);
-//       if(buf[i] == 13){//13 for enter
-//         break;
-//       }
-//     }
-//     return *buf;
-// }
 __attribute__((__used__))
 static size_t syscall_terminal_read(char * buf,size_t len){
 
-  // for(int i =0; i < len;i++){
-  //   sys_getchar(&buf[i]);
-  // }
-  // return len;
   sys_getchar(buf);
   return 1;
 }
@@ -117,7 +98,6 @@ static size_t aos_terminal_write(const char * buf,size_t len){
   return 0;
 }
 
-// XXXX: do we have to ensure that the enwer is '\0'?
 __attribute__((__used__))
 static size_t aos_terminal_read(char* buf,size_t len){
     debug_printf("Got to aos_terminal_read\n");
@@ -127,15 +107,7 @@ static size_t aos_terminal_read(char* buf,size_t len){
     if(err_is_fail(err)){
       DEBUG_ERR(err,"Failed get char in aos_terminal_read\n");
     }
-
-    // for (size_t i = 0; i < len; i++) {
-    //
-    //     if (err_is_fail(err)) {
-    //         DEBUG_ERR(err, "error while reading");
-    //         return i;
-    //     }
-    // }
-    return *buf;
+    return 1;
 }
 
 

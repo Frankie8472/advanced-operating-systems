@@ -192,6 +192,7 @@ int main(int argc, char *argv[])
     // debug_printf("wololooooo FIN %d\n", pid);
 
 
+    
     /* test printf functionality */
     debug_printf("testing terminal printf function...\n");
 
@@ -199,12 +200,20 @@ int main(int argc, char *argv[])
 
 
     char command[1024];
-    // printf("%s\n", );
     debug_printf("Testing terminal read:\n");
     aos_rpc_get_terminal_input(init_rpc,command,1024);
-    
+
+
+
 
     debug_printf("Got terminal command : %s\n",command);
+
+    char c = 'A';
+    while(c !=  13){
+      c = getchar();
+      printf("Char c = %c\n",c);
+    }
+
 
 
     debug_printf("memeater terminated....\n");
