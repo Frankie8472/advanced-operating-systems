@@ -37,7 +37,7 @@ static errval_t setup_buf_page(struct aos_rpc *rpc, enum aos_rpc_msg_type msg_ty
     char buf[128];
     debug_print_cap_at_capref(buf, sizeof buf, frame);
     debug_printf("frame: %s\n", buf);
-    
+
     err = paging_map_frame_complete(get_current_paging_state(), &rpc->bindings[msg_type].buf_page, frame, NULL, NULL);
     debug_printf("new buf_ptr %p\n", &rpc->bindings[msg_type].buf_page);
     DEBUG_ERR(err, "asasasa");
@@ -48,7 +48,7 @@ static errval_t setup_buf_page(struct aos_rpc *rpc, enum aos_rpc_msg_type msg_ty
     err = aos_rpc_call(rpc, AOS_RPC_SEND_NUMBER, 54321);
     err = aos_rpc_call(rpc, AOS_RPC_SETUP_PAGE, msg_type, size, frame);
     ON_ERR_PUSH_RETURN(err, LIB_ERR_GET_MEM_IREF); // TODO: New error code
-    
+
     return SYS_ERR_OK;
 }
 
@@ -172,7 +172,7 @@ aos_rpc_get_ram_cap(struct aos_rpc *rpc, size_t bytes, size_t alignment,
                     struct capref *ret_cap, size_t *ret_bytes) {
     size_t _rs = 0;
     return aos_rpc_call(rpc, AOS_RPC_REQUEST_RAM, bytes, alignment, ret_cap, ret_bytes ? : &_rs);
-    
+
     // TODO: implement functionality to request a RAM capability over the
     // given channel and wait until it is delivered.
     /*errval_t err;
@@ -182,11 +182,11 @@ aos_rpc_get_ram_cap(struct aos_rpc *rpc, size_t bytes, size_t alignment,
 
     debug_printf("senmding request\n");
     err = lmp_chan_send3(&rpc->channel, LMP_SEND_FLAGS_DEFAULT, NULL_CAP, AOS_RPC_REQUEST_RAM, bytes, alignment);
+    err = lmp_chan_send3(&rpc->channel, LMP_SEND_FLAGS_DEFAULT, NULL_CAP, AOS_RPC_RAM_REQUEST, bytes, alignment);
     if(err_is_fail(err)) {
         DEBUG_ERR(err, "failed to call lmp_chan_send");
     }
 
-    debug_printf("recieving answqer\n");
     bool can_receive = lmp_chan_can_recv(&rpc->channel);
     while(!can_receive) {
         can_receive = lmp_chan_can_recv(&rpc->channel);
@@ -208,14 +208,93 @@ aos_rpc_serial_getchar(struct aos_rpc *rpc, char *retc) {
     // TODO implement functionality to request a character from
     // the serial driver.
     return SYS_ERR_OK;
+    /*errval_t err = SYS_ERR_OK;
+    if (!retc) { // if retcap NULL was given, just return OK
+        return err;
+    }
+
+    err = lmp_chan_send1(&rpc -> channel, LMP_SEND_FLAGS_DEFAULT,NULL_CAP,AOS_RPC_GETCHAR);
+    if (err_is_fail(err)) {
+        DEBUG_ERR(err,"Failed to send character to serial port");
+    }
+
+    while (!lmp_chan_can_recv(&rpc->channel))
+        ;
+
+    struct lmp_recv_msg msg = LMP_RECV_MSG_INIT;
+    err = lmp_chan_recv(&rpc->channel, &msg, &NULL_CAP);
+
+    if (err_is_fail(err) || msg.words[0] != AOS_RPC_STRING) {
+        DEBUG_ERR(err, "getchar did not receive a string as response");
+        return err;
+    }
+
+    *retc = msg.words[1];
+
+    return err;*/
+}
+
+errval_t aos_rpc_get_terminal_input(struct aos_rpc *rpc, char* buf, size_t len) {
+    return SYS_ERR_OK;
+  /*errval_t err = SYS_ERR_OK;
+
+
+
+  err = lmp_chan_send1(&rpc -> channel, LMP_SEND_FLAGS_DEFAULT,NULL_CAP,AOS_RPC_SET_READ);
+  if (err_is_fail(err)) {
+      DEBUG_ERR(err,"Failed to send RPC get read to init");
+  }
+
+  while (!lmp_chan_can_recv(&rpc->channel))
+      ;
+
+  struct lmp_recv_msg msg = LMP_RECV_MSG_INIT;
+  err = lmp_chan_recv(&rpc->channel, &msg, &NULL_CAP);
+
+  if (err_is_fail(err) || msg.words[0] != AOS_RPC_ACK) {
+      DEBUG_ERR(err, "getchar did not receive a ack for read lock");
+      return err;
+  }
+
+
+  int i = 0;
+  while(i < len -1){
+    aos_rpc_serial_getchar(rpc,&buf[i]);
+    if(buf[i] == 13){break;}
+    ++i;
+  }
+  buf[i + 1] = '\0';
+
+
+  err = lmp_chan_send1(&rpc -> channel, LMP_SEND_FLAGS_DEFAULT,NULL_CAP,AOS_RPC_FREE_READ);
+  if (err_is_fail(err)) {
+      DEBUG_ERR(err,"Failed to send RPC free read to init");
+  }
+
+  while (!lmp_chan_can_recv(&rpc->channel))
+      ;
+
+  // msg = LMP_RECV_MSG_INIT;
+  err = lmp_chan_recv(&rpc->channel, &msg, &NULL_CAP);
+
+  if (err_is_fail(err) || msg.words[0] != AOS_RPC_ACK) {
+      DEBUG_ERR(err, "getchar did not receive ack for read free");
+      return err;
+  }
+
+  return err;*/
 }
 
 
 errval_t
 aos_rpc_serial_putchar(struct aos_rpc *rpc, char c) {
-    // TODO implement functionality to send a character to the
-    // serial port.
-    return SYS_ERR_OK;
+
+    errval_t err = SYS_ERR_OK;
+    err = lmp_chan_send2(&rpc -> channel, LMP_SEND_FLAGS_DEFAULT,NULL_CAP,AOS_RPC_PUTCHAR,c);
+    if(err_is_fail(err)){
+      DEBUG_ERR(err,"Failed to send character to serial port");
+    }
+    return err;
 }
 
 errval_t
@@ -578,6 +657,7 @@ struct aos_rpc *aos_rpc_get_process_channel(void)
     //TODO: Return channel to talk to process server process (or whoever
     //implements process server functionality)
     debug_printf("aos_rpc_get_process_channel NYI\n");
+    return aos_rpc_get_init_channel();
     return NULL;
 }
 
@@ -589,5 +669,6 @@ struct aos_rpc *aos_rpc_get_serial_channel(void)
     //TODO: Return channel to talk to serial driver/terminal process (whoever
     //implements print/read functionality)
     debug_printf("aos_rpc_get_serial_channel NYI\n");
+    return aos_rpc_get_init_channel();
     return NULL;
 }

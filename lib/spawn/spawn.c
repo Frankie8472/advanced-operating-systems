@@ -13,6 +13,7 @@
 #include <barrelfish_kpi/domain_params.h>
 #include <spawn/multiboot.h>
 #include <spawn/argv.h>
+#include <spawn/process_manager.h>
 #include <string.h>
 
 extern struct bootinfo *bi;
@@ -283,7 +284,7 @@ errval_t spawn_load_argv(int argc, const char *const argv[], struct spawninfo *s
     struct dispatcher_generic *disp_gen = get_dispatcher_generic(handle);
     arch_registers_state_t *enabled_area = dispatcher_get_enabled_save_area(handle);
     arch_registers_state_t *disabled_area = dispatcher_get_disabled_save_area(handle);
-    //*pid = disp_gen->domain_id;
+    disp_gen->domain_id = *pid = spawn_get_new_domainid();
 
     registers_set_param(enabled_area, child_arg_ptr);
 

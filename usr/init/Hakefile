@@ -17,8 +17,7 @@
                         "distops/deletestep.c",
                         "distops/invocations.c",
                         "main.c",
-                        "mem_alloc.c",
-                        "process_manager.c"
+                        "mem_alloc.c"
                       ],
                       addLinkFlags = [ "-e _start_init"], -- this is only needed for init
                       addLibraries = [ "mm", "getopt", "elf", "spawn",

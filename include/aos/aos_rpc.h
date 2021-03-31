@@ -29,6 +29,10 @@ typedef enum aos_rpc_msg_type {
     AOS_RPC_REQUEST_RAM,
     AOS_RPC_SETUP_PAGE,
     AOS_RPC_PROC_SPAWN_REQUEST,
+    AOS_RPC_PUTCHAR,
+    AOS_RPC_GETCHAR,
+    AOS_RPC_SET_READ,
+    AOS_RPC_FREE_READ,
 } msg_type_t;
 
 
@@ -150,6 +154,8 @@ errval_t aos_rpc_process_get_all_pids(struct aos_rpc *chan,
                                       domainid_t **pids, size_t *pid_count);
 
 
+
+errval_t aos_rpc_get_terminal_input(struct aos_rpc *chan, char* buf,size_t le);
 /**
  * \brief Returns the RPC channel to init.
  */

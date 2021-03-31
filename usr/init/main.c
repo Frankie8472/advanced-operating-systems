@@ -25,9 +25,17 @@
 
 
 #include <spawn/spawn.h>
+#include <spawn/process_manager.h>
 #include "mem_alloc.h"
-#include "process_manager.h"
 
+
+struct terminal_state{
+  bool reading;
+  char to_put[1024];
+  size_t index;
+};
+
+struct terminal_state *terminal_state;
 struct bootinfo *bi;
 
 coreid_t my_core_id;
@@ -44,10 +52,8 @@ static void initiate(struct aos_rpc *rpc, struct capref cap) {
 }
 
 static void spawn_handler(struct aos_rpc *old_rpc, const char *name, uintptr_t core_id, uintptr_t *new_pid) {
-    struct process_manager *pm = get_process_manager();
-    struct spawninfo *si;
-    create_spawninfo(pm, &si);
-    si = malloc(sizeof(struct spawninfo));
+    struct spawninfo *si = spawn_create_spawninfo();
+
     domainid_t *pid = &si->pid;
     spawn_load_by_name((char*) name, si, pid);
     *new_pid = *pid;
@@ -56,7 +62,9 @@ static void spawn_handler(struct aos_rpc *old_rpc, const char *name, uintptr_t c
     aos_rpc_init(rpc, si->cap_ep, NULL_CAP, si->lmp_ep);
 
     aos_rpc_register_handler(rpc, AOS_RPC_INITIATE, &initiate);
-    //aos_rpc_register_handler(rpc, AOS_RPC_REQUEST_RAM, &req_ram);
+    aos_rpc_register_handler(rpc, AOS_RPC_REQUEST_RAM, &req_ram);
+    aos_rpc_register_handler(rpc, AOS_RPC_PROC_SPAWN_REQUEST, &spawn_handler);
+
     errval_t err = lmp_chan_register_recv(&rpc->channel, get_default_waitset(), MKCLOSURE(&aos_rpc_on_message, &rpc));
     if (err_is_fail(err) && err == LIB_ERR_CHAN_ALREADY_REGISTERED) {
         // not too bad, already registered
@@ -65,12 +73,7 @@ static void spawn_handler(struct aos_rpc *old_rpc, const char *name, uintptr_t c
 
 __attribute__((unused)) static void spawn_memeater(void)
 {
-    struct process_manager *pm = get_process_manager();
-    struct spawninfo *memeater_si;
-    create_spawninfo(pm, &memeater_si);
-    //memeater_si->pid = 5;
-
-    memeater_si = malloc(sizeof(struct spawninfo));
+    struct spawninfo *memeater_si = spawn_create_spawninfo();
 
     domainid_t *memeater_pid = &memeater_si->pid;
     errval_t err = spawn_load_by_name("memeater", memeater_si, memeater_pid);
@@ -117,14 +120,29 @@ static int bsp_main(int argc, char *argv[])
     bi = (struct bootinfo *)strtol(argv[1], NULL, 10);
     assert(bi);
 
+
+
     err = initialize_ram_alloc();
     if (err_is_fail(err)) {
         DEBUG_ERR(err, "initialize_ram_alloc");
     }
 
+    struct terminal_state ts;
+    ts.reading = false;
+    ts.index = 0;
+    terminal_state = &ts;
     // TODO: initialize mem allocator, vspace management here
 
     // test();
+    // debug_printf("input:\n");
+
+    // char b = getchar();
+    // debug_printf("Character from getchar = %c\n",b);
+    // char a = getchar();
+    //
+    // debug_printf("Character from getchar = %c\n",a);
+
+
     spawn_memeater();
 
     // Grading
@@ -177,6 +195,20 @@ int main(int argc, char *argv[])
     printf("\n");
     fflush(stdout);
 
+
+    // printf("requesting char\n");
+    // char c = 'A';
+    // char buff[10];
+    // int i = 0;
+    // while(c != 13 && i < 9){
+    //   debug_printf("Loop iteration: %d\n",i);
+    //   c = getchar();
+    //   buff[i] = c;
+    //   i++;
+    // }
+    // buff[i] = '\0';
+    //
+    // printf("Received string :%s\n",buff);
 
     if (my_core_id == 0)
         return bsp_main(argc, argv);
