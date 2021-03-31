@@ -96,7 +96,7 @@ static size_t aos_terminal_write(const char * buf,size_t len){
 
 __attribute__((__used__))
 static size_t aos_terminal_read(char* buf,size_t len){
-    debug_printf("Got to aos_terminal_read\n");
+    //debug_printf("Got to aos_terminal_read\n");
     struct aos_rpc * rpc = get_init_rpc();
     errval_t err;
     err = aos_rpc_serial_getchar(rpc, buf);

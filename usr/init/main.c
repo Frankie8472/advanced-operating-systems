@@ -45,12 +45,17 @@ struct bootinfo *bi;
 
 coreid_t my_core_id;
 
+errval_t initialize_rpc(struct spawninfo *si);
+
 static void handler_putchar(struct aos_rpc *r, uintptr_t c) {
     putchar(c);
+    //debug_printf("recieved: %c\n", (char)c);
 }
 
 static void handler_getchar(struct aos_rpc *r, uintptr_t *c) {
-    *c = getchar();
+    int v = getchar();
+    //debug_printf("getchar: %c\n", v);
+    *c = v;//getchar();
 }
 
 static void handler_terminal_write(struct aos_rpc *r, uintptr_t *c) {
@@ -125,15 +130,40 @@ static void spawn_handler(struct aos_rpc *old_rpc, const char *name, uintptr_t c
 
     struct aos_rpc *rpc = &si->rpc;
     aos_rpc_init(rpc, si->cap_ep, NULL_CAP, si->lmp_ep);
+    initialize_rpc(si);
 
-    aos_rpc_register_handler(rpc, AOS_RPC_INITIATE, &initiate);
-    aos_rpc_register_handler(rpc, AOS_RPC_REQUEST_RAM, &req_ram);
-    aos_rpc_register_handler(rpc, AOS_RPC_PROC_SPAWN_REQUEST, &spawn_handler);
-
-    /*errval_t err = lmp_chan_register_recv(&rpc->channel, get_default_waitset(), MKCLOSURE(&aos_rpc_on_message, &rpc));
+    errval_t err = lmp_chan_register_recv(&rpc->channel, get_default_waitset(), MKCLOSURE(&aos_rpc_on_message, &rpc));
     if (err_is_fail(err) && err == LIB_ERR_CHAN_ALREADY_REGISTERED) {
         // not too bad, already registered
-    }*/
+    }
+}
+
+static void recv_number(struct aos_rpc *r, uintptr_t number) {
+    debug_printf("recieved number: %ld\n", number);
+}
+
+static void recv_string(struct aos_rpc *r, const char *string) {
+    debug_printf("recieved string: %s\n", string);
+}
+
+errval_t initialize_rpc(struct spawninfo *si)
+{
+    struct aos_rpc *rpc = &si->rpc;
+    aos_rpc_register_handler(rpc, AOS_RPC_INITIATE, &initiate);
+    aos_rpc_register_handler(rpc, AOS_RPC_SEND_NUMBER, &recv_number);
+    aos_rpc_register_handler(rpc, AOS_RPC_SEND_STRING, &recv_string);
+
+    aos_rpc_register_handler(rpc, AOS_RPC_REQUEST_RAM, &req_ram);
+
+    aos_rpc_register_handler(rpc, AOS_RPC_PROC_SPAWN_REQUEST, &spawn_handler);
+
+    aos_rpc_register_handler(rpc, AOS_RPC_PUTCHAR, &handler_putchar);
+    aos_rpc_register_handler(rpc, AOS_RPC_GETCHAR, &handler_getchar);
+    aos_rpc_register_handler(rpc, AOS_RPC_TERMINAL_READ, &handler_terminal_read);
+    aos_rpc_register_handler(rpc, AOS_RPC_TERMINAL_WRITE, &handler_terminal_write);
+
+    errval_t err = lmp_chan_register_recv(&rpc->channel, get_default_waitset(), MKCLOSURE(&aos_rpc_on_message, &rpc));
+    return err;
 }
 
 __attribute__((unused)) static void spawn_memeater(void)
@@ -151,29 +181,7 @@ __attribute__((unused)) static void spawn_memeater(void)
 
     err = lmp_chan_alloc_recv_slot(&rpc->channel);
 
-    void recv_number(struct aos_rpc *r, uintptr_t number) {
-        debug_printf("recieved number: %ld\n", number);
-    }
-    void recv_string(struct aos_rpc *r, const char *string) {
-        debug_printf("recieved string: %s\n", string);
-    }
-
-    aos_rpc_register_handler(rpc, AOS_RPC_INITIATE, &initiate);
-    aos_rpc_register_handler(rpc, AOS_RPC_SEND_NUMBER, &recv_number);
-    aos_rpc_register_handler(rpc, AOS_RPC_SEND_STRING, &recv_string);
-
-    aos_rpc_register_handler(rpc, AOS_RPC_REQUEST_RAM, &req_ram);
-
-    aos_rpc_register_handler(rpc, AOS_RPC_PROC_SPAWN_REQUEST, &spawn_handler);
-
-    aos_rpc_register_handler(rpc, AOS_RPC_PUTCHAR, &handler_putchar);
-    aos_rpc_register_handler(rpc, AOS_RPC_GETCHAR, &handler_getchar);
-    aos_rpc_register_handler(rpc, AOS_RPC_TERMINAL_READ, &handler_terminal_read);
-    aos_rpc_register_handler(rpc, AOS_RPC_TERMINAL_WRITE, &handler_terminal_write);
-
-    DEBUG_PRINTF("registering recieve\n");
-    err = lmp_chan_register_recv(&rpc->channel, get_default_waitset(), MKCLOSURE(&aos_rpc_on_message, &rpc));
-    DEBUG_ERR(err, "register recv");
+    err = initialize_rpc(memeater_si);
 }
 
 

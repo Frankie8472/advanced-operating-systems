@@ -36,14 +36,14 @@ static errval_t setup_buf_page(struct aos_rpc *rpc, enum aos_rpc_msg_type msg_ty
 
     char buf[128];
     debug_print_cap_at_capref(buf, sizeof buf, frame);
-    debug_printf("frame: %s\n", buf);
+    //debug_printf("frame: %s\n", buf);
 
     err = paging_map_frame_complete(get_current_paging_state(), &rpc->bindings[msg_type].buf_page, frame, NULL, NULL);
-    debug_printf("new buf_ptr %p\n", &rpc->bindings[msg_type].buf_page);
+    //debug_printf("new buf_ptr %p\n", &rpc->bindings[msg_type].buf_page);
     DEBUG_ERR(err, "asasasa");
     ON_ERR_PUSH_RETURN(err, LIB_ERR_VSPACE_MAP);
 
-    debug_printf("seting up the buffer!\n");
+    //debug_printf("seting up the buffer!\n");
     err = aos_rpc_call(rpc, AOS_RPC_SEND_NUMBER, 12345);
     err = aos_rpc_call(rpc, AOS_RPC_SEND_NUMBER, 54321);
     err = aos_rpc_call(rpc, AOS_RPC_SETUP_PAGE, msg_type, size, frame);
@@ -134,7 +134,7 @@ aos_rpc_get_ram_cap(struct aos_rpc *rpc, size_t bytes, size_t alignment,
 errval_t
 aos_rpc_serial_getchar(struct aos_rpc *rpc, char *retc)
 {
-    return aos_rpc_call(rpc, AOS_RPC_GETCHAR, &retc);
+    return aos_rpc_call(rpc, AOS_RPC_GETCHAR, retc);
 }
 
 errval_t aos_rpc_get_terminal_input(struct aos_rpc *rpc, char* buf, size_t len)
@@ -420,7 +420,8 @@ void aos_rpc_on_message(void *arg)
 
     void *handler = rpc->handlers[msgtype];
     if (handler == NULL) {
-        err = LIB_ERR_NOT_IMPLEMENTED;
+        debug_printf("no handler for %d\n", msgtype);
+        err = LIB_ERR_RPC_NO_HANDLER_SET;
         goto on_error;
     }
 
