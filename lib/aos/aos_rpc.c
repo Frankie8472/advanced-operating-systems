@@ -87,6 +87,8 @@ errval_t aos_rpc_init(struct aos_rpc* rpc, struct capref self_ep, struct capref 
     aos_rpc_initialize_binding(rpc, AOS_RPC_SETUP_PAGE, 3, 0, AOS_RPC_WORD, AOS_RPC_WORD, AOS_RPC_CAPABILITY);
     aos_rpc_register_handler(rpc, AOS_RPC_SETUP_PAGE, &aos_rpc_setup_page_handler);
 
+    aos_rpc_initialize_binding(rpc, AOS_RPC_PROC_SPAWN_REQUEST, 2, 1, AOS_RPC_STR, AOS_RPC_WORD, AOS_RPC_WORD);
+
     err = lmp_chan_register_recv(&rpc->channel, get_default_waitset(), MKCLOSURE(&aos_rpc_on_message, rpc));
 
     if (!capref_is_null(rpc->channel.remote_cap)) {
@@ -219,34 +221,7 @@ errval_t
 aos_rpc_process_spawn(struct aos_rpc *rpc, char *cmdline,
                       coreid_t core, domainid_t *newpid) {
     // TODO (M5): implement spawn new process rpc
-    errval_t err;
-
-    err = lmp_chan_alloc_recv_slot(&rpc->channel);
-    ON_ERR_RETURN(err);
-    size_t len = strlen(cmdline);
-    err = lmp_chan_send3(&rpc->channel, LMP_SEND_FLAGS_DEFAULT, NULL_CAP, AOS_RPC_PROC_SPAWN_REQUEST, len, core);
-
-    for (int i = 0; i < len; i++) {
-        err = lmp_chan_send1(&rpc->channel, LMP_SEND_FLAGS_DEFAULT, NULL_CAP, cmdline[i]);
-        if(err_is_fail(err)) {
-            DEBUG_ERR(err, "failed to call lmp_chan_send");
-        }
-    }
-
-    bool can_receive = lmp_chan_can_recv(&rpc->channel);
-    while(!can_receive){
-        can_receive = lmp_chan_can_recv(&rpc->channel);
-    }
-
-    struct lmp_recv_msg msg_string = LMP_RECV_MSG_INIT;
-    err = lmp_chan_recv(&rpc->channel, &msg_string, &NULL_CAP);
-    if(err_is_fail(err)){
-        DEBUG_ERR(err,"Could not receive string\n");
-    }
-
-    *newpid = msg_string.words[0];
-
-    return SYS_ERR_OK;
+    return aos_rpc_call(rpc, AOS_RPC_PROC_SPAWN_REQUEST, cmdline, core, newpid);
 }
 
 
@@ -327,14 +302,14 @@ errval_t aos_rpc_call(struct aos_rpc *rpc, enum aos_rpc_msg_type msg_type, ...)
             retptrs[ret_ind++] = va_arg(args, void*);
         }
         va_end(args);
-        debug_printf("sending call %ld, %ld, %ld, %ld\n", msg_type, words[0], words[1], words[2]);
+        //debug_printf("sending call %ld, %ld, %ld, %ld\n", msg_type, words[0], words[1], words[2]);
         lmp_chan_send(&rpc->channel, LMP_SEND_FLAGS_DEFAULT, cap, n_args + 1,
                     msg_type, words[0], words[1], words[2]);
     }
     else {
         debug_printf("unknown binding\n");
     }
-    debug_printf("waiting for response\n");
+    //debug_printf("waiting for response\n");
     bool can_receive = false;
     can_receive = lmp_chan_can_recv(&rpc->channel);
     while(!can_receive) {
@@ -347,7 +322,7 @@ errval_t aos_rpc_call(struct aos_rpc *rpc, enum aos_rpc_msg_type msg_type, ...)
 
     err = lmp_chan_recv(&rpc->channel, &msg, &recieved_cap);
     ON_ERR_RETURN(err);
-    debug_printf("got response\n");
+    //debug_printf("got response\n");
 
     if (!capref_is_null(recieved_cap)) {
         lmp_chan_alloc_recv_slot(&rpc->channel);
@@ -459,16 +434,16 @@ static errval_t aos_rpc_unmarshall_simple_aarch64(struct aos_rpc *rpc,
     }
 
 
-    debug_printf("calling handler for %d: %ld, %ld, %ld, %ld\n", binding->port, arg[0], arg[1], arg[2], arg[3]);
+    //debug_printf("calling handler for %d: %ld, %ld, %ld, %ld\n", binding->port, arg[0], arg[1], arg[2], arg[3]);
     if (a_pos == 4) {
         h4(rpc, arg[0], arg[1], arg[2], arg[3]);
     }
     else {
         h7(rpc, arg[0], arg[1], arg[2], arg[3], arg[4], arg[5], arg[6], arg[7]);
     }
-    char buf[128];
-    debug_print_cap_at_capref(buf, sizeof buf, retcap);
-    debug_printf("retcap: %s\n", buf);
+    //char buf[128];
+    //debug_print_cap_at_capref(buf, sizeof buf, retcap);
+    //debug_printf("retcap: %s\n", buf);
 
     // send response
     lmp_chan_send(&rpc->channel, LMP_SEND_FLAGS_DEFAULT, retcap, ret_pos + 1, binding->port | AOS_RPC_RETURN_BIT, ret[0], ret[1], ret[2]);
@@ -485,7 +460,7 @@ void aos_rpc_test(uintptr_t x, uintptr_t y, uintptr_t z, uintptr_t w, uintptr_t 
 
 void aos_rpc_on_message(void *arg)
 {
-    debug_printf("aos_rpc_on_message\n");
+    //debug_printf("aos_rpc_on_message\n");
     struct aos_rpc *rpc = arg;
     struct lmp_chan *channel = &rpc->channel;
 
