@@ -122,7 +122,7 @@ void barrelfish_libc_glue_init(void)
       _libc_terminal_write_func = syscall_terminal_write;
       _libc_exit_func = libc_exit;
       _libc_assert_func = libc_assert;
-    }else{
+    } else {
       _libc_terminal_read_func = aos_terminal_read;
       _libc_terminal_write_func = aos_terminal_write;
       _libc_exit_func = libc_exit;
