@@ -27,10 +27,16 @@
 #include <spawn/spawn.h>
 #include "mem_alloc.h"
 
+struct terminal_queue {
+    struct lmp_chan* cur;
+    struct terminal_queue* next;
+};
+
 struct terminal_state{
   bool reading;
   char to_put[1024];
   size_t index;
+  struct terminal_queue* waiting;
 };
 struct terminal_state *terminal_state;
 struct bootinfo *bi;
@@ -204,6 +210,46 @@ __attribute__((unused)) static void faulty_allocations(void)
     print_mm_state(&aos_mm);
 }
 
+/**
+ * \brief If the terminal is already busy but another channel wants to print,
+ * put it in the queue with this function.
+ */
+__attribute__((unused))
+static errval_t register_waiting_chan(struct lmp_chan* toreg) {
+    struct terminal_queue* newnode = malloc(sizeof(struct terminal_queue));
+    if (newnode == NULL) {
+        return LIB_ERR_MALLOC_FAIL;
+    }
+
+    newnode->cur = toreg;
+    newnode->next = NULL;
+    struct terminal_queue* last = terminal_state->waiting;
+    if (!last) {
+        terminal_state->waiting = newnode;
+    } else {
+        while (last->next) {
+            last = last->next;
+        }
+        last->next = newnode;
+    }
+    return SYS_ERR_OK;
+}
+
+/**
+ * \brief If the terminal becomes available again, this method gives the first
+ * channel in line for it. Returns NULL if no channel is on the queu.
+ */
+__attribute__((unused))
+static struct lmp_chan * get_hitmon_chan(void) {
+    struct terminal_queue* res = terminal_state->waiting;
+    if (res == NULL) {
+        return NULL;
+    }
+    while (res->next) {
+        res = res->next;
+    }
+    return res->cur;
+}
 
 /**
  * \brief Callback function, called if init process receives a msg
@@ -354,20 +400,20 @@ __attribute__((unused)) static void init_handler(void *arg)
             break;
         }
 
-        case AOS_RPC_GETCHAR: {
-
-            // char c[1];
-            // sys_getchar(c);
+        case AOS_RPC_GETCHAR: { // TODO: maybe verify the lock is held or something?
             char c = getchar();
             err = lmp_chan_send2(channel, LMP_SEND_FLAGS_DEFAULT, NULL_CAP, AOS_RPC_STRING, c);
             break;
         }
 
         case AOS_RPC_SET_READ: {
-          while(terminal_state -> reading == true){}
-          terminal_state -> reading = true;
-          err = lmp_chan_send1(channel, LMP_SEND_FLAGS_DEFAULT, NULL_CAP, AOS_RPC_ACK);
-          break;
+            if (terminal_state->reading) {
+                register_waiting_chan(channel);
+            } else  {
+                terminal_state -> reading = true;
+                err = lmp_chan_send1(channel, LMP_SEND_FLAGS_DEFAULT, NULL_CAP, AOS_RPC_ACK);
+            }
+            break;
         }
         case AOS_RPC_FREE_READ: {
           terminal_state -> reading = false;
@@ -377,6 +423,14 @@ __attribute__((unused)) static void init_handler(void *arg)
             putchar(terminal_state-> to_put[i]);
           }
           terminal_state -> index = 0;
+
+          // possibly notify the next channel
+          struct lmp_chan* nxt = get_hitmon_chan();
+          if (nxt) {
+              terminal_state->reading = true;
+              err = lmp_chan_send1(channel, LMP_SEND_FLAGS_DEFAULT, NULL_CAP, AOS_RPC_ACK);
+          }
+          break;
         }
         default: {
             break;
@@ -448,6 +502,7 @@ static int bsp_main(int argc, char *argv[])
     struct terminal_state ts;
     ts.reading = false;
     ts.index = 0;
+    ts.waiting = NULL;
     terminal_state = &ts;
     // TODO: initialize mem allocator, vspace management here
 
