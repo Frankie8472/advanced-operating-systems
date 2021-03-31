@@ -442,12 +442,6 @@ static errval_t aos_rpc_unmarshall_simple_aarch64(struct aos_rpc *rpc,
     return SYS_ERR_OK;
 }
 
-extern long vaerboes;
-long vaerboes = 0;
-void aos_rpc_test(uintptr_t x, uintptr_t y, uintptr_t z, uintptr_t w, uintptr_t c, uintptr_t a, uintptr_t b, uintptr_t d)
-{
-    vaerboes = b;
-}
 
 void aos_rpc_on_message(void *arg)
 {

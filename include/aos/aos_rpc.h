@@ -22,6 +22,13 @@
 #define AOS_RPC_RETURN_BIT 0x1000000
 #define AOS_RPC_MAX_MSG_TYPES 32
 
+/**
+ * \brief different functions to call for rpc
+ *
+ * \warning current implementation only supports up to \link AOS_RPC_MAX_MSG_TYPES
+ *          different functions.
+ *
+ */
 typedef enum aos_rpc_msg_type {
     AOS_RPC_INITIATE = 1,
     AOS_RPC_SEND_NUMBER,
@@ -38,7 +45,9 @@ typedef enum aos_rpc_msg_type {
 } msg_type_t;
 
 
-
+/**
+ * \brief possible argument/return types for rpc calls
+ */
 enum aos_rpc_argument_type {
     AOS_RPC_NO_TYPE = 0,
     AOS_RPC_WORD,
@@ -47,6 +56,10 @@ enum aos_rpc_argument_type {
     AOS_RPC_CAPABILITY
 };
 
+
+/**
+ * \brief containing info for rpc (un)marshalling
+ */
 struct aos_rpc_function_binding
 {
     enum aos_rpc_msg_type           port;
@@ -60,11 +73,6 @@ struct aos_rpc_function_binding
     enum aos_rpc_argument_type      rets[AOS_RPC_MAX_FUNCTION_ARGUMENTS];
 };
 
-struct aos_rpc_function_handler
-{
-    void *func_ptr;
-};
-
 
 /* An RPC binding, which may be transported over LMP or UMP. */
 struct aos_rpc {
@@ -72,6 +80,8 @@ struct aos_rpc {
 
     size_t n_bindings;
     struct aos_rpc_function_binding bindings[AOS_RPC_MAX_MSG_TYPES];
+
+    // TODO: make solution dynamic to allow arbitrarily many rpc functions
     void *handlers[AOS_RPC_MAX_MSG_TYPES];
     // TODO(M3): Add state
 };
@@ -81,16 +91,61 @@ struct aos_rpc {
  */
 errval_t aos_rpc_init(struct aos_rpc *rpc, struct capref self_ep, struct capref end_ep, struct lmp_endpoint *lmp_ep);
 
+/**
+ * \brief initialize marshalling info for an rpc function
+ * 
+ * In order to use an rpc binding, it needs to be registered here.
+ * Once registered, the function can be called by using \link aos_rpc_call .
+ * 
+ * Note that the callee domain still needs to set a handler for this function
+ * using \link aos_rpc_register_handler.
+ * 
+ * \param rpc the rpc struct in which to register the function
+ * \param binding the function id to register
+ * \param n_args number of arguments
+ * \param n_rets number of return arguments
+ * \param ... the remaining parameters are of type <code>enum aos_rpc_argument_type</code>
+ *            first the \link n_args types of the arguments, then the \link n_rets types
+ *            of the return types.
+ * 
+ */
 errval_t aos_rpc_initialize_binding(struct aos_rpc *rpc, enum aos_rpc_msg_type binding,
                                     int n_args, int n_rets, ...);
 
+/**
+ * \brief call a rpc function
+ * 
+ * \param binding the function to call
+ * \param ... the following arguments need to be of the types expected by this
+ *            function.
+ *            AOS_RPC_WORD          becomes uintptr_t
+ *            AOS_RPC_STR           becomes const char*
+ *            AOS_RPC_BYTES         currently unimplemented
+ *            AOS_RPC_CAPABILITY    becomes struct capref
+ */
 errval_t aos_rpc_call(struct aos_rpc *rpc, enum aos_rpc_msg_type binding, ...);
 
+/**
+ * \brief registers a handler function to be called when this rpc is invoked
+ *        and should be run in our domain.
+ * 
+ * The handler should take arguments corresponding to the registered binding --
+ * 
+ *        AOS_RPC_WORD          becomes uintptr_t
+ *        AOS_RPC_STR           becomes const char*
+ *        AOS_RPC_BYTES         currently unimplemented
+ *        AOS_RPC_CAPABILITY    becomes struct capref
+ * 
+ * followed by the return values, that are of the corresponding pointer type.
+ * They each point to a valid location and need to be written to in order to
+ * return any values.
+ */
 errval_t aos_rpc_register_handler(struct aos_rpc *rpc, enum aos_rpc_msg_type binding,
                                   void* handler);
 
-void aos_rpc_test(uintptr_t x, uintptr_t y, uintptr_t z, uintptr_t w, uintptr_t a, uintptr_t b, uintptr_t c, uintptr_t d);
-
+/**
+ * message handler function for rpc calls
+ */
 void aos_rpc_on_message(void *rpc);
 
 /**
