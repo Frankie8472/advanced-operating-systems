@@ -202,14 +202,14 @@ int main(int argc, char *argv[])
     printf("Hello world using terminal service\n");
 
 
-    /*char command[1024];
+    char command[1024];
     debug_printf("Testing terminal read:\n");
-    aos_rpc_get_terminal_input(init_rpc, command,1024);
+    aos_rpc_get_terminal_input(init_rpc, command, 1024);
 
 
 
 
-    debug_printf("Got terminal command : %s\n",command);*/
+    debug_printf("Got terminal command : %s\n",command);
 
     char c = 'A';
     while(c !=  13){
