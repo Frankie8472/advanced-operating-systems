@@ -378,11 +378,15 @@ __attribute__((unused)) static void spawn_memeater(void)
         debug_printf("recieved number: %ld\n", number);
     }
 
+    void recv_string(struct aos_rpc *rpc, const char *string) {
+        debug_printf("recieved string: %s\n", string);
+    }
+
     void req_ram(struct aos_rpc *rpc, uintptr_t size, uintptr_t alignment, struct capref *cap, uintptr_t *ret_size) {
         debug_printf("args are: %ld, %ld, %p, %p", size, alignment, cap, ret_size);
         ram_alloc_aligned(cap, size, alignment);
         //*ret_size = size;
-        debug_printf("allocced some ram");
+        debug_printf("allocced some ram\n");
     }
 
     //aos_rpc_initialize_binding(&aos_rpc, AOS_RPC_INITIATE, 1, 0, AOS_RPC_CAPABILITY);
@@ -390,6 +394,7 @@ __attribute__((unused)) static void spawn_memeater(void)
 
     //aos_rpc_initialize_binding(&aos_rpc, AOS_RPC_SEND_NUMBER, 1, 0, AOS_RPC_WORD);
     aos_rpc_register_handler(&aos_rpc, AOS_RPC_SEND_NUMBER, &recv_number);
+    aos_rpc_register_handler(&aos_rpc, AOS_RPC_SEND_STRING, &recv_string);
 
     //aos_rpc_initialize_binding(&aos_rpc, AOS_RPC_REQUEST_RAM, 2, 2, AOS_RPC_WORD, AOS_RPC_WORD, AOS_RPC_CAPABILITY, AOS_RPC_WORD);
     aos_rpc_register_handler(&aos_rpc, AOS_RPC_REQUEST_RAM, &req_ram);
