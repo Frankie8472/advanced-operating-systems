@@ -43,7 +43,6 @@ static errval_t setup_buf_page(struct aos_rpc *rpc, enum aos_rpc_msg_type msg_ty
     DEBUG_ERR(err, "asasasa");
     ON_ERR_PUSH_RETURN(err, LIB_ERR_VSPACE_MAP);
 
-
     debug_printf("seting up the buffer!\n");
     err = aos_rpc_call(rpc, AOS_RPC_SEND_NUMBER, 12345);
     err = aos_rpc_call(rpc, AOS_RPC_SEND_NUMBER, 54321);
@@ -60,20 +59,22 @@ static errval_t setup_buf_page(struct aos_rpc *rpc, enum aos_rpc_msg_type msg_ty
  * and should be properly set beforehand
  * \brief Initialize an aos_rpc struct.
  */
-errval_t aos_rpc_init(struct aos_rpc* rpc, struct capref self_ep, struct capref end_ep) {
+errval_t aos_rpc_init(struct aos_rpc* rpc, struct capref self_ep, struct capref end_ep, struct lmp_endpoint *lmp_ep) {
+    errval_t err;
     debug_printf("aos_rpc_init\n");
+
     lmp_chan_init(&rpc->channel);
     rpc->channel.local_cap = self_ep;
     rpc->channel.remote_cap = end_ep;
 
     memset(rpc->bindings, 0, sizeof rpc->bindings);
+    if (lmp_ep == NULL) {
+        err = endpoint_create(256, &rpc->channel.local_cap, &lmp_ep);
+        ON_ERR_PUSH_RETURN(err, LIB_ERR_ENDPOINT_CREATE);
+    }
 
-    struct lmp_endpoint *lmp_ep;
-    errval_t err = endpoint_create(16, &rpc->channel.local_cap, &lmp_ep);
-    ON_ERR_PUSH_RETURN(err, LIB_ERR_ENDPOINT_CREATE);
-
+    rpc->channel.buflen_words = 256;
     rpc->channel.endpoint = lmp_ep;
-
     lmp_chan_alloc_recv_slot(&rpc->channel);
 
     // bind initiate function (to send our endpoint to init)

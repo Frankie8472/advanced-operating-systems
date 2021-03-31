@@ -363,8 +363,9 @@ __attribute__((unused)) static void spawn_memeater(void)
     // cnode_create_l2(&si1->channel.endpoint->recv_slot, &cnode);
     // si1->channel.endpoint->k.recv_cspc = get_cap_addr();
     static struct aos_rpc aos_rpc;
-    aos_rpc_init(&aos_rpc, cap_selfep, NULL_CAP);
-    aos_rpc.channel = si1->channel;
+    aos_rpc_init(&aos_rpc, si1->cap_ep, NULL_CAP, si1->lmp_ep);
+    //aos_rpc.channel = si1->channel;
+
 
     err = lmp_chan_alloc_recv_slot(&aos_rpc.channel);
     DEBUG_ERR(err, "alloc recv slot");
@@ -373,11 +374,9 @@ __attribute__((unused)) static void spawn_memeater(void)
         debug_printf("rpc: %p\n", rpc);
         rpc->channel.remote_cap = cap;
     }
-
     void recv_number(struct aos_rpc *rpc, uintptr_t number) {
         debug_printf("recieved number: %ld\n", number);
     }
-
     void recv_string(struct aos_rpc *rpc, const char *string) {
         debug_printf("recieved string: %s\n", string);
     }
