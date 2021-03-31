@@ -138,6 +138,7 @@ errval_t
 aos_rpc_serial_getchar(struct aos_rpc *rpc, char *retc) {
     // TODO implement functionality to request a character from
     // the serial driver.
+    debug_printf("Got here\n");
     errval_t err = SYS_ERR_OK;
     if (!retc) { // if retcap NULL was given, just return OK
         return err;

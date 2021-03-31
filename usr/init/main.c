@@ -341,9 +341,14 @@ __attribute__((unused)) static void init_handler(void *arg)
             putchar(c);
             break;
         }
+
         case AOS_RPC_GETCHAR: {
             char c;
             c = getchar();
+
+
+
+            debug_printf("Got char: %c\n",c);
             if (err_is_fail(err)) {
                 DEBUG_ERR(err, "readchar error\n");
             }
