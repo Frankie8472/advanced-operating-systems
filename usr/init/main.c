@@ -49,18 +49,18 @@ static void handler_putchar(struct aos_rpc *r, uintptr_t c) {
     putchar(c);
 }
 
-static void handler_getchar(struct aos_rpc *r, uintptr_t *c){
+static void handler_getchar(struct aos_rpc *r, uintptr_t *c) {
     *c = getchar();
 }
 
-static void handler_terminal_write(struct aos_rpc *r, uintptr_t *c){
+static void handler_terminal_write(struct aos_rpc *r, uintptr_t *c) {
 
 }
 
-static void handler_terminal_read(struct aos_rpc *r, uintptr_t *c){
-    errval_t err = SYS_ERR_OK;
+static void handler_terminal_read(struct aos_rpc *r, uintptr_t *c) {
+    //errval_t err = SYS_ERR_OK;
 
-    err = lmp_chan_send1(&rpc->channel, LMP_SEND_FLAGS_DEFAULT, NULL_CAP,
+    /*err = lmp_chan_send1(&rpc->channel, LMP_SEND_FLAGS_DEFAULT, NULL_CAP,
                          AOS_RPC_SET_READ);
     if (err_is_fail(err)) {
         DEBUG_ERR(err, "Failed to send RPC get read to init");
@@ -104,7 +104,7 @@ static void handler_terminal_read(struct aos_rpc *r, uintptr_t *c){
     if (err_is_fail(err) || msg.words[0] != AOS_RPC_ACK) {
         DEBUG_ERR(err, "getchar did not receive ack for read free");
         return err;
-    }
+    }*/
 }
 
 static void req_ram(struct aos_rpc *r, uintptr_t size, uintptr_t alignment, struct capref *cap, uintptr_t *ret_size) {
@@ -130,10 +130,10 @@ static void spawn_handler(struct aos_rpc *old_rpc, const char *name, uintptr_t c
     aos_rpc_register_handler(rpc, AOS_RPC_REQUEST_RAM, &req_ram);
     aos_rpc_register_handler(rpc, AOS_RPC_PROC_SPAWN_REQUEST, &spawn_handler);
 
-    errval_t err = lmp_chan_register_recv(&rpc->channel, get_default_waitset(), MKCLOSURE(&aos_rpc_on_message, &rpc));
+    /*errval_t err = lmp_chan_register_recv(&rpc->channel, get_default_waitset(), MKCLOSURE(&aos_rpc_on_message, &rpc));
     if (err_is_fail(err) && err == LIB_ERR_CHAN_ALREADY_REGISTERED) {
         // not too bad, already registered
-    }
+    }*/
 }
 
 __attribute__((unused)) static void spawn_memeater(void)
@@ -146,13 +146,10 @@ __attribute__((unused)) static void spawn_memeater(void)
         DEBUG_ERR(err, "spawn loading failed");
     }
 
-    DEBUG_ERR(err, "spawn loading failed");
     struct aos_rpc *rpc = &memeater_si->rpc;
     aos_rpc_init(rpc, memeater_si->cap_ep, NULL_CAP, memeater_si->lmp_ep);
-    //aos_rpc.channel = si1->channel;
 
     err = lmp_chan_alloc_recv_slot(&rpc->channel);
-    DEBUG_ERR(err, "alloc recv slot");
 
     void recv_number(struct aos_rpc *r, uintptr_t number) {
         debug_printf("recieved number: %ld\n", number);
@@ -174,6 +171,7 @@ __attribute__((unused)) static void spawn_memeater(void)
     aos_rpc_register_handler(rpc, AOS_RPC_TERMINAL_READ, &handler_terminal_read);
     aos_rpc_register_handler(rpc, AOS_RPC_TERMINAL_WRITE, &handler_terminal_write);
 
+    DEBUG_PRINTF("registering recieve\n");
     err = lmp_chan_register_recv(&rpc->channel, get_default_waitset(), MKCLOSURE(&aos_rpc_on_message, &rpc));
     DEBUG_ERR(err, "register recv");
 }
