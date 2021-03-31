@@ -90,6 +90,11 @@ errval_t aos_rpc_init(struct aos_rpc* rpc, struct capref self_ep, struct capref 
 
     aos_rpc_initialize_binding(rpc, AOS_RPC_PROC_SPAWN_REQUEST, 2, 1, AOS_RPC_STR, AOS_RPC_WORD, AOS_RPC_WORD);
 
+    //aos_rpc_initialize_binding(rpc, AOS_RPC_TERMINAL_READ, 0, 1, AOS_RPC_STR);
+    //aos_rpc_initialize_binding(rpc, AOS_RPC_TERMINAL_WRITE, 1, 0, AOS_RPC_STR);
+    aos_rpc_initialize_binding(rpc, AOS_RPC_PUTCHAR, 1, 0, AOS_RPC_WORD);
+    aos_rpc_initialize_binding(rpc, AOS_RPC_GETCHAR, 0, 1, AOS_RPC_WORD);
+
     err = lmp_chan_register_recv(&rpc->channel, get_default_waitset(), MKCLOSURE(&aos_rpc_on_message, rpc));
 
     if (!capref_is_null(rpc->channel.remote_cap)) {
@@ -117,52 +122,9 @@ aos_rpc_send_number(struct aos_rpc *rpc, uintptr_t num) {
 
 
 errval_t
-aos_rpc_send_string(struct aos_rpc *rpc, const char *string) {
-    aos_rpc_call(rpc, AOS_RPC_SEND_STRING, string);
-return SYS_ERR_OK;
-    /*errval_t err = SYS_ERR_OK;
-    size_t size = 0;
-    struct lmp_recv_msg msg = LMP_RECV_MSG_INIT;
-
-    for(;true;++size){if(string[size] == '\0'){break;}}
-    debug_printf("Sending string of size: %d\n",size);
-    err = lmp_chan_send2(&rpc -> channel, LMP_SEND_FLAGS_DEFAULT,NULL_CAP,AOS_RPC_SEND_STRING,size);
-    if(err_is_fail(err)){
-      DEBUG_ERR(err,"Failed to send number");
-    }
-    bool can_receive = lmp_chan_can_recv(&rpc->channel);
-    while(!can_receive){
-      can_receive = lmp_chan_can_recv(&rpc->channel);
-    }
-
-    err = lmp_chan_recv(&rpc -> channel, &msg, &NULL_CAP);
-    if(err_is_fail(err) || msg.words[0] != AOS_RPC_ACK){
-      debug_printf("First word should be ACK, is: %d\n",msg.words[0]);
-      DEBUG_ERR(err,"Could not get receive for sent string size");
-    }
-
-
-    size_t i = 0;
-    // rpc -> channel.endpoint -> k.delivered = false;
-    while(i < size){
-      // debug_printf("Sending string at %c\n",string[i]);
-      err = lmp_chan_send1(&rpc -> channel, LMP_SEND_FLAGS_DEFAULT,NULL_CAP,string[i]);
-      if(err_is_fail(err)){
-        DEBUG_ERR(err,"Failed to send string character at: %d",i);
-      }
-      can_receive = lmp_chan_can_recv(&rpc->channel);
-      while(!can_receive){
-        can_receive = lmp_chan_can_recv(&rpc->channel);
-      }
-      err = lmp_chan_recv(&rpc -> channel, &msg, &NULL_CAP);
-      if(err_is_fail(err) || msg.words[0] != AOS_RPC_ACK){
-        debug_printf("First word should be ACK, is: %d\n",msg.words[0]);
-        DEBUG_ERR(err,"Could not get receive for sent string at i:%\n",i);
-      }
-
-      i++;
-    }
-    return err;*/
+aos_rpc_send_string(struct aos_rpc *rpc, const char *string)
+{
+    return aos_rpc_call(rpc, AOS_RPC_SEND_STRING, string);
 }
 
 
@@ -172,50 +134,25 @@ aos_rpc_get_ram_cap(struct aos_rpc *rpc, size_t bytes, size_t alignment,
                     struct capref *ret_cap, size_t *ret_bytes) {
     size_t _rs = 0;
     return aos_rpc_call(rpc, AOS_RPC_REQUEST_RAM, bytes, alignment, ret_cap, ret_bytes ? : &_rs);
-
-    // TODO: implement functionality to request a RAM capability over the
-    // given channel and wait until it is delivered.
-    /*errval_t err;
-
-    err = lmp_chan_alloc_recv_slot(&rpc->channel);
-    ON_ERR_RETURN(err);
-
-    debug_printf("senmding request\n");
-    err = lmp_chan_send3(&rpc->channel, LMP_SEND_FLAGS_DEFAULT, NULL_CAP, AOS_RPC_REQUEST_RAM, bytes, alignment);
-    err = lmp_chan_send3(&rpc->channel, LMP_SEND_FLAGS_DEFAULT, NULL_CAP, AOS_RPC_RAM_REQUEST, bytes, alignment);
-    if(err_is_fail(err)) {
-        DEBUG_ERR(err, "failed to call lmp_chan_send");
-    }
-
-    bool can_receive = lmp_chan_can_recv(&rpc->channel);
-    while(!can_receive) {
-        can_receive = lmp_chan_can_recv(&rpc->channel);
-    }
-    struct lmp_recv_msg msg = LMP_RECV_MSG_INIT;
-    err = lmp_chan_recv(&rpc->channel, &msg, ret_cap);
-
-    if(err_is_fail(err) || msg.words[0] != AOS_RPC_RAM_SEND){
-        DEBUG_ERR(err, "did not receive ram cap");
-        return err;
-    }
-
-    return SYS_ERR_OK;*/
 }
 
-
 errval_t
-aos_rpc_serial_getchar(struct aos_rpc *rpc, char *retc) {
-    // TODO implement functionality to request a character from
-    // the serial driver.
-    return SYS_ERR_OK;
-    /*errval_t err = SYS_ERR_OK;
-    if (!retc) { // if retcap NULL was given, just return OK
-        return err;
-    }
+aos_rpc_serial_getchar(struct aos_rpc *rpc, char *retc)
+{
+    return aos_rpc_call(rpc, AOS_RPC_GETCHAR, &retc);
+}
 
-    err = lmp_chan_send1(&rpc -> channel, LMP_SEND_FLAGS_DEFAULT,NULL_CAP,AOS_RPC_GETCHAR);
+errval_t aos_rpc_get_terminal_input(struct aos_rpc *rpc, char* buf, size_t len)
+{
+    return aos_rpc_call(rpc, AOS_RPC_TERMINAL_READ, &buf);
+}
+    /*
+    errval_t err = SYS_ERR_OK;
+
+    err = lmp_chan_send1(&rpc->channel, LMP_SEND_FLAGS_DEFAULT, NULL_CAP,
+                         AOS_RPC_SET_READ);
     if (err_is_fail(err)) {
-        DEBUG_ERR(err,"Failed to send character to serial port");
+        DEBUG_ERR(err, "Failed to send RPC get read to init");
     }
 
     while (!lmp_chan_can_recv(&rpc->channel))
@@ -224,77 +161,48 @@ aos_rpc_serial_getchar(struct aos_rpc *rpc, char *retc) {
     struct lmp_recv_msg msg = LMP_RECV_MSG_INIT;
     err = lmp_chan_recv(&rpc->channel, &msg, &NULL_CAP);
 
-    if (err_is_fail(err) || msg.words[0] != AOS_RPC_STRING) {
-        DEBUG_ERR(err, "getchar did not receive a string as response");
+    if (err_is_fail(err) || msg.words[0] != AOS_RPC_ACK) {
+        DEBUG_ERR(err, "getchar did not receive a ack for read lock");
         return err;
     }
 
-    *retc = msg.words[1];
 
-    return err;*/
-}
-
-errval_t aos_rpc_get_terminal_input(struct aos_rpc *rpc, char* buf, size_t len) {
-    return SYS_ERR_OK;
-  /*errval_t err = SYS_ERR_OK;
-
-
-
-  err = lmp_chan_send1(&rpc -> channel, LMP_SEND_FLAGS_DEFAULT,NULL_CAP,AOS_RPC_SET_READ);
-  if (err_is_fail(err)) {
-      DEBUG_ERR(err,"Failed to send RPC get read to init");
-  }
-
-  while (!lmp_chan_can_recv(&rpc->channel))
-      ;
-
-  struct lmp_recv_msg msg = LMP_RECV_MSG_INIT;
-  err = lmp_chan_recv(&rpc->channel, &msg, &NULL_CAP);
-
-  if (err_is_fail(err) || msg.words[0] != AOS_RPC_ACK) {
-      DEBUG_ERR(err, "getchar did not receive a ack for read lock");
-      return err;
-  }
+    int i = 0;
+    while (i < len - 1) {
+        aos_rpc_serial_getchar(rpc, &buf[i]);
+        if (buf[i] == 13) {
+            break;
+        }
+        ++i;
+    }
+    buf[i + 1] = '\0';
 
 
-  int i = 0;
-  while(i < len -1){
-    aos_rpc_serial_getchar(rpc,&buf[i]);
-    if(buf[i] == 13){break;}
-    ++i;
-  }
-  buf[i + 1] = '\0';
+    err = lmp_chan_send1(&rpc->channel, LMP_SEND_FLAGS_DEFAULT, NULL_CAP,
+                         AOS_RPC_FREE_READ);
+    if (err_is_fail(err)) {
+        DEBUG_ERR(err, "Failed to send RPC free read to init");
+    }
 
+    while (!lmp_chan_can_recv(&rpc->channel))
+        ;
 
-  err = lmp_chan_send1(&rpc -> channel, LMP_SEND_FLAGS_DEFAULT,NULL_CAP,AOS_RPC_FREE_READ);
-  if (err_is_fail(err)) {
-      DEBUG_ERR(err,"Failed to send RPC free read to init");
-  }
+    // msg = LMP_RECV_MSG_INIT;
+    err = lmp_chan_recv(&rpc->channel, &msg, &NULL_CAP);
 
-  while (!lmp_chan_can_recv(&rpc->channel))
-      ;
+    if (err_is_fail(err) || msg.words[0] != AOS_RPC_ACK) {
+        DEBUG_ERR(err, "getchar did not receive ack for read free");
+        return err;
+    }
 
-  // msg = LMP_RECV_MSG_INIT;
-  err = lmp_chan_recv(&rpc->channel, &msg, &NULL_CAP);
-
-  if (err_is_fail(err) || msg.words[0] != AOS_RPC_ACK) {
-      DEBUG_ERR(err, "getchar did not receive ack for read free");
-      return err;
-  }
-
-  return err;*/
-}
+    return err;
+}*/
 
 
 errval_t
-aos_rpc_serial_putchar(struct aos_rpc *rpc, char c) {
-
-    errval_t err = SYS_ERR_OK;
-    err = lmp_chan_send2(&rpc -> channel, LMP_SEND_FLAGS_DEFAULT,NULL_CAP,AOS_RPC_PUTCHAR,c);
-    if(err_is_fail(err)){
-      DEBUG_ERR(err,"Failed to send character to serial port");
-    }
-    return err;
+aos_rpc_serial_putchar(struct aos_rpc *rpc, char c)
+{
+    return aos_rpc_call(rpc, AOS_RPC_PUTCHAR, c);
 }
 
 errval_t
@@ -333,10 +241,12 @@ static errval_t aos_rpc_unmarshall_retval_aarch64(
         else if (binding->rets[i] == AOS_RPC_CAPABILITY) {
             *((struct capref*) retptrs[i]) = cap;
         }
+        else if (binding->rets[i] == AOS_RPC_STR) {
+            // TODO: @frnz
+        }
     }
     return SYS_ERR_OK;
 }
-
 
 errval_t aos_rpc_call(struct aos_rpc *rpc, enum aos_rpc_msg_type msg_type, ...)
 {
@@ -390,11 +300,10 @@ errval_t aos_rpc_call(struct aos_rpc *rpc, enum aos_rpc_msg_type msg_type, ...)
         debug_printf("unknown binding\n");
     }
     //debug_printf("waiting for response\n");
-    bool can_receive = false;
-    can_receive = lmp_chan_can_recv(&rpc->channel);
-    while(!can_receive) {
-        can_receive = lmp_chan_can_recv(&rpc->channel);
-    }
+
+    while(!lmp_chan_can_recv(&rpc->channel))
+        ;
+
     //debug_printf("getting response\n");
 
     struct lmp_recv_msg msg = LMP_RECV_MSG_INIT;
@@ -430,7 +339,6 @@ errval_t aos_rpc_initialize_binding(struct aos_rpc *rpc, enum aos_rpc_msg_type b
     fb->n_args = n_args;
     fb->n_rets = n_rets;
     fb->port = binding;
-
 
     int wordargs = 0;
     int capargs = 0;
@@ -472,7 +380,7 @@ static errval_t aos_rpc_unmarshall_simple_aarch64(struct aos_rpc *rpc,
     debug_printf("words: %ld %ld %ld %ld\n", msg->buf.words[0], msg->buf.words[1], msg->buf.words[2], msg->buf.words[3]);
 
     typedef uintptr_t ui;
-    ui arg[8] = { 0 };
+    ui arg[8] = { 0 }; // Upper bound so only writes in register
     ui ret[4] = { 0 };
     struct capref retcap = NULL_CAP;
     errval_t (*h4)(struct aos_rpc*, ui, ui, ui, ui) = handler;
@@ -504,6 +412,9 @@ static errval_t aos_rpc_unmarshall_simple_aarch64(struct aos_rpc *rpc,
         }
         else if (binding->rets[i] == AOS_RPC_CAPABILITY) {
             arg[a_pos++] = (ui) &retcap;
+        }
+        else if (binding->args[i] == AOS_RPC_STR) { // TODO: TEST!
+            arg[a_pos++] = (ui) &ret[ret_pos++];
         }
         else {
             // TODO: error, can't transmit strings or other over simple channels
@@ -570,18 +481,9 @@ void aos_rpc_on_message(void *arg)
         is_response = true;
     }
 
-    // hardcode initial "handshake"
-    /*if (msgtype == AOS_RPC_INITIATE) {
-        rpc->channel.remote_cap = recieved_cap;
-        lmp_chan_send1(&rpc->channel, LMP_SEND_FLAGS_DEFAULT, NULL_CAP, AOS_RPC_ACK);
-        debug_printf("sent handshake response\n");
-        goto on_success;
-    }*/
-
     void *handler = rpc->handlers[msgtype];
     if (handler == NULL) {
-        debug_printf("msgtype: %d no handler set\n");
-        err = LIB_ERR_RPC_NO_HANDLER_SET;
+        err = LIB_ERR_NOT_IMPLEMENTED;
         goto on_error;
     }
 
@@ -617,25 +519,6 @@ on_error:
 struct aos_rpc *aos_rpc_get_init_channel(void)
 {
     return get_init_rpc();
-/*
-    struct capref self_ep_cap = (struct capref){
-      .cnode = cnode_task,
-      .slot = TASKCN_SLOT_SELFEP
-    };
-
-    struct capref init_ep_cap = (struct capref){
-      .cnode = cnode_task,
-      .slot = TASKCN_SLOT_INITEP
-    };
-    lmp_endpoint_init();
-
-    // create and initialize rpc
-    struct aos_rpc* rpc = (struct aos_rpc *) malloc(sizeof(struct aos_rpc));
-    rpc -> channel.local_cap = self_ep_cap; // set required struct members
-    rpc -> channel.remote_cap = init_ep_cap;
-    aos_rpc_init(rpc); // init rpc
-
-    return rpc;*/
 }
 
 /**

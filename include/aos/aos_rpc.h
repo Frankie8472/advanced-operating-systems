@@ -33,6 +33,8 @@ typedef enum aos_rpc_msg_type {
     AOS_RPC_GETCHAR,
     AOS_RPC_SET_READ,
     AOS_RPC_FREE_READ,
+    AOS_RPC_TERMINAL_READ,
+    AOS_RPC_TERMINAL_WRITE,
 } msg_type_t;
 
 
