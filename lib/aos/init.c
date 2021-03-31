@@ -75,11 +75,40 @@ static size_t syscall_terminal_write(const char *buf, size_t len)
 }
 
 __attribute__((__used__))
-static size_t dummy_terminal_read(char *buf, size_t len)
-{
-    debug_printf("Terminal read NYI!\n");
-    return len;
+static size_t syscall_terminal_read(char * buf,size_t len){
+
+  sys_getchar(buf);
+  return 1;
 }
+
+__attribute__((__used__))
+static size_t aos_terminal_write(const char * buf,size_t len){
+  // debug_printf("Terminal write: in aos_terminal_write\n");
+
+  struct aos_rpc * rpc = get_init_rpc();
+  if(len){
+    for(size_t i = 0;i < len;++i){
+      aos_rpc_serial_putchar(rpc,buf[i]);
+    }
+  }
+  return 0;
+}
+
+__attribute__((__used__))
+static size_t aos_terminal_read(char* buf,size_t len){
+    debug_printf("Got to aos_terminal_read\n");
+    struct aos_rpc * rpc = get_init_rpc();
+    errval_t err;
+    err = aos_rpc_serial_getchar(rpc, buf);
+    if(err_is_fail(err)){
+      DEBUG_ERR(err,"Failed get char in aos_terminal_read\n");
+    }
+    return 1;
+}
+
+
+
+
 
 /* Set libc function pointers */
 void barrelfish_libc_glue_init(void)
@@ -88,10 +117,18 @@ void barrelfish_libc_glue_init(void)
     // what we need for that
     // TODO: change these to use the user-space serial driver if possible
     // TODO: set these functions
-    _libc_terminal_read_func = dummy_terminal_read;
-    _libc_terminal_write_func = syscall_terminal_write;
-    _libc_exit_func = libc_exit;
-    _libc_assert_func = libc_assert;
+    if(init_domain){
+      _libc_terminal_read_func = syscall_terminal_read;
+      _libc_terminal_write_func = syscall_terminal_write;
+      _libc_exit_func = libc_exit;
+      _libc_assert_func = libc_assert;
+    }else{
+      _libc_terminal_read_func = aos_terminal_read;
+      _libc_terminal_write_func = aos_terminal_write;
+      _libc_exit_func = libc_exit;
+      _libc_assert_func = libc_assert;
+    }
+
     /* morecore func is setup by morecore_init() */
 
     // XXX: set a static buffer for stdout

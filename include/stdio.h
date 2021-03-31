@@ -487,7 +487,7 @@ extern int __isthreaded;
 #define	getc(fp)	(!__isthreaded ? __sgetc(fp) : (getc)(fp))
 #define	putc(x, fp)	(!__isthreaded ? __sputc(x, fp) : (putc)(x, fp))
 
-#define	getchar()	getc(stdin)
+	#define	getchar()	getc(stdin)
 #define	putchar(x)	putc(x, stdout)
 
 #if __BSD_VISIBLE
