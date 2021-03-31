@@ -27,7 +27,12 @@
 #include <spawn/spawn.h>
 #include "mem_alloc.h"
 
-
+struct terminal_state{
+  bool reading;
+  char to_put[1024];
+  size_t index;
+};
+struct terminal_state *terminal_state;
 struct bootinfo *bi;
 
 coreid_t my_core_id;
@@ -338,30 +343,40 @@ __attribute__((unused)) static void init_handler(void *arg)
         }
         case AOS_RPC_PUTCHAR: {
             char c = (char) msg.words[1];
+            if(terminal_state -> reading){
+              terminal_state -> to_put[terminal_state -> index] = c;
+              terminal_state -> index++;
+              if(terminal_state -> index >= 1024){
+                DEBUG_ERR(err,"PUTCHAR buffer overflow");
+              }
+            }
             putchar(c);
             break;
         }
 
         case AOS_RPC_GETCHAR: {
-            // char c;
-            // c = getchar();
-            //
-            //
-            //
-            // debug_printf("Got char: %c\n",c);
-            // if (err_is_fail(err)) {
-            //     DEBUG_ERR(err, "readchar error\n");
-            // }
-            // char buffer[1024];
-            // for(int i = 0; i < )
-            char c[1];
-            sys_getchar(c);
 
-            // /* debug_printf("=================== we read sometihng: %c\n", c); */
-
-            // send gotten char
-            err = lmp_chan_send2(channel, LMP_SEND_FLAGS_DEFAULT, NULL_CAP, AOS_RPC_STRING, c[0]);
+            // char c[1];
+            // sys_getchar(c);
+            char c = getchar();
+            err = lmp_chan_send2(channel, LMP_SEND_FLAGS_DEFAULT, NULL_CAP, AOS_RPC_STRING, c);
             break;
+        }
+
+        case AOS_RPC_SET_READ: {
+          while(terminal_state -> reading == true){}
+          terminal_state -> reading = true;
+          err = lmp_chan_send1(channel, LMP_SEND_FLAGS_DEFAULT, NULL_CAP, AOS_RPC_ACK);
+          break;
+        }
+        case AOS_RPC_FREE_READ: {
+          terminal_state -> reading = false;
+          err = lmp_chan_send1(channel, LMP_SEND_FLAGS_DEFAULT, NULL_CAP, AOS_RPC_ACK);
+
+          for(int i = 0; i < terminal_state -> index;++i){
+            putchar(terminal_state-> to_put[i]);
+          }
+          terminal_state -> index = 0;
         }
         default: {
             break;
@@ -423,14 +438,29 @@ static int bsp_main(int argc, char *argv[])
     bi = (struct bootinfo *)strtol(argv[1], NULL, 10);
     assert(bi);
 
+
+
     err = initialize_ram_alloc();
     if (err_is_fail(err)) {
         DEBUG_ERR(err, "initialize_ram_alloc");
     }
 
+    struct terminal_state ts;
+    ts.reading = false;
+    ts.index = 0;
+    terminal_state = &ts;
     // TODO: initialize mem allocator, vspace management here
 
     // test();
+    // debug_printf("input:\n");
+
+    // char b = getchar();
+    // debug_printf("Character from getchar = %c\n",b);
+    // char a = getchar();
+    //
+    // debug_printf("Character from getchar = %c\n",a);
+
+
     spawn_memeater();
 
     // Grading

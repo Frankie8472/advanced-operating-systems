@@ -35,6 +35,7 @@
 /// Are we the init domain (and thus need to take some special paths)?
 static bool init_domain;
 
+
 extern size_t (*_libc_terminal_read_func)(char *, size_t);
 extern size_t (*_libc_terminal_write_func)(const char *, size_t);
 extern void (*_libc_exit_func)(int);
@@ -75,6 +76,8 @@ static size_t syscall_terminal_write(const char *buf, size_t len)
 }
 
 
+
+
 // TODO
 // __attribute__((__used__))
 // static size_t syscall_terminal_read(char* buf,size_t len){
@@ -91,8 +94,14 @@ static size_t syscall_terminal_write(const char *buf, size_t len)
 //     return *buf;
 // }
 __attribute__((__used__))
-static size_t dummy_read(char * buf,size_t len){
-  return 0;
+static size_t syscall_terminal_read(char * buf,size_t len){
+
+  // for(int i =0; i < len;i++){
+  //   sys_getchar(&buf[i]);
+  // }
+  // return len;
+  sys_getchar(buf);
+  return 1;
 }
 
 __attribute__((__used__))
@@ -141,7 +150,7 @@ void barrelfish_libc_glue_init(void)
     // TODO: change these to use the user-space serial driver if possible
     // TODO: set these functions
     if(init_domain){
-      _libc_terminal_read_func = dummy_read;
+      _libc_terminal_read_func = syscall_terminal_read;
       _libc_terminal_write_func = syscall_terminal_write;
       _libc_exit_func = libc_exit;
       _libc_assert_func = libc_assert;

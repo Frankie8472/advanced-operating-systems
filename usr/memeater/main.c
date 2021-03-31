@@ -198,24 +198,14 @@ int main(int argc, char *argv[])
     printf("Hello world using terminal service\n");
 
 
-    printf("requesting char\n");
-    char c[1]; c[0] = 'A';
-    char buff[10];
-    int i = 0;
-    while(c[0] != 13 && i < 9){
-      // debug_printf("Loop iteration: %d\n",i);
-      aos_rpc_serial_getchar(init_rpc,c);
-      buff[i] = c[0];
-      i++;
-    }
-    buff[i] = '\0';
+    char command[1024];
+    // printf("%s\n", );
+    debug_printf("Testing terminal read:\n");
+    aos_rpc_get_terminal_input(init_rpc,command,1024);
+    
 
+    debug_printf("Got terminal command : %s\n",command);
 
-    printf("Received string :%s\n",buff);
-
-    // c = getchar();
-
-    // printf("the char that arrived is: %c\n", c);
 
     debug_printf("memeater terminated....\n");
     return EXIT_SUCCESS;
