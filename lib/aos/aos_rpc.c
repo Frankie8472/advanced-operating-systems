@@ -90,8 +90,8 @@ errval_t aos_rpc_init(struct aos_rpc* rpc, struct capref self_ep, struct capref 
 
     aos_rpc_initialize_binding(rpc, AOS_RPC_PROC_SPAWN_REQUEST, 2, 1, AOS_RPC_STR, AOS_RPC_WORD, AOS_RPC_WORD);
 
-    //aos_rpc_initialize_binding(rpc, AOS_RPC_TERMINAL_READ, 0, 1, AOS_RPC_STR);
-    //aos_rpc_initialize_binding(rpc, AOS_RPC_TERMINAL_WRITE, 1, 0, AOS_RPC_STR);
+    aos_rpc_initialize_binding(rpc, AOS_RPC_TERMINAL_READ, 0, 1, AOS_RPC_STR);
+    aos_rpc_initialize_binding(rpc, AOS_RPC_TERMINAL_WRITE, 1, 0, AOS_RPC_STR);
     aos_rpc_initialize_binding(rpc, AOS_RPC_PUTCHAR, 1, 0, AOS_RPC_WORD);
     aos_rpc_initialize_binding(rpc, AOS_RPC_GETCHAR, 0, 1, AOS_RPC_WORD);
 
@@ -118,16 +118,11 @@ aos_rpc_send_number(struct aos_rpc *rpc, uintptr_t num) {
     return aos_rpc_call(rpc, AOS_RPC_SEND_NUMBER, num);
 }
 
-
-
-
 errval_t
 aos_rpc_send_string(struct aos_rpc *rpc, const char *string)
 {
     return aos_rpc_call(rpc, AOS_RPC_SEND_STRING, string);
 }
-
-
 
 errval_t
 aos_rpc_get_ram_cap(struct aos_rpc *rpc, size_t bytes, size_t alignment,
@@ -146,58 +141,6 @@ errval_t aos_rpc_get_terminal_input(struct aos_rpc *rpc, char* buf, size_t len)
 {
     return aos_rpc_call(rpc, AOS_RPC_TERMINAL_READ, &buf);
 }
-    /*
-    errval_t err = SYS_ERR_OK;
-
-    err = lmp_chan_send1(&rpc->channel, LMP_SEND_FLAGS_DEFAULT, NULL_CAP,
-                         AOS_RPC_SET_READ);
-    if (err_is_fail(err)) {
-        DEBUG_ERR(err, "Failed to send RPC get read to init");
-    }
-
-    while (!lmp_chan_can_recv(&rpc->channel))
-        ;
-
-    struct lmp_recv_msg msg = LMP_RECV_MSG_INIT;
-    err = lmp_chan_recv(&rpc->channel, &msg, &NULL_CAP);
-
-    if (err_is_fail(err) || msg.words[0] != AOS_RPC_ACK) {
-        DEBUG_ERR(err, "getchar did not receive a ack for read lock");
-        return err;
-    }
-
-
-    int i = 0;
-    while (i < len - 1) {
-        aos_rpc_serial_getchar(rpc, &buf[i]);
-        if (buf[i] == 13) {
-            break;
-        }
-        ++i;
-    }
-    buf[i + 1] = '\0';
-
-
-    err = lmp_chan_send1(&rpc->channel, LMP_SEND_FLAGS_DEFAULT, NULL_CAP,
-                         AOS_RPC_FREE_READ);
-    if (err_is_fail(err)) {
-        DEBUG_ERR(err, "Failed to send RPC free read to init");
-    }
-
-    while (!lmp_chan_can_recv(&rpc->channel))
-        ;
-
-    // msg = LMP_RECV_MSG_INIT;
-    err = lmp_chan_recv(&rpc->channel, &msg, &NULL_CAP);
-
-    if (err_is_fail(err) || msg.words[0] != AOS_RPC_ACK) {
-        DEBUG_ERR(err, "getchar did not receive ack for read free");
-        return err;
-    }
-
-    return err;
-}*/
-
 
 errval_t
 aos_rpc_serial_putchar(struct aos_rpc *rpc, char c)

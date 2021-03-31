@@ -45,7 +45,67 @@ struct bootinfo *bi;
 
 coreid_t my_core_id;
 
+static void handler_putchar(struct aos_rpc *r, uintptr_t c) {
+    putchar(c);
+}
 
+static void handler_getchar(struct aos_rpc *r, uintptr_t *c){
+    *c = getchar();
+}
+
+static void handler_terminal_write(struct aos_rpc *r, uintptr_t *c){
+
+}
+
+static void handler_terminal_read(struct aos_rpc *r, uintptr_t *c){
+    errval_t err = SYS_ERR_OK;
+
+    err = lmp_chan_send1(&rpc->channel, LMP_SEND_FLAGS_DEFAULT, NULL_CAP,
+                         AOS_RPC_SET_READ);
+    if (err_is_fail(err)) {
+        DEBUG_ERR(err, "Failed to send RPC get read to init");
+    }
+
+    while (!lmp_chan_can_recv(&rpc->channel))
+        ;
+
+    struct lmp_recv_msg msg = LMP_RECV_MSG_INIT;
+    err = lmp_chan_recv(&rpc->channel, &msg, &NULL_CAP);
+
+    if (err_is_fail(err) || msg.words[0] != AOS_RPC_ACK) {
+        DEBUG_ERR(err, "getchar did not receive a ack for read lock");
+        return err;
+    }
+
+
+    int i = 0;
+    while (i < len - 1) {
+        aos_rpc_serial_getchar(rpc, &buf[i]);
+        if (buf[i] == 13) {
+            break;
+        }
+        ++i;
+    }
+    buf[i + 1] = '\0';
+
+
+    err = lmp_chan_send1(&rpc->channel, LMP_SEND_FLAGS_DEFAULT, NULL_CAP,
+                         AOS_RPC_FREE_READ);
+    if (err_is_fail(err)) {
+        DEBUG_ERR(err, "Failed to send RPC free read to init");
+    }
+
+    while (!lmp_chan_can_recv(&rpc->channel))
+        ;
+
+    // msg = LMP_RECV_MSG_INIT;
+    err = lmp_chan_recv(&rpc->channel, &msg, &NULL_CAP);
+
+    if (err_is_fail(err) || msg.words[0] != AOS_RPC_ACK) {
+        DEBUG_ERR(err, "getchar did not receive ack for read free");
+        return err;
+    }
+}
 
 static void req_ram(struct aos_rpc *r, uintptr_t size, uintptr_t alignment, struct capref *cap, uintptr_t *ret_size) {
     ram_alloc_aligned(cap, size, alignment);
@@ -108,6 +168,11 @@ __attribute__((unused)) static void spawn_memeater(void)
     aos_rpc_register_handler(rpc, AOS_RPC_REQUEST_RAM, &req_ram);
 
     aos_rpc_register_handler(rpc, AOS_RPC_PROC_SPAWN_REQUEST, &spawn_handler);
+
+    aos_rpc_register_handler(rpc, AOS_RPC_PUTCHAR, &handler_putchar);
+    aos_rpc_register_handler(rpc, AOS_RPC_GETCHAR, &handler_getchar);
+    aos_rpc_register_handler(rpc, AOS_RPC_TERMINAL_READ, &handler_terminal_read);
+    aos_rpc_register_handler(rpc, AOS_RPC_TERMINAL_WRITE, &handler_terminal_write);
 
     err = lmp_chan_register_recv(&rpc->channel, get_default_waitset(), MKCLOSURE(&aos_rpc_on_message, &rpc));
     DEBUG_ERR(err, "register recv");
