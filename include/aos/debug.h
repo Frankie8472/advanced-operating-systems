@@ -73,6 +73,33 @@ void user_panic_fn(const char *file, const char *func, int line,
 } while (0)
 
 /**
+ * \brief Initializes cycle measurement variables
+ */
+#define MEASURE_INIT(void) do {                 \
+    printf("==> Init cycle measurement vars");  \
+    uint64_t start, end;                        \
+    char *test_name;                            \
+} while (0)
+
+/**
+ * \brief Start cycle measurement
+ */
+#define MEASURE_START(str) do {                                 \
+    test_name = str;                                            \
+    printf("==> Start cycle measurement for %s", test_name);    \
+    start = rdtsc();                                            \
+} while (0)
+
+/**
+ * \brief End cycle measurement
+ */
+#define MEASURE_END(void) do {                                          \
+    end = rdtsc();                                                      \
+    printf("==> End cycle measurement for %s", test_name)) start, end;  \
+    printf("==> Duration: %lu cycles", end - start));                          \
+} while (0)
+
+/**
  * \brief Null ptr check with err return
  */
 #define NULLPTR_CHECK(ptr, err) do {                    \
