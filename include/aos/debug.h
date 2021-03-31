@@ -73,30 +73,19 @@ void user_panic_fn(const char *file, const char *func, int line,
 } while (0)
 
 /**
- * \brief Initializes cycle measurement variables
- */
-#define MEASURE_INIT(void) do {                 \
-    printf("==> Init cycle measurement vars");  \
-    uint64_t start, end;                        \
-    char *test_name;                            \
-} while (0)
-
-/**
  * \brief Start cycle measurement
  */
-#define MEASURE_START(str) do {                                 \
-    test_name = str;                                            \
-    printf("==> Start cycle measurement for %s", test_name);    \
-    start = rdtsc();                                            \
+#define MEASURE_START(cnt, str...) do {                        \
+    debug_printf("==> Start cycle measurement for *%s*\n", str);    \
+    cnt = rdtsc();                                          \
 } while (0)
 
 /**
  * \brief End cycle measurement
  */
-#define MEASURE_END(void) do {                                          \
-    end = rdtsc();                                                      \
-    printf("==> End cycle measurement for %s", test_name)) start, end;  \
-    printf("==> Duration: %lu cycles", end - start));                          \
+#define MEASURE_END(cnt) do {                                                                       \
+    cnt = rdtsc() - cnt;                                                                            \
+    debug_printf("==> End cycle measurement. Duration: %lu cycles and %.2f us\n", cnt, (cnt/1200.0));   \
 } while (0)
 
 /**
