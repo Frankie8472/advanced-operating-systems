@@ -343,19 +343,24 @@ __attribute__((unused)) static void init_handler(void *arg)
         }
 
         case AOS_RPC_GETCHAR: {
-            char c;
-            c = getchar();
+            // char c;
+            // c = getchar();
+            //
+            //
+            //
+            // debug_printf("Got char: %c\n",c);
+            // if (err_is_fail(err)) {
+            //     DEBUG_ERR(err, "readchar error\n");
+            // }
+            // char buffer[1024];
+            // for(int i = 0; i < )
+            char c[1];
+            sys_getchar(c);
 
-
-
-            debug_printf("Got char: %c\n",c);
-            if (err_is_fail(err)) {
-                DEBUG_ERR(err, "readchar error\n");
-            }
-            /* debug_printf("=================== we read sometihng: %c\n", c); */
+            // /* debug_printf("=================== we read sometihng: %c\n", c); */
 
             // send gotten char
-            err = lmp_chan_send2(channel, LMP_SEND_FLAGS_DEFAULT, NULL_CAP, AOS_RPC_STRING, c);
+            err = lmp_chan_send2(channel, LMP_SEND_FLAGS_DEFAULT, NULL_CAP, AOS_RPC_STRING, c[0]);
             break;
         }
         default: {
@@ -478,6 +483,20 @@ int main(int argc, char *argv[])
     printf("\n");
     fflush(stdout);
 
+
+    // printf("requesting char\n");
+    // char c = 'A';
+    // char buff[10];
+    // int i = 0;
+    // while(c != 13 && i < 9){
+    //   debug_printf("Loop iteration: %d\n",i);
+    //   c = getchar();
+    //   buff[i] = c;
+    //   i++;
+    // }
+    // buff[i] = '\0';
+    //
+    // printf("Received string :%s\n",buff);
 
     if (my_core_id == 0)
         return bsp_main(argc, argv);

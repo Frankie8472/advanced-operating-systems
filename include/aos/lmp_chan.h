@@ -41,6 +41,8 @@ struct lmp_chan {
     } connstate;
 
     size_t buflen_words;    ///< requested LMP buffer length, in words
+
+    struct lmp_chan *next_read;
 };
 
 void lmp_chan_init(struct lmp_chan *lc);

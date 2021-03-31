@@ -76,21 +76,24 @@ static size_t syscall_terminal_write(const char *buf, size_t len)
 
 
 // TODO
+// __attribute__((__used__))
+// static size_t syscall_terminal_read(char* buf,size_t len){
+//     debug_printf("read syscall with len %d\n", len);
+//     // sys_getchar(buf);
+//     // return *buf;
+//     for(int i = 0;i < len; ++i){
+//       sys_getchar(&buf[i]);
+//       debug_printf("Char is: %d\n",buf[i]);
+//       if(buf[i] == 13){//13 for enter
+//         break;
+//       }
+//     }
+//     return *buf;
+// }
 __attribute__((__used__))
-static size_t syscall_terminal_read(char* buf,size_t len){
-    debug_printf("read syscall with len %d\n", len);
-    sys_getchar(buf);
-    return *buf;
-    // for(int i = 0;i < len; ++i){
-    //   sys_getchar(&buf[i]);
-    //   debug_printf("Char is: %d\n",buf[i]);
-    //   if(buf[i] == 13){//13 for enter
-    //     break;
-    //   }
-    // }
-    // return 0;
+static size_t dummy_read(char * buf,size_t len){
+  return 0;
 }
-
 
 __attribute__((__used__))
 static size_t aos_terminal_write(const char * buf,size_t len){
@@ -138,7 +141,7 @@ void barrelfish_libc_glue_init(void)
     // TODO: change these to use the user-space serial driver if possible
     // TODO: set these functions
     if(init_domain){
-      _libc_terminal_read_func = syscall_terminal_read;
+      _libc_terminal_read_func = dummy_read;
       _libc_terminal_write_func = syscall_terminal_write;
       _libc_exit_func = libc_exit;
       _libc_assert_func = libc_assert;

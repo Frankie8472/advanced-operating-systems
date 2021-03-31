@@ -161,7 +161,7 @@ int main(int argc, char *argv[])
 
     // debug_printf("memeater started....\n");
     //
-    // init_rpc = get_init_rpc();
+    init_rpc = get_init_rpc();
     // if (!init_rpc) {
     //     USER_PANIC_ERR(err, "init RPC channel NULL?\n");
     // }
@@ -199,19 +199,21 @@ int main(int argc, char *argv[])
 
 
     printf("requesting char\n");
-    char c = 'A';
+    char c[1]; c[0] = 'A';
     char buff[10];
     int i = 0;
-    while(c != 13 && i < 9){
-      debug_printf("Loop iteration: %d\n",i);
-      c = getchar();
-      buff[i] = c;
+    while(c[0] != 13 && i < 9){
+      // debug_printf("Loop iteration: %d\n",i);
+      aos_rpc_serial_getchar(init_rpc,c);
+      buff[i] = c[0];
       i++;
     }
     buff[i] = '\0';
 
+
     printf("Received string :%s\n",buff);
 
+    // c = getchar();
 
     // printf("the char that arrived is: %c\n", c);
 
