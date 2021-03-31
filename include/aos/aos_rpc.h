@@ -20,19 +20,17 @@
 #include <aos/aos.h>
 
 #define AOS_RPC_RETURN_BIT 0x1000000
+#define AOS_RPC_MAX_MSG_TYPES 32
 
 typedef enum aos_rpc_msg_type {
     AOS_RPC_INITIATE = 1,
-    AOS_RPC_ACK, //do we need this
     AOS_RPC_SEND_NUMBER,
     AOS_RPC_SEND_STRING,
     AOS_RPC_REQUEST_RAM,
-    AOS_RPC_RAM_SEND,
-    AOS_RPC_RAM_ALLOC_FAIL,
+    AOS_RPC_SETUP_PAGE,
     AOS_RPC_PROC_SPAWN_REQUEST,
 } msg_type_t;
 
-#define AOS_RPC_MAX_MSG_TYPES 32
 
 
 enum aos_rpc_argument_type {
@@ -43,21 +41,15 @@ enum aos_rpc_argument_type {
     AOS_RPC_CAPABILITY
 };
 
-enum aos_rpc_binding_type {
-    AOS_RPC_SIMPLE_BINDING  = 0x0,  ///< all parameter will be passed in one lmp_chan_send invocation
-    AOS_RPC_CHOPPED_BINDING = 0x1,  ///< parameters will be split across multiple lmp_chan_send invocations
-    AOS_RPC_MEMORY_BINDING  = 0x2,  ///< parameters will be written into a specifically allocated page
-    AOS_RPC_CHOPMEM_BINDING = 0x3,  ///< parameters will be split over multiple written into a specifically allocated page
-};
-
-
 struct aos_rpc_function_binding
 {
     enum aos_rpc_msg_type           port;
-    bool                            calling_simple;
-    bool                            returning_simple;
     uint16_t                        n_args;
     uint16_t                        n_rets;
+    void                            *buf_page;
+    void                            *buf_page_remote;
+    bool                            calling_simple;
+    bool                            returning_simple;
     enum aos_rpc_argument_type      args[AOS_RPC_MAX_FUNCTION_ARGUMENTS];
     enum aos_rpc_argument_type      rets[AOS_RPC_MAX_FUNCTION_ARGUMENTS];
 };
