@@ -218,7 +218,7 @@ __attribute__((unused)) static void init_handler(void *arg)
     }
     // start switch
     switch (msg.words[0]) {
-        case AOS_RPC_INIT: {
+        case AOS_RPC_INITIATE: {
             // CASE INIT
             if (!capref_is_null(cap)) {
                 debug_printf("received capability\n");
@@ -238,7 +238,7 @@ __attribute__((unused)) static void init_handler(void *arg)
             // END case INIT
             break;
         }
-        case AOS_RPC_RAM_REQUEST: {
+        case AOS_RPC_REQUEST_RAM: {
             size_t size = msg.words[1];
             size_t alignment = msg.words[2];
             struct capref ramcap;
@@ -252,7 +252,7 @@ __attribute__((unused)) static void init_handler(void *arg)
             }
             break;
         }
-        case AOS_RPC_NUMBER: {
+        case AOS_RPC_SEND_NUMBER: {
             // CASE number
             // int num = msg.words[1];
             debug_printf("Received number: %d\n", msg.words[1]);
@@ -263,7 +263,7 @@ __attribute__((unused)) static void init_handler(void *arg)
             break;
             // END CASE NUMBER
         }
-        case AOS_RPC_STRING: {
+        case AOS_RPC_SEND_STRING: {
             size_t size = msg.words[1];
 
             debug_printf("Expecting string of size: %d\n", msg.words[1]);
@@ -362,12 +362,24 @@ __attribute__((unused)) static void spawn_memeater(void)
     // struct cnoderef cnode;
     // cnode_create_l2(&si1->channel.endpoint->recv_slot, &cnode);
     // si1->channel.endpoint->k.recv_cspc = get_cap_addr();
+    static struct aos_rpc aos_rpc;
+    aos_rpc_init(&aos_rpc);
+    aos_rpc.channel = si1->channel;
 
-    err = lmp_chan_alloc_recv_slot(&si1->channel);
+    err = lmp_chan_alloc_recv_slot(&aos_rpc.channel);
     DEBUG_ERR(err, "alloc recv slot");
 
-    err = lmp_chan_register_recv(&si1->channel, get_default_waitset(),
-                                 MKCLOSURE(&init_handler, &si1->channel));
+    uintptr_t hand(struct capref cap) {
+        aos_rpc.channel.remote_cap = cap;
+        return 0;
+    }
+
+    aos_rpc_initialize_binding(&aos_rpc, AOS_RPC_INITIATE, 1, 0, AOS_RPC_CAPABILITY);
+    aos_rpc_register_handler(&aos_rpc, AOS_RPC_INITIATE, &hand);
+
+    err = lmp_chan_register_recv(&aos_rpc.channel, get_default_waitset(), MKCLOSURE(&aos_rpc_on_message, &aos_rpc));
+    //err = lmp_chan_register_recv(&si1->channel, get_default_waitset(),
+    //                             MKCLOSURE(&init_handler, &si1->channel));
     DEBUG_ERR(err, "register recv");
     /*while(!can_receive){
       can_receive = lmp_chan_can_recv(&si1 -> channel);
