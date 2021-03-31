@@ -83,9 +83,17 @@ void user_panic_fn(const char *file, const char *func, int line,
 /**
  * \brief End cycle measurement
  */
-#define MEASURE_END(cnt) do {                                                                       \
-    cnt = rdtsc() - cnt;                                                                            \
-    debug_printf("==> End cycle measurement. Duration: %lu cycles and %.2f us\n", cnt, (cnt/1200.0));   \
+#define MEASURE_END(cnt) do {\
+    cnt = rdtsc() - cnt;\
+    if (cnt/1200000000.0 > 0.5) {\
+        debug_printf("==> End cycle measurement. Duration: %lu cycles and %.2f s\n", cnt, (cnt/1200000000.0));\
+    } else if (cnt/1200000.0 > 0.5){\
+        debug_printf("==> End cycle measurement. Duration: %lu cycles and %.2f ms\n", cnt, (cnt/1200000.0));\
+    } else if (cnt/1200.0 > 0.5) {\
+        debug_printf("==> End cycle measurement. Duration: %lu cycles and %.2f us\n", cnt, (cnt/1200.0));\
+    } else {\
+        debug_printf("==> End cycle measurement. Duration: %lu cycles and %.2f ns\n", cnt, (cnt/1.2));\
+    }\
 } while (0)
 
 /**
