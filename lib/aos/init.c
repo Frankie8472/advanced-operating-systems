@@ -91,7 +91,7 @@ static size_t aos_terminal_write(const char * buf,size_t len){
       aos_rpc_serial_putchar(rpc,buf[i]);
     }
   }
-  return 0;
+  return len;
 }
 
 __attribute__((__used__))
