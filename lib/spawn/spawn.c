@@ -412,8 +412,12 @@ errval_t spawn_load_by_name(char *binary_name, struct spawninfo *si,
     //TODO: is  bi correctly initialized by the init/usr/main.c
     struct mem_region* mem_region = multiboot_find_module(bi, binary_name);
 
+    if (mem_region == NULL) {
+        return SPAWN_ERR_MAP_MODULE;
+    }
+
     //this mem_region should be of type module
-    assert(mem_region != NULL && mem_region->mr_type == RegionType_Module);
+    assert(mem_region->mr_type == RegionType_Module);
     struct capability cap;
     struct capref child_frame = {
         .cnode = cnode_module,
