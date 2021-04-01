@@ -40,7 +40,7 @@ static errval_t setup_buf_page(struct aos_rpc *rpc, enum aos_rpc_msg_type msg_ty
 
     err = paging_map_frame_complete(get_current_paging_state(), &rpc->bindings[msg_type].buf_page, frame, NULL, NULL);
     //debug_printf("new buf_ptr %p\n", &rpc->bindings[msg_type].buf_page);
-    DEBUG_ERR(err, "asasasa");
+    //DEBUG_ERR(err, "asasasa");
     ON_ERR_PUSH_RETURN(err, LIB_ERR_VSPACE_MAP);
 
     //debug_printf("seting up the buffer!\n");
@@ -90,10 +90,10 @@ errval_t aos_rpc_init(struct aos_rpc* rpc, struct capref self_ep, struct capref 
 
     aos_rpc_initialize_binding(rpc, AOS_RPC_PROC_SPAWN_REQUEST, 2, 1, AOS_RPC_STR, AOS_RPC_WORD, AOS_RPC_WORD);
 
-    aos_rpc_initialize_binding(rpc, AOS_RPC_TERMINAL_READ, 0, 1, AOS_RPC_STR);
-    aos_rpc_initialize_binding(rpc, AOS_RPC_TERMINAL_WRITE, 1, 0, AOS_RPC_STR);
     aos_rpc_initialize_binding(rpc, AOS_RPC_PUTCHAR, 1, 0, AOS_RPC_WORD);
     aos_rpc_initialize_binding(rpc, AOS_RPC_GETCHAR, 0, 1, AOS_RPC_WORD);
+
+    aos_rpc_initialize_binding(rpc, AOS_RPC_ROUNDTRIP, 0, 0);
 
     err = lmp_chan_register_recv(&rpc->channel, get_default_waitset(), MKCLOSURE(&aos_rpc_on_message, rpc));
 
@@ -253,8 +253,11 @@ errval_t aos_rpc_call(struct aos_rpc *rpc, enum aos_rpc_msg_type msg_type, ...)
     }
     //debug_printf("waiting for response\n");
 
-    while(!lmp_chan_can_recv(&rpc->channel))
-        ;
+    while(!lmp_chan_can_recv(&rpc->channel)) {
+        //dispatcher_handle_t d = disp_disable();
+        //sys_yield(CPTR_NULL);
+        //disp_enable(d);
+    }
 
     //debug_printf("getting response\n");
 

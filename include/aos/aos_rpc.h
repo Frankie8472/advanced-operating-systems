@@ -40,8 +40,7 @@ typedef enum aos_rpc_msg_type {
     AOS_RPC_GETCHAR,
     AOS_RPC_SET_READ,
     AOS_RPC_FREE_READ,
-    AOS_RPC_TERMINAL_READ,
-    AOS_RPC_TERMINAL_WRITE,
+    AOS_RPC_ROUNDTRIP, ///< rpc call that does nothing, for benchmarking
 } msg_type_t;
 
 
