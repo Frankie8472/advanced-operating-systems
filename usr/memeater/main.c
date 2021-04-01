@@ -221,6 +221,10 @@ int main(int argc, char *argv[])
     aos_rpc_process_spawn(init_rpc, "hello", disp_get_current_core_id(), &pid);
     debug_printf("hello started with pid %d\n", pid);
 
+    domainid_t perftest;
+    aos_rpc_process_spawn(init_rpc, "performance_tester", disp_get_current_core_id(), &perftest);
+    debug_printf("performance tester started with pid %d\n", perftest);
+
     debug_printf("memeater terminated....\n");
     return EXIT_SUCCESS;
 }

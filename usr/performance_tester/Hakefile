@@ -1,0 +1,8 @@
+
+
+[ build application
+  {
+    target = "performance_tester",
+    cFiles = [ "main.c" ]
+  }
+]
