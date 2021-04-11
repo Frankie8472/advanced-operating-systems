@@ -167,7 +167,13 @@ static int bsp_main(int argc, char *argv[])
     // debug_printf("Character from getchar = %c\n",a);
 
 
-    spawn_memeater();
+    // spawn_memeater();
+    // printf("Hello!\n");
+
+    lvaddr_t addr = 16000000000000;
+    char *test = (char * ) addr;
+    char c = test[0];
+    printf("%c\n",c);
 
     // Grading
     grading_test_early();

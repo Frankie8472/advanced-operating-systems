@@ -27,6 +27,8 @@ struct paging_region;
 
 
 struct thread;
+
+// static void page_fault_handler(int type,int subtype,void *addr,arch_registers_state_t *regs);
 errval_t paging_init_state(struct paging_state *st, lvaddr_t start_vaddr,
         struct capref pdir, struct slot_allocator * ca);
 errval_t paging_init_state_foreign(struct paging_state *st, lvaddr_t start_vaddr,

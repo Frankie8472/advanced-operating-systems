@@ -17,7 +17,6 @@
 #include <aos/except.h>
 #include <aos/slab.h>
 #include "threads_priv.h"
-
 #include <stdio.h>
 #include <string.h>
 
@@ -136,6 +135,16 @@ errval_t paging_init_state_foreign(struct paging_state *st, lvaddr_t start_vaddr
     return SYS_ERR_OK;
 }
 
+static void page_fault_handler(enum exception_type type,int subtype,void *addr,arch_registers_state_t *regs){
+    debug_printf("handling pagefault!\n");
+    debug_printf("type: %d\n", type);
+    debug_printf("subtype: %d\n", subtype);
+    debug_printf("addr: 0x%" PRIxLPADDR "\n", addr);
+    debug_printf("ip: 0x%" PRIxLPADDR "\n", regs->named.pc);
+    return;
+}
+
+
 /**
  * \brief This function initializes the paging for this domain
  * It is called once before main.
@@ -149,6 +158,11 @@ errval_t paging_init(void)
     // you can handle page faults in any thread of a domain.
     // TIP: it might be a good idea to call paging_init_state() from here to
     // avoid code duplication.
+
+    
+
+
+
     debug_printf("paging_init\n");
 
     struct capref root_pagetable = {
@@ -157,6 +171,15 @@ errval_t paging_init(void)
     };
 
     errval_t err;
+    static char new_stack[32 * 1024];
+
+    exception_handler_fn handler = (exception_handler_fn) page_fault_handler;
+    err = thread_set_exception_handler(handler,NULL,new_stack,new_stack + sizeof(new_stack),NULL,NULL);
+    if(err_is_fail(err)){
+        DEBUG_ERR(err,"Failed to set exception handler in paging init\n");
+    }
+
+
     err = paging_init_state(&current, VADDR_OFFSET, root_pagetable, get_default_slot_allocator());
     ON_ERR_PUSH_RETURN(err, LIB_ERR_VSPACE_INIT);
 
@@ -332,6 +355,9 @@ errval_t paging_alloc(struct paging_state *st, void **buf, size_t bytes, size_t 
  * \return Either SYS_ERR_OK if no error occured or an error
  * indicating what went wrong otherwise.
  */
+
+
+
 errval_t paging_map_frame_attr(struct paging_state *st, void **buf, size_t bytes,
                                struct capref frame, int flags, void *arg1, void *arg2)
 {
