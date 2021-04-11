@@ -434,9 +434,9 @@ errval_t spawn_load_by_name(char *binary_name, struct spawninfo *si,
 
     si->mapped_elf = (lvaddr_t) elf_address;
     si->mapped_elf_size = (size_t) mem_region->mrmod_size;
-    debug_printf("ELF address = %lx\n", elf_address);
-    debug_printf("%x, '%c', '%c', '%c'\n", elf_address[0], elf_address[1], elf_address[2], elf_address[3]);
-    debug_printf("BOI\n");
+    //debug_printf("ELF address = %lx\n", elf_address);
+    //debug_printf("%x, '%c', '%c', '%c'\n", elf_address[0], elf_address[1], elf_address[2], elf_address[3]);
+    //debug_printf("BOI\n");
 
     char *args_string = (char *)  multiboot_module_opts(mem_region);
     char copy[strlen(args_string)];

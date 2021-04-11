@@ -167,6 +167,16 @@ static int bsp_main(int argc, char *argv[])
     // debug_printf("Character from getchar = %c\n",a);
 
 
+    int a = 5;
+    int *intptr = (int*) 0x0000123400000000L;
+
+    while (a < 100) {
+        __asm volatile("mov x5, x5");
+        a += *intptr;
+        (*intptr)++;
+        __asm volatile("mov x6, x6");
+    }
+
     spawn_memeater();
 
     // Grading

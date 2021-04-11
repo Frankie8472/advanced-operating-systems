@@ -136,6 +136,32 @@ errval_t paging_init_state_foreign(struct paging_state *st, lvaddr_t start_vaddr
     return SYS_ERR_OK;
 }
 
+
+static void temp_eh(enum exception_type type, int subtype, void *addr, arch_registers_state_t *regs) {
+    debug_printf("handling pagefault!\n");
+    debug_printf("type: %d\n", type);
+    debug_printf("subtype: %d\n", subtype);
+    debug_printf("addr: 0x%" PRIxLPADDR "\n", addr);
+    debug_printf("ip: 0x%" PRIxLPADDR "\n", regs->named.pc);
+
+    struct paging_state *ps = get_current_paging_state();
+    lvaddr_t fault_addr = (lvaddr_t) addr;
+    lvaddr_t base_addr = ROUND_DOWN(fault_addr, BASE_PAGE_SIZE);
+
+    errval_t err;
+    struct capref frame;
+    err = frame_alloc(&frame, BASE_PAGE_SIZE, NULL);
+    if (err_is_fail(err)) {
+        DEBUG_ERR(err, "error in page fault handler!\n");
+    }
+    else {
+        err = paging_map_fixed_attr(ps, base_addr, frame, BASE_PAGE_SIZE, VREGION_FLAGS_READ_WRITE);
+        if (err_is_fail(err)) {
+            DEBUG_ERR(err, "error in page fault handler!\n");
+        }
+    }
+}
+
 /**
  * \brief This function initializes the paging for this domain
  * It is called once before main.
@@ -164,6 +190,10 @@ errval_t paging_init(void)
 
     err = slot_alloc_init();
     ON_ERR_PUSH_RETURN(err, LIB_ERR_SLOT_ALLOC_INIT);
+
+    static char eh_stack[32 * 1024];
+    thread_set_exception_handler(&temp_eh, NULL, (void*) eh_stack, (void*) eh_stack + sizeof eh_stack, NULL, NULL);
+
 
     return SYS_ERR_OK;
 }
@@ -416,6 +446,8 @@ static errval_t paging_map_fixed_attr_with_offset(struct paging_state *st, lvadd
      * TODO(M2): General case
      */
     assert(st != NULL);
+
+    //debug_printf("mapping frame at vaddr 0x%" PRIxLPADDR "\n", vaddr);
 
     // only able to map whole pages, round up to next page boundary
     bytes = ROUND_UP(bytes, BASE_PAGE_SIZE);
