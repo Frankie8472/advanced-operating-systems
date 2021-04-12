@@ -27,7 +27,7 @@ extern morecore_free_func_t sys_morecore_free;
 // this define makes morecore use an implementation that just has a static
 // 16MB heap.
 // TODO (M4): use a dynamic heap instead,
-#define USE_STATIC_HEAP
+// #define USE_STATIC_HEAP
 
 #ifdef USE_STATIC_HEAP
 
@@ -102,9 +102,22 @@ errval_t morecore_reinit(void)
  * region than requested for.
  */
 static void *morecore_alloc(size_t bytes, size_t *retbytes)
-{
-    USER_PANIC("NYI \n");
-    return NULL;
+{   
+
+    debug_printf("More core alloc called:\n");
+    struct morecore_state *state = get_morecore_state();
+    size_t aligned_bytes = ROUND_UP(bytes, sizeof(Header));
+    void* ret = NULL;
+    if(state -> region -> current_addr  + aligned_bytes > state -> region -> base_addr +  state -> region -> region_size){
+        debug_printf("Ran out of heap memory, returning NULL from morecore_alloc\n");
+        aligned_bytes = 0;
+    }
+    else{
+        ret = (void*) state ->region -> current_addr;
+        state -> region -> current_addr += aligned_bytes;
+    }
+    *retbytes = aligned_bytes;
+    return ret;
 }
 
 static void morecore_free(void *base, size_t bytes)
@@ -113,10 +126,19 @@ static void morecore_free(void *base, size_t bytes)
 }
 
 errval_t morecore_init(size_t alignment)
-{
+{   
+
     debug_printf("initializing dynamic heap\n");
 
-    USER_PANIC("NYI \n");
+    struct morecore_state *state = get_morecore_state();
+    thread_mutex_init(&state->mutex);
+    struct paging_state* ps = get_current_paging_state();
+    state -> region = &ps -> heap_region;
+    
+
+    sys_morecore_alloc = morecore_alloc;
+    sys_morecore_free = morecore_free;
+    // USER_PANIC("NYI \n");
     return SYS_ERR_OK;
 }
 

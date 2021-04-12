@@ -116,7 +116,7 @@ errval_t initialize_rpc(struct spawninfo *si)
 
 __attribute__((unused))
 static void stack_overflow(void){
-  char c[1730000];
+  char c[10];
   debug_printf("Stack address: %lx\n",c);
   stack_overflow();
 }
@@ -180,31 +180,7 @@ static int bsp_main(int argc, char *argv[])
     // spawn_memeater();
     // printf("Hello!\n");
 
-    struct paging_state* ps = get_current_paging_state();
-    debug_print_paging_state(*ps);
-
-    struct morecore_state* ms =  get_morecore_state();
-    debug_printf("Current header_base: %lx\n", ms -> header_base);
-    debug_printf("Current header_freep: %lx\n", ms -> header_freep);
-    debug_printf("Paging region:\n");
-    debug_printf("Staic morecore freep %lx:\n",ms -> freep);
-    debug_print_paging_region(ms -> region);
-    
-    // char c[17300000];
-    // debug_printf("Address: %ld\n",c);
-    // // char d[1024];
-    // debug_printf("Address: %ld\n",c + sizeof(c));
-    // {
-    //     char c[1730000];
-    //     debug_printf("Address: %ld\n",c);
-    // }
-    // lvaddr_t  addr = NULL;
-    // char *test = NULL;
-    // char c = test[0];
-    // printf("%c\n",c);
-    double* p = (double *) malloc(1024 * sizeof(double));
-    debug_printf("Malloced at address: %lx to address: %lx\n",p,&p[1024 - 1]);
-    stack_overflow();
+ 
 
     // debug_print_paging_state(*ps);
     // lvaddr_t addr = ps -> current_address;
@@ -263,7 +239,48 @@ int main(int argc, char *argv[])
     printf("\n");
     fflush(stdout);
 
+       struct paging_state* ps = get_current_paging_state();
+    debug_print_paging_state(*ps);
 
+    // struct morecore_state* ms =  get_morecore_state();
+    // debug_printf("Current header_base: %lx\n", ms -> header_base);
+    // debug_printf("Current header_freep: %lx\n", ms -> header_freep);
+    // debug_printf("Paging region:\n");
+    // debug_printf("Staic morecore freep %lx:\n",ms -> freep);
+    // debug_print_paging_region(ms -> region);
+    
+    // char c[17300000];
+    // debug_printf("Address: %ld\n",c);
+    // // char d[1024];
+    // debug_printf("Address: %ld\n",c + sizeof(c));
+    // {
+    //     char c[1730000];
+    //     debug_printf("Address: %ld\n",c);
+    // }
+    // lvaddr_t  addr = NULL;
+    // char *test = NULL;
+    // char c = test[0];
+    // printf("%c\n",c);
+
+    double* p = (double *) malloc(10000000 * sizeof(double));
+    // p = p;
+    printf("%lx\n",&p); 
+    debug_printf("Malloced address is at:%lx\n",p);
+    p[0] = 0xFFFFFFFFFFFFFFF;
+
+    debug_printf("p[0] = %d\n",p[0]);
+
+    // p[1289411] = 1;
+    
+    // debug_print_paging_state(*ps);
+
+    // double* p2 = (double *) malloc(1024 * sizeof(double));
+    // debug_printf("Malloced address is at:%lx\n",p2);
+
+
+    // debug_print_paging_state(*ps);
+    // debug_printf("Malloced at  to address: %lx\n",p,&p[1024 - 1]); 
+    // stack_overflow();
     // printf("requesting char\n");
     // char c = 'A';
     // char buff[10];

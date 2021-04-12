@@ -93,7 +93,10 @@ errval_t paging_init_state(struct paging_state *st, lvaddr_t start_vaddr,
     st->slot_alloc = ca;
 
 
-    st->current_address = start_vaddr;
+    size_t heap_size = 1L<<42; // heap size of around 4 TB 
+    paging_region_init_fixed(st,&st -> heap_region,start_vaddr,heap_size,VREGION_FLAGS_READ_WRITE);
+
+    st->current_address = start_vaddr + heap_size;
     debug_printf("Settting init_state at start_vaddr:=%lx\n",start_vaddr);
     return SYS_ERR_OK;
 }
@@ -140,20 +143,34 @@ errval_t paging_init_state_foreign(struct paging_state *st, lvaddr_t start_vaddr
 }
 
 static void page_fault_handler(enum exception_type type,int subtype,void *addr,arch_registers_state_t *regs){
-
+    errval_t err;
+    debug_printf("handling pagefault!\n");
+    debug_printf("type: %d\n", type);
+    debug_printf("subtype: %d\n", subtype);
+    debug_printf("addr: 0x%" PRIxLPADDR "\n", addr);
+    debug_printf("ip: 0x%" PRIxLPADDR "\n", regs->named.pc);
     if(type == EXCEPT_PAGEFAULT){
         if(addr  == 0){
             debug_printf("Core dumped (Segmentation fault)\n");
         }
-
-        debug_printf("handling pagefault!\n");
-        debug_printf("type: %d\n", type);
-        debug_printf("subtype: %d\n", subtype);
-        debug_printf("addr: 0x%" PRIxLPADDR "\n", addr);
-        debug_printf("ip: 0x%" PRIxLPADDR "\n", regs->named.pc);
-
-
-
+        struct paging_state* ps = get_current_paging_state();
+        if(((lvaddr_t) addr) > ps -> heap_region.base_addr && ((lvaddr_t) addr) < (ps -> heap_region.base_addr + ps -> heap_region.region_size)){
+            debug_printf("Page fault inside the heap!\n");
+            struct capref frame;
+            size_t retbytes;
+            err = frame_alloc(&frame,BASE_PAGE_SIZE,&retbytes);
+            if(err_is_fail(err)){
+                DEBUG_ERR(err,"Failed to allocate a new physical frame inside the pagefault handler\n");
+            }
+            lvaddr_t vaddr= ROUND_DOWN((lvaddr_t) addr, BASE_PAGE_SIZE);
+            debug_printf("addr %lx\n",(lvaddr_t) addr);
+            debug_printf("vaddr %lx\n",(lvaddr_t) addr);
+            err = paging_map_fixed_attr(ps,vaddr,frame,BASE_PAGE_SIZE,VREGION_FLAGS_READ_WRITE);
+                        if(err_is_fail(err)){
+                DEBUG_ERR(err,"Failed to map frame in pagefault handler\n");
+            }
+            return;
+        }
     };
     thread_exit(0);
     return;
@@ -196,7 +213,7 @@ errval_t paging_init(void)
     }
 
 
-    err = paging_init_state(&current, VADDR_OFFSET, root_pagetable, get_default_slot_allocator());
+    err = paging_init_state(&current, VADDR_OFFSET, root_pagetable, get_default_slot_allocator()); 
     ON_ERR_PUSH_RETURN(err, LIB_ERR_VSPACE_INIT);
 
     set_current_paging_state(&current);
