@@ -266,10 +266,18 @@ int main(int argc, char *argv[])
     // p = p;
     printf("%lx\n",&p); 
     debug_printf("Malloced address is at:%lx\n",p);
-    p[0] = 0xFFFFFFFFFFFFFFF;
+    p[0] = 1;
+    p[171718414] = 1;
+    debug_printf("p[0] = %f\n",p[0]);
+    debug_printf("p[171718414]=%f\n",p[171718414]);
 
-    debug_printf("p[0] = %d\n",p[0]);
 
+
+
+    double* p2 = (double *) malloc((100000000) * sizeof(double));
+    debug_printf("Malloced address is at:%lx\n",p2);
+    p2[10839000] = 3;
+    debug_printf("p[10839000] = %f\n",p2[10839000]);
     // p[1289411] = 1;
     
     // debug_print_paging_state(*ps);

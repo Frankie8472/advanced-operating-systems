@@ -145,10 +145,10 @@ errval_t paging_init_state_foreign(struct paging_state *st, lvaddr_t start_vaddr
 static void page_fault_handler(enum exception_type type,int subtype,void *addr,arch_registers_state_t *regs){
     errval_t err;
     debug_printf("handling pagefault!\n");
-    debug_printf("type: %d\n", type);
-    debug_printf("subtype: %d\n", subtype);
-    debug_printf("addr: 0x%" PRIxLPADDR "\n", addr);
-    debug_printf("ip: 0x%" PRIxLPADDR "\n", regs->named.pc);
+    // debug_printf("type: %d\n", type);
+    // debug_printf("subtype: %d\n", subtype);
+    // debug_printf("addr: 0x%" PRIxLPADDR "\n", addr);
+    // debug_printf("ip: 0x%" PRIxLPADDR "\n", regs->named.pc);
     if(type == EXCEPT_PAGEFAULT){
         if(addr  == 0){
             debug_printf("Core dumped (Segmentation fault)\n");
@@ -163,8 +163,8 @@ static void page_fault_handler(enum exception_type type,int subtype,void *addr,a
                 DEBUG_ERR(err,"Failed to allocate a new physical frame inside the pagefault handler\n");
             }
             lvaddr_t vaddr= ROUND_DOWN((lvaddr_t) addr, BASE_PAGE_SIZE);
-            debug_printf("addr %lx\n",(lvaddr_t) addr);
-            debug_printf("vaddr %lx\n",(lvaddr_t) addr);
+            // debug_printf("addr %lx\n",(lvaddr_t) addr);
+            // debug_printf("vaddr %lx\n",(lvaddr_t) addr);
             err = paging_map_fixed_attr(ps,vaddr,frame,BASE_PAGE_SIZE,VREGION_FLAGS_READ_WRITE);
                         if(err_is_fail(err)){
                 DEBUG_ERR(err,"Failed to map frame in pagefault handler\n");
