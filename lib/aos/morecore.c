@@ -47,7 +47,9 @@ static char *endp = mymem + HEAP_SIZE;
  * region than requested for.
  */
 static void *morecore_alloc(size_t bytes, size_t *retbytes)
-{
+{   
+
+    debug_printf("More core alloc called:\n");
     struct morecore_state *state = get_morecore_state();
 
     size_t aligned_bytes = ROUND_UP(bytes, sizeof(Header));
@@ -77,7 +79,7 @@ errval_t morecore_init(size_t alignment)
     thread_mutex_init(&state->mutex);
 
     state->freep = mymem;
-
+    debug_printf("Static heap is initialized at mem: %lx to : %lx\n",mymem,&mymem[HEAP_SIZE - 1]);
     sys_morecore_alloc = morecore_alloc;
     sys_morecore_free = morecore_free;
     return SYS_ERR_OK;

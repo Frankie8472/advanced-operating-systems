@@ -76,6 +76,13 @@ struct paging_state {
     struct slab_allocator mappings_alloc;
     bool mappings_alloc_is_refilling;
 
+
+    struct paging_region stack_region;
+    struct paging_region stack_guard;
+    struct paging_region heap_region;
+    //What exactly is this? -> global data from ELF? SHadow page table?
+
+    struct paging_region meta_region;
     /// primitive address
     /// \todo implement free here
     lvaddr_t current_address;

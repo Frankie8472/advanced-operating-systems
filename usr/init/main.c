@@ -1,4 +1,4 @@
-/**
+    /**
  * \file
  * \brief init process for child spawning
  */
@@ -22,6 +22,7 @@
 #include <aos/aos_rpc.h>
 #include <mm/mm.h>
 #include <grading.h>
+#include <aos/core_state.h>
 
 
 #include <spawn/spawn.h>
@@ -113,6 +114,15 @@ errval_t initialize_rpc(struct spawninfo *si)
     return err;
 }
 
+__attribute__((unused))
+static void stack_overflow(void){
+  char c[1730000];
+  debug_printf("Stack address: %lx\n",c);
+  stack_overflow();
+}
+
+
+
 __attribute__((unused)) static void spawn_memeater(void)
 {
     struct spawninfo *memeater_si = spawn_create_spawninfo();
@@ -170,10 +180,38 @@ static int bsp_main(int argc, char *argv[])
     // spawn_memeater();
     // printf("Hello!\n");
 
-    lvaddr_t addr = 16000000000000;
-    char *test = (char * ) addr;
-    char c = test[0];
-    printf("%c\n",c);
+    struct paging_state* ps = get_current_paging_state();
+    debug_print_paging_state(*ps);
+
+    struct morecore_state* ms =  get_morecore_state();
+    debug_printf("Current header_base: %lx\n", ms -> header_base);
+    debug_printf("Current header_freep: %lx\n", ms -> header_freep);
+    debug_printf("Paging region:\n");
+    debug_printf("Staic morecore freep %lx:\n",ms -> freep);
+    debug_print_paging_region(ms -> region);
+    
+    // char c[17300000];
+    // debug_printf("Address: %ld\n",c);
+    // // char d[1024];
+    // debug_printf("Address: %ld\n",c + sizeof(c));
+    // {
+    //     char c[1730000];
+    //     debug_printf("Address: %ld\n",c);
+    // }
+    // lvaddr_t  addr = NULL;
+    // char *test = NULL;
+    // char c = test[0];
+    // printf("%c\n",c);
+    double* p = (double *) malloc(1024 * sizeof(double));
+    debug_printf("Malloced at address: %lx to address: %lx\n",p,&p[1024 - 1]);
+    stack_overflow();
+
+    // debug_print_paging_state(*ps);
+    // lvaddr_t addr = ps -> current_address;
+    // debug_printf("%d trying to access address\n",addr);
+    // char *test = (char * ) addr;
+    // char c = test[0];
+    // printf("%c\n",c);
 
     // Grading
     grading_test_early();

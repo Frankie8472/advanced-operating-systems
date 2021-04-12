@@ -78,7 +78,9 @@ __attribute__((unused)) static errval_t pt_alloc_l3(struct paging_state * st, st
  */
 errval_t paging_init_state(struct paging_state *st, lvaddr_t start_vaddr,
                            struct capref pdir, struct slot_allocator *ca)
-{
+{   
+
+    
     // TODO (M2): Implement state struct initialization
     // TODO (M4): Implement page fault handler that installs frames when a page fault
     // occurs and keeps track of the virtual address space.
@@ -89,8 +91,10 @@ errval_t paging_init_state(struct paging_state *st, lvaddr_t start_vaddr,
     st->mappings_alloc_is_refilling = false;
     st->map_l0.pt_cap = pdir;
     st->slot_alloc = ca;
+
+
     st->current_address = start_vaddr;
-    
+    debug_printf("Settting init_state at start_vaddr:=%lx\n",start_vaddr);
     return SYS_ERR_OK;
 }
 
@@ -136,11 +140,22 @@ errval_t paging_init_state_foreign(struct paging_state *st, lvaddr_t start_vaddr
 }
 
 static void page_fault_handler(enum exception_type type,int subtype,void *addr,arch_registers_state_t *regs){
-    debug_printf("handling pagefault!\n");
-    debug_printf("type: %d\n", type);
-    debug_printf("subtype: %d\n", subtype);
-    debug_printf("addr: 0x%" PRIxLPADDR "\n", addr);
-    debug_printf("ip: 0x%" PRIxLPADDR "\n", regs->named.pc);
+
+    if(type == EXCEPT_PAGEFAULT){
+        if(addr  == 0){
+            debug_printf("Core dumped (Segmentation fault)\n");
+        }
+
+        debug_printf("handling pagefault!\n");
+        debug_printf("type: %d\n", type);
+        debug_printf("subtype: %d\n", subtype);
+        debug_printf("addr: 0x%" PRIxLPADDR "\n", addr);
+        debug_printf("ip: 0x%" PRIxLPADDR "\n", regs->named.pc);
+
+
+
+    };
+    thread_exit(0);
     return;
 }
 
@@ -175,6 +190,7 @@ errval_t paging_init(void)
 
     exception_handler_fn handler = (exception_handler_fn) page_fault_handler;
     err = thread_set_exception_handler(handler,NULL,new_stack,new_stack + sizeof(new_stack),NULL,NULL);
+
     if(err_is_fail(err)){
         DEBUG_ERR(err,"Failed to set exception handler in paging init\n");
     }
