@@ -103,21 +103,30 @@ errval_t morecore_reinit(void)
  */
 static void *morecore_alloc(size_t bytes, size_t *retbytes)
 {   
-
+    errval_t err;
     debug_printf("More core alloc called:\n");
     struct morecore_state *state = get_morecore_state();
     size_t aligned_bytes = ROUND_UP(bytes, sizeof(Header));
-    void* ret = NULL;
-    if(state -> region -> current_addr  + aligned_bytes > state -> region -> base_addr +  state -> region -> region_size){
-        debug_printf("Ran out of heap memory, returning NULL from morecore_alloc\n");
-        aligned_bytes = 0;
+    
+
+    void * retbuf = NULL;
+    size_t ret_size;
+    err = paging_region_map(state -> region,aligned_bytes,&retbuf,&ret_size);
+
+    // void* ret = NULL;
+    if(ret_size < bytes){
+        return NULL;
     }
-    else{
-        ret = (void*) state ->region -> current_addr;
-        state -> region -> current_addr += aligned_bytes;
-    }
+    // if(state -> region -> current_addr  + aligned_bytes > state -> region -> base_addr +  state -> region -> region_size){
+    //     debug_printf("Ran out of heap memory, returning NULL from morecore_alloc\n");
+    //     aligned_bytes = 0;
+    // }
+    // else{
+    //     ret = (void*) state ->region -> current_addr;
+    //     state -> region -> current_addr += aligned_bytes;
+    // }
     *retbytes = aligned_bytes;
-    return ret;
+    return retbuf;
 }
 
 static void morecore_free(void *base, size_t bytes)
