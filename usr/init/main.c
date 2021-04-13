@@ -121,6 +121,29 @@ static void stack_overflow(void){
   stack_overflow();
 }
 
+__attribute__((unused))
+static void infinite_loop(void){
+
+  uint64_t count = 0;
+  while(true){
+    size_t size = 1L << 29;
+    char* p = malloc(size * sizeof(char));
+    for(int i = 0; i < size;++i){
+        p[i] = i % 255;
+    }
+    uint64_t random[10] = { 1414141,54565791,1894418,235,9265};
+    for(int i = 0; i < 10; ++i){
+        assert(p[random[i]] == random[i]%255);
+    }
+    free(p);
+    if(count % 1000 == 0){
+        debug_printf("Ran %ld times\n",count);
+        break;
+    }  
+    count++;
+  }
+}
+
 
 
 __attribute__((unused)) static void spawn_memeater(void)
@@ -242,6 +265,8 @@ int main(int argc, char *argv[])
        struct paging_state* ps = get_current_paging_state();
     debug_print_paging_state(*ps);
 
+
+
     // struct morecore_state* ms =  get_morecore_state();
     // debug_printf("Current header_base: %lx\n", ms -> header_base);
     // debug_printf("Current header_freep: %lx\n", ms -> header_freep);
@@ -281,6 +306,9 @@ int main(int argc, char *argv[])
 
 
     debug_print_paging_state(*ps);
+
+
+    infinite_loop();
     // p[1289411] = 1;
     
     // debug_print_paging_state(*ps);

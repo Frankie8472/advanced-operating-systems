@@ -167,11 +167,11 @@ errval_t paging_init_state_foreign(struct paging_state *st, lvaddr_t start_vaddr
 
 static void page_fault_handler(enum exception_type type,int subtype,void *addr,arch_registers_state_t *regs){
     errval_t err;
-    debug_printf("handling pagefault!\n");
-    debug_printf("type: %d\n", type);
-    debug_printf("subtype: %d\n", subtype);
-    debug_printf("addr: 0x%" PRIxLPADDR "\n", addr);
-    debug_printf("ip: 0x%" PRIxLPADDR "\n", regs->named.pc);
+    // debug_printf("handling pagefault!\n");
+    // debug_printf("type: %d\n", type);
+    // debug_printf("subtype: %d\n", subtype);
+    // debug_printf("addr: 0x%" PRIxLPADDR "\n", addr);
+    // debug_printf("ip: 0x%" PRIxLPADDR "\n", regs->named.pc);
     if(type == EXCEPT_PAGEFAULT){
         if(addr  == 0){
             debug_printf("Core dumped (Segmentation fault)\n");
@@ -179,7 +179,7 @@ static void page_fault_handler(enum exception_type type,int subtype,void *addr,a
         struct paging_state* ps = get_current_paging_state();
         assert(ps != NULL);
         if(((lvaddr_t) addr) > ps -> heap_region.base_addr && ((lvaddr_t) addr) < (ps -> heap_region.base_addr + ps -> heap_region.region_size)){
-            debug_printf("Page fault inside the heap!\n");
+            // debug_printf("Page fault inside the heap!\n");
             struct capref frame;
             size_t retbytes;
             err = frame_alloc(&frame,BASE_PAGE_SIZE,&retbytes);
