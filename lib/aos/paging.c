@@ -92,11 +92,18 @@ errval_t paging_init_state(struct paging_state *st, lvaddr_t start_vaddr,
     st->map_l0.pt_cap = pdir;
     st->slot_alloc = ca;
 
+    
+    
+    size_t meta_data_size = 1L<<43; // meta data size, around 8 TB
+    paging_region_init_fixed(st,&st -> meta_region,start_vaddr,meta_data_size,VREGION_FLAGS_READ_WRITE);
+    start_vaddr += meta_data_size;
 
     size_t heap_size = 1L<<42; // heap size of around 4 TB 
     paging_region_init_fixed(st,&st -> heap_region,start_vaddr,heap_size,VREGION_FLAGS_READ_WRITE);
+    start_vaddr += heap_size;
 
-    st->current_address = start_vaddr + heap_size;
+
+    st->current_address = start_vaddr;
     debug_printf("Settting init_state at start_vaddr:=%lx\n",start_vaddr);
     return SYS_ERR_OK;
 }
@@ -348,6 +355,7 @@ errval_t paging_region_unmap(struct paging_region *pr, lvaddr_t base, size_t byt
  * \return Either SYS_ERR_OK if no error occured or an error
  *        indicating what went wrong otherwise.
  */
+
 errval_t paging_alloc(struct paging_state *st, void **buf, size_t bytes, size_t alignment)
 {
     /**
@@ -398,7 +406,9 @@ errval_t paging_map_frame_attr(struct paging_state *st, void **buf, size_t bytes
     // - Call paging_alloc to get a free virtual address region of the requested size
     // - Map the user provided frame at the free virtual address
     errval_t err;
-    err = paging_alloc(st, buf, bytes, 1);
+    // err = paging_alloc(st, buf, bytes, 1);
+    size_t ret_size;
+    err = paging_region_map(&st -> meta_region,bytes,*buf,&ret_size);
     ON_ERR_PUSH_RETURN(err, LIB_ERR_VSPACE_MAP);
 
     err = paging_map_fixed_attr(st, (lvaddr_t) *buf, frame, bytes, flags);
@@ -438,7 +448,9 @@ static errval_t slab_big_refill(struct paging_state *st, struct slab_allocator *
     ON_ERR_RETURN(err);
 
     void* addr = NULL;
-    err = paging_alloc(st, &addr, bytes, 1);
+    size_t ret_size;
+    // err = paging_alloc(st, &addr, bytes, 1);
+    err = paging_region_map(&st -> meta_region,bytes,&addr,&ret_size);
     ON_ERR_RETURN(err);
 
     err = paging_map_fixed(st, (lvaddr_t) addr, fr, bytes);

@@ -40,16 +40,18 @@
 
 typedef int paging_flags_t;
 
-struct paging_region_segment {
-    struct paging_region_segment *next;
-    size_t free_space;
-};
+// struct paging_region_segment {
+//     struct paging_region_segment *next;
+//     size_t free_space;
+// };
 
 struct paging_region {
     lvaddr_t base_addr;
     lvaddr_t current_addr;
     size_t region_size;
     paging_flags_t flags;
+    
+    struct paging_region *next; 
     // TODO: if needed add struct members for tracking state
 };
 
@@ -77,10 +79,14 @@ struct paging_state {
     bool mappings_alloc_is_refilling;
 
 
-    struct paging_region stack_region;
-    struct paging_region stack_guard;
+    // struct paging_region stack_region;
+    // struct paging_region stack_guard;
+    struct paging_region *stack_regions;
+    struct paging_region *guard_regions;
+
+
     struct paging_region heap_region;
-    //What exactly is this? -> global data from ELF? SHadow page table?
+
 
     struct paging_region meta_region;
     /// primitive address

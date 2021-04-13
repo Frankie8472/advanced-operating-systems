@@ -195,8 +195,9 @@ static errval_t slab_refill_pages(struct slab_allocator *slabs, size_t bytes)
     void* addr;
 
     errval_t err;
-
-    err = paging_alloc(get_current_paging_state(), &addr, size, 1);
+    size_t ret_size;
+    err = paging_region_map(&get_current_paging_state() -> meta_region,size,&addr,&ret_size);
+    // err = paging_alloc(get_current_paging_state(), &addr, size, 1);
     ON_ERR_RETURN(err);
 
     err = paging_map_fixed(get_current_paging_state(), (lvaddr_t) addr, fr, bytes);

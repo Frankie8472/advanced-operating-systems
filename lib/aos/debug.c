@@ -122,10 +122,10 @@ void debug_print_paging_state(struct paging_state ps){
     debug_printf("Paging state state\n");
     debug_printf("================================================\n");
     debug_printf("Current address: %lx\n", ps.current_address);
-    debug_printf("Stack region:\n");
-    debug_print_paging_region(ps.stack_region);
-    debug_printf("Stack guard:\n");
-    debug_print_paging_region(ps.stack_guard);
+    // debug_printf("Stack region:\n");
+    // debug_print_paging_region(ps.stack_region);
+    // debug_printf("Stack guard:\n");
+    // debug_print_paging_region(ps.stack_guard);
     debug_printf("Heap region:\n");
     debug_print_paging_region(ps.heap_region);
     debug_printf("Meta region: \n");

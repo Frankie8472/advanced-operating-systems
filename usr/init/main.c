@@ -278,6 +278,9 @@ int main(int argc, char *argv[])
     debug_printf("Malloced address is at:%lx\n",p2);
     p2[10839000] = 3;
     debug_printf("p[10839000] = %f\n",p2[10839000]);
+
+
+    debug_print_paging_state(*ps);
     // p[1289411] = 1;
     
     // debug_print_paging_state(*ps);
