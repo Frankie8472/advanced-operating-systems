@@ -51,7 +51,8 @@ struct paging_region {
     size_t region_size;
     paging_flags_t flags;
     
-    struct paging_region *next; 
+    struct paging_region *next;
+    struct paging_region *prev;
     // TODO: if needed add struct members for tracking state
 };
 
@@ -67,6 +68,7 @@ struct mapping_table
     /// entries in
     struct capref mapping_caps[PTABLE_ENTRIES];
     struct mapping_table *children[PTABLE_ENTRIES];
+    struct paging_region *region;
 };
 
 
