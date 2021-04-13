@@ -131,14 +131,13 @@ static void infinite_loop(void){
     for(int i = 0; i < size;++i){
         p[i] = i % 255;
     }
-    uint64_t random[10] = { 1414141,54565791,1894418,235,9265};
-    for(int i = 0; i < 10; ++i){
-        assert(p[random[i]] == random[i]%255);
-    }
+    // uint64_t random[5] = { 1414141,54565791,1894418,235,9265};
+    // for(int i = 0; i < 5; ++i){
+    //     assert(p[random[i]] == random[i]%255);
+    // }
     free(p);
     if(count % 1000 == 0){
         debug_printf("Ran %ld times\n",count);
-        break;
     }  
     count++;
   }
@@ -188,6 +187,33 @@ static int bsp_main(int argc, char *argv[])
     ts.index = 0;
     ts.waiting = NULL;
     terminal_state = &ts;
+
+    struct paging_state* ps = get_current_paging_state();
+    debug_print_paging_state(*ps);
+
+    double* p = (double *) malloc(10000000 * sizeof(double));
+    // p = p;
+    printf("%lx\n",&p); 
+    debug_printf("Malloced address is at:%lx\n",p);
+    p[0] = 1;
+    p[171718414] = 1;
+    debug_printf("p[0] = %f\n",p[0]);
+    debug_printf("p[171718414]=%f\n",p[171718414]);
+
+
+
+
+    double* p2 = (double *) malloc((100000000) * sizeof(double));
+    debug_printf("Malloced address is at:%lx\n",p2);
+    p2[10839000] = 3;
+    debug_printf("p[10839000] = %f\n",p2[10839000]);
+
+
+    debug_print_paging_state(*ps);
+
+
+    infinite_loop();
+
     // TODO: initialize mem allocator, vspace management here
 
     // test();
@@ -262,8 +288,7 @@ int main(int argc, char *argv[])
     printf("\n");
     fflush(stdout);
 
-       struct paging_state* ps = get_current_paging_state();
-    debug_print_paging_state(*ps);
+
 
 
 
@@ -287,28 +312,7 @@ int main(int argc, char *argv[])
     // char c = test[0];
     // printf("%c\n",c);
 
-    double* p = (double *) malloc(10000000 * sizeof(double));
-    // p = p;
-    printf("%lx\n",&p); 
-    debug_printf("Malloced address is at:%lx\n",p);
-    p[0] = 1;
-    p[171718414] = 1;
-    debug_printf("p[0] = %f\n",p[0]);
-    debug_printf("p[171718414]=%f\n",p[171718414]);
-
-
-
-
-    double* p2 = (double *) malloc((100000000) * sizeof(double));
-    debug_printf("Malloced address is at:%lx\n",p2);
-    p2[10839000] = 3;
-    debug_printf("p[10839000] = %f\n",p2[10839000]);
-
-
-    debug_print_paging_state(*ps);
-
-
-    infinite_loop();
+ 
     // p[1289411] = 1;
     
     // debug_print_paging_state(*ps);
