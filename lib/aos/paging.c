@@ -108,7 +108,6 @@ errval_t paging_init_state(struct paging_state *st, lvaddr_t start_vaddr,
     paging_region_init(st, &st->meta_region, 1L<<43, VREGION_FLAGS_READ_WRITE);
     paging_region_init(st, &st->heap_region, 1L<<42, VREGION_FLAGS_READ_WRITE);
 
-    // TODO: start_vaddr change und current_address change
     /*
     size_t meta_data_size = 1L<<43; // meta data size, around 8 TB
     paging_region_init_fixed(st,&st -> meta_region,start_vaddr,meta_data_size,VREGION_FLAGS_READ_WRITE);
@@ -286,15 +285,16 @@ errval_t paging_region_init_fixed(struct paging_state *st, struct paging_region 
 errval_t paging_region_init_aligned(struct paging_state *st, struct paging_region *pr,
                                     size_t size, size_t alignment, paging_flags_t flags)
 {
-    assert(st != NULL && pr != NULL);
 
+    assert(st != NULL && pr != NULL);
+    /*
     void *base;
     errval_t err = paging_alloc(st, &base, size, alignment);
     ON_ERR_PUSH_RETURN(err, LIB_ERR_VSPACE_MMU_AWARE_INIT);
 
     err = paging_region_init_fixed(st, pr, (lvaddr_t)base, size, flags);
     ON_ERR_PUSH_RETURN(err, LIB_ERR_PMAP_DO_MAP);
-
+    */
     return SYS_ERR_OK;
 }
 
@@ -346,7 +346,7 @@ errval_t paging_region_map(struct paging_region *pr, size_t req_size, void **ret
 
     lvaddr_t end_addr = pr->base_addr + pr->region_size;
     ssize_t rem = end_addr - pr->current_addr;
-    if (rem > req_size) {
+    if (rem >= req_size) {
         // ok
         *retbuf = (void *)pr->current_addr;
         *ret_size = req_size;
@@ -401,7 +401,7 @@ errval_t paging_alloc(struct paging_state *st, void **buf, size_t bytes, size_t 
      *        accomodate a buffer of size `bytes`.
      */
     assert(st != NULL);
-
+    /*
     if (st->current_address + bytes < st->current_address) {
         HERE;
         DEBUG_PRINTF("critical: vspace exhausted");
@@ -412,7 +412,7 @@ errval_t paging_alloc(struct paging_state *st, void **buf, size_t bytes, size_t 
     st->current_address = ROUND_UP(base + ROUND_UP(bytes, BASE_PAGE_SIZE), BASE_PAGE_SIZE);
 
     *buf = (void*) base;
-
+    */
     return SYS_ERR_OK;
 }
 
