@@ -205,57 +205,63 @@ static struct waitset_chanstate *get_pending_event_disabled(struct waitset *ws,
     return NULL;
 }
 
-void arranet_polling_loop_proxy(void) __attribute__((weak));
-void arranet_polling_loop_proxy(void)
-{
-    USER_PANIC("Network polling not available without Arranet!\n");
-}
-
-void poll_ahci(struct waitset_chanstate *) __attribute__((weak));
-void poll_ahci(struct waitset_chanstate *chan)
-{
-    errval_t err = waitset_chan_trigger(chan);
-    assert(err_is_ok(err)); // should not be able to fail
-}
-
 /// Check polled channels
 void poll_channels_disabled(dispatcher_handle_t handle) {
     struct dispatcher_generic *dp = get_dispatcher_generic(handle);
-    struct waitset_chanstate *chan;
+    struct waitset_chanstate *chan, *prev_head;
 
     if (!dp->polled_channels)
         return;
     chan = dp->polled_channels;
     do {
+        bool chan_ready = false;
         switch (chan->chantype) {
-        case CHANTYPE_LWIP_SOCKET:
-            arranet_polling_loop_proxy();
-            break;
-        case CHANTYPE_AHCI:
-            poll_ahci(chan);
-            break;
-        default:
-            assert(!"invalid channel type to poll!");
+            case CHANTYPE_UMP_IN:
+                // TODO: To add UMP channel support to waitsets,
+                // set chan_ready to true here if channel has a message ready
+                break;
+            default:
+                assert_disabled(!ws_chantype_is_polled(chan->chantype));
+                assert_disabled(!"invalid channel type to poll!");
         }
-    } while (chan != dp->polled_channels);
+
+        /* Triggering events on the channel might dequeue the channel
+         * So we advance now and remember the current head, as it might change
+         */
+        chan = chan->polled_next;
+        prev_head = dp->polled_channels;
+        if (chan_ready) {
+            /* We already advanced so we use prev pointer here */
+            errval_t err = waitset_chan_trigger_disabled(chan->polled_prev, handle);
+            /* Shouldn't fail */
+            assert_disabled(err_is_ok(err));
+        }
+        /* Circular queue, stop if we arrived at the start again
+         * If channel was dequeued there are 3 situations:
+         * 1: The dequeued channel wasn't the head
+         *    This means prev_head == dp->polled_channels and chan is in the queue still so we're fine
+         * 2: The dequeued channel was the head but there are more nodes.
+         *    This means prev_head == dequeued channel && chan != prev_head, so we're fine
+         * 3: The dequeued channel was the only node (and the queue is now empty)
+         *    This means prev_head == dequeued channel && chan == dequeued channel, so we'll exit the loop
+         */
+    } while (chan != prev_head);
 }
 
 /// Re-register a channel (if persistent)
 static void reregister_channel(struct waitset *ws, struct waitset_chanstate *chan,
                                 dispatcher_handle_t handle)
 {
-    assert(chan->waitset == ws);
+    assert_disabled(chan->waitset == ws);
     if (chan->state == CHAN_PENDING) {
         dequeue(&ws->pending, chan);
     } else {
-        assert(chan->state == CHAN_WAITING);
+        assert_disabled(chan->state == CHAN_WAITING);
         dequeue(&ws->waiting, chan);
     }
 
     chan->token = 0;
-    if (chan->chantype == CHANTYPE_UMP_IN
-        || chan->chantype == CHANTYPE_LWIP_SOCKET
-        || chan->chantype == CHANTYPE_AHCI) {
+    if (ws_chantype_is_polled(chan->chantype)) {
         enqueue(&ws->polled, chan);
         enqueue_polled(&get_dispatcher_generic(handle)->polled_channels, chan);
         chan->state = CHAN_POLLED;
@@ -640,6 +646,10 @@ errval_t waitset_chan_register_polled_disabled(struct waitset *ws,
 {
     if (chan->waitset != NULL) {
         return LIB_ERR_CHAN_ALREADY_REGISTERED;
+    }
+
+    if (!ws_chantype_is_polled(chan->chantype)) {
+        return LIB_ERR_CHAN_NOT_POLLED;
     }
 
     chan->waitset = ws;
