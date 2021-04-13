@@ -83,12 +83,13 @@ struct paging_state {
 
     // struct paging_region stack_region;
     // struct paging_region stack_guard;
+    struct slab_allocator region_alloc;
+    struct paging_region *head;
+
     struct paging_region *stack_regions;
     struct paging_region *guard_regions;
 
-
     struct paging_region heap_region;
-
 
     struct paging_region meta_region;
     /// primitive address

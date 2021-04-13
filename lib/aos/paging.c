@@ -66,7 +66,7 @@ __attribute__((unused)) static errval_t pt_alloc_l3(struct paging_state * st, st
  * TODO(M2): Implement this function.
  * TODO(M4): Improve this function.
  * \brief Initialize the paging_state struct for the paging
- *        state of the calling process.
+ *        state of the calling process. (Shadowpagetable)
  * 
  * \param st The struct to be initialized, must not be NULL.
  * \param start_vaddr Virtual address allocation should start at
@@ -80,7 +80,6 @@ errval_t paging_init_state(struct paging_state *st, lvaddr_t start_vaddr,
                            struct capref pdir, struct slot_allocator *ca)
 {   
 
-    
     // TODO (M2): Implement state struct initialization
     // TODO (M4): Implement page fault handler that installs frames when a page fault
     // occurs and keeps track of the virtual address space.
@@ -92,8 +91,25 @@ errval_t paging_init_state(struct paging_state *st, lvaddr_t start_vaddr,
     st->map_l0.pt_cap = pdir;
     st->slot_alloc = ca;
 
-    
-    
+    static char init_mem2[SLAB_STATIC_SIZE(32, sizeof(struct paging_region))];
+    slab_init(&st->region_alloc, sizeof(struct paging_region), NULL);
+    slab_grow(&st->region_alloc, init_mem2, sizeof(init_mem2));
+
+    struct paging_region *pr = slab_alloc(&st->region_alloc);
+    pr->base_addr=VADDR_OFFSET;
+    pr->current_addr=VADDR_OFFSET;
+    pr->region_size=0xffffffffffffL-VADDR_OFFSET;
+    pr->flags=VREGION_FLAGS_GUARD;
+    pr->next=NULL;
+    pr->prev=NULL;
+
+    st->head = pr;
+
+    paging_region_init(st, &st->meta_region, 1L<<43, VREGION_FLAGS_READ_WRITE);
+    paging_region_init(st, &st->heap_region, 1L<<42, VREGION_FLAGS_READ_WRITE);
+
+    // TODO: start_vaddr change und current_address change
+    /*
     size_t meta_data_size = 1L<<43; // meta data size, around 8 TB
     paging_region_init_fixed(st,&st -> meta_region,start_vaddr,meta_data_size,VREGION_FLAGS_READ_WRITE);
     start_vaddr += meta_data_size;
@@ -104,7 +120,8 @@ errval_t paging_init_state(struct paging_state *st, lvaddr_t start_vaddr,
 
 
     st->current_address = start_vaddr;
-    debug_printf("Settting init_state at start_vaddr:=%lx\n",start_vaddr);
+
+    debug_printf("Settting init_state at start_vaddr:=%lx\n",start_vaddr);*/
     return SYS_ERR_OK;
 }
 
@@ -152,15 +169,16 @@ errval_t paging_init_state_foreign(struct paging_state *st, lvaddr_t start_vaddr
 static void page_fault_handler(enum exception_type type,int subtype,void *addr,arch_registers_state_t *regs){
     errval_t err;
     debug_printf("handling pagefault!\n");
-    // debug_printf("type: %d\n", type);
-    // debug_printf("subtype: %d\n", subtype);
-    // debug_printf("addr: 0x%" PRIxLPADDR "\n", addr);
-    // debug_printf("ip: 0x%" PRIxLPADDR "\n", regs->named.pc);
+    debug_printf("type: %d\n", type);
+    debug_printf("subtype: %d\n", subtype);
+    debug_printf("addr: 0x%" PRIxLPADDR "\n", addr);
+    debug_printf("ip: 0x%" PRIxLPADDR "\n", regs->named.pc);
     if(type == EXCEPT_PAGEFAULT){
         if(addr  == 0){
             debug_printf("Core dumped (Segmentation fault)\n");
         }
         struct paging_state* ps = get_current_paging_state();
+        assert(ps != NULL);
         if(((lvaddr_t) addr) > ps -> heap_region.base_addr && ((lvaddr_t) addr) < (ps -> heap_region.base_addr + ps -> heap_region.region_size)){
             debug_printf("Page fault inside the heap!\n");
             struct capref frame;
@@ -197,9 +215,6 @@ errval_t paging_init(void)
     // you can handle page faults in any thread of a domain.
     // TIP: it might be a good idea to call paging_init_state() from here to
     // avoid code duplication.
-
-    
-
 
 
     debug_printf("paging_init\n");
@@ -294,7 +309,29 @@ errval_t paging_region_init(struct paging_state *st, struct paging_region *pr,
                             size_t size, paging_flags_t flags)
 {
     assert(st != NULL && pr != NULL);
-    return paging_region_init_aligned(st, pr, size, BASE_PAGE_SIZE, flags);
+
+    struct paging_region *cur = st->head;
+    for(; cur != NULL && (cur->flags != VREGION_FLAGS_GUARD || cur->region_size < size); cur = cur->next);
+    NULLPTR_CHECK(cur, LIB_ERR_VSPACE_MMU_AWARE_NO_SPACE);
+
+    pr->region_size = size;
+    pr->flags = flags;
+    pr->next = cur;
+    pr->prev = cur->prev;
+    pr->base_addr = cur->base_addr;
+    pr->current_addr = pr->base_addr;
+
+    cur->base_addr += size;
+    cur->current_addr = cur->base_addr;
+    cur->prev = pr;
+    cur->region_size -= size;
+
+    if(pr->prev != NULL) {
+        pr->prev->next = pr;
+    }
+
+    return SYS_ERR_OK;
+    //return paging_region_init_aligned(st, pr, size, BASE_PAGE_SIZE, flags);
 }
 
 /**
