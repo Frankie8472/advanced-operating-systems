@@ -454,6 +454,12 @@ caps_map_l1(struct capability* dest,
     assert(aligned(src_lpaddr, 1u << 12));
     assert((src_lpaddr < dest_lpaddr) || (src_lpaddr >= dest_lpaddr + 32));
 
+    if (entry->d.valid) {
+        // cleanup mapping info
+        debug(SUBSYS_PAGING, "slot in use\n");
+        return SYS_ERR_VNODE_SLOT_INUSE;
+    }
+
     create_mapping_cap(mapping_cte, src, cte_for_cap(dest), slot, pte_count);
 
     entry->raw = 0;
@@ -519,6 +525,12 @@ caps_map_l2(struct capability* dest,
     assert(offset == 0);
     assert(aligned(src_lpaddr, 1u << 12));
     assert((src_lpaddr < dest_lpaddr) || (src_lpaddr >= dest_lpaddr + 4096));
+
+    if (entry->d.valid) {
+        // cleanup mapping info
+        debug(SUBSYS_PAGING, "slot in use\n");
+        return SYS_ERR_VNODE_SLOT_INUSE;
+    }
 
     create_mapping_cap(mapping_cte, src, cte_for_cap(dest), slot, pte_count);
 

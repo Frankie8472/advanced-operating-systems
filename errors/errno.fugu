@@ -424,6 +424,7 @@ errors libaos LIB_ERR_ {
 
     // Waitset/event code
     failure CHAN_ALREADY_REGISTERED "Attempt to register for an event on a channel which is already registered",
+    failure CHAN_NOT_POLLED        "Attempt to register a non-polled channel as a polled one",
     failure CHAN_NOT_REGISTERED    "Channel is not registered with a waitset",
     failure WAITSET_IN_USE         "Waitset has pending events or blocked threads",
     failure WAITSET_CHAN_CANCEL    "Error in waitset_chan_cancel()",
