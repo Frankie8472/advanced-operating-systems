@@ -445,7 +445,7 @@ errval_t paging_map_frame_attr(struct paging_state *st, void **buf, size_t bytes
     errval_t err;
     // err = paging_alloc(st, buf, bytes, 1);
     size_t ret_size;
-    err = paging_region_map(&st -> meta_region,bytes,*buf,&ret_size);
+    err = paging_region_map(&st -> meta_region,bytes,buf,&ret_size);
     ON_ERR_PUSH_RETURN(err, LIB_ERR_VSPACE_MAP);
 
     err = paging_map_fixed_attr(st, (lvaddr_t) *buf, frame, bytes, flags);

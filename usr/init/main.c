@@ -126,7 +126,7 @@ static void infinite_loop(void){
 
   uint64_t count = 0;
   while(true){
-    size_t size = 1L << 29;
+    size_t size = 1L << 20;
     char* p = malloc(size * sizeof(char));
     for(int i = 0; i < size;++i){
         p[i] = i % 255;
@@ -136,7 +136,7 @@ static void infinite_loop(void){
     //     assert(p[random[i]] == random[i]%255);
     // }
     free(p);
-    if(count % 1000 == 0){
+    if(count % 1 == 0){
         debug_printf("Ran %ld times\n",count);
     }  
     count++;
