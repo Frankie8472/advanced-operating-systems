@@ -80,6 +80,8 @@ errval_t paging_map_fixed_attr(struct paging_state *st, lvaddr_t vaddr,
 
 /**
  * refill slab allocator without causing a page fault
+ * 
+ * \param frame references the capability slot where the frame cap can be put into
  */
 errval_t slab_refill_no_pagefault(struct slab_allocator *slabs,
                                   struct capref frame, size_t minbytes);
