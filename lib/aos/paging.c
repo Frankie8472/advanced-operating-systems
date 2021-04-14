@@ -609,7 +609,6 @@ static errval_t paging_map_fixed_attr_with_offset(struct paging_state *st, lvadd
         err = vnode_map(shadow_table_l0->pt_cap, l1, l0_offset, VREGION_FLAGS_READ, 0, 1, l1_mapping);
         ON_ERR_RETURN(err);
 
-
         shadow_table_l1 = slab_alloc(&st->mappings_alloc);
         NULLPTR_CHECK(shadow_table_l1, LIB_ERR_SLAB_ALLOC_FAIL);
 
