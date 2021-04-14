@@ -87,6 +87,7 @@ static errval_t rootcn_alloc(void *st, size_t reqbytes, struct capref *ret)
 
 errval_t root_slot_allocator_refill(cn_ram_alloc_func_t myalloc, void *allocst)
 {
+    debug_printf("root_slot_allocator_refill\n");
     errval_t err;
 
     struct slot_alloc_state *state = get_slot_alloc_state();

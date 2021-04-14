@@ -20,6 +20,7 @@
 #include <aos/capabilities.h>
 #include <aos/slab.h>
 #include <barrelfish_kpi/paging_arch.h>
+#include <aos/except.h>
 #include <aos/paging_types.h>
 
 struct paging_state;
@@ -28,7 +29,10 @@ struct paging_region;
 
 struct thread;
 
-// static void page_fault_handler(int type,int subtype,void *addr,arch_registers_state_t *regs);
+void page_fault_handler(enum exception_type type, int subtype, void *addr, arch_registers_state_t *regs);
+errval_t paging_map_single_page_at(struct paging_state *st, lvaddr_t addr, int flags);
+
+
 errval_t paging_init_state(struct paging_state *st, lvaddr_t start_vaddr,
         struct capref pdir, struct slot_allocator * ca);
 errval_t paging_init_state_foreign(struct paging_state *st, lvaddr_t start_vaddr,
