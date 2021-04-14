@@ -138,20 +138,14 @@ static void infinite_loop(void){
   uint64_t count = 0;
 //   size_t size = 1L << 29;
   while(true){
-    size_t size = 1L << 15;
+    size_t size = 1L << 20;
 
     char* p = malloc(size * sizeof(char));
-    for(int i = 0; i < size;++i){
-        p[i] = i % 255;
-    }
-    uint64_t random[5] = { 512,300,144,235,10};
-    for(int i = 0; i < 5; ++i){
-        assert(p[random[i]] == random[i]%255);
+    for(int i = 0; i < size; i += BASE_PAGE_SIZE){
+        p[i] = i;
     }
     // free(p);
     if(count % 1 == 0){
-        debug_printf("P: %ld",p);
-
         debug_printf("Ran %ld times\n",count);
     }  
     count++;
@@ -230,7 +224,7 @@ static int bsp_main(int argc, char *argv[])
     char p[3] = {1,2,3};\
     debug_printf("Address of p:%lx\n",p);
 
-    // infinite_loop();
+    infinite_loop();
 
     // TODO: initialize mem allocator, vspace management here
 

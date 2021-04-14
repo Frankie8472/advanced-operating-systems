@@ -167,6 +167,11 @@ errval_t slot_free(struct capref ret)
     return err;
 }
 
+/**
+ * \brief Initializes the slot allocator
+ *
+ * \return SYS_ERR_OK or the specific error
+ */
 errval_t slot_alloc_init(void)
 {
     errval_t err;
