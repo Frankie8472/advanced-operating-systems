@@ -138,16 +138,12 @@ static void infinite_loop(void){
   uint64_t count = 0;
 //   size_t size = 1L << 29;
   while(true){
-<<<<<<< HEAD
     size_t size = 1L << 15;
-=======
-    size_t size = 1L << 20;
->>>>>>> 10ffe5a742f2614900c9846f83924a4f8da9e102
+
     char* p = malloc(size * sizeof(char));
     for(int i = 0; i < size;++i){
         p[i] = i % 255;
     }
-<<<<<<< HEAD
     uint64_t random[5] = { 512,300,144,235,10};
     for(int i = 0; i < 5; ++i){
         assert(p[random[i]] == random[i]%255);
@@ -155,14 +151,7 @@ static void infinite_loop(void){
     // free(p);
     if(count % 1 == 0){
         debug_printf("P: %ld",p);
-=======
-    // uint64_t random[5] = { 1414141,54565791,1894418,235,9265};
-    // for(int i = 0; i < 5; ++i){
-    //     assert(p[random[i]] == random[i]%255);
-    // }
-    free(p);
-    if(count % 1 == 0){
->>>>>>> 10ffe5a742f2614900c9846f83924a4f8da9e102
+
         debug_printf("Ran %ld times\n",count);
     }  
     count++;
