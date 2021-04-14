@@ -122,7 +122,7 @@ errval_t paging_init_state(struct paging_state *st, lvaddr_t start_vaddr,
  * TODO(M4): Improve this function.
  * \brief Initialize the paging_state struct for the paging state
  *        of a child process.
- *        Only so far, that we can fill out the needed data for the process to start!
+ *        Only so far, that we are able fill out the needed data for the process to start!
  * 
  * \param st The struct to be initialized, must not be NULL.
  * \param start_vaddr Virtual address allocation should start at
@@ -166,7 +166,7 @@ errval_t paging_init_state_foreign(struct paging_state *st, lvaddr_t start_vaddr
 }
 
 /**
- * \brief Page fault handler, only handles pagefaults in the init process
+ * \brief Page fault handler for each process
  *
  * \param type Type of the exception
  * \param subtype Type of the pagefault
@@ -206,6 +206,7 @@ static void page_fault_handler(enum exception_type type, int subtype, void *addr
 
 /**
  * \brief Initializes the stack in the new virtual address space
+ *
  * \param ps Paging state
  * \returns SYS_ERR_OK or Error
  */
@@ -263,7 +264,7 @@ errval_t paging_init_stack(struct paging_state* ps){
 
 /**
  * \brief This function initializes the paging for this domain
- * It is called once before main.
+ * It is called once in the init process before main runs.
  */
 errval_t paging_init(void)
 {
@@ -274,9 +275,7 @@ errval_t paging_init(void)
     // you can handle page faults in any thread of a domain.
     // TIP: it might be a good idea to call paging_init_state() from here to
     // avoid code duplication.
-
-
-    debug_printf("paging_init\n");
+    //debug_printf("paging_init\n");
 
     struct capref root_pagetable = {
         .cnode = cnode_page,
@@ -288,22 +287,19 @@ errval_t paging_init(void)
     // void* new_stack = malloc(BASE_PAGE_SIZE);
 
     exception_handler_fn handler = (exception_handler_fn) page_fault_handler;
-    err = thread_set_exception_handler(handler,NULL,new_stack,new_stack + sizeof(new_stack),NULL,NULL);
+    err = thread_set_exception_handler(handler, NULL, new_stack, new_stack + sizeof(new_stack), NULL, NULL);
+    ON_ERR_RETURN(err);
 
-
-
-    if(err_is_fail(err)){
-        DEBUG_ERR(err,"Failed to set exception handler in paging init\n");
-    }
-
-
-    err = paging_init_state(&current, VADDR_OFFSET, root_pagetable, get_default_slot_allocator()); 
+    err = paging_init_state(&current, VADDR_OFFSET, root_pagetable, get_default_slot_allocator());
     ON_ERR_PUSH_RETURN(err, LIB_ERR_VSPACE_INIT);
 
     set_current_paging_state(&current);
+
     err = slot_alloc_init();
     ON_ERR_PUSH_RETURN(err, LIB_ERR_SLOT_ALLOC_INIT);
+
     err = paging_init_stack(&current);
+    ON_ERR_RETURN(err);
 
     return SYS_ERR_OK;
 }
