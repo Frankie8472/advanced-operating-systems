@@ -143,7 +143,7 @@ static void morecore_free(void *base, size_t bytes)
  * \brief Initializing the morecore state by filling the morecore struct
  *
  * \param alignment
- * \returns The error in the process
+ * \returns SYS_ERR_OK
  */
 errval_t morecore_init(size_t alignment)
 {
@@ -157,7 +157,12 @@ errval_t morecore_init(size_t alignment)
     return SYS_ERR_OK;
 }
 
-
+/**
+ * \brief Re-initializing the morecore state by filling the morecore struct
+ * I have currently no idea what this is for (fk)
+ *
+ * \returns SYS_ERR_OK
+ */
 errval_t morecore_reinit(void)
 {
     USER_PANIC("NYI \n");
