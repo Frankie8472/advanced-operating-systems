@@ -29,6 +29,10 @@ struct paging_region;
 struct thread;
 
 // static void page_fault_handler(int type,int subtype,void *addr,arch_registers_state_t *regs);
+bool isIn(void* addr,struct paging_region pr);
+void add_stack_guard(struct paging_state* ps, uintptr_t id, lvaddr_t stack_bottom);
+bool is_in_guard(void* addr, struct stack_guard* sg);
+bool is_in_guards(void* addr, struct paging_state* ps);
 errval_t paging_init_state(struct paging_state *st, lvaddr_t start_vaddr,
         struct capref pdir, struct slot_allocator * ca);
 errval_t paging_init_state_foreign(struct paging_state *st, lvaddr_t start_vaddr,

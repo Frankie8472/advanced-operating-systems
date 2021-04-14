@@ -63,6 +63,8 @@ __attribute__((unused)) static errval_t pt_alloc_l3(struct paging_state * st, st
 }
 
 
+
+
 /**
  * TODO(M2): Implement this function.
  * TODO(M4): Improve this function.
@@ -110,8 +112,9 @@ errval_t paging_init_state(struct paging_state *st, lvaddr_t start_vaddr,
     paging_region_init(st, &st->heap_region, 1L<<42, VREGION_FLAGS_READ_WRITE);
     paging_region_init(st, &st->stack_region, 1L<<10, VREGION_FLAGS_READ_WRITE);
 
-    
- 
+    static char init_mem_guards[SLAB_STATIC_SIZE(32, sizeof(struct stack_guard))];
+    slab_init(&st -> guards_alloc,sizeof(struct stack_guard),NULL);
+    slab_grow(&st->guards_alloc, init_mem_guards, sizeof(init_mem_guards));
     // struct capref guard_cap;
     // err = page_table_walk(st,stack_bottom,&guard_cap);
     // if(err_is_fail(err)){
@@ -209,20 +212,68 @@ errval_t paging_init_state_foreign(struct paging_state *st, lvaddr_t start_vaddr
     return SYS_ERR_OK;
 }
 
+bool isIn(void* addr,struct paging_region pr){
+    return ((lvaddr_t) addr) >  pr.base_addr && ((lvaddr_t) addr) < (pr.base_addr + pr.region_size);
+}
+
+bool is_in_guard(void* addr, struct stack_guard* sg){
+return (lvaddr_t) addr >  sg -> stack_bottom && (lvaddr_t) addr < (sg -> stack_bottom + 8 * 1024);
+}
+
+bool is_in_guards(void* addr, struct paging_state* ps){
+    struct stack_guard* it = ps -> guards;
+    if(it == NULL){
+        return false;
+    }else {
+        while(it != NULL){
+            if(is_in_guard(addr,it)){return true;}
+            it = it -> next;
+        }
+        return false;
+    }
+}
+
+void add_stack_guard(struct paging_state* ps, uintptr_t id, lvaddr_t stack_bottom){
+    struct stack_guard* sg = slab_alloc(&ps -> guards_alloc);
+    sg -> stack_bottom = stack_bottom;
+    sg -> thread_id = id;
+    debug_printf("Stack guard create with stack guard bottom = %lx\n",stack_bottom);
+    if(ps -> guards == NULL){
+        ps -> guards = sg;
+        return;
+    }
+    else{
+        struct stack_guard* it = ps -> guards;
+        while(it -> next != NULL){it = it -> next;}
+        it -> next = sg;
+        return;
+    }
+}
+
 static void page_fault_handler(enum exception_type type,int subtype,void *addr,arch_registers_state_t *regs){
     errval_t err;
     debug_printf("handling pagefault!\n");
-    debug_printf("type: %d\n", type);
-    debug_printf("subtype: %d\n", subtype);
+    // debug_printf("type: %d\n", type);
+    // debug_printf("subtype: %d\n", subtype);
     debug_printf("addr: 0x%" PRIxLPADDR "\n", addr);
-    debug_printf("ip: 0x%" PRIxLPADDR "\n", regs->named.pc);
+    // debug_printf("ip: 0x%" PRIxLPADDR "\n", regs->named.pc);
+    
+    
     if(type == EXCEPT_PAGEFAULT){
+
+        struct paging_state* ps = get_current_paging_state();
         if(addr  == 0){
             debug_printf("Core dumped (Segmentation fault)\n");
         }
-        struct paging_state* ps = get_current_paging_state();
+        if(is_in_guards(addr,ps)){
+            debug_printf("Core dumped (Stack overflow)\n");
+            debug_printf("Exiting thread\n");
+            thread_exit(0);
+            return;
+        }
+    
         assert(ps != NULL);
-        if(((lvaddr_t) addr) > ps -> heap_region.base_addr && ((lvaddr_t) addr) < (ps -> heap_region.base_addr + ps -> heap_region.region_size)){
+        if(isIn(addr,ps -> heap_region)){
             // debug_printf("Page fault inside the heap!\n");
             struct capref frame;
             size_t retbytes;
@@ -231,73 +282,99 @@ static void page_fault_handler(enum exception_type type,int subtype,void *addr,a
                 DEBUG_ERR(err,"Failed to allocate a new physical frame inside the pagefault handler\n");
             }
             lvaddr_t vaddr= ROUND_DOWN((lvaddr_t) addr, BASE_PAGE_SIZE);
-            // debug_printf("addr %lx\n",(lvaddr_t) addr);
-            // debug_printf("vaddr %lx\n",(lvaddr_t) addr);
             err = paging_map_fixed_attr(ps,vaddr,frame,BASE_PAGE_SIZE,VREGION_FLAGS_READ_WRITE);
                         if(err_is_fail(err)){
                 DEBUG_ERR(err,"Failed to map frame in pagefault handler\n");
             }
             return;
         }
-    };
+
+
+
+        if(isIn(addr,ps -> meta_region)){
+            debug_printf("Page fault inside the meta region!\n");
+            struct capref frame;
+            size_t retbytes;
+            err = frame_alloc(&frame,BASE_PAGE_SIZE,&retbytes);
+            if(err_is_fail(err)){
+                DEBUG_ERR(err,"Failed to allocate a new physical frame inside the pagefault handler\n");
+            }
+            lvaddr_t vaddr= ROUND_DOWN((lvaddr_t) addr, BASE_PAGE_SIZE);
+            err = paging_map_fixed_attr(ps,vaddr,frame,BASE_PAGE_SIZE,VREGION_FLAGS_READ_WRITE);
+            if(err_is_fail(err)){
+                DEBUG_ERR(err,"Failed to map frame in pagefault handler\n");
+            }
+            return;
+        }
+    }
+    debug_printf("Exiting thread\n");
     thread_exit(0);
     return;
 }
 
 
-errval_t paging_init_stack(struct paging_state* ps){
-    errval_t err = SYS_ERR_OK;   
-    dispatcher_handle_t handle = curdispatcher();
-    struct dispatcher_generic* disp = get_dispatcher_generic(handle);
-    struct thread* curr_thread = disp -> current;
-    // lvaddr_t stack_bottom = (lvaddr_t) curr_thread -> stack;
-    // lvaddr_t stack_top = (lvaddr_t) curr_thread -> stack_top;
+// errval_t paging_init_stack(struct paging_state* ps){
+//     errval_t err = SYS_ERR_OK;   
+//     dispatcher_handle_t handle = curdispatcher();
+//     struct dispatcher_generic* disp = get_dispatcher_generic(handle);
+//     struct thread* curr_thread = disp -> current;
+//     // lvaddr_t stack_bottom = (lvaddr_t) curr_thread -> stack;
+//     // lvaddr_t stack_top = (lvaddr_t) curr_thread -> stack_top;
 
-    // st -> stack_region 
-    debug_printf("Current stack top: %d\n",curr_thread -> stack_top);
-    debug_printf("Current stack: %ld\n",curr_thread -> stack);
+//     // st -> stack_region 
+//     debug_printf("Current stack top: %d\n",curr_thread -> stack_top);
+//     debug_printf("Current stack: %ld\n",curr_thread -> stack);
 
-    struct capref stack_cap_top;
-    size_t ret_bytes;
-    err = frame_alloc(&stack_cap_top,BASE_PAGE_SIZE,&ret_bytes);
-    if(err_is_fail(err)){
-        DEBUG_ERR(err,"Failed to alloc fram in paging_init_stack\n");
-    }
+//     struct capref stack_cap_top;
+//     size_t ret_bytes;
+//     err = frame_alloc(&stack_cap_top,BASE_PAGE_SIZE,&ret_bytes);
+//     if(err_is_fail(err)){
+//         DEBUG_ERR(err,"Failed to alloc fram in paging_init_stack\n");
+//     }
 
-    // struct capref stack_cap_bot;
-    // size_t ret_bytes;
-    // err = frame_alloc(&stack_cap_bot,BASE_PAGE_SIZE,&ret_bytes);
-    // if(err_is_fail(err)){
-    //     DEBUG_ERR(err,"Failed to alloc fram in paging_init_stack\n");
-    // }
-    debug_print_paging_region(ps -> stack_region);
-    lvaddr_t new_stack_top = (ps -> stack_region.base_addr) + (ps -> stack_region.region_size);
-    // lvaddr_t new_stack_bottom = ps -> stack_region.base_addr;
-    uint64_t  stack_base = ps -> stack_region.base_addr;
-    uint64_t stack_size = ps -> stack_region.region_size;
-    uint64_t stack_top = stack_base + stack_size;
-
-    // debug_printf("Current stack top: %lx\n",stack_top);
-    // debug_printf("Current stack size: %lx\n",stack_size);
-    // debug_printf("Current stack bot: %lx\n",ps -> stack_region.base_addr);
+//     // struct capref stack_cap_bot;
+//     // size_t ret_bytes;
+//     // err = frame_alloc(&stack_cap_bot,BASE_PAGE_SIZE,&ret_bytes);
+//     // if(err_is_fail(err)){
+//     //     DEBUG_ERR(err,"Failed to alloc fram in paging_init_stack\n");
+//     // }
+//     // debug_print_paging_region(ps -> stack_region);
+//     // lvaddr_t new_stack_top = (ps -> stack_region.base_addr) + (ps -> stack_region.region_size);
+//     // // lvaddr_t new_stack_bottom = ps -> stack_region.base_addr;
+//     // uint64_t  stack_base = ps -> stack_region.base_addr;
+//     // uint64_t stack_size = ps -> stack_region.region_size;
+//     // uint64_t stack_top = stack_base + stack_size;
 
 
-    err = paging_map_fixed_attr(ps,new_stack_top - BASE_PAGE_SIZE,stack_cap_top,BASE_PAGE_SIZE,VREGION_FLAGS_READ_WRITE);
-    if(err_is_fail(err)){
-        DEBUG_ERR(err,"Failed paging_map_fixed_attr\n");
-    }
-    curr_thread -> stack_top = (void * ) stack_top;
-    curr_thread -> stack = (void * ) stack_base;
-    debug_printf("Current stack top: %lx\n",curr_thread -> stack_top);
-    debug_printf("Current stack: %lx\n",curr_thread -> stack);
-    arch_registers_state_t regs = curr_thread -> regs; 
-    uint64_t sp = registers_get_sp(&regs);
-    debug_printf("Current stack register: %ld\n",sp);
-    registers_set_sp(&regs,stack_top);
-    sp = registers_get_sp(&regs);
-    debug_printf("Current stack register: %lx\n",sp);
-    return err;
-}
+//     // debug_printf("Current stack top: %lx\n",stack_top);
+//     // debug_printf("Current stack size: %lx\n",stack_size);
+//     // debug_printf("Current stack bot: %lx\n",ps -> stack_region.base_addr);
+
+
+//     // err = paging_map_fixed_attr(ps,new_stack_top - BASE_PAGE_SIZE,stack_cap_top,BASE_PAGE_SIZE,VREGION_FLAGS_READ_WRITE);
+//     // if(err_is_fail(err)){
+//     //     DEBUG_ERR(err,"Failed paging_map_fixed_attr\n");
+//     // }
+//     // curr_thread -> stack_top = (void * ) stack_top;
+//     // curr_thread -> stack = (void * ) stack_base;
+//     // debug_printf("Current stack top: %lx\n",curr_thread -> stack_top);
+//     // debug_printf("Current stack: %lx\n",curr_thread -> stack);
+//     // arch_registers_state_t regs = curr_thread -> regs; 
+//     // uint64_t sp = registers_get_sp(&regs);
+//     // debug_printf("Current stack register: %ld\n",sp);
+//     // registers_set_sp(&regs,stack_top);
+//     // sp = registers_get_sp(&regs);
+//     // debug_printf("Current stack register: %lx\n",sp);
+
+
+//     // err = paging_map_fixed_attr(ps,(lvaddr_t)curr_thread -> stack,stack_cap_top,BASE_PAGE_SIZE,VREGION_FLAGS_READ_WRITE);
+//     // if(err_is_fail(err)){
+//     //     DEBUG_ERR(err,"Failed paging_map_fixed_attr\n");
+//     // }
+
+
+//     return err;
+// }
 
 /**
  * \brief This function initializes the paging for this domain
@@ -341,8 +418,6 @@ errval_t paging_init(void)
     set_current_paging_state(&current);
     err = slot_alloc_init();
     ON_ERR_PUSH_RETURN(err, LIB_ERR_SLOT_ALLOC_INIT);
-    err = paging_init_stack(&current);
-
     return SYS_ERR_OK;
 }
 
@@ -354,26 +429,12 @@ void paging_init_onthread(struct thread *t)
 {   
 
     // TODO (M4): setup exception handler for thread `t'.
-    // NOTES MATT:
-    // WHAT is this? When is it called? This might be totally wrong!? HELO
-    debug_printf("===================================\n");
-    debug_printf("Got here to paging_init_on_thread\n");
-    debug_printf("===================================\n");
 
     assert(t != NULL);
     static char new_stack[32 * 1024];
     t -> exception_handler = page_fault_handler;
     t -> exception_stack = (void * )  new_stack;
     t -> exception_stack_top = (void * )  new_stack + sizeof(new_stack);
-
-    // HERE we also need to give the thread a new stack? Malloc it?
-    // I think? Or we can call frame alloc and use this to
-    // paging_State is assoiciated with dispatch, so we share
-    // paging state among all our threads running in the same 
-    // domain!
-
-        
-  
 }   
 
 /**

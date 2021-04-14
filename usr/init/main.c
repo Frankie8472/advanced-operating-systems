@@ -179,6 +179,25 @@ __attribute__((unused)) static void spawn_memeater(void)
 }
 
 
+__attribute__((unused)) static void spawn_page(void){
+    errval_t err;
+    debug_printf("Spawning hello\n");
+    struct spawninfo *hello_si = spawn_create_spawninfo();
+    domainid_t *hello_pid = &hello_si->pid;
+    err = spawn_load_by_name("hello", hello_si, hello_pid);
+    if (err_is_fail(err)) {
+        DEBUG_ERR(err, "spawn loading failed");
+    }
+
+    struct aos_rpc *rpc = &hello_si->rpc;
+    aos_rpc_init(rpc, hello_si->cap_ep, NULL_CAP, hello_si->lmp_ep);
+    err = lmp_chan_alloc_recv_slot(&rpc->channel);
+
+    err = initialize_rpc(hello_si);
+}
+
+
+
 static int bsp_main(int argc, char *argv[])
 {
     errval_t err;
@@ -203,8 +222,10 @@ static int bsp_main(int argc, char *argv[])
     ts.waiting = NULL;
     terminal_state = &ts;
 
-    // struct paging_state* ps = get_current_paging_state();
-    // debug_print_paging_state(*ps);
+
+
+    struct paging_state* ps = get_current_paging_state();
+    debug_print_paging_state(*ps);
 
     // double* p = (double *) malloc(10000000 * sizeof(double));
     // // p = p;
@@ -216,7 +237,7 @@ static int bsp_main(int argc, char *argv[])
     // debug_printf("p[171718414]=%f\n",p[171718414]);
 
 
-
+    spawn_page();
 
     // double* p2 = (double *) malloc((100000000) * sizeof(double));
     // debug_printf("Malloced address is at:%lx\n",p2);
@@ -227,9 +248,11 @@ static int bsp_main(int argc, char *argv[])
     // debug_print_paging_state(*ps);
 
     // stack_overflow();
-    char p[3] = {1,2,3};\
-    debug_printf("Address of p:%lx\n",p);
+    // char p[3] = {1,2,3};
+    // debug_printf("Address of p:%lx\n",p);
 
+    // spawn_memeater();
+    // thread_create(stack_overflow,NULL);
     // infinite_loop();
 
     // TODO: initialize mem allocator, vspace management here

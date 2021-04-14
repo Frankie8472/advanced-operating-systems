@@ -49,7 +49,6 @@ static char *endp = mymem + HEAP_SIZE;
 static void *morecore_alloc(size_t bytes, size_t *retbytes)
 {   
 
-    debug_printf("More core alloc called:\n");
     struct morecore_state *state = get_morecore_state();
 
     size_t aligned_bytes = ROUND_UP(bytes, sizeof(Header));

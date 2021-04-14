@@ -31,7 +31,7 @@ typedef int (*thread_func_t)(void *);
 
 /// Default size of a thread's stack
 #define THREADS_DEFAULT_STACK_BYTES     (64 * 1024)
-
+// #define THREADS_DEFAULT_STACK_BYTES     (1000 * 1024) // 1 MB
 struct thread *thread_create(thread_func_t start_func, void *data);
 struct thread *thread_create_varstack(thread_func_t start_func, void *arg,
                                       size_t stacksize);
