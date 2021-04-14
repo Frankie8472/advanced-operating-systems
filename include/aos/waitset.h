@@ -51,12 +51,21 @@ enum ws_chantype {
     CHANTYPE_UMP_IN,
     CHANTYPE_DEFERRED, ///< Timer events
     CHANTYPE_EVENT_QUEUE,
-    CHANTYPE_FLOUNDER,
-    CHANTYPE_AHCI,
-    CHANTYPE_LWIP_SOCKET,
-    CHANTYPE_BULK_E10K,
     CHANTYPE_OTHER
 };
+
+/**
+ * \brief Whether channel type is polled
+ */
+inline bool ws_chantype_is_polled(enum ws_chantype t)
+{
+    switch (t) {
+        case CHANTYPE_UMP_IN:
+            return true;
+        default:
+            return false;
+    }
+}
 
 /// Current state of a channel on a specific waitset
 enum ws_chanstate {

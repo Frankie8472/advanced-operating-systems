@@ -566,7 +566,7 @@ errval_t paging_map_frame_attr(struct paging_state *st, void **buf, size_t bytes
     errval_t err;
     // err = paging_alloc(st, buf, bytes, 1);
     size_t ret_size;
-    err = paging_region_map(&st -> meta_region,bytes,*buf,&ret_size);
+    err = paging_region_map(&st -> meta_region,bytes,buf,&ret_size);
     ON_ERR_PUSH_RETURN(err, LIB_ERR_VSPACE_MAP);
 
     err = paging_map_fixed_attr(st, (lvaddr_t) *buf, frame, bytes, flags);
@@ -582,78 +582,14 @@ errval_t slab_refill_no_pagefault(struct slab_allocator *slabs, struct capref fr
     assert(slabs != NULL);
 
     const size_t bytes = ROUND_UP(minbytes, BASE_PAGE_SIZE);
-    struct capref fr;
     size_t size;
-    frame_alloc(&fr, bytes, &size);
+    frame_create(frame, bytes, &size);
     void* buf = NULL;
-    errval_t err = paging_map_frame_complete(get_current_paging_state(), &buf, fr, NULL, NULL);
+    errval_t err = paging_map_frame_complete(get_current_paging_state(), &buf, frame, NULL, NULL);
     ON_ERR_RETURN(err);
 
     slab_grow(slabs, buf, size);
     return SYS_ERR_OK;
-}
-
-static errval_t slab_big_refill(struct paging_state *st, struct slab_allocator *slabs)
-{
-    assert(st != NULL && slabs != NULL);
-
-    const size_t bytes = BASE_PAGE_SIZE * PTABLE_ENTRIES / 4;
-    struct capref fr;
-    size_t size;
-    errval_t err;
-
-    err = frame_alloc(&fr, bytes, &size);
-    ON_ERR_RETURN(err);
-
-    void* addr = NULL;
-    size_t ret_size;
-    // err = paging_alloc(st, &addr, bytes, 1);
-    err = paging_region_map(&st -> meta_region,bytes,&addr,&ret_size);
-    ON_ERR_RETURN(err);
-
-    err = paging_map_fixed(st, (lvaddr_t) addr, fr, bytes);
-    ON_ERR_RETURN(err);
-
-    //debug_printf("growing slab\n");
-    slab_grow(slabs, (void*) addr, size);
-    addr += bytes;
-
-    return SYS_ERR_OK;
-}
-
-__attribute__((unused)) errval_t page_table_walk(struct paging_state *st,lvaddr_t vaddr,struct capref* retcap){
-    // errval_t err;
-    uint64_t l0_offset = (vaddr >> (12 + 3 * 9)) & 0x1FF;
-    uint64_t l1_offset = (vaddr >> (12 + 2 * 9)) & 0x1FF;
-    uint64_t l2_offset = (vaddr >> (12 + 1 * 9)) & 0x1FF;
-    uint64_t l3_offset = (vaddr >> (12 + 0 * 9)) & 0x1FF;
-
-    struct mapping_table *shadow_table_l0 = &st->map_l0;
-    if(shadow_table_l0 == NULL){
-        debug_printf("No shadow page table entry for l0\n");
-        return SYS_ERR_CAP_NOT_FOUND;
-    }
-    struct mapping_table *shadow_table_l1 = shadow_table_l0->children[l0_offset];
-    if(shadow_table_l1 == NULL){
-        debug_printf("No shadow page table entry for l1\n");
-        return SYS_ERR_CAP_NOT_FOUND;
-    }
-    struct mapping_table *shadow_table_l2 = shadow_table_l1 -> children[l1_offset];
-    if(shadow_table_l2 == NULL){
-        debug_printf("No shadow page table entry for l2\n");
-        return SYS_ERR_CAP_NOT_FOUND;
-    }
-
-    struct mapping_table *shadow_table_l3 = shadow_table_l2 -> children[l2_offset];
-    if(shadow_table_l3 == NULL){
-        debug_printf("No shadow page table entry for l3\n");
-        return SYS_ERR_CAP_NOT_FOUND;
-    }
-
-    retcap = &shadow_table_l3 -> mapping_caps[l3_offset];
-
-    return SYS_ERR_OK;
-
 }
 
 
@@ -664,8 +600,6 @@ static errval_t paging_map_fixed_attr_with_offset(struct paging_state *st, lvadd
 errval_t paging_map_fixed_attr(struct paging_state *st, lvaddr_t vaddr,
                                struct capref frame, size_t bytes, int flags)
 {
-    assert(st != NULL);
-
     return paging_map_fixed_attr_with_offset(st, vaddr, frame, 0, bytes, flags);
 }
 
@@ -681,6 +615,11 @@ static errval_t paging_map_fixed_attr_with_offset(struct paging_state *st, lvadd
      * TODO(M2): General case
      */
     assert(st != NULL);
+
+    static size_t mapped = 0;
+    mapped += BASE_PAGE_SIZE;
+    if (mapped % (BASE_PAGE_SIZE * 1024) == 0)
+        debug_printf("mapped %ld\n", mapped);
 
     // only able to map whole pages, round up to next page boundary
     bytes = ROUND_UP(bytes, BASE_PAGE_SIZE);
@@ -803,9 +742,20 @@ static errval_t paging_map_fixed_attr_with_offset(struct paging_state *st, lvadd
 
     if (slab_freecount(&st->mappings_alloc) < 10) {
         if (!st->mappings_alloc_is_refilling) {
-            //debug_printf("refilling!\n");
             st->mappings_alloc_is_refilling = true;
-            slab_big_refill(st, &st->mappings_alloc);
+            {
+                struct capref frameslot;
+                err = st->slot_alloc->alloc(st->slot_alloc, &frameslot);
+                ON_ERR_RETURN(err);
+
+                size_t refill_bytes = ROUND_UP(sizeof(struct mapping_table) * 32, BASE_PAGE_SIZE);
+
+                err = slab_refill_no_pagefault(&st->mappings_alloc, frameslot, refill_bytes);
+                if(err_is_fail(err)) {
+                    DEBUG_ERR(err, "shadow page table slab alloc could not be refilled.");
+                    return err;
+                }
+            }
             st->mappings_alloc_is_refilling = false;
         }
     }
