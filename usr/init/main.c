@@ -29,6 +29,7 @@
 #include <spawn/process_manager.h>
 #include "mem_alloc.h"
 
+#include "test.h"
 
 // #include <aos/curdispatcher_arch.h>
 
@@ -118,41 +119,6 @@ errval_t initialize_rpc(struct spawninfo *si)
     return err;
 }
 
-__attribute__((unused))
-    static void stack_overflow(void){
-    char c[1024];
-    // dispatcher_handle_t handle = curdispatcher();
-    // struct dispatcher_generic* disp = get_dispatcher_generic(handle);
-    // struct thread* curr_thread = disp -> current;
-    // debug_printf("Current stack: %ld\n",curr_thread -> stack);
-
-    // debug_printf("Current stack top: %d\n",curr_thread -> stack);
-
-    debug_printf("Stack address: %ld\n",c);
-    stack_overflow();
-}
-
-__attribute__((unused))
-static void infinite_loop(void){
-
-  uint64_t count = 0;
-//   size_t size = 1L << 29;
-  while(true){
-    size_t size = 1L << 20;
-
-    char* p = malloc(size * sizeof(char));
-    for(int i = 0; i < size; i += BASE_PAGE_SIZE){
-        p[i] = i;
-    }
-    // free(p);
-    if(count % 1 == 0){
-        debug_printf("Ran %ld times\n",count);
-    }  
-    count++;
-  }
-}
-
-
 
 __attribute__((unused)) static void spawn_memeater(void)
 {
@@ -197,63 +163,16 @@ static int bsp_main(int argc, char *argv[])
     ts.waiting = NULL;
     terminal_state = &ts;
 
-    // struct paging_state* ps = get_current_paging_state();
-    // debug_print_paging_state(*ps);
-
-    // double* p = (double *) malloc(10000000 * sizeof(double));
-    // // p = p;
-    // printf("%lx\n",&p); 
-    // debug_printf("Malloced address is at:%lx\n",p);
-    // p[0] = 1;
-    // p[171718414] = 1;
-    // debug_printf("p[0] = %f\n",p[0]);
-    // debug_printf("p[171718414]=%f\n",p[171718414]);
-
-
-
-
-    double* p2 = (double *) malloc((100000000) * sizeof(double));
-    debug_printf("Malloced address is at:%lx\n",p2);
-    p2[10839000] = 3;
-    debug_printf("p[10839000] = %f\n",p2[10839000]);
-
-
-    // debug_print_paging_state(*ps);
-
-    // stack_overflow();
-    char p[3] = {1,2,3};\
-    debug_printf("Address of p:%lx\n",p);
-
-    infinite_loop();
-
     // TODO: initialize mem allocator, vspace management here
 
-    // test();
-    // debug_printf("input:\n");
-
-    // char b = getchar();
-    // debug_printf("Character from getchar = %c\n",b);
-    // char a = getchar();
-    //
-    // debug_printf("Character from getchar = %c\n",a);
-
-
     // spawn_memeater();
-    // printf("Hello!\n");
 
- 
-
-    // debug_print_paging_state(*ps);
-    // lvaddr_t addr = ps -> current_address;
-    // debug_printf("%d trying to access address\n",addr);
-    // char *test = (char * ) addr;
-    // char c = test[0];
-    // printf("%c\n",c);
+    run_init_tests();
 
     // Grading
     grading_test_early();
-    // TODO: Spawn system processes, boot second core etc. here
 
+    // TODO: Spawn system processes, boot second core etc. here
 
     // Grading
     grading_test_late();
@@ -268,7 +187,6 @@ static int bsp_main(int argc, char *argv[])
             abort();
         }
     }
-
     return EXIT_SUCCESS;
 }
 
