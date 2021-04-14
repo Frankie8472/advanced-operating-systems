@@ -218,10 +218,10 @@ static int bsp_main(int argc, char *argv[])
 
 
 
-    // double* p2 = (double *) malloc((100000000) * sizeof(double));
-    // debug_printf("Malloced address is at:%lx\n",p2);
-    // p2[10839000] = 3;
-    // debug_printf("p[10839000] = %f\n",p2[10839000]);
+    double* p2 = (double *) malloc((100000000) * sizeof(double));
+    debug_printf("Malloced address is at:%lx\n",p2);
+    p2[10839000] = 3;
+    debug_printf("p[10839000] = %f\n",p2[10839000]);
 
 
     // debug_print_paging_state(*ps);

@@ -96,21 +96,25 @@ errval_t paging_init_state(struct paging_state *st, lvaddr_t start_vaddr,
     slab_init(&st->region_alloc, sizeof(struct paging_region), NULL);
     slab_grow(&st->region_alloc, init_mem2, sizeof(init_mem2));
 
-    struct paging_region *pr = slab_alloc(&st->region_alloc);
-    pr->base_addr=VADDR_OFFSET;
-    pr->current_addr=VADDR_OFFSET;
-    pr->region_size=0xffffffffffffL-VADDR_OFFSET;
-    pr->flags=VREGION_FLAGS_GUARD;
-    pr->next=NULL;
-    pr->prev=NULL;
+    struct paging_region *free_region = &st->free_region;
+    free_region->base_addr = 0;
+    free_region->region_size = 0x0000FFFFFFFFFFFFULL;
+    free_region->type = PAGING_REGION_FREE;
+    free_region->prev = NULL;
+    free_region->next = NULL;
+    st->head = &st->free_region;
 
-    st->head = pr;
+    paging_region_init(st, &st->vaddr_offset_region, start_vaddr, 0);
+    st->vaddr_offset_region.lazily_mapped = false;
+    st->vaddr_offset_region.type = PAGING_REGION_UNUSABLE;
 
-    paging_region_init(st, &st->meta_region, 1L<<43, VREGION_FLAGS_READ_WRITE);
-    paging_region_init(st, &st->heap_region, 1L<<42, VREGION_FLAGS_READ_WRITE);
-    paging_region_init(st, &st->stack_region, 1L<<10, VREGION_FLAGS_READ_WRITE);
+    paging_region_init(st, &st->meta_region, 1L << 43, VREGION_FLAGS_READ_WRITE);
+    st->meta_region.lazily_mapped = false;
+    st->meta_region.type = PAGING_REGION_UNUSABLE;
 
-    
+    paging_region_init(st, &st->heap_region, 1L << 42, VREGION_FLAGS_READ_WRITE);
+    st->meta_region.type = PAGING_REGION_HEAP;
+
  
     // struct capref guard_cap;
     // err = page_table_walk(st,stack_bottom,&guard_cap);
@@ -209,15 +213,47 @@ errval_t paging_init_state_foreign(struct paging_state *st, lvaddr_t start_vaddr
     return SYS_ERR_OK;
 }
 
-static void page_fault_handler(enum exception_type type,int subtype,void *addr,arch_registers_state_t *regs){
+static void page_fault_handler(enum exception_type type, int subtype, void *addr, arch_registers_state_t *regs){
     errval_t err;
-    debug_printf("handling pagefault!\n");
-    debug_printf("type: %d\n", type);
-    debug_printf("subtype: %d\n", subtype);
+    //debug_printf("handling pagefault!\n");
+    //debug_printf("type: %d\n", type);
+    //debug_printf("subtype: %d\n", subtype);
     debug_printf("addr: 0x%" PRIxLPADDR "\n", addr);
     debug_printf("ip: 0x%" PRIxLPADDR "\n", regs->named.pc);
-    if(type == EXCEPT_PAGEFAULT){
-        if(addr  == 0){
+
+    struct paging_state *st = get_current_paging_state();
+
+    if (type == EXCEPT_PAGEFAULT) {
+        struct paging_region *region = paging_region_lookup(st, (lvaddr_t) addr);
+        if (region == NULL) {
+            debug_printf("error in page handler: can't find paging region\n");
+            thread_exit(1);
+        }
+
+        if (region->lazily_mapped) {
+            struct capref frame;
+            size_t retbytes;
+            err = frame_alloc(&frame, BASE_PAGE_SIZE, &retbytes);
+            if(err_is_fail(err)){
+                DEBUG_ERR(err, "Failed to allocate a new physical frame inside the pagefault handler\n");
+                thread_exit(1);
+            }
+            lvaddr_t vaddr = ROUND_DOWN((lvaddr_t) addr, BASE_PAGE_SIZE);
+
+            err = paging_map_fixed_attr(st, vaddr, frame, BASE_PAGE_SIZE, VREGION_FLAGS_READ_WRITE);
+            if (err_is_fail(err)) {
+                DEBUG_ERR(err, "Failed to map frame in pagefault handler\n");
+                thread_exit(1);
+            }
+            return;
+        }
+        else {
+            debug_printf("pagefault occurred in non-lazily mapped region\n");
+            debug_printf("region: %lx, %lx\n", region->base_addr, region->region_size);
+            thread_exit(1);
+        }
+
+        /*if (addr == 0) {
             debug_printf("Core dumped (Segmentation fault)\n");
         }
         struct paging_state* ps = get_current_paging_state();
@@ -238,15 +274,15 @@ static void page_fault_handler(enum exception_type type,int subtype,void *addr,a
                 DEBUG_ERR(err,"Failed to map frame in pagefault handler\n");
             }
             return;
-        }
+        }*/
     };
     thread_exit(0);
     return;
 }
 
 
-errval_t paging_init_stack(struct paging_state* ps){
-    errval_t err = SYS_ERR_OK;   
+errval_t paging_init_stack(struct paging_state* ps) {
+    /*errval_t err = SYS_ERR_OK;
     dispatcher_handle_t handle = curdispatcher();
     struct dispatcher_generic* disp = get_dispatcher_generic(handle);
     struct thread* curr_thread = disp -> current;
@@ -296,7 +332,8 @@ errval_t paging_init_stack(struct paging_state* ps){
     registers_set_sp(&regs,stack_top);
     sp = registers_get_sp(&regs);
     debug_printf("Current stack register: %lx\n",sp);
-    return err;
+    return err;*/
+    return SYS_ERR_OK;
 }
 
 /**
@@ -339,7 +376,7 @@ errval_t paging_init(void)
     ON_ERR_PUSH_RETURN(err, LIB_ERR_VSPACE_INIT);
 
     set_current_paging_state(&current);
-    err = slot_alloc_init();
+    //err = slot_alloc_init();
     ON_ERR_PUSH_RETURN(err, LIB_ERR_SLOT_ALLOC_INIT);
     err = paging_init_stack(&current);
 
@@ -419,6 +456,21 @@ errval_t paging_region_init_aligned(struct paging_state *st, struct paging_regio
     return SYS_ERR_OK;
 }
 
+
+struct paging_region *paging_region_lookup(struct paging_state *st, lvaddr_t vaddr)
+{
+    // naive implementation; TODO improve
+
+    struct paging_region *region = st->head;
+    for (; region != NULL; region = region->next) {
+        if (region->base_addr <= vaddr && region->base_addr + region->region_size > vaddr) {
+            return region;
+        }
+    }
+    return NULL;
+}
+
+
 /**
  * \brief Initialize a paging region in `pr`, such that it contains at least
  * size bytes.
@@ -431,21 +483,33 @@ errval_t paging_region_init(struct paging_state *st, struct paging_region *pr,
 {
     assert(st != NULL && pr != NULL);
 
-    struct paging_region *cur = st->head;
-    for(; cur != NULL && (cur->flags != VREGION_FLAGS_GUARD || cur->region_size < size); cur = cur->next);
-    NULLPTR_CHECK(cur, LIB_ERR_VSPACE_MMU_AWARE_NO_SPACE);
+    struct paging_region *region = st->head;
+    for (; region != NULL; region = region->next) {
+        if (region->type == PAGING_REGION_FREE && region->region_size >= size) {
+            break;
+        }
+    }
+
+    NULLPTR_CHECK(region, LIB_ERR_VSPACE_MMU_AWARE_NO_SPACE);
+
+    // set lazy mapping to true as default
+    pr->lazily_mapped = true;
 
     pr->region_size = size;
     pr->flags = flags;
-    pr->next = cur;
-    pr->prev = cur->prev;
-    pr->base_addr = cur->base_addr;
+    pr->next = region;
+    pr->prev = region->prev;
+    pr->base_addr = region->base_addr;
     pr->current_addr = pr->base_addr;
 
-    cur->base_addr += size;
-    cur->current_addr = cur->base_addr;
-    cur->prev = pr;
-    cur->region_size -= size;
+    if (st->head == region) {
+        st->head = pr;
+    }
+
+    region->base_addr += size;
+    region->region_size -= size;
+    region->current_addr = region->base_addr;
+    region->prev = pr;
 
     if(pr->prev != NULL) {
         pr->prev->next = pr;
