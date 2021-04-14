@@ -29,6 +29,10 @@
 #include <spawn/process_manager.h>
 #include "mem_alloc.h"
 
+
+// #include <aos/curdispatcher_arch.h>
+
+
 struct terminal_queue {
     struct lmp_chan* cur;
     struct terminal_queue* next;
@@ -115,28 +119,37 @@ errval_t initialize_rpc(struct spawninfo *si)
 }
 
 __attribute__((unused))
-static void stack_overflow(void){
-  char c[10];
-  debug_printf("Stack address: %lx\n",c);
-  stack_overflow();
+    static void stack_overflow(void){
+    char c[1024];
+    // dispatcher_handle_t handle = curdispatcher();
+    // struct dispatcher_generic* disp = get_dispatcher_generic(handle);
+    // struct thread* curr_thread = disp -> current;
+    // debug_printf("Current stack: %ld\n",curr_thread -> stack);
+
+    // debug_printf("Current stack top: %d\n",curr_thread -> stack);
+
+    debug_printf("Stack address: %ld\n",c);
+    stack_overflow();
 }
 
 __attribute__((unused))
 static void infinite_loop(void){
 
   uint64_t count = 0;
+//   size_t size = 1L << 29;
   while(true){
-    size_t size = 1L << 29;
+    size_t size = 1L << 15;
     char* p = malloc(size * sizeof(char));
     for(int i = 0; i < size;++i){
         p[i] = i % 255;
     }
-    // uint64_t random[5] = { 1414141,54565791,1894418,235,9265};
-    // for(int i = 0; i < 5; ++i){
-    //     assert(p[random[i]] == random[i]%255);
-    // }
-    free(p);
-    if(count % 1000 == 0){
+    uint64_t random[5] = { 512,300,144,235,10};
+    for(int i = 0; i < 5; ++i){
+        assert(p[random[i]] == random[i]%255);
+    }
+    // free(p);
+    if(count % 1 == 0){
+        debug_printf("P: %ld",p);
         debug_printf("Ran %ld times\n",count);
     }  
     count++;
@@ -188,31 +201,34 @@ static int bsp_main(int argc, char *argv[])
     ts.waiting = NULL;
     terminal_state = &ts;
 
-    struct paging_state* ps = get_current_paging_state();
-    debug_print_paging_state(*ps);
+    // struct paging_state* ps = get_current_paging_state();
+    // debug_print_paging_state(*ps);
 
-    double* p = (double *) malloc(10000000 * sizeof(double));
-    // p = p;
-    printf("%lx\n",&p); 
-    debug_printf("Malloced address is at:%lx\n",p);
-    p[0] = 1;
-    p[171718414] = 1;
-    debug_printf("p[0] = %f\n",p[0]);
-    debug_printf("p[171718414]=%f\n",p[171718414]);
-
-
+    // double* p = (double *) malloc(10000000 * sizeof(double));
+    // // p = p;
+    // printf("%lx\n",&p); 
+    // debug_printf("Malloced address is at:%lx\n",p);
+    // p[0] = 1;
+    // p[171718414] = 1;
+    // debug_printf("p[0] = %f\n",p[0]);
+    // debug_printf("p[171718414]=%f\n",p[171718414]);
 
 
-    double* p2 = (double *) malloc((100000000) * sizeof(double));
-    debug_printf("Malloced address is at:%lx\n",p2);
-    p2[10839000] = 3;
-    debug_printf("p[10839000] = %f\n",p2[10839000]);
 
 
-    debug_print_paging_state(*ps);
+    // double* p2 = (double *) malloc((100000000) * sizeof(double));
+    // debug_printf("Malloced address is at:%lx\n",p2);
+    // p2[10839000] = 3;
+    // debug_printf("p[10839000] = %f\n",p2[10839000]);
 
 
-    infinite_loop();
+    // debug_print_paging_state(*ps);
+
+    // stack_overflow();
+    char p[3] = {1,2,3};\
+    debug_printf("Address of p:%lx\n",p);
+
+    // infinite_loop();
 
     // TODO: initialize mem allocator, vspace management here
 
@@ -290,53 +306,6 @@ int main(int argc, char *argv[])
 
 
 
-
-
-    // struct morecore_state* ms =  get_morecore_state();
-    // debug_printf("Current header_base: %lx\n", ms -> header_base);
-    // debug_printf("Current header_freep: %lx\n", ms -> header_freep);
-    // debug_printf("Paging region:\n");
-    // debug_printf("Staic morecore freep %lx:\n",ms -> freep);
-    // debug_print_paging_region(ms -> region);
-    
-    // char c[17300000];
-    // debug_printf("Address: %ld\n",c);
-    // // char d[1024];
-    // debug_printf("Address: %ld\n",c + sizeof(c));
-    // {
-    //     char c[1730000];
-    //     debug_printf("Address: %ld\n",c);
-    // }
-    // lvaddr_t  addr = NULL;
-    // char *test = NULL;
-    // char c = test[0];
-    // printf("%c\n",c);
-
- 
-    // p[1289411] = 1;
-    
-    // debug_print_paging_state(*ps);
-
-    // double* p2 = (double *) malloc(1024 * sizeof(double));
-    // debug_printf("Malloced address is at:%lx\n",p2);
-
-
-    // debug_print_paging_state(*ps);
-    // debug_printf("Malloced at  to address: %lx\n",p,&p[1024 - 1]); 
-    // stack_overflow();
-    // printf("requesting char\n");
-    // char c = 'A';
-    // char buff[10];
-    // int i = 0;
-    // while(c != 13 && i < 9){
-    //   debug_printf("Loop iteration: %d\n",i);
-    //   c = getchar();
-    //   buff[i] = c;
-    //   i++;
-    // }
-    // buff[i] = '\0';
-    //
-    // printf("Received string :%s\n",buff);
 
     if (my_core_id == 0)
         return bsp_main(argc, argv);

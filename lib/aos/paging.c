@@ -22,6 +22,7 @@
 
 static struct paging_state current;
 
+// struct thread;
 
 
 /**
@@ -83,7 +84,7 @@ errval_t paging_init_state(struct paging_state *st, lvaddr_t start_vaddr,
     // TODO (M2): Implement state struct initialization
     // TODO (M4): Implement page fault handler that installs frames when a page fault
     // occurs and keeps track of the virtual address space.
-
+    // errval_t err;
     static char init_mem[SLAB_STATIC_SIZE(32, sizeof(struct mapping_table))];
     slab_init(&st->mappings_alloc, sizeof(struct mapping_table), NULL);
     slab_grow(&st->mappings_alloc, init_mem, sizeof(init_mem));
@@ -107,7 +108,50 @@ errval_t paging_init_state(struct paging_state *st, lvaddr_t start_vaddr,
 
     paging_region_init(st, &st->meta_region, 1L<<43, VREGION_FLAGS_READ_WRITE);
     paging_region_init(st, &st->heap_region, 1L<<42, VREGION_FLAGS_READ_WRITE);
+    paging_region_init(st, &st->stack_region, 1L<<10, VREGION_FLAGS_READ_WRITE);
 
+    
+ 
+    // struct capref guard_cap;
+    // err = page_table_walk(st,stack_bottom,&guard_cap);
+    // if(err_is_fail(err)){
+    //     DEBUG_ERR(err,"Failed to walk page table for stack capability\n");
+    // }
+
+
+    
+    // struct capref cap;
+    // // size_t size = BA
+    // size_t retbytes;
+    // err = frame_alloc(&cap,BASE_PAGE_SIZE,&retbytes);
+    // if(err_is_fail(err)){
+    //     debug_printf("Failed to alloc frame in paging init\n");
+
+    // }
+
+
+
+    // dispatcher_handle_t handle = curdispatcher();
+    // struct dispatcher_generic* disp = get_dispatcher_generic(handle);
+    // struct thread* curr_thread = disp -> current;
+    // struct thread* curr_thread = curr_thread;
+ 
+
+    // debug_printf("Current stack pointer: %ld\n",sp);
+    // curr_thread -> stack = (void *) VADDR_OFFSET + (1L<<43) + (1L<<42) + (1L << 10);
+    // curr_thread -> paging_region_init
+    // errval_t err;
+    // struct capref cap;
+    // // size_t size = BA
+    // size_t retbytes;
+    // err = frame_alloc(&cap,BASE_PAGE_SIZE,&retbytes);
+    // if(err_is_fail(err)){
+    //     debug_printf("Failed to alloc frame in paging init\n");
+
+    // }
+    // err = paging_map_fixed_attr_with_offset(st,curr_thread -> stack,cap,)
+
+    // curre_thread -> stack = 
     /*
     size_t meta_data_size = 1L<<43; // meta data size, around 8 TB
     paging_region_init_fixed(st,&st -> meta_region,start_vaddr,meta_data_size,VREGION_FLAGS_READ_WRITE);
@@ -167,11 +211,11 @@ errval_t paging_init_state_foreign(struct paging_state *st, lvaddr_t start_vaddr
 
 static void page_fault_handler(enum exception_type type,int subtype,void *addr,arch_registers_state_t *regs){
     errval_t err;
-    // debug_printf("handling pagefault!\n");
-    // debug_printf("type: %d\n", type);
-    // debug_printf("subtype: %d\n", subtype);
-    // debug_printf("addr: 0x%" PRIxLPADDR "\n", addr);
-    // debug_printf("ip: 0x%" PRIxLPADDR "\n", regs->named.pc);
+    debug_printf("handling pagefault!\n");
+    debug_printf("type: %d\n", type);
+    debug_printf("subtype: %d\n", subtype);
+    debug_printf("addr: 0x%" PRIxLPADDR "\n", addr);
+    debug_printf("ip: 0x%" PRIxLPADDR "\n", regs->named.pc);
     if(type == EXCEPT_PAGEFAULT){
         if(addr  == 0){
             debug_printf("Core dumped (Segmentation fault)\n");
@@ -201,6 +245,60 @@ static void page_fault_handler(enum exception_type type,int subtype,void *addr,a
 }
 
 
+errval_t paging_init_stack(struct paging_state* ps){
+    errval_t err = SYS_ERR_OK;   
+    dispatcher_handle_t handle = curdispatcher();
+    struct dispatcher_generic* disp = get_dispatcher_generic(handle);
+    struct thread* curr_thread = disp -> current;
+    // lvaddr_t stack_bottom = (lvaddr_t) curr_thread -> stack;
+    // lvaddr_t stack_top = (lvaddr_t) curr_thread -> stack_top;
+
+    // st -> stack_region 
+    debug_printf("Current stack top: %d\n",curr_thread -> stack_top);
+    debug_printf("Current stack: %ld\n",curr_thread -> stack);
+
+    struct capref stack_cap_top;
+    size_t ret_bytes;
+    err = frame_alloc(&stack_cap_top,BASE_PAGE_SIZE,&ret_bytes);
+    if(err_is_fail(err)){
+        DEBUG_ERR(err,"Failed to alloc fram in paging_init_stack\n");
+    }
+
+    // struct capref stack_cap_bot;
+    // size_t ret_bytes;
+    // err = frame_alloc(&stack_cap_bot,BASE_PAGE_SIZE,&ret_bytes);
+    // if(err_is_fail(err)){
+    //     DEBUG_ERR(err,"Failed to alloc fram in paging_init_stack\n");
+    // }
+    debug_print_paging_region(ps -> stack_region);
+    lvaddr_t new_stack_top = (ps -> stack_region.base_addr) + (ps -> stack_region.region_size);
+    // lvaddr_t new_stack_bottom = ps -> stack_region.base_addr;
+    uint64_t  stack_base = ps -> stack_region.base_addr;
+    uint64_t stack_size = ps -> stack_region.region_size;
+    uint64_t stack_top = stack_base + stack_size;
+
+    // debug_printf("Current stack top: %lx\n",stack_top);
+    // debug_printf("Current stack size: %lx\n",stack_size);
+    // debug_printf("Current stack bot: %lx\n",ps -> stack_region.base_addr);
+
+
+    err = paging_map_fixed_attr(ps,new_stack_top - BASE_PAGE_SIZE,stack_cap_top,BASE_PAGE_SIZE,VREGION_FLAGS_READ_WRITE);
+    if(err_is_fail(err)){
+        DEBUG_ERR(err,"Failed paging_map_fixed_attr\n");
+    }
+    curr_thread -> stack_top = (void * ) stack_top;
+    curr_thread -> stack = (void * ) stack_base;
+    debug_printf("Current stack top: %lx\n",curr_thread -> stack_top);
+    debug_printf("Current stack: %lx\n",curr_thread -> stack);
+    arch_registers_state_t regs = curr_thread -> regs; 
+    uint64_t sp = registers_get_sp(&regs);
+    debug_printf("Current stack register: %ld\n",sp);
+    registers_set_sp(&regs,stack_top);
+    sp = registers_get_sp(&regs);
+    debug_printf("Current stack register: %lx\n",sp);
+    return err;
+}
+
 /**
  * \brief This function initializes the paging for this domain
  * It is called once before main.
@@ -225,9 +323,12 @@ errval_t paging_init(void)
 
     errval_t err;
     static char new_stack[32 * 1024];
+    // void* new_stack = malloc(BASE_PAGE_SIZE);
 
     exception_handler_fn handler = (exception_handler_fn) page_fault_handler;
     err = thread_set_exception_handler(handler,NULL,new_stack,new_stack + sizeof(new_stack),NULL,NULL);
+
+
 
     if(err_is_fail(err)){
         DEBUG_ERR(err,"Failed to set exception handler in paging init\n");
@@ -238,9 +339,9 @@ errval_t paging_init(void)
     ON_ERR_PUSH_RETURN(err, LIB_ERR_VSPACE_INIT);
 
     set_current_paging_state(&current);
-
     err = slot_alloc_init();
     ON_ERR_PUSH_RETURN(err, LIB_ERR_SLOT_ALLOC_INIT);
+    err = paging_init_stack(&current);
 
     return SYS_ERR_OK;
 }
@@ -250,10 +351,30 @@ errval_t paging_init(void)
  * \brief Initialize per-thread paging state
  */
 void paging_init_onthread(struct thread *t)
-{
-    assert(t != NULL);
+{   
+
     // TODO (M4): setup exception handler for thread `t'.
-}
+    // NOTES MATT:
+    // WHAT is this? When is it called? This might be totally wrong!? HELO
+    debug_printf("===================================\n");
+    debug_printf("Got here to paging_init_on_thread\n");
+    debug_printf("===================================\n");
+
+    assert(t != NULL);
+    static char new_stack[32 * 1024];
+    t -> exception_handler = page_fault_handler;
+    t -> exception_stack = (void * )  new_stack;
+    t -> exception_stack_top = (void * )  new_stack + sizeof(new_stack);
+
+    // HERE we also need to give the thread a new stack? Malloc it?
+    // I think? Or we can call frame alloc and use this to
+    // paging_State is assoiciated with dispatch, so we share
+    // paging state among all our threads running in the same 
+    // domain!
+
+        
+  
+}   
 
 /**
  * \brief Initialize a paging region in `pr`, such that it  starts
@@ -499,6 +620,42 @@ static errval_t slab_big_refill(struct paging_state *st, struct slab_allocator *
 
     return SYS_ERR_OK;
 }
+
+__attribute__((unused)) errval_t page_table_walk(struct paging_state *st,lvaddr_t vaddr,struct capref* retcap){
+    // errval_t err;
+    uint64_t l0_offset = (vaddr >> (12 + 3 * 9)) & 0x1FF;
+    uint64_t l1_offset = (vaddr >> (12 + 2 * 9)) & 0x1FF;
+    uint64_t l2_offset = (vaddr >> (12 + 1 * 9)) & 0x1FF;
+    uint64_t l3_offset = (vaddr >> (12 + 0 * 9)) & 0x1FF;
+
+    struct mapping_table *shadow_table_l0 = &st->map_l0;
+    if(shadow_table_l0 == NULL){
+        debug_printf("No shadow page table entry for l0\n");
+        return SYS_ERR_CAP_NOT_FOUND;
+    }
+    struct mapping_table *shadow_table_l1 = shadow_table_l0->children[l0_offset];
+    if(shadow_table_l1 == NULL){
+        debug_printf("No shadow page table entry for l1\n");
+        return SYS_ERR_CAP_NOT_FOUND;
+    }
+    struct mapping_table *shadow_table_l2 = shadow_table_l1 -> children[l1_offset];
+    if(shadow_table_l2 == NULL){
+        debug_printf("No shadow page table entry for l2\n");
+        return SYS_ERR_CAP_NOT_FOUND;
+    }
+
+    struct mapping_table *shadow_table_l3 = shadow_table_l2 -> children[l2_offset];
+    if(shadow_table_l3 == NULL){
+        debug_printf("No shadow page table entry for l3\n");
+        return SYS_ERR_CAP_NOT_FOUND;
+    }
+
+    retcap = &shadow_table_l3 -> mapping_caps[l3_offset];
+
+    return SYS_ERR_OK;
+
+}
+
 
 
 static errval_t paging_map_fixed_attr_with_offset(struct paging_state *st, lvaddr_t vaddr,

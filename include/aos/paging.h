@@ -36,6 +36,9 @@ errval_t paging_init_state_foreign(struct paging_state *st, lvaddr_t start_vaddr
 /// initialize self-paging module
 errval_t paging_init(void);
 
+errval_t paging_init_stack(struct paging_state* ps);
+
+
 void paging_init_onthread(struct thread *t);
 
 errval_t paging_region_init(struct paging_state *st,
@@ -66,6 +69,15 @@ errval_t paging_region_unmap(struct paging_region *pr, lvaddr_t base, size_t byt
  */
 errval_t paging_alloc(struct paging_state *st, void **buf, size_t bytes,
                       size_t alignment);
+
+
+
+/** 
+ * \brief Walk shadow page table to find cap with a given virtual address
+ * 
+ */
+errval_t page_table_walk(struct paging_state *st,lvaddr_t vaddr,struct capref* retcap);
+
 
 /**
  * Functions to map a user provided frame.
