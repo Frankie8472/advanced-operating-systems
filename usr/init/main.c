@@ -23,6 +23,7 @@
 #include <mm/mm.h>
 #include <grading.h>
 #include <aos/core_state.h>
+#include <aos/systime.h>
 
 
 #include <spawn/spawn.h>
@@ -139,6 +140,25 @@ __attribute__((unused)) static void spawn_memeater(void)
 }
 
 
+__attribute__((unused)) static void benchmark_mm(void)
+{
+    const int nBenches = 20000;
+
+    for (int i = 0; i < 10; i++) {
+        uint64_t before = systime_now();
+        for (int j = 0; j < nBenches; j++) {
+            struct capref thrown_away;
+            ram_alloc(&thrown_away, BASE_PAGE_SIZE);
+        }
+        uint64_t end = systime_now();
+
+        debug_printf("measurement %d took: %ld\n", i, systime_to_ns(end - before));
+    }
+}
+
+
+
+
 static int bsp_main(int argc, char *argv[])
 {
     errval_t err;
@@ -166,6 +186,8 @@ static int bsp_main(int argc, char *argv[])
     // TODO: initialize mem allocator, vspace management here
 
     // spawn_memeater();
+
+    benchmark_mm();
 
     run_init_tests();
 
