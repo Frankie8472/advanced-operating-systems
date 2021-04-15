@@ -40,14 +40,14 @@ int test_infinite_loop(void);
  */
 __attribute__((noreturn,unused))
 int test_infinite_loop(void){
-    char* onechar = malloc(1);
+    /*char* onechar = malloc(1);
     struct paging_state *st = get_current_paging_state();
     for (int i = 0; i < 10000; i++) {
         paging_map_single_page_at(st, (lvaddr_t) onechar + BASE_PAGE_SIZE * i, VREGION_FLAGS_READ_WRITE);
         if (i % 32 == 0) {
             debug_printf("preallocating %d\n", i);
         }
-    }
+    }*/
     uint64_t count = 0;
     while (true) {
         size_t size = 1L << 20;

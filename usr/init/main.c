@@ -24,6 +24,12 @@
 #include <grading.h>
 #include <aos/core_state.h>
 #include <aos/systime.h>
+#include <aos/threads.h>
+
+#include <aos/dispatch.h>
+#include <aos/dispatcher_arch.h>
+#include <aos/curdispatcher_arch.h>
+#include <barrelfish_kpi/dispatcher_shared.h>
 
 
 #include <spawn/spawn.h>
@@ -189,26 +195,13 @@ __attribute__((unused)) static void spawn_page(void){
     err = initialize_rpc(hello_si);
 }
 
-
-
-
-static int bsp_main(int argc, char *argv[])
+int real_main(int argc, char *argv[]);
+int real_main(int argc, char *argv[])
 {
+    debug_printf("we are in real main\n");
+
+    return 0;
     errval_t err;
-
-    // Grading
-    grading_setup_bsp_init(argc, argv);
-
-    // First argument contains the bootinfo location, if it's not set
-    bi = (struct bootinfo *)strtol(argv[1], NULL, 10);
-    assert(bi);
-
-
-
-    err = initialize_ram_alloc();
-    if (err_is_fail(err)) {
-        DEBUG_ERR(err, "initialize_ram_alloc");
-    }
 
     struct terminal_state ts;
     ts.reading = false;
@@ -220,8 +213,14 @@ static int bsp_main(int argc, char *argv[])
     debug_print_paging_state(*ps);
 
 
-
-    spawn_page();
+    void stack_overflow(void){
+        char c[1024];
+        c[1] = 1;
+        debug_printf("Stack address: %lx\n",c);
+        stack_overflow();
+    }
+    stack_overflow();
+    //spawn_page();
 
   
 
@@ -229,9 +228,9 @@ static int bsp_main(int argc, char *argv[])
 
     // spawn_memeater();
 
-    benchmark_mm();
+    // benchmark_mm();
 
-    // run_init_tests();
+    //run_init_tests();
 
     // Grading
     grading_test_early();
@@ -251,6 +250,125 @@ static int bsp_main(int argc, char *argv[])
             abort();
         }
     }
+
+    thread_exit(0);
+    return EXIT_SUCCESS;
+    return 0;
+}
+
+void switch_stack(void *function, void *new_stack, uintptr_t arg0, uintptr_t arg1);
+void switch_stack(void *function, void *new_stack, uintptr_t arg0, uintptr_t arg1)
+{
+    /*__asm volatile (
+        "mov x0, sp\n"
+        "mov sp, %[stack]\n"
+        "mov x0, %[argc]\n"
+        "mov x1, %[argv]\n"
+        "blr %[func]\n"
+        "ldr x0, [sp]\n"
+        "mov sp, x0\n"
+        :
+        :
+            [func]  "r"(function),
+            [stack] "r"(new_stack),
+            [argc]  "r"(arg0),
+            [argv]  "r"(arg1)
+    );*/
+}
+
+static int bsp_main(int argc, char *argv[])
+{
+    errval_t err;
+
+    // Grading
+    grading_setup_bsp_init(argc, argv);
+
+    // First argument contains the bootinfo location, if it's not set
+    bi = (struct bootinfo *)strtol(argv[1], NULL, 10);
+    assert(bi);
+
+
+
+    err = initialize_ram_alloc();
+    if (err_is_fail(err)) {
+        DEBUG_ERR(err, "initialize_ram_alloc");
+    }
+
+    struct paging_state *st = get_current_paging_state();
+    struct paging_region hacc_stacc_region;
+    size_t size = 1 << 20;
+    err = paging_region_init(st, &hacc_stacc_region, size, VREGION_FLAGS_READ_WRITE);
+    if (err_is_fail(err)) {
+        DEBUG_ERR(err, "error creating stack region\n");
+    }
+    hacc_stacc_region.type = PAGING_REGION_STACK;
+    snprintf(hacc_stacc_region.region_name, sizeof hacc_stacc_region.region_name, "hacc stacc %d", 0);
+    add_stack_guard(st, 0, hacc_stacc_region.base_addr);
+
+    lvaddr_t top = hacc_stacc_region.base_addr + size - 1;
+    top = ROUND_DOWN(top, 32);
+    debug_printf("setting new stack to %p\n", top);
+
+    //switch_stack(&real_main, (void*) top, argc, (uintptr_t) argv);
+
+    __asm volatile (
+        "mov x0, sp\n"
+        "str x0, [%[stack]]\n"
+        "mov sp, %[stack]\n"
+        "mov x0, %[argc]\n"
+        "mov x1, %[argv]\n"
+        "bl real_main\n"
+        "ldr x0, [sp]\n"
+        "mov sp, x0\n"
+        :
+        :
+            [stack] "r"(top),
+            [argc]  "r"(argc),
+            [argv]  "r"(argv)
+    );
+
+    /*
+    struct terminal_state ts;
+    ts.reading = false;
+    ts.index = 0;
+    ts.waiting = NULL;
+    terminal_state = &ts;
+
+    struct paging_state* ps = get_current_paging_state();
+    debug_print_paging_state(*ps);
+
+
+
+    spawn_page();
+
+  
+
+    // TODO: initialize mem allocator, vspace management here
+
+    // spawn_memeater();
+
+    // benchmark_mm();
+
+    //run_init_tests();
+
+    // Grading
+    grading_test_early();
+
+    // TODO: Spawn system processes, boot second core etc. here
+
+    // Grading
+    grading_test_late();
+
+    debug_printf("Message handler loop\n");
+    // Hang around
+    struct waitset *default_ws = get_default_waitset();
+    while (true) {
+        err = event_dispatch(default_ws);
+        if (err_is_fail(err)) {
+            DEBUG_ERR(err, "in event_dispatch");
+            abort();
+        }
+    }*/
     return EXIT_SUCCESS;
 }
 
@@ -281,8 +399,6 @@ int main(int argc, char *argv[])
     }
     printf("\n");
     fflush(stdout);
-
-
 
 
     if (my_core_id == 0)

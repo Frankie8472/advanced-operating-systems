@@ -59,39 +59,50 @@ __attribute__((unused)) static errval_t pt_alloc_l3(struct paging_state * st, st
 }
 
 
-// void page_fault_handler(enum exception_type type, int subtype, void *addr, arch_registers_state_t *regs) {
-//     errval_t err;
-//     //debug_printf("handling pagefault!\n");
-//     //debug_printf("type: %d\n", type);
-//     //debug_printf("subtype: %d\n", subtype);
-//     //debug_printf("addr: 0x%" PRIxLPADDR "\n", addr);
-//     //debug_printf("ip: 0x%" PRIxLPADDR "\n", regs->named.pc);
+void page_fault_handler(enum exception_type type, int subtype, void *addr, arch_registers_state_t *regs) {
+    errval_t err;
+    //debug_printf("handling pagefault!\n");
+    //debug_printf("type: %d\n", type);
+    //debug_printf("subtype: %d\n", subtype);
+    //debug_printf("addr: 0x%" PRIxLPADDR "\n", addr);
+    //debug_printf("ip: 0x%" PRIxLPADDR "\n", regs->named.pc);
 
-//     struct paging_state *st = get_current_paging_state();
+    struct paging_state *st = get_current_paging_state();
 
-//     if (type == EXCEPT_PAGEFAULT) {
-//         struct paging_region *region = paging_region_lookup(st, (lvaddr_t) addr);
-//         if (region == NULL) {
-//             debug_printf("error in page handler: can't find paging region\n");
-//             thread_exit(1);
-//         }
+    if (type == EXCEPT_PAGEFAULT) {
+        struct paging_region *region = paging_region_lookup(st, (lvaddr_t) addr);
+        if (region == NULL) {
+            debug_printf("error in page handler: can't find paging region\n");
+            thread_exit(1);
+        }
 
-//         if (region->lazily_mapped) {
-//             err = paging_map_single_page_at(st, (lvaddr_t) addr, VREGION_FLAGS_READ_WRITE);
-//             if (err_is_fail(err)) {
-//                 DEBUG_ERR(err, "error mapping page in page fauilt handler\n");
-//                 thread_exit(1);
-//             }
-//             return;
-//         }
-//         else {
-//             debug_printf("pagefault occurred in non-lazily mapped region\n");
-//             debug_printf("region: %lx, %lx\n", region->base_addr, region->region_size);
-//             thread_exit(1);
-//         }
-//     };
-//     thread_exit(0);
-// }
+        if (region->type == PAGING_REGION_STACK && ((lvaddr_t) addr) < region->base_addr + BASE_PAGE_SIZE) {
+            debug_printf("CORE DESTROYED STACK OVERFLOW!\n");
+            debug_printf("in paging region %s\n", region->region_name);
+        }
+        else if (region->lazily_mapped) {
+            err = paging_map_single_page_at(st, (lvaddr_t) addr, VREGION_FLAGS_READ_WRITE);
+            if (err_is_fail(err)) {
+                DEBUG_ERR(err, "error mapping page in page fauilt handler\n");
+                thread_exit(1);
+            }
+            return;
+        }
+        else {
+            debug_printf("pagefault occurred in non-lazily mapped region\n");
+            debug_printf("region: %lx, %lx\n", region->base_addr, region->region_size);
+
+            region->region_name[sizeof region->region_name - 1] = 0; // assert null terminator
+            debug_printf("region name: %s\n", region->region_name);
+            debug_printf("addr: 0x%" PRIxLPADDR "\n", addr);
+            debug_printf("ip: 0x%" PRIxLPADDR "\n", regs->named.pc);
+            debug_printf("dumping stack\n");
+            debug_dump_mem_around_addr(regs->named.stack);
+            thread_exit(1);
+        }
+    };
+    thread_exit(0);
+}
 
 
 errval_t paging_map_single_page_at(struct paging_state *st, lvaddr_t addr, int flags)
@@ -160,17 +171,20 @@ errval_t paging_init_state(struct paging_state *st, lvaddr_t start_vaddr,
     paging_region_init(st, &st->vaddr_offset_region, start_vaddr, 0);
     st->vaddr_offset_region.lazily_mapped = false;
     st->vaddr_offset_region.type = PAGING_REGION_UNUSABLE;
+    strncpy(st->vaddr_offset_region.region_name, "vaddr offset", sizeof st->vaddr_offset_region.region_name);
 
     paging_region_init(st, &st->meta_region, 1L << 43, VREGION_FLAGS_READ_WRITE);
     st->meta_region.lazily_mapped = false;
     st->meta_region.type = PAGING_REGION_UNUSABLE;
+    strncpy(st->meta_region.region_name, "meta region", sizeof st->meta_region.region_name);
 
     static char init_mem_guards[SLAB_STATIC_SIZE(32, sizeof(struct stack_guard))];
     slab_init(&st -> guards_alloc,sizeof(struct stack_guard),NULL);
     slab_grow(&st->guards_alloc, init_mem_guards, sizeof(init_mem_guards));
 
     paging_region_init(st, &st->heap_region, 1L << 42, VREGION_FLAGS_READ_WRITE);
-    st->meta_region.type = PAGING_REGION_HEAP;
+    st->heap_region.type = PAGING_REGION_HEAP;
+    strncpy(st->heap_region.region_name, "heap region", sizeof st->heap_region.region_name);
 
 
     return SYS_ERR_OK;
@@ -245,8 +259,15 @@ bool is_in_guards(void* addr, struct paging_state* ps){
     }
 }
 
-void add_stack_guard(struct paging_state* ps, uintptr_t id, lvaddr_t stack_bottom){
-    struct stack_guard* sg = slab_alloc(&ps -> guards_alloc);
+void add_stack_guard(struct paging_state* ps, uintptr_t id, lvaddr_t stack_bottom) {
+    struct capref frame;
+    frame_alloc(&frame, BASE_PAGE_SIZE, NULL);
+    errval_t err = paging_map_fixed_attr(ps, ROUND_DOWN(stack_bottom, BASE_PAGE_SIZE), frame, BASE_PAGE_SIZE, 0);
+    if (err_is_fail(err)) {
+        DEBUG_ERR(err, "can't map no frame\n");
+    }
+
+    /*struct stack_guard* sg = slab_alloc(&ps -> guards_alloc);
     sg -> stack_bottom = stack_bottom;
     sg -> thread_id = id;
     debug_printf("Stack guard create with stack guard bottom = %lx\n",stack_bottom);
@@ -259,9 +280,10 @@ void add_stack_guard(struct paging_state* ps, uintptr_t id, lvaddr_t stack_botto
         while(it -> next != NULL){it = it -> next;}
         it -> next = sg;
         return;
-    }
+    }*/
 }
 
+/*
 void page_fault_handler(enum exception_type type,int subtype,void *addr,arch_registers_state_t *regs){
     errval_t err;
     debug_printf("handling pagefault!\n");
@@ -340,7 +362,7 @@ void page_fault_handler(enum exception_type type,int subtype,void *addr,arch_reg
     debug_printf("Exiting thread\n");
     thread_exit(0);
     return;
-}
+}*/
 
  
 
@@ -717,11 +739,6 @@ static errval_t paging_map_fixed_attr_with_offset(struct paging_state *st, lvadd
      * TODO(M2): General case
      */
     assert(st != NULL);
-
-    static size_t mapped = 0;
-    mapped += BASE_PAGE_SIZE;
-    if (mapped % (BASE_PAGE_SIZE * 1024) == 0)
-        debug_printf("mapped %ld\n", mapped);
 
     // only able to map whole pages, round up to next page boundary
     bytes = ROUND_UP(bytes, BASE_PAGE_SIZE);

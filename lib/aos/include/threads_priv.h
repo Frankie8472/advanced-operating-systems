@@ -48,8 +48,9 @@ struct thread {
     struct tls_dtv      *tls_dtv;           ///< TLS thread vector
     struct thread       *next, *prev;       ///< Next/prev threads in list
     arch_registers_state_t regs  __attribute__ ((aligned (16)));            ///< Register state snapshot
-    void                *stack;             ///< Malloced stack area
+    void                *stack;             ///< Start of stack region
     void                *stack_top;         ///< Stack bounds
+    struct paging_region stack_region;     ///< Paging region for stack
     void                *exception_stack;   ///< Stack for exception handling
     void                *exception_stack_top; ///< Bounds of exception stack
     exception_handler_fn exception_handler; ///< Exception handler, or NULL

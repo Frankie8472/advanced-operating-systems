@@ -34,6 +34,7 @@ int main(int argc, char *argv[])
 {
     
     printf("Hello, world! from userspace\n");
+    printf("%s\n", argv[1]);
     stack_overflow();
     return EXIT_SUCCESS;
 }

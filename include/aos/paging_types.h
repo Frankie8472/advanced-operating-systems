@@ -45,6 +45,7 @@ enum paging_region_type {
     PAGING_REGION_UNUSABLE, ///< for occupied regions (addresses less than VADDR_OFFSET)
     PAGING_REGION_HEAP, ///< for malloc area e.a.
     PAGING_REGION_STACK, ///< for thread stacks
+    PAGING_REGION_OTHER,
 };
 
 
@@ -53,7 +54,7 @@ struct paging_region {
     lvaddr_t current_addr;
     size_t region_size;
 
-    char region_name[16]; //< for debugging purposes
+    char region_name[32]; //< for debugging purposes
 
     enum paging_region_type type;
     bool lazily_mapped;
