@@ -1,0 +1,8 @@
+
+
+[ build application 
+  { 
+    target = "page",
+    cFiles = [ "main.c" ]
+  }
+]

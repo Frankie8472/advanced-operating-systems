@@ -22,20 +22,30 @@
 #include <stddef.h>
 #include <stdlib.h>
 #include <barrelfish_kpi/registers_arch.h>
-
+// #include <aos/core_state.h>
 __BEGIN_DECLS
 
 struct capability;
+struct paging_region;
+struct paging_state;
+struct morecore_state;
+
 errval_t debug_cap_identify(struct capref cap, struct capability *ret);
 errval_t debug_dump_hw_ptables(void *);
 errval_t debug_cap_trace_ctrl(uintptr_t types, genpaddr_t start_addr, gensize_t size);
 void debug_cspace(struct capref root);
 void debug_my_cspace(void);
 void debug_printf(const char *fmt, ...) __attribute__((format(printf, 1, 2)));
+
+
 int debug_print_cap(char *buf, size_t len, struct capability *cap);
 int debug_print_cap_at_capref(char *buf, size_t len, struct capref cap);
 int debug_print_capref(char *buf, size_t len, struct capref cap);
 int debug_print_cnoderef(char *buf, size_t len, struct cnoderef cnode);
+
+void debug_print_paging_state(struct paging_state );
+void debug_print_paging_region(struct paging_region );
+void debug_print_morecore_state(struct morecore_state );
 
 void debug_print_save_area(arch_registers_state_t *state);
 void debug_print_fpu_state(arch_registers_state_t *state);
@@ -44,6 +54,9 @@ void debug_call_chain(arch_registers_state_t *state);
 void debug_return_addresses(void);
 void debug_dump_mem_around_addr(lvaddr_t addr);
 void debug_dump_mem(lvaddr_t base, lvaddr_t limit, lvaddr_t point);
+
+
+
 
 void debug_err(const char *file, const char *func, int line,
                errval_t err, const char *msg, ...);

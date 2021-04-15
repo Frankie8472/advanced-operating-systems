@@ -1,4 +1,4 @@
-/**
+    /**
  * \file
  * \brief init process for child spawning
  */
@@ -22,11 +22,24 @@
 #include <aos/aos_rpc.h>
 #include <mm/mm.h>
 #include <grading.h>
+#include <aos/core_state.h>
+#include <aos/systime.h>
+#include <aos/threads.h>
+
+#include <aos/dispatch.h>
+#include <aos/dispatcher_arch.h>
+#include <aos/curdispatcher_arch.h>
+#include <barrelfish_kpi/dispatcher_shared.h>
 
 
 #include <spawn/spawn.h>
 #include <spawn/process_manager.h>
 #include "mem_alloc.h"
+
+#include "test.h"
+
+// #include <aos/curdispatcher_arch.h>
+
 
 struct terminal_queue {
     struct lmp_chan* cur;
@@ -113,6 +126,7 @@ errval_t initialize_rpc(struct spawninfo *si)
     return err;
 }
 
+
 __attribute__((unused)) static void spawn_memeater(void)
 {
     struct spawninfo *memeater_si = spawn_create_spawninfo();
@@ -129,6 +143,107 @@ __attribute__((unused)) static void spawn_memeater(void)
     err = lmp_chan_alloc_recv_slot(&rpc->channel);
 
     err = initialize_rpc(memeater_si);
+}
+
+
+
+__attribute__((unused)) static void spawn_page(void){
+    errval_t err;
+    debug_printf("Spawning hello\n");
+    struct spawninfo *hello_si = spawn_create_spawninfo();
+    domainid_t *hello_pid = &hello_si->pid;
+    err = spawn_load_by_name("hello", hello_si, hello_pid);
+    if (err_is_fail(err)) {
+        DEBUG_ERR(err, "spawn loading failed");
+    }
+
+    struct aos_rpc *rpc = &hello_si->rpc;
+    aos_rpc_init(rpc, hello_si->cap_ep, NULL_CAP, hello_si->lmp_ep);
+    err = lmp_chan_alloc_recv_slot(&rpc->channel);
+
+    err = initialize_rpc(hello_si);
+}
+
+int real_main(int argc, char *argv[]);
+int real_main(int argc, char *argv[])
+{
+    debug_printf("we are in real main\n");
+
+    errval_t err;
+
+    struct terminal_state ts;
+    ts.reading = false;
+    ts.index = 0;
+    ts.waiting = NULL;
+    terminal_state = &ts;
+
+    struct paging_state* ps = get_current_paging_state();
+    debug_print_paging_state(*ps);
+
+
+    void stack_overflow(void){
+        char c[1024];
+        c[1] = 1;
+        debug_printf("Stack address: %lx\n",c);
+        stack_overflow();
+    }
+    stack_overflow();
+    //spawn_page();
+
+  
+
+    // TODO: initialize mem allocator, vspace management here
+
+    // spawn_memeater();
+
+    // benchmark_mm();
+
+    //run_init_tests();
+
+    // Grading
+    grading_test_early();
+
+    // TODO: Spawn system processes, boot second core etc. here
+
+    // Grading
+    grading_test_late();
+
+    debug_printf("Message handler loop\n");
+    // Hang around
+    struct waitset *default_ws = get_default_waitset();
+    while (true) {
+        err = event_dispatch(default_ws);
+        if (err_is_fail(err)) {
+            DEBUG_ERR(err, "in event_dispatch");
+            abort();
+        }
+    }
+
+    thread_exit(0);
+    return EXIT_SUCCESS;
+    return 0;
+}
+
+void switch_stack(void *function, void *new_stack, uintptr_t arg0, uintptr_t arg1);
+void switch_stack(void *function, void *new_stack, uintptr_t arg0, uintptr_t arg1)
+{
+    __asm volatile (
+        "mov x29, sp\n"
+        "mov sp, %[stack]\n"
+        "mov x0, %[argc]\n"
+        "mov x1, %[argv]\n"
+        "blr %[func]\n"
+        "ldr x0, [sp]\n"
+        "mov sp, x29\n"
+        :
+        :
+            [func]  "r"(function),
+            [stack] "r"(new_stack),
+            [argc]  "r"(arg0),
+            [argv]  "r"(arg1)
+        :
+            "x0", "x1", "x29"
+    );
 }
 
 
@@ -150,44 +265,31 @@ static int bsp_main(int argc, char *argv[])
         DEBUG_ERR(err, "initialize_ram_alloc");
     }
 
-    struct terminal_state ts;
-    ts.reading = false;
-    ts.index = 0;
-    ts.waiting = NULL;
-    terminal_state = &ts;
-    // TODO: initialize mem allocator, vspace management here
+    struct paging_state *st = get_current_paging_state();
+    struct paging_region hacc_stacc_region;
+    size_t size = 1 << 20;
+    err = paging_region_init(st, &hacc_stacc_region, size, VREGION_FLAGS_READ_WRITE);
+    if (err_is_fail(err)) {
+        DEBUG_ERR(err, "error creating stack region\n");
+    }
+    hacc_stacc_region.type = PAGING_REGION_STACK;
+    snprintf(hacc_stacc_region.region_name, sizeof hacc_stacc_region.region_name, "hacc stacc %d", 0);
+    add_stack_guard(st, 0, hacc_stacc_region.base_addr);
 
-    // test();
-    // debug_printf("input:\n");
+    lvaddr_t top = hacc_stacc_region.base_addr + size - 1;
+    top = ROUND_DOWN(top, 32);
+    debug_printf("setting new stack to %p\n", top);
 
-    // char b = getchar();
-    // debug_printf("Character from getchar = %c\n",b);
-    // char a = getchar();
-    //
-    // debug_printf("Character from getchar = %c\n",a);
-
-
-    spawn_memeater();
-
-    // Grading
-    grading_test_early();
-    // TODO: Spawn system processes, boot second core etc. here
-
-
-    // Grading
-    grading_test_late();
-
-    debug_printf("Message handler loop\n");
-    // Hang around
-    struct waitset *default_ws = get_default_waitset();
-    while (true) {
-        err = event_dispatch(default_ws);
-        if (err_is_fail(err)) {
-            DEBUG_ERR(err, "in event_dispatch");
-            abort();
-        }
+    // we need to prepare
+    for (int i = 0; i < 100; i++) {
+        char* ptr = (char*) top - i * BASE_PAGE_SIZE;
+        *ptr = 0;
     }
 
+    // call real_main with a new stack
+    switch_stack(&real_main, (void*) top, argc, (uintptr_t) argv);
+
+    debug_printf("exiting on old stack\n");
     return EXIT_SUCCESS;
 }
 
@@ -219,20 +321,6 @@ int main(int argc, char *argv[])
     printf("\n");
     fflush(stdout);
 
-
-    // printf("requesting char\n");
-    // char c = 'A';
-    // char buff[10];
-    // int i = 0;
-    // while(c != 13 && i < 9){
-    //   debug_printf("Loop iteration: %d\n",i);
-    //   c = getchar();
-    //   buff[i] = c;
-    //   i++;
-    // }
-    // buff[i] = '\0';
-    //
-    // printf("Received string :%s\n",buff);
 
     if (my_core_id == 0)
         return bsp_main(argc, argv);

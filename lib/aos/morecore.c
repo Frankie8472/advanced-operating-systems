@@ -27,7 +27,7 @@ extern morecore_free_func_t sys_morecore_free;
 // this define makes morecore use an implementation that just has a static
 // 16MB heap.
 // TODO (M4): use a dynamic heap instead,
-#define USE_STATIC_HEAP
+// #define USE_STATIC_HEAP
 
 #ifdef USE_STATIC_HEAP
 
@@ -47,7 +47,8 @@ static char *endp = mymem + HEAP_SIZE;
  * region than requested for.
  */
 static void *morecore_alloc(size_t bytes, size_t *retbytes)
-{
+{   
+
     struct morecore_state *state = get_morecore_state();
 
     size_t aligned_bytes = ROUND_UP(bytes, sizeof(Header));
@@ -77,7 +78,7 @@ errval_t morecore_init(size_t alignment)
     thread_mutex_init(&state->mutex);
 
     state->freep = mymem;
-
+    debug_printf("Static heap is initialized at mem: %lx to : %lx\n",mymem,&mymem[HEAP_SIZE - 1]);
     sys_morecore_alloc = morecore_alloc;
     sys_morecore_free = morecore_free;
     return SYS_ERR_OK;
@@ -98,26 +99,69 @@ errval_t morecore_reinit(void)
  * it finds a set of frames that satisfy the requirement. retbytes can
  * be smaller than bytes if we were able to allocate a smaller memory
  * region than requested for.
+ *
+ * \param bytes Size in bytes of the part to be allocated
+ * \param retbytes The actual size of the allocated part
+ * \returns The address to the start to the allocated part
  */
 static void *morecore_alloc(size_t bytes, size_t *retbytes)
 {
-    USER_PANIC("NYI \n");
-    return NULL;
+    struct morecore_state *state = get_morecore_state();
+    assert(state != NULL);
+
+    size_t aligned_bytes = ROUND_UP(bytes, sizeof(Header));     // TODO: Understand this line
+    void * retbuf = NULL;
+    size_t ret_size;
+
+    errval_t err = paging_region_map(state->region, aligned_bytes, &retbuf, &ret_size);
+
+    if(err_is_fail(err) || ret_size < bytes){
+        return NULL;
+    }
+
+    *retbytes = aligned_bytes;
+    return retbuf;
 }
 
+/**
+ * \brief Used to free/unallocate parts of the allocated parts in the region.
+ *
+ * \param base Start address of the part to be freed
+ * \param bytes Size of the part to be freed
+ */
 static void morecore_free(void *base, size_t bytes)
 {
-    USER_PANIC("NYI \n");
+    struct morecore_state *state = get_morecore_state();
+    assert(state != NULL);
+
+    errval_t err = paging_region_unmap(state->region, (lvaddr_t) base, bytes);
+    ON_ERR_NO_RETURN(err);
 }
 
+/**
+ * \brief Initializing the morecore state by filling the morecore struct
+ *
+ * \param alignment
+ * \returns SYS_ERR_OK
+ */
 errval_t morecore_init(size_t alignment)
 {
-    debug_printf("initializing dynamic heap\n");
+    struct morecore_state *state = get_morecore_state();
+    thread_mutex_init(&state->mutex);
+    struct paging_state *ps = get_current_paging_state();
+    state->region = &ps->heap_region;
 
-    USER_PANIC("NYI \n");
+    sys_morecore_alloc = morecore_alloc;
+    sys_morecore_free = morecore_free;
     return SYS_ERR_OK;
 }
 
+/**
+ * \brief Re-initializing the morecore state by filling the morecore struct
+ * I have currently no idea what this is for (fk)
+ *
+ * \returns SYS_ERR_OK
+ */
 errval_t morecore_reinit(void)
 {
     USER_PANIC("NYI \n");

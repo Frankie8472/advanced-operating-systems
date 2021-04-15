@@ -40,17 +40,35 @@
 
 typedef int paging_flags_t;
 
-struct paging_region_segment {
-    struct paging_region_segment *next;
-    size_t free_space;
+enum paging_region_type {
+    PAGING_REGION_FREE, ///< for free paging regions (may be allocated)
+    PAGING_REGION_UNUSABLE, ///< for occupied regions (addresses less than VADDR_OFFSET)
+    PAGING_REGION_HEAP, ///< for malloc area e.a.
+    PAGING_REGION_STACK, ///< for thread stacks
+    PAGING_REGION_OTHER,
 };
+
 
 struct paging_region {
     lvaddr_t base_addr;
     lvaddr_t current_addr;
     size_t region_size;
-    paging_flags_t flags;
+
+    char region_name[32]; //< for debugging purposes
+
+    enum paging_region_type type;
+    bool lazily_mapped;
+    paging_flags_t flags; ///< lazily mapped pages should be mapped using this flag
+    
+    struct paging_region *next;
+    struct paging_region *prev;
     // TODO: if needed add struct members for tracking state
+};
+
+struct stack_guard {
+    struct stack_guard* next;
+    lvaddr_t stack_bottom;
+    uintptr_t thread_id;
 };
 
 
@@ -65,6 +83,7 @@ struct mapping_table
     /// entries in
     struct capref mapping_caps[PTABLE_ENTRIES];
     struct mapping_table *children[PTABLE_ENTRIES];
+    struct paging_region *region;
 };
 
 
@@ -75,6 +94,26 @@ struct paging_state {
     struct mapping_table map_l0;
     struct slab_allocator mappings_alloc;
     bool mappings_alloc_is_refilling;
+
+
+    // struct paging_region stack_region;
+    // struct paging_region stack_guard;
+    struct slab_allocator region_alloc;
+    struct paging_region *head;
+
+    struct paging_region vaddr_offset_region;
+
+    ///
+    struct paging_region free_region;
+    
+    struct stack_guard* guards;
+    struct slab_allocator guards_alloc;
+
+
+    struct paging_region heap_region;
+    struct paging_region meta_region;
+    struct paging_region stack_region;
+
 
     /// primitive address
     /// \todo implement free here

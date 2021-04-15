@@ -36,7 +36,7 @@
 #endif
 
 // TODO (M4): define this once your self-paging implementation works...
-// #define SELF_PAGING_WORKS
+#define SELF_PAGING_WORKS
 
 /// Maximum number of threads in a domain, used to size VM region for thread structures
 // there is no point having MAX_THREADS > LDT_NENTRIES on x86 (see ldt.c)
@@ -80,6 +80,9 @@ __attribute__((unused)) static bool stack_warned=0;
 /// Wrapper function for most threads, runs given function then deletes itself
 static void thread_entry(thread_func_t start_func, void *start_data)
 {
+    int a;
+    debug_printf("THREAD ENTRY\n");
+    debug_printf("stack: %p\n", &a);
     assert((lvaddr_t)start_func >= BASE_PAGE_SIZE);
     int retval = start_func(start_data);
     thread_exit(retval);
@@ -210,13 +213,13 @@ static errval_t refill_thread_slabs(struct slab_allocator *slabs)
     errval_t err;
 
     size_t blocksize = sizeof(struct thread) + tls_block_total_len + THREAD_ALIGNMENT;
-    err = paging_region_map(&thread_slabs_vm, SLAB_STATIC_SIZE(1, blocksize), &buf, &size);
+    err = paging_region_map(&thread_slabs_vm, SLAB_STATIC_SIZE(16, blocksize), &buf, &size);
+
+
     if (err_is_fail(err)) {
         return err_push(err, LIB_ERR_VSPACE_MMU_AWARE_MAP);
     }
-
     slab_grow(slabs, buf, size);
-
     return SYS_ERR_OK;
 }
 
@@ -353,12 +356,25 @@ static void free_thread(struct thread *thread)
 struct thread *thread_create_unrunnable(thread_func_t start_func, void *arg,
                                         size_t stacksize)
 {
-    // allocate stack
-    assert((stacksize % sizeof(uintptr_t)) == 0);
+
+    // struct paging_state* ps = ;
+    /*assert((stacksize % sizeof(uintptr_t)) == 0);
     void *stack = malloc(stacksize);
+    void *stack_top = stack + stacksize;
+
+
     if (stack == NULL) {
         return NULL;
     }
+
+    
+    
+
+
+    debug_printf("================= \n");
+    debug_printf("Created stack at address: %lx to %lx \n",stack,stack_top);
+    debug_printf("================= \n");*/
+
 
     // allocate space for TCB + initial TLS data
     // no mutex as it may deadlock: see comment for thread_slabs_spinlock
@@ -366,11 +382,13 @@ struct thread *thread_create_unrunnable(thread_func_t start_func, void *arg,
     acquire_spinlock(&thread_slabs_spinlock);
     void *space = slab_alloc(&thread_slabs);
     release_spinlock(&thread_slabs_spinlock);
+
     // thread_mutex_unlock(&thread_slabs_mutex);
     if (space == NULL) {
-        free(stack);
+        //free(stack);
         return NULL;
     }
+
 
     // split space into TLS data followed by TCB
     // XXX: this layout is specific to the x86 ABIs! once other (saner)
@@ -392,6 +410,8 @@ struct thread *thread_create_unrunnable(thread_func_t start_func, void *arg,
                tls_block_total_len - tls_block_init_len);
 
         // create a TLS thread vector
+
+
         struct tls_dtv *dtv = malloc(sizeof(struct tls_dtv) + 1 * sizeof(void *));
         assert(dtv != NULL);
 
@@ -399,6 +419,8 @@ struct thread *thread_create_unrunnable(thread_func_t start_func, void *arg,
         dtv->dtv[0] = tls_data;
         newthread->tls_dtv = dtv;
     }
+
+
 
     // FIXME: make arch-specific
 #if defined(__x86_64__) || defined(__k1om__)
@@ -412,16 +434,28 @@ struct thread *thread_create_unrunnable(thread_func_t start_func, void *arg,
     }
 #endif
 
+    static uintptr_t thread_id = 1;
+    newthread->id = thread_id ++;
+
+
+    // create stack region
+    struct paging_state *st = get_current_paging_state();
+    debug_printf("creating stack region\n");
+    errval_t err = paging_region_init(st, &newthread->stack_region, stacksize, VREGION_FLAGS_READ_WRITE);
+    if (err_is_fail(err)) {
+        DEBUG_ERR(err, "error creating stack region\n");
+    }
+    newthread->stack_region.type = PAGING_REGION_STACK;
+    snprintf(newthread->stack_region.region_name, sizeof newthread->stack_region.region_name, "thread stack %d", newthread->id);
+
     // init stack
-    newthread->stack = stack;
-    newthread->stack_top = (char *)stack + stacksize;
+    newthread->stack = (void *) newthread->stack_region.base_addr;
+    newthread->stack_top = (char *)newthread->stack + stacksize;
 
     // waste space for alignment, if malloc gave us an unaligned stack
     newthread->stack_top = (char *)newthread->stack_top
         - (lvaddr_t)newthread->stack_top % STACK_ALIGNMENT;
 
-    static uintptr_t thread_id = 1;
-    newthread->id = thread_id ++;
 
     paging_init_onthread(newthread);
 
@@ -434,6 +468,9 @@ struct thread *thread_create_unrunnable(thread_func_t start_func, void *arg,
                           (lvaddr_t)newthread->stack_top,
                           (lvaddr_t)start_func, (lvaddr_t)arg, 0, 0);
 
+
+
+    add_stack_guard(st, newthread->id, (lvaddr_t) newthread->stack_region.base_addr);
     return newthread;
 }
 
@@ -1123,8 +1160,16 @@ static int bootstrap_thread(struct spawn_domain_params *params)
 
     // Allocate storage region for real threads
     size_t blocksize = sizeof(struct thread) + tls_block_total_len  + THREAD_ALIGNMENT;
+    // err = paging_region_init(get_current_paging_state(), &thread_slabs_vm,
+    //                          SLAB_STATIC_SIZE(MAX_THREADS, blocksize), VREGION_FLAGS_READ_WRITE);
+    // get_current_paging_state() -> thread_slab_region = thread_slabs_vm;
+
+
     err = paging_region_init(get_current_paging_state(), &thread_slabs_vm,
                              SLAB_STATIC_SIZE(MAX_THREADS, blocksize), VREGION_FLAGS_READ_WRITE);
+    thread_slabs_vm.type = PAGING_REGION_OTHER;
+    strncpy(thread_slabs_vm.region_name, "thread slabs vm", sizeof thread_slabs_vm.region_name);
+
     if (err_is_fail(err)) {
         USER_PANIC_ERR(err, "paging_region_init for thread region failed\n");
     }
@@ -1144,6 +1189,7 @@ static int bootstrap_thread(struct spawn_domain_params *params)
         DEBUG_PRINTF("running main on staticthread!\n");
         main_thread(params);
     } else {
+        // 
         // Start real thread to run main()
         struct thread *thread = thread_create(main_thread, params);
         assert(thread != NULL);
@@ -1436,7 +1482,7 @@ void thread_debug_regs(struct thread *t);
 void thread_debug_regs(struct thread *t)
 {
   printf("%d: RIP = %lx, RSP = %lx\n", disp_get_domain_id(),
-	 t->regs.rip, t->regs.rsp);
+     t->regs.rip, t->regs.rsp);
   uint64_t *stack = (uint64_t *)t->regs.rsp;
   printf("%d: ", disp_get_domain_id());
   for(int i = 0; i < 30; i++) {

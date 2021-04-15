@@ -1,4 +1,4 @@
-/**
+    /**
  * \file
  * \brief Simple slab allocator.
  *
@@ -53,7 +53,6 @@ void slab_init(struct slab_allocator *slabs, size_t blocksize,
 void slab_grow(struct slab_allocator *slabs, void *buf, size_t buflen)
 {
     assert(slabs != NULL);
-
     /* setup slab_head structure at top of buffer */
     assert(buflen > sizeof(struct slab_head));
     struct slab_head *head = buf;
@@ -91,6 +90,7 @@ void *slab_alloc(struct slab_allocator *slabs)
 {
     assert(slabs != NULL);
 
+  
     errval_t err;
     /* find a slab with free blocks */
     struct slab_head *sh;
@@ -98,10 +98,12 @@ void *slab_alloc(struct slab_allocator *slabs)
 
     if (sh == NULL) {
         /* out of memory. try refill function if we have one */
+
         if (!slabs->refill_func) {
             return NULL;
         } else {
             err = slabs->refill_func(slabs);
+            
             if (err_is_fail(err)) {
                 DEBUG_ERR(err, "slab refill_func failed");
                 return NULL;
@@ -119,7 +121,6 @@ void *slab_alloc(struct slab_allocator *slabs)
     assert(bh != NULL);
     sh->blocks = bh->next;
     sh->free--;
-
     return bh;
 }
 
@@ -187,16 +188,17 @@ size_t slab_freecount(struct slab_allocator *slabs)
  */
 static errval_t slab_refill_pages(struct slab_allocator *slabs, size_t bytes)
 {
+    
     assert(slabs != NULL);
-
     struct capref fr;
     size_t size;
     frame_alloc(&fr, bytes, &size);
     void* addr;
 
     errval_t err;
-
-    err = paging_alloc(get_current_paging_state(), &addr, size, 1);
+    size_t ret_size;
+    err = paging_region_map(&get_current_paging_state() -> meta_region,size,&addr,&ret_size);
+    // err = paging_alloc(get_current_paging_state(), &addr, size, 1);
     ON_ERR_RETURN(err);
 
     err = paging_map_fixed(get_current_paging_state(), (lvaddr_t) addr, fr, bytes);
@@ -218,5 +220,5 @@ errval_t slab_default_refill(struct slab_allocator *slabs)
 {
     assert(slabs != NULL);
 
-    return slab_refill_pages(slabs, BASE_PAGE_SIZE);
+    return slab_refill_pages(slabs, 128 * BASE_PAGE_SIZE);
 }

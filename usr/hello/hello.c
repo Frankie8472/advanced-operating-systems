@@ -3,6 +3,12 @@
  * \brief Hello world application
  */
 
+#include <stdio.h>
+#include <stdlib.h>
+
+#include <aos/aos.h>
+
+
 /*
  * Copyright (c) 2016 ETH Zurich.
  * All rights reserved.
@@ -12,7 +18,13 @@
  * ETH Zurich D-INFK, CAB F.78, Universitaetstr. 6, CH-8092 Zurich,
  * Attn: Systems Group.
  */
-
+__attribute__((unused))
+    static void stack_overflow(void){
+    char c[1024];
+    c[1] = 1;
+    debug_printf("Stack address: %lx\n",c);
+    stack_overflow();
+}
 
 #include <stdio.h>
 
@@ -22,10 +34,7 @@ int main(int argc, char *argv[])
 {
     
     printf("Hello, world! from userspace\n");
-
-    printf("I was called with %d arguments\n", argc);
-    for (int i = 0; i < argc; i++) {
-        printf("argument[%d] = %s\n", i, argv[i]);
-    }
+    printf("%s\n", argv[1]);
+    stack_overflow();
     return EXIT_SUCCESS;
 }

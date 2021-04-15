@@ -20,6 +20,7 @@
 #include <aos/capabilities.h>
 #include <aos/slab.h>
 #include <barrelfish_kpi/paging_arch.h>
+#include <aos/except.h>
 #include <aos/paging_types.h>
 
 struct paging_state;
@@ -27,12 +28,25 @@ struct paging_region;
 
 
 struct thread;
+
+// static void page_fault_handler(int type,int subtype,void *addr,arch_registers_state_t *regs);
+bool isIn(void* addr,struct paging_region pr);
+void add_stack_guard(struct paging_state* ps, uintptr_t id, lvaddr_t stack_bottom);
+bool is_in_guard(void* addr, struct stack_guard* sg);
+bool is_in_guards(void* addr, struct paging_state* ps);
+void page_fault_handler(enum exception_type type, int subtype, void *addr, arch_registers_state_t *regs);
+errval_t paging_map_single_page_at(struct paging_state *st, lvaddr_t addr, int flags);
+
+
 errval_t paging_init_state(struct paging_state *st, lvaddr_t start_vaddr,
         struct capref pdir, struct slot_allocator * ca);
 errval_t paging_init_state_foreign(struct paging_state *st, lvaddr_t start_vaddr,
         struct capref pdir, struct slot_allocator * ca);
 /// initialize self-paging module
 errval_t paging_init(void);
+
+errval_t paging_init_stack(struct paging_state* ps);
+
 
 void paging_init_onthread(struct thread *t);
 
@@ -43,6 +57,9 @@ errval_t paging_region_init_fixed(struct paging_state *st, struct paging_region 
 errval_t paging_region_init_aligned(struct paging_state *st,
                                     struct paging_region *pr,
                                     size_t size, size_t alignment, paging_flags_t flags);
+
+struct paging_region *paging_region_lookup(struct paging_state *st, lvaddr_t vaddr);
+
 /**
  * \brief return a pointer to a bit of the paging region `pr`.
  * This function gets used in some of the code that is responsible
@@ -65,6 +82,15 @@ errval_t paging_region_unmap(struct paging_region *pr, lvaddr_t base, size_t byt
 errval_t paging_alloc(struct paging_state *st, void **buf, size_t bytes,
                       size_t alignment);
 
+
+
+/** 
+ * \brief Walk shadow page table to find cap with a given virtual address
+ * 
+ */
+errval_t page_table_walk(struct paging_state *st,lvaddr_t vaddr,struct capref* retcap);
+
+
 /**
  * Functions to map a user provided frame.
  */
@@ -78,6 +104,8 @@ errval_t paging_map_fixed_attr(struct paging_state *st, lvaddr_t vaddr,
 
 /**
  * refill slab allocator without causing a page fault
+ * 
+ * \param frame references the capability slot where the frame cap can be put into
  */
 errval_t slab_refill_no_pagefault(struct slab_allocator *slabs,
                                   struct capref frame, size_t minbytes);

@@ -25,6 +25,7 @@
 #include <inttypes.h>
 #include <barrelfish_kpi/dispatcher_shared.h>
 #include <stdio.h>
+#include <aos/paging_types.h>
 
 #define DISP_MEMORY_SIZE            1024 // size of memory dump in bytes
 
@@ -107,6 +108,42 @@ errval_t debug_dump_hw_ptables(void* vaddr)
 {
     return invoke_dispatcher_dump_ptables(cap_dispatcher, (lvaddr_t)vaddr);
 }
+
+void debug_print_paging_region(struct paging_region pr){
+    debug_printf("------------------------------\n");
+    debug_printf("Base addr: %lx\n",pr.base_addr);
+    debug_printf("Curr addr: %lx\n",pr.current_addr);
+    debug_printf("Size: %lx\n",pr.region_size);
+    debug_printf("Flags: %ld\n",pr.flags);
+    debug_printf("------------------------------\n");
+}
+
+void debug_print_paging_state(struct paging_state ps){
+    debug_printf("Paging state state\n");
+    debug_printf("================================================\n");
+    debug_printf("Current address: %lx\n", ps.current_address);
+    // debug_printf("Stack region:\n");
+    // debug_print_paging_region(ps.stack_region);
+    // debug_printf("Stack guard:\n");
+    // debug_print_paging_region(ps.stack_guard);
+    debug_printf("Heap region:\n");
+    debug_print_paging_region(ps.heap_region);
+    debug_printf("Meta region: \n");
+    debug_print_paging_region(ps.meta_region);
+    debug_printf("================================================\n");
+}
+
+
+// void debug_print_morecore_state(struct morecore_state ms){
+//     debug_printf("Morecore state\n");
+//     debug_printf("================================================\n");
+//     debug_printf("Current address: %lx\n", ms.header_base);
+//     debug_printf("Paging region:\n");
+//     debug_print_paging_region(ms.region);
+//     debug_printf("Staic morecore freep %lx:\n",ms.freep);
+//     debug_printf("================================================\n");
+
+// }
 
 void debug_printf(const char *fmt, ...)
 {

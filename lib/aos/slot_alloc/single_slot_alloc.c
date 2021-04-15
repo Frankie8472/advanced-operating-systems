@@ -181,12 +181,21 @@ errval_t single_slot_alloc_resize(struct single_slot_allocator *this,
     cslot_t grow = newslotcount - this->a.nslots;
 
     // Refill slab allocator
-    size_t bufgrow = SINGLE_SLOT_ALLOC_BUFLEN(grow);
+    // Don't use malloc here, we could be in the pagefault handler
+    /*size_t bufgrow = SINGLE_SLOT_ALLOC_BUFLEN(grow);
     void *buf = malloc(bufgrow);
     if (!buf) {
         return LIB_ERR_MALLOC_FAIL;
     }
-    slab_grow(&this->slab, buf, bufgrow);
+    slab_grow(&this->slab, buf, bufgrow);*/
+
+    // Refill slab allocator
+    struct capref frame;
+    err = this->a.alloc(&this->a, &frame);
+    if (err_is_fail(err)) {
+        return err_push(err, LIB_ERR_SLOT_ALLOC);
+    }
+    err = slab_refill_no_pagefault(&this->slab, frame, SLAB_STATIC_SIZE(1, this->slab.blocksize));
 
     // Update free slot metadata
     err = free_slots(this, this->a.nslots, grow, &this->a.mutex);

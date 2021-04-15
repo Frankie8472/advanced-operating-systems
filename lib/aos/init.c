@@ -75,23 +75,23 @@ static size_t syscall_terminal_write(const char *buf, size_t len)
 }
 
 __attribute__((__used__))
-static size_t syscall_terminal_read(char * buf,size_t len){
-
-  sys_getchar(buf);
-  return 1;
+static size_t syscall_terminal_read(char * buf,size_t len)
+{
+    sys_getchar(buf);
+    return 1;
 }
 
 __attribute__((__used__))
-static size_t aos_terminal_write(const char * buf,size_t len){
+static size_t aos_terminal_write(const char * buf,size_t len)
+{
   // debug_printf("Terminal write: in aos_terminal_write\n");
-
-  struct aos_rpc * rpc = get_init_rpc();
-  if(len){
-    for(size_t i = 0;i < len;++i){
-      aos_rpc_serial_putchar(rpc,buf[i]);
-    }
-  }
-  return len;
+    struct aos_rpc * rpc = get_init_rpc();
+        if(len) {
+            for(size_t i = 0;i < len;++i) {
+                aos_rpc_serial_putchar(rpc,buf[i]);
+            }
+        }
+    return len;
 }
 
 __attribute__((__used__))
@@ -106,27 +106,24 @@ static size_t aos_terminal_read(char* buf,size_t len){
     return 1;
 }
 
-
-
-
-
-/* Set libc function pointers */
+/**
+ * Set libc function pointers
+ */
 void barrelfish_libc_glue_init(void)
 {
-    // XXX: FIXME: Check whether we can use the proper kernel serial, and
-    // what we need for that
+    // XXX: FIXME: Check whether we can use the proper kernel serial, and what we need for that
     // TODO: change these to use the user-space serial driver if possible
     // TODO: set these functions
-    if(init_domain){
-      _libc_terminal_read_func = syscall_terminal_read;
-      _libc_terminal_write_func = syscall_terminal_write;
-      _libc_exit_func = libc_exit;
-      _libc_assert_func = libc_assert;
+    if (init_domain) {
+        _libc_terminal_read_func = syscall_terminal_read;
+        _libc_terminal_write_func = syscall_terminal_write;
+        _libc_exit_func = libc_exit;
+        _libc_assert_func = libc_assert;
     } else {
-      _libc_terminal_read_func = aos_terminal_read;
-      _libc_terminal_write_func = aos_terminal_write;
-      _libc_exit_func = libc_exit;
-      _libc_assert_func = libc_assert;
+        _libc_terminal_read_func = aos_terminal_read;
+        _libc_terminal_write_func = aos_terminal_write;
+        _libc_exit_func = libc_exit;
+        _libc_assert_func = libc_assert;
     }
 
     /* morecore func is setup by morecore_init() */
@@ -159,26 +156,19 @@ errval_t barrelfish_init_onthread(struct spawn_domain_params *params)
 
     // Initialize ram_alloc state
     ram_alloc_init();
+
     /* All domains use smallcn to initialize */
     err = ram_alloc_set(ram_alloc_fixed);
-    if (err_is_fail(err)) {
-        return err_push(err, LIB_ERR_RAM_ALLOC_SET);
-    }
+    ON_ERR_PUSH_RETURN(err, LIB_ERR_RAM_ALLOC_SET);
 
     err = paging_init();
-    if (err_is_fail(err)) {
-        return err_push(err, LIB_ERR_VSPACE_INIT);
-    }
+    ON_ERR_PUSH_RETURN(err, LIB_ERR_VSPACE_INIT);
 
     err = slot_alloc_init();
-    if (err_is_fail(err)) {
-        return err_push(err, LIB_ERR_SLOT_ALLOC_INIT);
-    }
+    ON_ERR_PUSH_RETURN(err, LIB_ERR_SLOT_ALLOC_INIT);
 
     err = morecore_init(BASE_PAGE_SIZE);
-    if (err_is_fail(err)) {
-        return err_push(err, LIB_ERR_MORECORE_INIT);
-    }
+    ON_ERR_PUSH_RETURN(err, LIB_ERR_MORECORE_INIT);
 
     lmp_endpoint_init();
 
@@ -189,14 +179,10 @@ errval_t barrelfish_init_onthread(struct spawn_domain_params *params)
         return SYS_ERR_OK;
     }
 
-
+    // Create and init RPC
     err = ram_alloc_set(NULL);
-    if (err_is_fail(err)) {
-        DEBUG_ERR(err, "unable to set ram_alloc func");
-        return err;
-    }
+    ON_ERR_RETURN(err);
 
-    // for other domains: allocate and set init_rpc
     static struct aos_rpc init_rpc;
     struct capref self_ep_cap = (struct capref) {
       .cnode = cnode_task,
@@ -208,15 +194,10 @@ errval_t barrelfish_init_onthread(struct spawn_domain_params *params)
       .slot = TASKCN_SLOT_INITEP
     };
 
-    // create and initialize rpc
-    aos_rpc_init(&init_rpc, self_ep_cap, init_ep_cap, NULL);
+    err = aos_rpc_init(&init_rpc, self_ep_cap, init_ep_cap, NULL);
+    ON_ERR_RETURN(err);
+
     set_init_rpc(&init_rpc);
-
-    // set ram_alloc function for non-init threads
-    /*errval_t rpc_ram_alloc(struct capref *ret, size_t size, size_t alignment) {
-        return aos_rpc_get_ram_cap(get_init_rpc(), size, alignment, ret, NULL);
-    }*/
-
 
     // TODO MILESTONE 3: register ourselves with init
     /* allocate lmp channel structure */

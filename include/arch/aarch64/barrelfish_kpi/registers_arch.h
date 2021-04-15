@@ -136,6 +136,12 @@ registers_get_sp(arch_registers_state_t *regs)
     return regs->named.stack;
 }
 
+static inline void
+registers_set_sp(arch_registers_state_t *regs, uint64_t param)
+{
+    regs->named.stack = param;
+}
+
 #endif // __ASSEMBLER__
 
 #endif // ARCH_AARCH64_BARRELFISH_KPI_REGISTERS_H
