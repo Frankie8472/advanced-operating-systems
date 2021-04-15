@@ -134,8 +134,12 @@ int test_malloc(void) {
 }
 
 int benchmark_mm(void);
+/**
+ * \brief Benchmarks mm by doing a lot of calls to ram_alloc.
+ */
 int benchmark_mm(void)
 {
+    TEST_START;
     const int nBenches = 5000;
 
     for (int i = 0; i < 10; i++) {
@@ -166,6 +170,7 @@ int benchmark_mm(void)
 
 }
 
+// put your test functions in this array, keep NULL as last element
 int (*tests[])(void) = {
     &benchmark_mm,
     &test_printf,
@@ -176,7 +181,8 @@ int (*tests[])(void) = {
 };
 
 /**
- * \brief main testing function: call your tests from this function
+ * \brief Main testing function: calls functions from the `tests` array until
+ * a testfunction returns something other than 0, or the array is exhausted.
  * \return 0 if all tests pass, non-zero int otherwise
  */
 int run_init_tests(void) {
@@ -189,6 +195,7 @@ int run_init_tests(void) {
 
         if (out) {
             debug_printf("function %d returned error, abort\n", i);
+            debug_printf("=======================\n");
             return out;
         }
     }
