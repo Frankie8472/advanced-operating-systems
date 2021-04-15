@@ -169,7 +169,6 @@ int real_main(int argc, char *argv[])
 {
     debug_printf("we are in real main\n");
 
-    return 0;
     errval_t err;
 
     struct terminal_state ts;
@@ -228,22 +227,25 @@ int real_main(int argc, char *argv[])
 void switch_stack(void *function, void *new_stack, uintptr_t arg0, uintptr_t arg1);
 void switch_stack(void *function, void *new_stack, uintptr_t arg0, uintptr_t arg1)
 {
-    /*__asm volatile (
-        "mov x0, sp\n"
+    __asm volatile (
+        "mov x29, sp\n"
         "mov sp, %[stack]\n"
         "mov x0, %[argc]\n"
         "mov x1, %[argv]\n"
         "blr %[func]\n"
         "ldr x0, [sp]\n"
-        "mov sp, x0\n"
+        "mov sp, x29\n"
         :
         :
             [func]  "r"(function),
             [stack] "r"(new_stack),
             [argc]  "r"(arg0),
             [argv]  "r"(arg1)
-    );*/
+        :
+            "x0", "x1", "x29"
+    );
 }
+
 
 static int bsp_main(int argc, char *argv[])
 {
@@ -278,66 +280,16 @@ static int bsp_main(int argc, char *argv[])
     top = ROUND_DOWN(top, 32);
     debug_printf("setting new stack to %p\n", top);
 
-    //switch_stack(&real_main, (void*) top, argc, (uintptr_t) argv);
+    // we need to prepare
+    for (int i = 0; i < 100; i++) {
+        char* ptr = (char*) top - i * BASE_PAGE_SIZE;
+        *ptr = 0;
+    }
 
-    __asm volatile (
-        "mov x0, sp\n"
-        "str x0, [%[stack]]\n"
-        "mov sp, %[stack]\n"
-        "mov x0, %[argc]\n"
-        "mov x1, %[argv]\n"
-        "bl real_main\n"
-        "ldr x0, [sp]\n"
-        "mov sp, x0\n"
-        :
-        :
-            [stack] "r"(top),
-            [argc]  "r"(argc),
-            [argv]  "r"(argv)
-    );
+    // call real_main with a new stack
+    switch_stack(&real_main, (void*) top, argc, (uintptr_t) argv);
 
-    /*
-    struct terminal_state ts;
-    ts.reading = false;
-    ts.index = 0;
-    ts.waiting = NULL;
-    terminal_state = &ts;
-
-    struct paging_state* ps = get_current_paging_state();
-    debug_print_paging_state(*ps);
-
-
-
-    spawn_page();
-
-  
-
-    // TODO: initialize mem allocator, vspace management here
-
-    // spawn_memeater();
-
-    // benchmark_mm();
-
-    run_init_tests();
-
-    // Grading
-    grading_test_early();
-
-    // TODO: Spawn system processes, boot second core etc. here
-
-    // Grading
-    grading_test_late();
-
-    debug_printf("Message handler loop\n");
-    // Hang around
-    struct waitset *default_ws = get_default_waitset();
-    while (true) {
-        err = event_dispatch(default_ws);
-        if (err_is_fail(err)) {
-            DEBUG_ERR(err, "in event_dispatch");
-            abort();
-        }
-    }*/
+    debug_printf("exiting on old stack\n");
     return EXIT_SUCCESS;
 }
 

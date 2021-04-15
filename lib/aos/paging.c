@@ -77,7 +77,7 @@ void page_fault_handler(enum exception_type type, int subtype, void *addr, arch_
         }
 
         if (region->type == PAGING_REGION_STACK && ((lvaddr_t) addr) < region->base_addr + BASE_PAGE_SIZE) {
-            debug_printf("CORE DESTROYED STACK OVERFLOW!\n");
+            debug_printf("Stack overflow!\n");
             debug_printf("in paging region %s\n", region->region_name);
         }
         else if (region->lazily_mapped) {
