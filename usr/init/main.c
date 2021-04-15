@@ -140,37 +140,6 @@ __attribute__((unused)) static void spawn_memeater(void)
 }
 
 
-__attribute__((unused)) static void benchmark_mm(void)
-{
-    const int nBenches = 5000;
-
-    for (int i = 0; i < 10; i++) {
-        uint64_t before = systime_now();
-        for (int j = 0; j < nBenches; j++) {
-            struct capref thrown_away;
-            ram_alloc(&thrown_away, BASE_PAGE_SIZE);
-        }
-        uint64_t end = systime_now();
-
-        debug_printf("measurement %d took: %ld\n", i, systime_to_ns(end - before));
-    }
-
-    /*
-    struct capref cr = (struct capref) {
-        .cnode = cnode_root,
-        .slot = 0
-    };
-    
-    for (int i = 0; i < 1000; i++) {
-        cr.slot = i;
-        char buf[256];
-        debug_print_cap_at_capref(buf, 256, cr);
-        debug_printf("root slot %d: %s\n", i, buf);
-    }
-    */
-
-}
-
 
 __attribute__((unused)) static void spawn_page(void){
     errval_t err;
@@ -229,9 +198,7 @@ static int bsp_main(int argc, char *argv[])
 
     // spawn_memeater();
 
-    benchmark_mm();
-
-    // run_init_tests();
+    run_init_tests();
 
     // Grading
     grading_test_early();
