@@ -9,6 +9,7 @@
 #include <mm/mm.h>
 #include <grading.h>
 #include <aos/core_state.h>
+#include <aos/systime.h>
 
 
 #include <spawn/spawn.h>
@@ -132,8 +133,42 @@ int test_malloc(void) {
     return 0;
 }
 
-static int test_count = 4;
+int benchmark_mm(void);
+int benchmark_mm(void)
+{
+    const int nBenches = 5000;
+
+    for (int i = 0; i < 10; i++) {
+        uint64_t before = systime_now();
+        for (int j = 0; j < nBenches; j++) {
+            struct capref thrown_away;
+            ram_alloc(&thrown_away, BASE_PAGE_SIZE);
+        }
+        uint64_t end = systime_now();
+
+        debug_printf("measurement %d took: %ld\n", i, systime_to_ns(end - before));
+    }
+    return 0;
+
+    /*
+      struct capref cr = (struct capref) {
+      .cnode = cnode_root,
+      .slot = 0
+      };
+    
+      for (int i = 0; i < 1000; i++) {
+      cr.slot = i;
+      char buf[256];
+      debug_print_cap_at_capref(buf, 256, cr);
+      debug_printf("root slot %d: %s\n", i, buf);
+      }
+    */
+
+}
+
+static int test_count = 5;
 int (*tests[])(void) = {
+    &benchmark_mm,
     &test_printf,
     &test_getchar,
     &test_malloc,
