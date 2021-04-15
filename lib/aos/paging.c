@@ -717,7 +717,10 @@ static errval_t paging_map_fixed_attr_with_offset(struct paging_state *st, lvadd
         }
 
         struct capref mapping;
-        st->slot_alloc->alloc(st->slot_alloc, &mapping);
+        err = st->slot_alloc->alloc(st->slot_alloc, &mapping);
+        if (err_is_fail(err)) {
+            DEBUG_ERR(err, "couldn't alloc slot\n");
+        }
 
         //debug_printf("mapping frame at off: 0x%x\n", i * BASE_PAGE_SIZE + offset);
         err = vnode_map (
@@ -731,6 +734,9 @@ static errval_t paging_map_fixed_attr_with_offset(struct paging_state *st, lvadd
         );
         if (err_is_fail(err)) {
             debug_printf("mapping at: 0x%lx\n", vaddr);
+            char buf[256];
+            debug_print_capref(buf, 256, mapping);
+            debug_printf("mapping cap: %s\n", buf);
             DEBUG_ERR(err, "ERROR MAPPING FRAME\n");
         }
         ON_ERR_RETURN(err);
