@@ -166,13 +166,13 @@ int benchmark_mm(void)
 
 }
 
-static int test_count = 5;
 int (*tests[])(void) = {
     &benchmark_mm,
     &test_printf,
     &test_getchar,
     &test_malloc,
-    &test_infinite_loop
+    &test_infinite_loop,
+    NULL
 };
 
 /**
@@ -183,7 +183,7 @@ int run_init_tests(void) {
     debug_printf("=======================\n");
     debug_printf("BEGINNING TESTS IN INIT\n");
 
-    for (int i = 0; i < test_count; i++) {
+    for (int i = 0; tests[i]; i++) {
         debug_printf("running test %d\n", i + 1);
         int out = (*tests[i])();
 
@@ -192,6 +192,8 @@ int run_init_tests(void) {
             return out;
         }
     }
+    debug_printf("DONE RUNNING TESTS\n");
+    debug_printf("=======================\n");
     
     return 0;
 }
