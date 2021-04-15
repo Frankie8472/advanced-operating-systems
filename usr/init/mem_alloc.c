@@ -84,7 +84,7 @@ errval_t initialize_ram_alloc(void)
     };
 
     for (int i = 0; i < bi->regions_length; i++) {
-        if (bi->regions[i].mr_type == RegionType_Empty) { 
+        if (bi->regions[i].mr_type == RegionType_Empty) {
             err = mm_add(&aos_mm, mem_cap, bi->regions[i].mr_base, bi->regions[i].mr_bytes);
             if (err_is_ok(err)) {
                 mem_avail += bi->regions[i].mr_bytes;
@@ -99,9 +99,7 @@ errval_t initialize_ram_alloc(void)
 
     // Finally, we can initialize the generic RAM allocator to use our local allocator
     err = ram_alloc_set(aos_ram_alloc_aligned);
-    if (err_is_fail(err)) {
-        return err_push(err, LIB_ERR_RAM_ALLOC_SET);
-    }
+    ON_ERR_PUSH_RETURN(err, LIB_ERR_RAM_ALLOC_SET);
 
     // Grading
     grading_test_mm(&aos_mm);

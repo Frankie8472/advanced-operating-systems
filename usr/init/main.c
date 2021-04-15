@@ -160,14 +160,16 @@ __attribute__((unused)) static void spawn_page(void){
     struct aos_rpc *rpc = &hello_si->rpc;
     aos_rpc_init(rpc, hello_si->cap_ep, NULL_CAP, hello_si->lmp_ep);
     err = lmp_chan_alloc_recv_slot(&rpc->channel);
+    ON_ERR_NO_RETURN(err);
 
     err = initialize_rpc(hello_si);
+    ON_ERR_NO_RETURN(err);
 }
 
 int real_main(int argc, char *argv[]);
 int real_main(int argc, char *argv[])
 {
-    debug_printf("we are in real main\n");
+    debug_printf(">> Entering Real Main\n");
 
     errval_t err;
 
@@ -180,8 +182,10 @@ int real_main(int argc, char *argv[])
     struct paging_state* ps = get_current_paging_state();
     debug_print_paging_state(*ps);
 
+    run_init_tests();
 
-    void stack_overflow(void){
+    /*
+    void stack_overflow(void) {
         char c[1024];
         c[1] = 1;
         debug_printf("Stack address: %lx\n",c);
@@ -189,7 +193,7 @@ int real_main(int argc, char *argv[])
     }
     stack_overflow();
     //spawn_page();
-
+*/
   
 
     // TODO: initialize mem allocator, vspace management here
@@ -211,6 +215,7 @@ int real_main(int argc, char *argv[])
     debug_printf("Message handler loop\n");
     // Hang around
     struct waitset *default_ws = get_default_waitset();
+    return EXIT_SUCCESS;
     while (true) {
         err = event_dispatch(default_ws);
         if (err_is_fail(err)) {
@@ -221,7 +226,6 @@ int real_main(int argc, char *argv[])
 
     thread_exit(0);
     return EXIT_SUCCESS;
-    return 0;
 }
 
 void switch_stack(void *function, void *new_stack, uintptr_t arg0, uintptr_t arg1);
@@ -233,7 +237,6 @@ void switch_stack(void *function, void *new_stack, uintptr_t arg0, uintptr_t arg
         "mov x0, %[argc]\n"
         "mov x1, %[argv]\n"
         "blr %[func]\n"
-        "ldr x0, [sp]\n"
         "mov sp, x29\n"
         :
         :
@@ -255,41 +258,34 @@ static int bsp_main(int argc, char *argv[])
     grading_setup_bsp_init(argc, argv);
 
     // First argument contains the bootinfo location, if it's not set
-    bi = (struct bootinfo *)strtol(argv[1], NULL, 10);
+    bi = (struct bootinfo *) strtol(argv[1], NULL, 10);
     assert(bi);
-
-
 
     err = initialize_ram_alloc();
     if (err_is_fail(err)) {
-        DEBUG_ERR(err, "initialize_ram_alloc");
+        DEBUG_ERR(err, "/>/> Error: Initialize_ram_alloc");
     }
 
     struct paging_state *st = get_current_paging_state();
     struct paging_region hacc_stacc_region;
-    size_t size = 1 << 20;
-    err = paging_region_init(st, &hacc_stacc_region, size, VREGION_FLAGS_READ_WRITE);
+    size_t stacksize = 1 << 20;     // 1MB (set to 1GB if overflow check works)
+    err = paging_region_init(st, &hacc_stacc_region, stacksize, VREGION_FLAGS_READ_WRITE);
     if (err_is_fail(err)) {
-        DEBUG_ERR(err, "error creating stack region\n");
+        DEBUG_ERR(err, "/>/> Error: Creating stack region\n");
     }
+
     hacc_stacc_region.type = PAGING_REGION_STACK;
-    snprintf(hacc_stacc_region.region_name, sizeof hacc_stacc_region.region_name, "hacc stacc %d", 0);
-    add_stack_guard(st, 0, hacc_stacc_region.base_addr);
+    snprintf(hacc_stacc_region.region_name, sizeof(hacc_stacc_region.region_name), "hacc stacc %d", 0);
+    add_stack_guard(st, hacc_stacc_region.base_addr);
 
-    lvaddr_t top = hacc_stacc_region.base_addr + size - 1;
+    lvaddr_t top = hacc_stacc_region.base_addr + stacksize - 1;
     top = ROUND_DOWN(top, 32);
-    debug_printf("setting new stack to %p\n", top);
 
-    // we need to prepare
-    for (int i = 0; i < 100; i++) {
-        char* ptr = (char*) top - i * BASE_PAGE_SIZE;
-        *ptr = 0;
-    }
-
-    // call real_main with a new stack
+    // Call real_main with a new stack
+    debug_printf(">> Switching to new stack at %p with size of %ld B\n", (void *) top, stacksize);
     switch_stack(&real_main, (void*) top, argc, (uintptr_t) argv);
+    debug_printf(">> Returning to old stack\n");
 
-    debug_printf("exiting on old stack\n");
     return EXIT_SUCCESS;
 }
 

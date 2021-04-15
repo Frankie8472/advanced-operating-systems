@@ -169,7 +169,7 @@ int benchmark_mm(void)
 int (*tests[])(void) = {
     &benchmark_mm,
     &test_printf,
-    &test_getchar,
+    //&test_getchar,
     &test_malloc,
     &test_infinite_loop,
     NULL

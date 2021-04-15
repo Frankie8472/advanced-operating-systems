@@ -188,21 +188,21 @@ size_t slab_freecount(struct slab_allocator *slabs)
  */
 static errval_t slab_refill_pages(struct slab_allocator *slabs, size_t bytes)
 {
-    
     assert(slabs != NULL);
+    errval_t err;
     struct capref fr;
     size_t size;
-    frame_alloc(&fr, bytes, &size);
-    void* addr;
 
-    errval_t err;
+    err = frame_alloc(&fr, bytes, &size);
+    ON_ERR_PUSH_RETURN(err, LIB_ERR_FRAME_ALLOC);
+
+    void* addr;
     size_t ret_size;
-    err = paging_region_map(&get_current_paging_state() -> meta_region,size,&addr,&ret_size);
-    // err = paging_alloc(get_current_paging_state(), &addr, size, 1);
-    ON_ERR_RETURN(err);
+    err = paging_region_map(&get_current_paging_state()->meta_region, size, &addr, &ret_size);
+    ON_ERR_PUSH_RETURN(err, LIB_ERR_MEMOBJ_MAP_REGION);
 
     err = paging_map_fixed(get_current_paging_state(), (lvaddr_t) addr, fr, bytes);
-    ON_ERR_RETURN(err);
+    ON_ERR_PUSH_RETURN(err, LIB_ERR_VSPACE_MAP);
 
     slab_grow(slabs, (void*) addr, size);
     return SYS_ERR_OK;
@@ -219,6 +219,5 @@ static errval_t slab_refill_pages(struct slab_allocator *slabs, size_t bytes)
 errval_t slab_default_refill(struct slab_allocator *slabs)
 {
     assert(slabs != NULL);
-
     return slab_refill_pages(slabs, 128 * BASE_PAGE_SIZE);
 }

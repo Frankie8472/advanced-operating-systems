@@ -171,7 +171,7 @@ errval_t paging_init_state(struct paging_state *st, lvaddr_t start_vaddr,
     paging_region_init(st, &st->vaddr_offset_region, start_vaddr, 0);
     st->vaddr_offset_region.lazily_mapped = false;
     st->vaddr_offset_region.type = PAGING_REGION_UNUSABLE;
-    strncpy(st->vaddr_offset_region.region_name, "vaddr offset", sizeof st->vaddr_offset_region.region_name);
+    strncpy(st->vaddr_offset_region.region_name, "vaddr offset", sizeof(st->vaddr_offset_region.region_name));
 
     paging_region_init(st, &st->meta_region, 1L << 43, VREGION_FLAGS_READ_WRITE);
     st->meta_region.lazily_mapped = false;
@@ -179,12 +179,12 @@ errval_t paging_init_state(struct paging_state *st, lvaddr_t start_vaddr,
     strncpy(st->meta_region.region_name, "meta region", sizeof st->meta_region.region_name);
 
     static char init_mem_guards[SLAB_STATIC_SIZE(32, sizeof(struct stack_guard))];
-    slab_init(&st -> guards_alloc,sizeof(struct stack_guard),NULL);
+    slab_init(&st->guards_alloc, sizeof(struct stack_guard), NULL);
     slab_grow(&st->guards_alloc, init_mem_guards, sizeof(init_mem_guards));
 
     paging_region_init(st, &st->heap_region, 1L << 42, VREGION_FLAGS_READ_WRITE);
     st->heap_region.type = PAGING_REGION_HEAP;
-    strncpy(st->heap_region.region_name, "heap region", sizeof st->heap_region.region_name);
+    strncpy(st->heap_region.region_name, "heap region", sizeof(st->heap_region.region_name));
 
 
     return SYS_ERR_OK;
@@ -259,28 +259,14 @@ bool is_in_guards(void* addr, struct paging_state* ps){
     }
 }
 
-void add_stack_guard(struct paging_state* ps, uintptr_t id, lvaddr_t stack_bottom) {
+void add_stack_guard(struct paging_state* ps, lvaddr_t stack_bottom) {
     struct capref frame;
-    frame_alloc(&frame, BASE_PAGE_SIZE, NULL);
-    errval_t err = paging_map_fixed_attr(ps, ROUND_DOWN(stack_bottom, BASE_PAGE_SIZE), frame, BASE_PAGE_SIZE, 0);
-    if (err_is_fail(err)) {
-        DEBUG_ERR(err, "can't map no frame\n");
-    }
+    errval_t err;
+    err = frame_alloc(&frame, BASE_PAGE_SIZE, NULL);
+    ON_ERR_NO_RETURN(err);
 
-    /*struct stack_guard* sg = slab_alloc(&ps -> guards_alloc);
-    sg -> stack_bottom = stack_bottom;
-    sg -> thread_id = id;
-    debug_printf("Stack guard create with stack guard bottom = %lx\n",stack_bottom);
-    if(ps -> guards == NULL){
-        ps -> guards = sg;
-        return;
-    }
-    else{
-        struct stack_guard* it = ps -> guards;
-        while(it -> next != NULL){it = it -> next;}
-        it -> next = sg;
-        return;
-    }*/
+    err = paging_map_fixed_attr(ps, ROUND_DOWN(stack_bottom, BASE_PAGE_SIZE), frame, BASE_PAGE_SIZE, 0);
+    ON_ERR_NO_RETURN(err);
 }
 
 /*
@@ -704,12 +690,14 @@ errval_t slab_refill_no_pagefault(struct slab_allocator *slabs, struct capref fr
                                   size_t minbytes)
 {
     assert(slabs != NULL);
-
+    errval_t err;
     const size_t bytes = ROUND_UP(minbytes, BASE_PAGE_SIZE);
     size_t size;
-    frame_create(frame, bytes, &size);
+    err = frame_create(frame, bytes, &size);
+    ON_ERR_PUSH_RETURN(err, LIB_ERR_FRAME_CREATE);
+
     void* buf = NULL;
-    errval_t err = paging_map_frame_complete(get_current_paging_state(), &buf, frame, NULL, NULL);
+    err = paging_map_frame_complete(get_current_paging_state(), &buf, frame, NULL, NULL);
     ON_ERR_RETURN(err);
 
     slab_grow(slabs, buf, size);
@@ -846,6 +834,7 @@ static errval_t paging_map_fixed_attr_with_offset(struct paging_state *st, lvadd
         }
 
         //debug_printf("mapping frame at off: 0x%x\n", i * BASE_PAGE_SIZE + offset);
+
         err = vnode_map (
             shadow_table_l3->pt_cap,
             frame,
@@ -859,6 +848,7 @@ static errval_t paging_map_fixed_attr_with_offset(struct paging_state *st, lvadd
             debug_printf("mapping at: 0x%lx\n", vaddr);
             char buf[256];
             debug_print_capref(buf, 256, mapping);
+            debug_print_capref(buf, 256, frame);
             debug_printf("mapping cap: %s\n", buf);
             DEBUG_ERR(err, "ERROR MAPPING FRAME\n");
         }

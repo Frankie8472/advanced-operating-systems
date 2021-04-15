@@ -211,14 +211,10 @@ static errval_t refill_thread_slabs(struct slab_allocator *slabs)
     size_t size;
     void *buf;
     errval_t err;
-
     size_t blocksize = sizeof(struct thread) + tls_block_total_len + THREAD_ALIGNMENT;
     err = paging_region_map(&thread_slabs_vm, SLAB_STATIC_SIZE(16, blocksize), &buf, &size);
+    ON_ERR_PUSH_RETURN(err, LIB_ERR_VSPACE_MMU_AWARE_MAP);
 
-
-    if (err_is_fail(err)) {
-        return err_push(err, LIB_ERR_VSPACE_MMU_AWARE_MAP);
-    }
     slab_grow(slabs, buf, size);
     return SYS_ERR_OK;
 }
@@ -421,11 +417,11 @@ struct thread *thread_create_unrunnable(thread_func_t start_func, void *arg,
     }
 
 
-
+    errval_t err;
     // FIXME: make arch-specific
 #if defined(__x86_64__) || defined(__k1om__)
     // create segment for TCB
-    errval_t err = ldt_alloc_segment(newthread, &newthread->thread_seg_selector);
+    err = ldt_alloc_segment(newthread, &newthread->thread_seg_selector);
     if (err_is_fail(err)) {
         DEBUG_ERR(err, "error allocating LDT segment for new thread");
         free_thread(newthread);
@@ -441,7 +437,7 @@ struct thread *thread_create_unrunnable(thread_func_t start_func, void *arg,
     // create stack region
     struct paging_state *st = get_current_paging_state();
     debug_printf("creating stack region\n");
-    errval_t err = paging_region_init(st, &newthread->stack_region, stacksize, VREGION_FLAGS_READ_WRITE);
+    err = paging_region_init(st, &newthread->stack_region, stacksize, VREGION_FLAGS_READ_WRITE);
     if (err_is_fail(err)) {
         DEBUG_ERR(err, "error creating stack region\n");
     }
@@ -470,7 +466,7 @@ struct thread *thread_create_unrunnable(thread_func_t start_func, void *arg,
 
 
 
-    add_stack_guard(st, newthread->id, (lvaddr_t) newthread->stack_region.base_addr);
+    add_stack_guard(st, (lvaddr_t) newthread->stack_region.base_addr);
     return newthread;
 }
 
