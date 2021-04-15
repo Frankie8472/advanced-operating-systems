@@ -139,6 +139,7 @@ int benchmark_mm(void);
  */
 int benchmark_mm(void)
 {
+    TEST_START;
     const int nBenches = 5000;
 
     for (int i = 0; i < 10; i++) {
