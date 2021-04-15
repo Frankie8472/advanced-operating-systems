@@ -99,57 +99,69 @@ errval_t morecore_reinit(void)
  * it finds a set of frames that satisfy the requirement. retbytes can
  * be smaller than bytes if we were able to allocate a smaller memory
  * region than requested for.
+ *
+ * \param bytes Size in bytes of the part to be allocated
+ * \param retbytes The actual size of the allocated part
+ * \returns The address to the start to the allocated part
  */
 static void *morecore_alloc(size_t bytes, size_t *retbytes)
-{   
-    errval_t err;
-    debug_printf("More core alloc called:\n");
+{
     struct morecore_state *state = get_morecore_state();
-    size_t aligned_bytes = ROUND_UP(bytes, sizeof(Header));
-    
+    assert(state != NULL);
 
+    size_t aligned_bytes = ROUND_UP(bytes, sizeof(Header));     // TODO: Understand this line
     void * retbuf = NULL;
     size_t ret_size;
-    err = paging_region_map(state -> region,aligned_bytes,&retbuf,&ret_size);
 
-    // void* ret = NULL;
-    if(ret_size < bytes){
+    errval_t err = paging_region_map(state->region, aligned_bytes, &retbuf, &ret_size);
+
+    if(err_is_fail(err) || ret_size < bytes){
         return NULL;
     }
-    // if(state -> region -> current_addr  + aligned_bytes > state -> region -> base_addr +  state -> region -> region_size){
-    //     debug_printf("Ran out of heap memory, returning NULL from morecore_alloc\n");
-    //     aligned_bytes = 0;
-    // }
-    // else{
-    //     ret = (void*) state ->region -> current_addr;
-    //     state -> region -> current_addr += aligned_bytes;
-    // }
+
     *retbytes = aligned_bytes;
     return retbuf;
 }
 
+/**
+ * \brief Used to free/unallocate parts of the allocated parts in the region.
+ *
+ * \param base Start address of the part to be freed
+ * \param bytes Size of the part to be freed
+ */
 static void morecore_free(void *base, size_t bytes)
 {
-    USER_PANIC("NYI \n");
+    struct morecore_state *state = get_morecore_state();
+    assert(state != NULL);
+
+    errval_t err = paging_region_unmap(state->region, (lvaddr_t) base, bytes);
+    ON_ERR_NO_RETURN(err);
 }
 
+/**
+ * \brief Initializing the morecore state by filling the morecore struct
+ *
+ * \param alignment
+ * \returns SYS_ERR_OK
+ */
 errval_t morecore_init(size_t alignment)
-{   
-
-    debug_printf("initializing dynamic heap\n");
-
+{
     struct morecore_state *state = get_morecore_state();
     thread_mutex_init(&state->mutex);
-    struct paging_state* ps = get_current_paging_state();
-    state -> region = &ps -> heap_region;
-    
+    struct paging_state *ps = get_current_paging_state();
+    state->region = &ps->heap_region;
 
     sys_morecore_alloc = morecore_alloc;
     sys_morecore_free = morecore_free;
-    // USER_PANIC("NYI \n");
     return SYS_ERR_OK;
 }
 
+/**
+ * \brief Re-initializing the morecore state by filling the morecore struct
+ * I have currently no idea what this is for (fk)
+ *
+ * \returns SYS_ERR_OK
+ */
 errval_t morecore_reinit(void)
 {
     USER_PANIC("NYI \n");

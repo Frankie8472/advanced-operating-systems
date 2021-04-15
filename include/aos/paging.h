@@ -52,6 +52,9 @@ errval_t paging_region_init_fixed(struct paging_state *st, struct paging_region 
 errval_t paging_region_init_aligned(struct paging_state *st,
                                     struct paging_region *pr,
                                     size_t size, size_t alignment, paging_flags_t flags);
+
+struct paging_region *paging_region_lookup(struct paging_state *st, lvaddr_t vaddr);
+
 /**
  * \brief return a pointer to a bit of the paging region `pr`.
  * This function gets used in some of the code that is responsible
