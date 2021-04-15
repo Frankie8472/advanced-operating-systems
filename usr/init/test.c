@@ -40,25 +40,26 @@ int test_infinite_loop(void);
  */
 __attribute__((noreturn,unused))
 int test_infinite_loop(void){
-    
+    char* onechar = malloc(1);
+    struct paging_state *st = get_current_paging_state();
+    for (int i = 0; i < 10000; i++) {
+        paging_map_single_page_at(st, (lvaddr_t) onechar + BASE_PAGE_SIZE * i, VREGION_FLAGS_READ_WRITE);
+        if (i % 32 == 0) {
+            debug_printf("preallocating %d\n", i);
+        }
+    }
     uint64_t count = 0;
-    while(true){
-        size_t size = 1L << 15;
+    while (true) {
+        size_t size = 1L << 20;
 
         char* p = malloc(size * sizeof(char));
-        for(int i = 0; i < size;++i){
-            p[i] = i % 255;
-        }
-        uint64_t random[5] = { 512,300,144,235,10};
-        for(int i = 0; i < 5; ++i){
-            assert(p[random[i]] == random[i]%255);
+        for(int i = 0; i < size; i += BASE_PAGE_SIZE){
+            p[i] = (char) i;
         }
         // free(p);
         if(count % 1 == 0){
-            debug_printf("P: %ld",p);
-
-            debug_printf("Ran %ld times\n",count);
-        }  
+            debug_printf("Ran %ld times\n", count);
+        }
         count++;
     }
 }
@@ -131,11 +132,12 @@ int test_malloc(void) {
     return 0;
 }
 
-static int test_count = 3;
+static int test_count = 4;
 int (*tests[])(void) = {
     &test_printf,
     &test_getchar,
-    &test_malloc
+    &test_malloc,
+    &test_infinite_loop
 };
 
 /**

@@ -59,6 +59,55 @@ __attribute__((unused)) static errval_t pt_alloc_l3(struct paging_state * st, st
 }
 
 
+// void page_fault_handler(enum exception_type type, int subtype, void *addr, arch_registers_state_t *regs) {
+//     errval_t err;
+//     //debug_printf("handling pagefault!\n");
+//     //debug_printf("type: %d\n", type);
+//     //debug_printf("subtype: %d\n", subtype);
+//     //debug_printf("addr: 0x%" PRIxLPADDR "\n", addr);
+//     //debug_printf("ip: 0x%" PRIxLPADDR "\n", regs->named.pc);
+
+//     struct paging_state *st = get_current_paging_state();
+
+//     if (type == EXCEPT_PAGEFAULT) {
+//         struct paging_region *region = paging_region_lookup(st, (lvaddr_t) addr);
+//         if (region == NULL) {
+//             debug_printf("error in page handler: can't find paging region\n");
+//             thread_exit(1);
+//         }
+
+//         if (region->lazily_mapped) {
+//             err = paging_map_single_page_at(st, (lvaddr_t) addr, VREGION_FLAGS_READ_WRITE);
+//             if (err_is_fail(err)) {
+//                 DEBUG_ERR(err, "error mapping page in page fauilt handler\n");
+//                 thread_exit(1);
+//             }
+//             return;
+//         }
+//         else {
+//             debug_printf("pagefault occurred in non-lazily mapped region\n");
+//             debug_printf("region: %lx, %lx\n", region->base_addr, region->region_size);
+//             thread_exit(1);
+//         }
+//     };
+//     thread_exit(0);
+// }
+
+
+errval_t paging_map_single_page_at(struct paging_state *st, lvaddr_t addr, int flags)
+{
+    struct capref frame;
+    size_t retbytes;
+    errval_t err = frame_alloc(&frame, BASE_PAGE_SIZE, &retbytes);
+    ON_ERR_RETURN(err);
+
+    lvaddr_t vaddr = ROUND_DOWN((lvaddr_t) addr, BASE_PAGE_SIZE);
+
+    err = paging_map_fixed_attr(st, vaddr, frame, BASE_PAGE_SIZE, flags);
+    ON_ERR_RETURN(err);
+
+    return SYS_ERR_OK;
+}
 
 
 /**
@@ -213,7 +262,7 @@ void add_stack_guard(struct paging_state* ps, uintptr_t id, lvaddr_t stack_botto
     }
 }
 
-static void page_fault_handler(enum exception_type type,int subtype,void *addr,arch_registers_state_t *regs){
+void page_fault_handler(enum exception_type type,int subtype,void *addr,arch_registers_state_t *regs){
     errval_t err;
     debug_printf("handling pagefault!\n");
     // debug_printf("type: %d\n", type);
@@ -765,7 +814,7 @@ static errval_t paging_map_fixed_attr_with_offset(struct paging_state *st, lvadd
             return paging_map_fixed_attr_with_offset(st, vaddr + new_offset, frame, offset + new_offset, bytes - new_offset, flags);
         }
 
-        // Milestone one assumption
+        // Milestone one assumption (ensured by if block before)
         assert(l3_offset + i < PTABLE_ENTRIES);
 
         if (!capcmp(shadow_table_l3->mapping_caps[l3_offset + i], NULL_CAP)) {
@@ -786,6 +835,10 @@ static errval_t paging_map_fixed_attr_with_offset(struct paging_state *st, lvadd
             1,
             mapping
         );
+        if (err_is_fail(err)) {
+            debug_printf("mapping at: 0x%lx\n", vaddr);
+            DEBUG_ERR(err, "ERROR MAPPING FRAME\n");
+        }
         ON_ERR_RETURN(err);
 
         //debug_printf("mapped frame at off: 0x%x\n", l3_offset + i);
