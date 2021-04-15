@@ -64,6 +64,12 @@ struct paging_region {
     // TODO: if needed add struct members for tracking state
 };
 
+struct stack_guard {
+    struct stack_guard* next;
+    lvaddr_t stack_bottom;
+    uintptr_t thread_id;
+};
+
 
 /**
  * \brief shadow page table
@@ -99,14 +105,15 @@ struct paging_state {
     ///
     struct paging_region free_region;
     
-    struct paging_region *stack_regions;
-    struct paging_region *guard_regions;
+    struct stack_guard* guards;
+    struct slab_allocator guards_alloc;
+
 
     struct paging_region heap_region;
-
     struct paging_region meta_region;
-
     struct paging_region stack_region;
+
+
     /// primitive address
     /// \todo implement free here
     lvaddr_t current_address;

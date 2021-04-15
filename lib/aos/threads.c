@@ -214,9 +214,7 @@ static errval_t refill_thread_slabs(struct slab_allocator *slabs)
     if (err_is_fail(err)) {
         return err_push(err, LIB_ERR_VSPACE_MMU_AWARE_MAP);
     }
-
     slab_grow(slabs, buf, size);
-
     return SYS_ERR_OK;
 }
 
@@ -353,17 +351,21 @@ static void free_thread(struct thread *thread)
 struct thread *thread_create_unrunnable(thread_func_t start_func, void *arg,
                                         size_t stacksize)
 {
-    // allocate stack
-    debug_printf("===================================\n");
-    debug_printf("Creating stack \n");
-    debug_printf("===================================\n");
 
-
+    // struct paging_state* ps = ;
     assert((stacksize % sizeof(uintptr_t)) == 0);
     void *stack = malloc(stacksize);
+    void *stack_top = stack + stacksize;
     if (stack == NULL) {
         return NULL;
     }
+    
+
+
+    debug_printf("================= \n");
+    debug_printf("Created stack at address: %lx to %lx \n",stack,stack_top);
+    debug_printf("================= \n");
+
 
     // allocate space for TCB + initial TLS data
     // no mutex as it may deadlock: see comment for thread_slabs_spinlock
@@ -371,11 +373,13 @@ struct thread *thread_create_unrunnable(thread_func_t start_func, void *arg,
     acquire_spinlock(&thread_slabs_spinlock);
     void *space = slab_alloc(&thread_slabs);
     release_spinlock(&thread_slabs_spinlock);
+
     // thread_mutex_unlock(&thread_slabs_mutex);
     if (space == NULL) {
         free(stack);
         return NULL;
     }
+
 
     // split space into TLS data followed by TCB
     // XXX: this layout is specific to the x86 ABIs! once other (saner)
@@ -397,6 +401,8 @@ struct thread *thread_create_unrunnable(thread_func_t start_func, void *arg,
                tls_block_total_len - tls_block_init_len);
 
         // create a TLS thread vector
+
+
         struct tls_dtv *dtv = malloc(sizeof(struct tls_dtv) + 1 * sizeof(void *));
         assert(dtv != NULL);
 
@@ -404,6 +410,8 @@ struct thread *thread_create_unrunnable(thread_func_t start_func, void *arg,
         dtv->dtv[0] = tls_data;
         newthread->tls_dtv = dtv;
     }
+
+
 
     // FIXME: make arch-specific
 #if defined(__x86_64__) || defined(__k1om__)
@@ -439,6 +447,9 @@ struct thread *thread_create_unrunnable(thread_func_t start_func, void *arg,
                           (lvaddr_t)newthread->stack_top,
                           (lvaddr_t)start_func, (lvaddr_t)arg, 0, 0);
 
+
+
+    add_stack_guard(get_current_paging_state(),newthread -> id,(lvaddr_t)stack);
     return newthread;
 }
 
@@ -1128,8 +1139,10 @@ static int bootstrap_thread(struct spawn_domain_params *params)
 
     // Allocate storage region for real threads
     size_t blocksize = sizeof(struct thread) + tls_block_total_len  + THREAD_ALIGNMENT;
-    err = paging_region_init(get_current_paging_state(), &thread_slabs_vm,
-                             SLAB_STATIC_SIZE(MAX_THREADS, blocksize), VREGION_FLAGS_READ_WRITE);
+    // err = paging_region_init(get_current_paging_state(), &thread_slabs_vm,
+    //                          SLAB_STATIC_SIZE(MAX_THREADS, blocksize), VREGION_FLAGS_READ_WRITE);
+    // get_current_paging_state() -> thread_slab_region = thread_slabs_vm;
+    thread_slabs_vm = get_current_paging_state() -> meta_region;
     if (err_is_fail(err)) {
         USER_PANIC_ERR(err, "paging_region_init for thread region failed\n");
     }
@@ -1149,6 +1162,7 @@ static int bootstrap_thread(struct spawn_domain_params *params)
         DEBUG_PRINTF("running main on staticthread!\n");
         main_thread(params);
     } else {
+        // 
         // Start real thread to run main()
         struct thread *thread = thread_create(main_thread, params);
         assert(thread != NULL);

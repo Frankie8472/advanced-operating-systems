@@ -142,7 +142,7 @@ __attribute__((unused)) static void spawn_memeater(void)
 
 __attribute__((unused)) static void benchmark_mm(void)
 {
-    const int nBenches = 20000;
+    const int nBenches = 5000;
 
     for (int i = 0; i < 10; i++) {
         uint64_t before = systime_now();
@@ -154,6 +154,39 @@ __attribute__((unused)) static void benchmark_mm(void)
 
         debug_printf("measurement %d took: %ld\n", i, systime_to_ns(end - before));
     }
+
+    /*
+    struct capref cr = (struct capref) {
+        .cnode = cnode_root,
+        .slot = 0
+    };
+    
+    for (int i = 0; i < 1000; i++) {
+        cr.slot = i;
+        char buf[256];
+        debug_print_cap_at_capref(buf, 256, cr);
+        debug_printf("root slot %d: %s\n", i, buf);
+    }
+    */
+
+}
+
+
+__attribute__((unused)) static void spawn_page(void){
+    errval_t err;
+    debug_printf("Spawning hello\n");
+    struct spawninfo *hello_si = spawn_create_spawninfo();
+    domainid_t *hello_pid = &hello_si->pid;
+    err = spawn_load_by_name("hello", hello_si, hello_pid);
+    if (err_is_fail(err)) {
+        DEBUG_ERR(err, "spawn loading failed");
+    }
+
+    struct aos_rpc *rpc = &hello_si->rpc;
+    aos_rpc_init(rpc, hello_si->cap_ep, NULL_CAP, hello_si->lmp_ep);
+    err = lmp_chan_alloc_recv_slot(&rpc->channel);
+
+    err = initialize_rpc(hello_si);
 }
 
 
@@ -183,13 +216,22 @@ static int bsp_main(int argc, char *argv[])
     ts.waiting = NULL;
     terminal_state = &ts;
 
+    struct paging_state* ps = get_current_paging_state();
+    debug_print_paging_state(*ps);
+
+
+
+    spawn_page();
+
+  
+
     // TODO: initialize mem allocator, vspace management here
 
     // spawn_memeater();
 
     benchmark_mm();
 
-    run_init_tests();
+    // run_init_tests();
 
     // Grading
     grading_test_early();
