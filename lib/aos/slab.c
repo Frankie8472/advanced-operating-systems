@@ -220,5 +220,5 @@ errval_t slab_default_refill(struct slab_allocator *slabs)
 {
     assert(slabs != NULL);
 
-    return slab_refill_pages(slabs, BASE_PAGE_SIZE);
+    return slab_refill_pages(slabs, 128 * BASE_PAGE_SIZE);
 }
