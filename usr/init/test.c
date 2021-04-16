@@ -133,6 +133,55 @@ int test_malloc(void) {
     return 0;
 }
 
+static int test_malloc_lazy(void) {
+    TEST_START;
+
+    // allocate 8 GB of memory
+    double *array = malloc(sizeof(double) * 1024L * 1024 * 1024);
+    debug_printf("malloc'ed 8 GB of memory\n");
+
+
+    debug_printf("Setting some values to pi\n");
+    for(size_t i = 10000000; i < 10005000; i++) {
+        array[i] = 3.14159;
+    }
+
+    debug_printf("array[10000600] = %lf\n", array[10000600]);
+
+    free(array);
+
+    return 0;
+}
+
+static int test_malloc_64MiB(void) {
+    TEST_START;
+
+    // allocate 64 MiB of memory
+    size_t len = 16 * 1024 * 1024;
+    int *array = malloc(len);
+    debug_printf("malloc'ed 64 MiB of memory\n");
+
+
+    debug_printf("setting each element to its index value\n");
+    for(int i = 0; i < len; i++) {
+        array[i] = i;
+        if (i % (1024 * 1024) == 0) {
+            debug_printf("at index %d\n", i);
+        }
+    }
+
+    long sum = 0;
+    for(int i = 0; i < len; i++) {
+        sum += array[i];
+    }
+
+    debug_printf("The sum of all numbers from 1 to %d = %ld", len, sum);
+
+    free(array);
+
+    return 0;
+}
+
 int benchmark_mm(void);
 int benchmark_mm(void)
 {
@@ -167,11 +216,13 @@ int benchmark_mm(void)
 }
 
 int (*tests[])(void) = {
-    &benchmark_mm,
-    &test_printf,
-    &test_getchar,
-    &test_malloc,
-    &test_infinite_loop,
+    //&benchmark_mm,
+    //&test_printf,
+    //&test_getchar,
+    //&test_malloc,
+    &test_malloc_lazy,
+    &test_malloc_64MiB,
+    //&test_infinite_loop,
     NULL
 };
 
