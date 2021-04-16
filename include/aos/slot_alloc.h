@@ -106,6 +106,9 @@ errval_t root_slot_allocator_refill(cn_ram_alloc_func_t myalloc, void *allocst);
 
 errval_t slot_free(struct capref ret);
 
+// additional slot freeing function for possible mm
+extern errval_t (*slot_free_other)(struct capref ret);
+
 #define RANGE_SLOT_ALLOC_BUFLEN(nslots) \
     (SLAB_STATIC_SIZE(nslots / 2, sizeof(struct cnode_meta)))
     

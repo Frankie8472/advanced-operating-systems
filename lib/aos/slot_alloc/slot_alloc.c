@@ -129,6 +129,8 @@ errval_t root_slot_allocator_refill(cn_ram_alloc_func_t myalloc, void *allocst)
     return single_slot_alloc_resize(sca, nslots * 2);
 }
 
+
+
 /**
  * \brief Default slot free
  *
@@ -144,7 +146,6 @@ errval_t root_slot_allocator_refill(cn_ram_alloc_func_t myalloc, void *allocst)
  */
 errval_t slot_free(struct capref ret)
 {
-    debug_printf("freeing slot: %d, %d\n", ret.cnode.cnode, ret.slot);
     struct slot_alloc_state *state = get_slot_alloc_state();
 
     assert(state != NULL);
@@ -163,10 +164,17 @@ errval_t slot_free(struct capref ret)
 
     // Detect frees in special case of init and mem_serv
     if (err_no(err) == LIB_ERR_SLOT_ALLOC_WRONG_CNODE) {
-        return err;
+        if (slot_free_other != NULL) {
+            err = slot_free_other(ret);
+        }
+        else {
+            return err;
+        }
     }
     return err;
 }
+
+errval_t (*slot_free_other)(struct capref ret) = NULL;
 
 /**
  * \brief Initializes the slot allocator

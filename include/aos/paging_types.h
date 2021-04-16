@@ -95,7 +95,6 @@ struct paging_state {
     struct slab_allocator mappings_alloc;   // Slab allocator for shadow page table
     bool mappings_alloc_is_refilling;       // Boolean for blocking while refilling
 
-    struct slab_allocator region_alloc;     // Slab allocator for vaddr region linked list
     struct paging_region *head;             // Head of the vaddr region linked list
 
     struct paging_region vaddr_offset_region;   // Region from 0x0 to VADDR_OFFSET

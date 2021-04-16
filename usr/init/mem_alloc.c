@@ -60,6 +60,12 @@ static inline errval_t initialize_ram_allocator(void)
     static uint8_t nodebuf[SLAB_STATIC_SIZE(64, sizeof(struct mmnode))];
     slab_grow(&aos_mm.slabs, nodebuf, sizeof(nodebuf));
 
+    // set up additional slot freeing function for slot_free()
+    errval_t slot_free_mm(struct capref ret) {
+        return mm_slot_free(&aos_mm, ret);
+    }
+    slot_free_other = &slot_free_mm;
+
     return SYS_ERR_OK;
 }
 

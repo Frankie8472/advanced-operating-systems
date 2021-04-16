@@ -466,7 +466,7 @@ struct thread *thread_create_unrunnable(thread_func_t start_func, void *arg,
 
 
 
-    add_stack_guard(st, (lvaddr_t) newthread->stack_region.base_addr);
+    err = paging_map_stack_guard(st, (lvaddr_t) newthread->stack_region.base_addr);
     return newthread;
 }
 

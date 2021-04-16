@@ -212,16 +212,16 @@ int real_main(int argc, char *argv[])
     struct paging_state* ps = get_current_paging_state();
     debug_print_paging_state(*ps);
 
-    //run_init_tests();
+    run_init_tests();
 
     
-    void stack_overflow(void) {
+    /*void stack_overflow(void) {
         char c[1024];
         c[1] = 1;
         debug_printf("Stack address: %lx\n",c);
         stack_overflow();
     }
-    stack_overflow();
+    stack_overflow();*/
     //spawn_page();
   
 
@@ -231,7 +231,6 @@ int real_main(int argc, char *argv[])
 
     // benchmark_mm();
 
-    //run_init_tests();
 
     // Grading
     grading_test_early();
@@ -305,7 +304,7 @@ static int bsp_main(int argc, char *argv[])
 
     hacc_stacc_region.type = PAGING_REGION_STACK;
     snprintf(hacc_stacc_region.region_name, sizeof(hacc_stacc_region.region_name), "hacc stacc %d", 0);
-    add_stack_guard(st, hacc_stacc_region.base_addr);
+    err = paging_map_stack_guard(st, hacc_stacc_region.base_addr);
 
     lvaddr_t top = hacc_stacc_region.base_addr + stacksize - 1;
     top = ROUND_DOWN(top, 32);

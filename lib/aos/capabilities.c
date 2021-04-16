@@ -371,7 +371,7 @@ errval_t cap_destroy(struct capref cap)
         return err;
     }
 
-    //err = slot_free(cap);
+    err = slot_free(cap);
     if (err_is_fail(err)) {
         return err_push(err, LIB_ERR_WHILE_FREEING_SLOT);
     }
@@ -671,6 +671,7 @@ errval_t vnode_create(struct capref dest, enum objtype type)
     return SYS_ERR_OK;
 }
 
+#include <aos/systime.h>
 /**
  * \brief Create a Frame cap referring to newly-allocated RAM in a given slot
  *
