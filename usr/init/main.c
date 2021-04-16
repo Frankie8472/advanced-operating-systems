@@ -60,21 +60,36 @@ coreid_t my_core_id;
 
 errval_t initialize_rpc(struct spawninfo *si);
 
+/**
+ * \brief handler function for putchar rpc call
+ */
 static void handler_putchar(struct aos_rpc *r, uintptr_t c) {
     putchar(c);
     //debug_printf("recieved: %c\n", (char)c);
 }
 
+/**
+ * \brief handler function for getchar rpc call
+ */
 static void handler_getchar(struct aos_rpc *r, uintptr_t *c) {
     int v = getchar();
     //debug_printf("getchar: %c\n", v);
     *c = v;//getchar();
 }
 
+/**
+ * \brief handler function for ram alloc rpc call
+ */
 static void req_ram(struct aos_rpc *r, uintptr_t size, uintptr_t alignment, struct capref *cap, uintptr_t *ret_size) {
     ram_alloc_aligned(cap, size, alignment);
 }
 
+/**
+ * \brief handler function for initiate rpc call
+ * 
+ * This function is called by a domain who wishes to make use of the
+ * rpc interface of the init domain
+ */
 static void initiate(struct aos_rpc *rpc, struct capref cap) {
     debug_printf("rpc: %p\n", rpc);
     rpc->channel.remote_cap = cap;
@@ -97,14 +112,29 @@ static void spawn_handler(struct aos_rpc *old_rpc, const char *name, uintptr_t c
     }
 }
 
+
+/**
+ * \brief handler function for send number rpc call
+ */
 static void recv_number(struct aos_rpc *r, uintptr_t number) {
     debug_printf("recieved number: %ld\n", number);
 }
 
+/**
+ * \brief handler function for send string rpc call
+ */
 static void recv_string(struct aos_rpc *r, const char *string) {
     debug_printf("recieved string: %s\n", string);
 }
 
+/**
+ * \brief initialize all handlers for rpc calls
+ * 
+ * Init needs to provide a bunch of rpc interfaces to other processes.
+ * This function is calld each time a new process is spawned and makes sure
+ * that all necessary rpc handlers in si->rpc are set. It then registers
+ * the lmp recieve handler.
+ */
 errval_t initialize_rpc(struct spawninfo *si)
 {
     struct aos_rpc *rpc = &si->rpc;
@@ -191,7 +221,7 @@ int real_main(int argc, char *argv[])
         debug_printf("Stack address: %lx\n",c);
         stack_overflow();
     }
-    stack_overflow();
+    stack_overflow();*/
     //spawn_page();
 */
   
@@ -202,7 +232,7 @@ int real_main(int argc, char *argv[])
 
     // benchmark_mm();
 
-    //run_init_tests();
+    run_init_tests();
 
     // Grading
     grading_test_early();
