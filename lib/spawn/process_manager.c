@@ -13,7 +13,8 @@ struct process_manager
 /**
  * \brief slab refill function that refills big chunks at once
  */
-static errval_t slab_big_refill(struct slab_allocator *slabs) {
+static errval_t slab_big_refill(struct slab_allocator *slabs)
+{
     const size_t bytes = BASE_PAGE_SIZE * 16;
     struct capref frame;
     errval_t err;

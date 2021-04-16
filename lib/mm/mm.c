@@ -300,6 +300,7 @@ errval_t mm_alloc_aligned(struct mm *mm, size_t size, size_t alignment, struct c
 
     struct mmnode *node;
 
+
     for (node = mm->free_head; node != NULL; node = node->free_next) {
         if (node->size >= size) {
             struct mmnode *a, *b;
