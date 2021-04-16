@@ -19,6 +19,8 @@
 #include "test.h"
 
 int test_stack_overflow(void);
+
+
 /**
  * \brief causes a stack-overflow by continuously allocating stack-space, then
  * calling itself again
@@ -133,6 +135,7 @@ int test_malloc(void) {
     return 0;
 }
 
+__attribute__((unused))
 static int test_malloc_lazy(void) {
     TEST_START;
 
@@ -153,6 +156,7 @@ static int test_malloc_lazy(void) {
     return 0;
 }
 
+__attribute__((unused))
 static int test_malloc_64MiB(void) {
     TEST_START;
 
@@ -175,7 +179,7 @@ static int test_malloc_64MiB(void) {
         sum += array[i];
     }
 
-    debug_printf("The sum of all numbers from 1 to %d = %ld", len, sum);
+    debug_printf("The sum of all numbers from 1 to %d = %ld\n", len, sum);
 
     free(array);
 
@@ -227,6 +231,7 @@ int (*tests[])(void) = {
     //&test_malloc,
     &test_malloc_lazy,
     &test_malloc_64MiB,
+    &test_stack_overflow,
     //&test_infinite_loop,
     NULL
 };

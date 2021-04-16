@@ -212,16 +212,16 @@ int real_main(int argc, char *argv[])
     struct paging_state* ps = get_current_paging_state();
     debug_print_paging_state(*ps);
 
-    run_init_tests();
+    //run_init_tests();
 
-    /*
+    
     void stack_overflow(void) {
         char c[1024];
         c[1] = 1;
         debug_printf("Stack address: %lx\n",c);
         stack_overflow();
     }
-    stack_overflow();*/
+    stack_overflow();
     //spawn_page();
   
 
@@ -231,7 +231,7 @@ int real_main(int argc, char *argv[])
 
     // benchmark_mm();
 
-    run_init_tests();
+    //run_init_tests();
 
     // Grading
     grading_test_early();
