@@ -223,7 +223,6 @@ int real_main(int argc, char *argv[])
     }
     stack_overflow();*/
     //spawn_page();
-*/
   
 
     // TODO: initialize mem allocator, vspace management here
