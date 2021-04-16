@@ -178,10 +178,6 @@ errval_t paging_init_state(struct paging_state *st, lvaddr_t start_vaddr,
     st->meta_region.type = PAGING_REGION_UNUSABLE;
     strncpy(st->meta_region.region_name, "meta region", sizeof st->meta_region.region_name);
 
-    static char init_mem_guards[SLAB_STATIC_SIZE(32, sizeof(struct stack_guard))];
-    slab_init(&st->guards_alloc, sizeof(struct stack_guard), NULL);
-    slab_grow(&st->guards_alloc, init_mem_guards, sizeof(init_mem_guards));
-
     paging_region_init(st, &st->heap_region, 1L << 42, VREGION_FLAGS_READ_WRITE);
     st->heap_region.type = PAGING_REGION_HEAP;
     strncpy(st->heap_region.region_name, "heap region", sizeof(st->heap_region.region_name));
@@ -218,7 +214,6 @@ errval_t paging_init_state_foreign(struct paging_state *st, lvaddr_t start_vaddr
     st->slot_alloc = ca;
 
     // Initialize shadowpagetable
-    st->current_address = start_vaddr;
     st->map_l0.pt_cap = pdir;
 
     // Init allocator for shadowpagetable
@@ -244,19 +239,6 @@ bool isIn(void* addr,struct paging_region pr){
 
 bool is_in_guard(void* addr, struct stack_guard* sg){
 return (lvaddr_t) addr >  sg -> stack_bottom && (lvaddr_t) addr < (sg -> stack_bottom + 8 * 1024);
-}
-
-bool is_in_guards(void* addr, struct paging_state* ps){
-    struct stack_guard* it = ps -> guards;
-    if(it == NULL){
-        return false;
-    }else {
-        while(it != NULL){
-            if(is_in_guard(addr,it)){return true;}
-            it = it -> next;
-        }
-        return false;
-    }
 }
 
 void add_stack_guard(struct paging_state* ps, lvaddr_t stack_bottom) {
@@ -476,9 +458,6 @@ errval_t paging_region_init_fixed(struct paging_state *st, struct paging_region 
     //TODO(M2): Add the region to a datastructure and ensure paging_alloc
     //will return non-overlapping regions.
     // TODO inspect this; maybe replace with smarter allocating algorithm
-    if (st->current_address < pr->base_addr + pr->region_size) {
-        st->current_address = pr->base_addr + pr->region_size;
-    }
     return SYS_ERR_OK;
 }
 

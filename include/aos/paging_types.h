@@ -89,35 +89,22 @@ struct mapping_table
 
 // struct to store the paging status of a process
 struct paging_state {
-    struct slot_allocator *slot_alloc;
+    struct slot_allocator *slot_alloc;      // Slot allocator
 
-    struct mapping_table map_l0;
-    struct slab_allocator mappings_alloc;
-    bool mappings_alloc_is_refilling;
+    struct mapping_table map_l0;            // Shadow page table lv 0
+    struct slab_allocator mappings_alloc;   // Slab allocator for shadow page table
+    bool mappings_alloc_is_refilling;       // Boolean for blocking while refilling
 
+    struct slab_allocator region_alloc;     // Slab allocator for vaddr region linked list
+    struct paging_region *head;             // Head of the vaddr region linked list
 
-    // struct paging_region stack_region;
-    // struct paging_region stack_guard;
-    struct slab_allocator region_alloc;
-    struct paging_region *head;
+    struct paging_region vaddr_offset_region;   // Region from 0x0 to VADDR_OFFSET
 
-    struct paging_region vaddr_offset_region;
+    struct paging_region free_region;   // Free Region at the end
 
-    ///
-    struct paging_region free_region;
-    
-    struct stack_guard* guards;
-    struct slab_allocator guards_alloc;
-
-
-    struct paging_region heap_region;
-    struct paging_region meta_region;
-    struct paging_region stack_region;
-
-
-    /// primitive address
-    /// \todo implement free here
-    lvaddr_t current_address;
+    struct paging_region heap_region;   // Heap region
+    struct paging_region meta_region;   // Meta region
+    struct paging_region stack_region;  // Stack region
 };
 
 
