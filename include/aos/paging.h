@@ -31,7 +31,7 @@ struct thread;
 
 errval_t paging_map_stack_guard(struct paging_state* ps, lvaddr_t stack_bottom);
 void page_fault_handler(enum exception_type type, int subtype, void *addr, arch_registers_state_t *regs);
-errval_t paging_map_single_page_at(struct paging_state *st, lvaddr_t addr, int flags);
+errval_t paging_map_single_page_at(struct paging_state *st, lvaddr_t addr, int flags, size_t pagesize);
 
 
 errval_t paging_init_state(struct paging_state *st, lvaddr_t start_vaddr,
@@ -94,6 +94,12 @@ errval_t page_table_walk(struct paging_state *st,lvaddr_t vaddr,struct capref* r
 errval_t paging_map_frame_attr(struct paging_state *st, void **buf,
                                size_t bytes, struct capref frame,
                                int flags, void *arg1, void *arg2);
+
+/// shadow page table lookup
+errval_t paging_spt_find(struct paging_state *st, int level,
+                         lvaddr_t addr, bool create,
+                         struct mapping_table **ret);
+
 /// Map user provided frame at user provided VA with given flags.
 errval_t paging_map_fixed_attr(struct paging_state *st, lvaddr_t vaddr,
                                struct capref frame, size_t bytes, int flags);

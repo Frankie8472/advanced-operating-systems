@@ -55,7 +55,12 @@ void page_fault_handler(enum exception_type type, int subtype, void *addr, arch_
         }
         else if (region->lazily_mapped) {
             // in a lazily mapped region we should only page fault if a page is not mapped, so we map it
-            err = paging_map_single_page_at(st, (lvaddr_t) addr, VREGION_FLAGS_READ_WRITE);
+            err = paging_map_single_page_at(st,
+                    (lvaddr_t) addr,
+                    VREGION_FLAGS_READ_WRITE,
+                    region->map_large_pages ? LARGE_PAGE_SIZE : BASE_PAGE_SIZE
+            );
+            
             if (err_is_fail(err)) {
                 DEBUG_ERR(err, "error mapping page in page fauilt handler\n");
                 thread_exit(1);
@@ -88,16 +93,19 @@ void page_fault_handler(enum exception_type type, int subtype, void *addr, arch_
  * This function is called from the page fault handler if a lazily mapped page
  * should be allocated.
  */
-errval_t paging_map_single_page_at(struct paging_state *st, lvaddr_t addr, int flags)
+errval_t paging_map_single_page_at(struct paging_state *st, lvaddr_t addr, int flags, size_t pagesize)
 {
+    assert(st != 0);
+    assert(pagesize == BASE_PAGE_SIZE || pagesize == LARGE_PAGE_SIZE);
+
     struct capref frame;
     size_t retbytes;
-    errval_t err = frame_alloc(&frame, BASE_PAGE_SIZE, &retbytes);
+    errval_t err = frame_alloc_aligned(&frame, pagesize, pagesize, &retbytes);
     ON_ERR_RETURN(err);
 
-    lvaddr_t vaddr = ROUND_DOWN((lvaddr_t) addr, BASE_PAGE_SIZE);
+    lvaddr_t vaddr = ROUND_DOWN((lvaddr_t) addr, pagesize);
 
-    err = paging_map_fixed_attr(st, vaddr, frame, BASE_PAGE_SIZE, flags);
+    err = paging_map_fixed_attr(st, vaddr, frame, pagesize, flags);
     ON_ERR_RETURN(err);
 
     return SYS_ERR_OK;
@@ -134,7 +142,7 @@ errval_t paging_init_state(struct paging_state *st, lvaddr_t start_vaddr,
     st->map_l0.pt_cap = pdir;
 
     // Init allocator for shadowpagetable
-    static char init_mem[SLAB_STATIC_SIZE(32, sizeof(struct mapping_table))];
+    static char init_mem[SLAB_STATIC_SIZE(16, sizeof(struct mapping_table))];
     slab_init(&st->mappings_alloc, sizeof(struct mapping_table), NULL);
     slab_grow(&st->mappings_alloc, init_mem, sizeof(init_mem));
 
@@ -158,6 +166,7 @@ errval_t paging_init_state(struct paging_state *st, lvaddr_t start_vaddr,
 
     paging_region_init(st, &st->heap_region, 1L << 42, VREGION_FLAGS_READ_WRITE);
     st->heap_region.type = PAGING_REGION_HEAP;
+    st->heap_region.map_large_pages = true;
     strncpy(st->heap_region.region_name, "heap region", sizeof(st->heap_region.region_name));
 
 
@@ -552,164 +561,21 @@ static errval_t pt_alloc(struct paging_state * st, enum objtype type,
     return SYS_ERR_OK;
 }
 
-static errval_t paging_map_fixed_attr_with_offset(struct paging_state *st, lvaddr_t vaddr,
-                               struct capref frame, gensize_t offset, size_t bytes, int flags);
-
-errval_t paging_map_fixed_attr(struct paging_state *st, lvaddr_t vaddr,
-                               struct capref frame, size_t bytes, int flags)
-{
-    return paging_map_fixed_attr_with_offset(st, vaddr, frame, 0, bytes, flags);
-}
 
 /**
- * \brief like paging_map_fixed_attr, but you can specify an offset into the frame at which to map
+ * \brief check whether the slab allocator for the shadow page table needs a refill.
+ * 
+ * As in order to refill the slab allocator we may need to map some pages, we need to
+ * make sure that we always have some spare space and refill early enough.
  */
-static errval_t paging_map_fixed_attr_with_offset(struct paging_state *st, lvaddr_t vaddr,
-                               struct capref frame, gensize_t offset, size_t bytes, int flags)
+static errval_t paging_check_spt_refill(struct paging_state *st)
 {
-    /**
-     * \brief map a user provided frame at user provided VA.
-     * TODO(M1): Map a frame assuming all mappings will fit into one last level pt
-     * TODO(M2): General case
-     */
-    assert(st != NULL);
-
-    // only able to map whole pages, round up to next page boundary
-    bytes = ROUND_UP(bytes, BASE_PAGE_SIZE);
-
-    // offset into frames must be page-aligned
-    assert(offset % BASE_PAGE_SIZE == 0);
-
-    uint64_t l0_offset = (vaddr >> (12 + 3 * 9)) & 0x1FF;
-    uint64_t l1_offset = (vaddr >> (12 + 2 * 9)) & 0x1FF;
-    uint64_t l2_offset = (vaddr >> (12 + 1 * 9)) & 0x1FF;
-    uint64_t l3_offset = (vaddr >> (12 + 0 * 9)) & 0x1FF;
-
-    struct mapping_table *shadow_table_l0 = &st->map_l0;
-    struct mapping_table *shadow_table_l1 = NULL;
-    struct mapping_table *shadow_table_l2 = NULL;
-    struct mapping_table *shadow_table_l3 = NULL;
-
-    errval_t err;
-
-    shadow_table_l1 = shadow_table_l0->children[l0_offset];
-
-    if (shadow_table_l1 == NULL) { // if there is no l1 pt in l0
-        struct capref l1;
-        struct capref l1_mapping;
-        st->slot_alloc->alloc(st->slot_alloc, &l1_mapping);
-        pt_alloc(st, ObjType_VNode_AARCH64_l1, &l1);
-
-        //printf("mapping l1 node 0x%lx\n", l0_offset);
-        err = vnode_map(shadow_table_l0->pt_cap, l1, l0_offset, VREGION_FLAGS_READ, 0, 1, l1_mapping);
-        ON_ERR_RETURN(err);
-
-        shadow_table_l1 = slab_alloc(&st->mappings_alloc);
-        NULLPTR_CHECK(shadow_table_l1, LIB_ERR_SLAB_ALLOC_FAIL);
-
-        init_mapping_table(shadow_table_l1);
-        shadow_table_l1->pt_cap = l1;
-        shadow_table_l0->children[l0_offset] = shadow_table_l1;
-        shadow_table_l0->mapping_caps[l0_offset] = l1_mapping;
-    }
-
-    shadow_table_l2 = shadow_table_l1->children[l1_offset];
-
-    if (shadow_table_l2 == NULL) { // if there is no l2 pt in l1
-        struct capref l2;
-        struct capref l2_mapping;
-        st->slot_alloc->alloc(st->slot_alloc, &l2_mapping);
-        pt_alloc(st, ObjType_VNode_AARCH64_l2, &l2);
-
-        //printf("mapping l2 node 0x%lx\n", l1_offset);
-        err = vnode_map(shadow_table_l1->pt_cap, l2, l1_offset, VREGION_FLAGS_READ, 0, 1, l2_mapping);
-        ON_ERR_RETURN(err);
-
-        shadow_table_l2 = slab_alloc(&st->mappings_alloc);
-        NULLPTR_CHECK(shadow_table_l2, LIB_ERR_SLAB_ALLOC_FAIL);
-
-        init_mapping_table(shadow_table_l2);
-        shadow_table_l2->pt_cap = l2;
-        shadow_table_l1->children[l1_offset] = shadow_table_l2;
-        shadow_table_l1->mapping_caps[l1_offset] = l2_mapping;
-    }
-
-    shadow_table_l3 = shadow_table_l2->children[l2_offset];
-
-    if (shadow_table_l3 == NULL) { // if there is no l3 pt in l2
-        struct capref l3;
-        struct capref l3_mapping;
-        st->slot_alloc->alloc(st->slot_alloc, &l3_mapping);
-        pt_alloc(st, ObjType_VNode_AARCH64_l3, &l3);
-
-        //printf("mapping l3 node\n");
-        err = vnode_map(shadow_table_l2->pt_cap, l3, l2_offset, VREGION_FLAGS_READ, 0, 1, l3_mapping);
-        ON_ERR_RETURN(err);
-
-        shadow_table_l3 = slab_alloc(&st->mappings_alloc);
-        NULLPTR_CHECK(shadow_table_l3, LIB_ERR_SLAB_ALLOC_FAIL);
-
-        init_mapping_table(shadow_table_l3);
-        shadow_table_l3->pt_cap = l3;
-        shadow_table_l2->children[l2_offset] = shadow_table_l3;
-        shadow_table_l2->mapping_caps[l2_offset] = l3_mapping;
-    }
-
-    for (size_t i = 0; i < bytes / BASE_PAGE_SIZE; i++) {
-
-        if (l3_offset + i >= PTABLE_ENTRIES) {
-            size_t new_offset = i * BASE_PAGE_SIZE;
-            //debug_printf("paging recursive: 0x%lx\n", vaddr + new_offset);
-
-            // recursively call this function to map remaining pages
-            return paging_map_fixed_attr_with_offset(st, vaddr + new_offset, frame, offset + new_offset, bytes - new_offset, flags);
-        }
-
-        // Milestone one assumption (ensured by if block before)
-        assert(l3_offset + i < PTABLE_ENTRIES);
-
-        if (!capcmp(shadow_table_l3->mapping_caps[l3_offset + i], NULL_CAP)) {
-            DEBUG_PRINTF("attempting to map already mapped page\n");
-            return LIB_ERR_PMAP_ADDR_NOT_FREE;
-        }
-
-        struct capref mapping;
-        err = st->slot_alloc->alloc(st->slot_alloc, &mapping);
-        if (err_is_fail(err)) {
-            DEBUG_ERR(err, "couldn't alloc slot\n");
-        }
-
-        //debug_printf("mapping frame at off: 0x%x\n", i * BASE_PAGE_SIZE + offset);
-
-        err = vnode_map (
-            shadow_table_l3->pt_cap,
-            frame,
-            l3_offset + i,
-            flags,
-            i * BASE_PAGE_SIZE + offset,
-            1,
-            mapping
-        );
-        if (err_is_fail(err)) {
-            debug_printf("mapping at: 0x%lx\n", vaddr);
-            char buf[256];
-            debug_print_capref(buf, 256, mapping);
-            debug_print_capref(buf, 256, frame);
-            debug_printf("mapping cap: %s\n", buf);
-            DEBUG_ERR(err, "ERROR MAPPING FRAME\n");
-        }
-        ON_ERR_RETURN(err);
-
-        //debug_printf("mapped frame at off: 0x%x\n", l3_offset + i);
-        shadow_table_l3->mapping_caps[l3_offset + i] = mapping;
-    }
-
     if (slab_freecount(&st->mappings_alloc) < 10) {
         if (!st->mappings_alloc_is_refilling) {
             st->mappings_alloc_is_refilling = true;
             {
                 struct capref frameslot;
-                err = st->slot_alloc->alloc(st->slot_alloc, &frameslot);
+                errval_t err = st->slot_alloc->alloc(st->slot_alloc, &frameslot);
                 ON_ERR_RETURN(err);
 
                 size_t refill_bytes = ROUND_UP(sizeof(struct mapping_table) * 32, BASE_PAGE_SIZE);
@@ -723,8 +589,172 @@ static errval_t paging_map_fixed_attr_with_offset(struct paging_state *st, lvadd
             st->mappings_alloc_is_refilling = false;
         }
     }
-    else {
-        //debug_printf("no need to refill\n");
+    return SYS_ERR_OK;
+}
+
+
+/**
+ * \brief perform a lookup in the shadow page table structure
+ * 
+ * \param st the paging state containing the shadow page table to perform the lookup in
+ * \param level either 0, 1, 2, or 3; specifies the level of the page table to look up
+ * \param addr the address to resolve
+ * \param create whether to create page tables that don't exist on the way.
+ *               if this is false, the function returns NULL if the page table does not exist.
+ * \param ret return parameter for a pointer to the mapping_table shadowing the requested level
+ *            page table in the resolve path for addr
+ */
+errval_t paging_spt_find(struct paging_state *st, int level, lvaddr_t vaddr, bool create, struct mapping_table **ret)
+{
+    assert(st != NULL);
+    assert(level >= 0 && level < 4);
+
+    errval_t err;
+
+    // indices into the four page tables
+    const uint64_t pt_index[4] = {
+        (vaddr >> (12 + 3 * 9)) & 0x1FF,
+        (vaddr >> (12 + 2 * 9)) & 0x1FF,
+        (vaddr >> (12 + 1 * 9)) & 0x1FF,
+        (vaddr >> (12 + 0 * 9)) & 0x1FF,
+    };
+
+    // corresponding shadow page tables
+    struct mapping_table *shadow_tables[4] = {
+        &st->map_l0,
+        NULL, NULL, NULL
+    };
+
+    const static enum objtype pt_types[4] = {
+        ObjType_VNode_AARCH64_l0,
+        ObjType_VNode_AARCH64_l1,
+        ObjType_VNode_AARCH64_l2,
+        ObjType_VNode_AARCH64_l3
+    };
+
+    // walking shadow page table
+    for (int i = 0; i < 3; i++) {
+        struct mapping_table *table = shadow_tables[i];
+        struct mapping_table *child = shadow_tables[i]->children[pt_index[i]];
+        struct capref mapping_child = table->mapping_caps[pt_index[i]];
+        enum objtype child_type = pt_types[i + 1];
+        int index = pt_index[i];
+
+        if (child == NULL) {
+            // table does not exist
+
+            if (!capref_is_null(mapping_child)) {
+                // superpage mapping in place at this address
+                return LIB_ERR_PMAP_NO_VNODE_BUT_SUPERPAGE;
+            }
+
+            if (!create) {
+                if (ret != NULL) {
+                    *ret = child;
+                }
+                return SYS_ERR_OK;
+            }
+
+            // if there exists no table at this position, create it
+            struct capref pt_cap;
+            struct capref mapping_cap;
+            err = st->slot_alloc->alloc(st->slot_alloc, &mapping_cap);
+            ON_ERR_PUSH_RETURN(err, LIB_ERR_SLOT_ALLOC);
+
+            err = pt_alloc(st, child_type, &pt_cap);
+            ON_ERR_PUSH_RETURN(err, LIB_ERR_PMAP_ALLOC_VNODE);
+
+            err = vnode_map(table->pt_cap, pt_cap, index, VREGION_FLAGS_READ, 0, 1, mapping_cap);
+            ON_ERR_PUSH_RETURN(err, LIB_ERR_PMAP_DO_MAP);
+
+            child = slab_alloc(&st->mappings_alloc);
+            NULLPTR_CHECK(child, LIB_ERR_SLAB_ALLOC_FAIL);
+
+            // check whether we need to refill the slab allocator for the shadow page table (st->mappings_alloc)
+            paging_check_spt_refill(st);
+
+            init_mapping_table(child);
+
+            child->pt_cap = pt_cap;
+            table->children[index] = child;
+            table->mapping_caps[index] = mapping_cap;
+        }
+        shadow_tables[i + 1] = child;
+
+        if (i + 1 == level) {
+            if (ret != NULL) {
+                *ret = child;
+            }
+            return SYS_ERR_OK;
+        }
+    }
+
+    return LIB_ERR_PMAP_FIND_VNODE;
+}
+
+/**
+ * \brief like paging_map_fixed_attr, but you can specify an offset into the frame at which to map
+ */
+errval_t paging_map_fixed_attr(struct paging_state *st, lvaddr_t vaddr,
+                               struct capref frame, size_t bytes, int flags)
+{
+    assert(st != NULL);
+
+    // only able to map whole pages, round up to next page boundary
+    bytes = ROUND_UP(bytes, BASE_PAGE_SIZE);
+
+    errval_t err;
+
+    // perform multiple mappings in order to map whole frame
+    for (size_t i = 0; i < bytes / BASE_PAGE_SIZE; i++) {
+
+        // start address of page to map
+        lvaddr_t page_start_addr = vaddr + i * BASE_PAGE_SIZE;
+
+        size_t size_left = bytes - i * BASE_PAGE_SIZE;
+
+        // check if we can map a superpage
+        bool map_large_page = (page_start_addr % LARGE_PAGE_SIZE) == 0 && size_left >= LARGE_PAGE_SIZE;
+
+        int page_level = map_large_page ? 2 : 3;
+
+        struct mapping_table *table;
+        err = paging_spt_find(st, page_level, page_start_addr, true, &table);
+        ON_ERR_PUSH_RETURN(err, LIB_ERR_PMAP_DO_MAP);
+
+        int pt_index = map_large_page ?
+                (page_start_addr >> 21) & 0x1FF
+                :
+                (page_start_addr >> 12) & 0x1FF;
+
+        if (!capcmp(table->mapping_caps[pt_index], NULL_CAP)) {
+            DEBUG_PRINTF("attempting to map already mapped page\n");
+            return LIB_ERR_PMAP_ADDR_NOT_FREE;
+        }
+
+        struct capref mapping;
+        err = st->slot_alloc->alloc(st->slot_alloc, &mapping);
+        if (err_is_fail(err)) {
+            DEBUG_ERR(err, "couldn't alloc slot\n");
+        }
+
+        //debug_printf("mapping at: %lx\n", page_start_addr);
+        err = vnode_map (
+            table->pt_cap,
+            frame,
+            pt_index,
+            flags,
+            i * BASE_PAGE_SIZE,
+            1,
+            mapping
+        );
+        ON_ERR_RETURN(err);
+        //debug_printf("mapped at: %lx\n", page_start_addr);
+
+        table->mapping_caps[pt_index] = mapping;
+        if (map_large_page) {
+            i += LARGE_PAGE_SIZE / BASE_PAGE_SIZE - 1;
+        }
     }
 
     return SYS_ERR_OK;

@@ -57,7 +57,9 @@ errval_t cap_register_revoke(struct capref cap, struct event_closure cont);
 
 errval_t vnode_create(struct capref dest, enum objtype type);
 errval_t frame_create(struct capref dest, size_t bytes, size_t *retbytes);
+errval_t frame_create_aligned(struct capref dest, size_t bytes, size_t alignment, size_t *retbytes);
 errval_t frame_alloc(struct capref *dest, size_t bytes, size_t *retbytes);
+errval_t frame_alloc_aligned(struct capref *dest, size_t bytes, size_t alignment, size_t *retbytes);
 errval_t devframe_type(struct capref *dest, struct capref src, uint8_t bits);
 errval_t dispatcher_create(struct capref dest);
 
