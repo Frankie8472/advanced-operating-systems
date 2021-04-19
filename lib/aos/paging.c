@@ -361,6 +361,9 @@ errval_t paging_region_init(struct paging_state *st, struct paging_region *pr,
 {
     assert(st != NULL && pr != NULL);
 
+    // make sure all paging regions are 2 MiB aligned
+    size = ROUND_UP(size, 1 << 21);
+
     struct paging_region *region = st->head;
     for (; region != NULL; region = region->next) {
         if (region->type == PAGING_REGION_FREE && region->region_size >= size) {
