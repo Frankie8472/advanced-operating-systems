@@ -302,6 +302,9 @@ errval_t paging_region_init_fixed(struct paging_state *st, struct paging_region 
                                   lvaddr_t base, size_t size, paging_flags_t flags)
 {
     assert(st != NULL && pr != NULL);
+    
+    // currently should not be used
+    return LIB_ERR_NOT_IMPLEMENTED;
 
     pr->base_addr = (lvaddr_t) base;
     pr->current_addr = pr->base_addr;
@@ -321,25 +324,41 @@ errval_t paging_region_init_fixed(struct paging_state *st, struct paging_region 
 errval_t paging_region_init_aligned(struct paging_state *st, struct paging_region *pr,
                                     size_t size, size_t alignment, paging_flags_t flags)
 {
-
     assert(st != NULL && pr != NULL);
-    /*
-    void *base;
-    errval_t err = paging_alloc(st, &base, size, alignment);
-    ON_ERR_PUSH_RETURN(err, LIB_ERR_VSPACE_MMU_AWARE_INIT);
 
-    err = paging_region_init_fixed(st, pr, (lvaddr_t)base, size, flags);
-    ON_ERR_PUSH_RETURN(err, LIB_ERR_PMAP_DO_MAP);
-    */
-    return SYS_ERR_OK;
+    if (alignment > LARGE_PAGE_SIZE) {
+        // currently not supported
+        return LIB_ERR_PMAP_INIT;
+    }
+    else {
+        return paging_region_init(st, pr, size, flags);
+    }
 }
 
 
 struct paging_region *paging_region_lookup(struct paging_state *st, lvaddr_t vaddr)
 {
     // naive implementation; TODO improve
+    
+    const uint64_t pt_index[4] = {
+        (vaddr >> (12 + 3 * 9)) & 0x1FF,
+        (vaddr >> (12 + 2 * 9)) & 0x1FF,
+        (vaddr >> (12 + 1 * 9)) & 0x1FF,
+        (vaddr >> (12 + 0 * 9)) & 0x1FF,
+    };
 
-    struct paging_region *region = st->head;
+    struct mapping_table *nearest = &st->map_l0;
+    for (size_t i = 0; i < 3; i++) {
+        struct mapping_table *nearest_child = nearest->children[pt_index[i]];
+        if (nearest_child != NULL) {
+            nearest = nearest_child;
+        }
+        else {
+            break;
+        }
+    }
+
+    struct paging_region *region = nearest->region ? : st->head;
     for (; region != NULL; region = region->next) {
         if (region->base_addr <= vaddr && region->base_addr + region->region_size > vaddr) {
             return region;
@@ -349,12 +368,47 @@ struct paging_region *paging_region_lookup(struct paging_state *st, lvaddr_t vad
 }
 
 
+static bool pr_intersects(lvaddr_t addr, size_t size, struct paging_region *pr) {
+    return (addr + size > pr->base_addr) || (pr->base_addr + pr->region_size > addr);
+}
+
+static bool pr_inside(lvaddr_t addr, struct paging_region *pr) {
+    return (addr >= pr->base_addr) && (addr < pr->base_addr + pr->region_size);
+}
+
+static errval_t update_spt(struct mapping_table *mt, lvaddr_t mt_start, int level, struct paging_region *pr)
+{
+    if (pr_inside(mt_start, pr)) {
+        mt->region = pr;
+    }
+
+    int shift_level = 12 + (3 - level) * 9;
+    for (size_t i = 0; i < PTABLE_ENTRIES; i++) {
+        lvaddr_t this_start = mt_start + (i << shift_level);
+
+        if (level < 3 && mt->children[i] != NULL && 
+                pr_intersects(this_start, 1 << shift_level, pr)) {
+            update_spt(mt->children[i], this_start, level + 1, pr);
+        }
+    }
+    return SYS_ERR_OK;
+}
+
+
+static errval_t update_region_lookups(struct paging_state *st, struct paging_region *pr)
+{
+    return update_spt(&st->map_l0, 0, 0, pr);
+}
+
+
 /**
  * \brief Initialize a paging region in `pr`, such that it contains at least
  * size bytes.
  *
  * This function gets used in some of the code that is responsible
  * for allocating Frame (and other) capabilities.
+ * 
+ * \note currently all paging regions are 2 MiB aligned
  */
 errval_t paging_region_init(struct paging_state *st, struct paging_region *pr,
                             size_t size, paging_flags_t flags)
@@ -362,7 +416,7 @@ errval_t paging_region_init(struct paging_state *st, struct paging_region *pr,
     assert(st != NULL && pr != NULL);
 
     // make sure all paging regions are 2 MiB aligned
-    size = ROUND_UP(size, 1 << 21);
+    size = ROUND_UP(size, LARGE_PAGE_SIZE);
 
     struct paging_region *region = st->head;
     for (; region != NULL; region = region->next) {
@@ -395,6 +449,9 @@ errval_t paging_region_init(struct paging_state *st, struct paging_region *pr,
     if(pr->prev != NULL) {
         pr->prev->next = pr;
     }
+    
+    errval_t err = update_region_lookups(st, pr);
+    ON_ERR_RETURN(err);
 
     return SYS_ERR_OK;
     //return paging_region_init_aligned(st, pr, size, BASE_PAGE_SIZE, flags);
@@ -576,16 +633,21 @@ static errval_t paging_check_spt_refill(struct paging_state *st)
     if (slab_freecount(&st->mappings_alloc) < 10) {
         if (!st->mappings_alloc_is_refilling) {
             st->mappings_alloc_is_refilling = true;
+            debug_printf("refilling slab alloc\n");
             {
                 struct capref frameslot;
                 errval_t err = st->slot_alloc->alloc(st->slot_alloc, &frameslot);
-                ON_ERR_RETURN(err);
+                if (err_is_fail(err)) {
+                    st->mappings_alloc_is_refilling = false;
+                    return err;
+                }
 
                 size_t refill_bytes = ROUND_UP(sizeof(struct mapping_table) * 32, BASE_PAGE_SIZE);
 
                 err = slab_refill_no_pagefault(&st->mappings_alloc, frameslot, refill_bytes);
                 if(err_is_fail(err)) {
                     DEBUG_ERR(err, "shadow page table slab alloc could not be refilled.");
+                    st->mappings_alloc_is_refilling = false;
                     return err;
                 }
             }
@@ -634,11 +696,12 @@ errval_t paging_spt_find(struct paging_state *st, int level, lvaddr_t vaddr, boo
         ObjType_VNode_AARCH64_l2,
         ObjType_VNode_AARCH64_l3
     };
+    
 
     // walking shadow page table
     for (int i = 0; i < 3; i++) {
         struct mapping_table *table = shadow_tables[i];
-        struct mapping_table *child = shadow_tables[i]->children[pt_index[i]];
+        struct mapping_table *child = table->children[pt_index[i]];
         struct capref mapping_child = table->mapping_caps[pt_index[i]];
         enum objtype child_type = pt_types[i + 1];
         int index = pt_index[i];
@@ -653,7 +716,7 @@ errval_t paging_spt_find(struct paging_state *st, int level, lvaddr_t vaddr, boo
 
             if (!create) {
                 if (ret != NULL) {
-                    *ret = child;
+                    *ret = NULL;
                 }
                 return SYS_ERR_OK;
             }
@@ -673,14 +736,18 @@ errval_t paging_spt_find(struct paging_state *st, int level, lvaddr_t vaddr, boo
             child = slab_alloc(&st->mappings_alloc);
             NULLPTR_CHECK(child, LIB_ERR_SLAB_ALLOC_FAIL);
 
-            // check whether we need to refill the slab allocator for the shadow page table (st->mappings_alloc)
-            paging_check_spt_refill(st);
-
             init_mapping_table(child);
+
+            lvaddr_t vnode_start_address = vaddr & ~((1 << (12 + (3 - i) * 9)) - 1);
+            child->region = paging_region_lookup(st, vnode_start_address);
 
             child->pt_cap = pt_cap;
             table->children[index] = child;
             table->mapping_caps[index] = mapping_cap;
+
+
+            // check whether we need to refill the slab allocator for the shadow page table (st->mappings_alloc)
+            paging_check_spt_refill(st);
         }
         shadow_tables[i + 1] = child;
 
@@ -723,7 +790,7 @@ errval_t paging_map_fixed_attr(struct paging_state *st, lvaddr_t vaddr,
 
         struct mapping_table *table;
         err = paging_spt_find(st, page_level, page_start_addr, true, &table);
-        ON_ERR_PUSH_RETURN(err, LIB_ERR_PMAP_DO_MAP);
+        ON_ERR_PUSH_RETURN(err, LIB_ERR_PMAP_SHADOWPT_LOOKUP);
 
         int pt_index = map_large_page ?
                 (page_start_addr >> 21) & 0x1FF

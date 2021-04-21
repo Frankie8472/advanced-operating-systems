@@ -81,6 +81,9 @@ struct mapping_table
     /// capref to the pagetable
     struct capref pt_cap;
 
+    /// paging region that contains the first vaddr that is mapped in this pt
+    struct paging_region *region;
+
     /// mappings in this table
     struct capref mapping_caps[PTABLE_ENTRIES];
 
@@ -91,11 +94,6 @@ struct mapping_table
     ///       superpage mapping is done in this entry
     ///
     struct mapping_table *children[PTABLE_ENTRIES];
-
-
-
-
-    struct paging_region *region;
 };
 
 

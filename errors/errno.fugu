@@ -318,6 +318,7 @@ errors libaos LIB_ERR_ {
     failure PMAP_ADDR_NOT_FREE "The requested address range is not free",
     failure PMAP_FIND_VNODE   "vnode not found",
     failure PMAP_NO_VNODE_BUT_SUPERPAGE "vnode not found, superpage mapping in place",
+    failure PMAP_SHADOWPT_LOOKUP "Error traversing shadow page table",
     failure PMAP_EXISTING_MAPPING "Cannot replace existing mapping, unmap first",
     failure PMAP_FRAME_SIZE "Given Frame to small to fulfil mapping request",
     failure PMAP_FRAME_IDENTIFY "Frame could not be identified",
