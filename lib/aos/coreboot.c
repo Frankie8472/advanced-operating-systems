@@ -83,6 +83,8 @@ static errval_t load_elf_binary(genvaddr_t binary, const struct mem_info *mem,
     return SYS_ERR_OK;
 }
 
+
+
 /**
  * Relocate an already loaded ELF image. 
  *
@@ -185,6 +187,18 @@ relocate_elf(genvaddr_t binary, struct mem_info *mem, lvaddr_t load_offset)
 
 
 
+/**
+ * \brief Boot a core
+ *
+ * \param mpid          The ARM MPID of the core to be booted    
+ * \param boot_driver   Name of the boot driver binary
+ * \param cpu_driver    Name of the CPU driver
+ * \param init          The name of the init binary
+ * \param urpc_frame_id Description of what will be passed as URPC frame
+ *
+ */
+
+
 errval_t coreboot(coreid_t mpid,
         const char *boot_driver,
         const char *cpu_driver,
@@ -211,6 +225,56 @@ errval_t coreboot(coreid_t mpid,
     // - Call the invoke_monitor_spawn_core with the entry point 
     //   of the boot driver and pass the (physical, of course) address of the 
     //   boot struct as argument.
+
+    debug_printf("Starting coreboot\n");
+    errval_t err;
+    struct capref KCB;
+    struct capref stack_cap;
+    struct capref core_data_cap;
+    size_t ret_size;
+
+    //TODO: check alignment of these frame allocations?
+    err = frame_alloc(&KCB,OBJSIZE_KCB,&ret_size); 
+    if(err_is_fail(err)){
+        DEBUG_ERR(err,"Failed to allocated frame for KCB in coreboot\n");
+
+    }
+    assert(ret_size >= OBJSIZE_KCB && "Returned frame not large enough for KCB!");
+
+    err = frame_alloc(&stack_cap,16 * BASE_PAGE_SIZE,&ret_size);
+    if(err_is_fail(err)){
+        DEBUG_ERR(err,"Failed to allocate frame for new kernel stack in coreboot");
+    }
+
+    assert(ret_size >= 16 * BASE_PAGE_SIZE && "Returned frame less than 16 Pages for kernel stack");
+
+    err = frame_alloc(&core_data_cap,BASE_PAGE_SIZE,&ret_size);
+    if(err_is_fail(err)){
+       DEBUG_ERR(err,"Failed to allcoate frame for core data in coreboot");
+    }
+
+    assert(ret_size >= BASE_PAGE_SIZE && "Returned frame is not large enough to hold core data structure context in coreboot");
+
+
+    //
+
+    struct mem_region* boot_driver_mem_region = multiboot_find_module(bi,boot_driver);
+
+
+    struct mem_region* cpu_driver_mem_region = multiboot_find_module(bi,cpu_driver);
+
+    debug_printf("Addr of boot_driver: %lx\n",boot_driver_mem_region -> mr_base);
+    debug_printf("addr of cpu region: %lx\n",cpu_driver_mem_region -> mr_base);
+
+
+
+    // uint64_t psci_use_hvc = 0 //This is ignored by i.MX8, doesnt matter
+    // //entry?
+    // //context = address to boot struct, addres of armv8_core_data
+    // err = invoke_monitor_spawn_core(mpid,CPU_ARM8,entry,context,psci_use_hvc);
+    // if(err_is_fail(err)){
+    //     DEBUG_ERR(err,"Failed to invoke core in coreboot c");
+    // }
 
     return SYS_ERR_OK;
 

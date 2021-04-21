@@ -35,7 +35,7 @@
 #include <spawn/spawn.h>
 #include <spawn/process_manager.h>
 #include "mem_alloc.h"
-
+#include <aos/coreboot.h>
 #include "test.h"
 
 // #include <aos/curdispatcher_arch.h>
@@ -212,7 +212,7 @@ int real_main(int argc, char *argv[])
     struct paging_state* ps = get_current_paging_state();
     debug_print_paging_state(*ps);
 
-    run_init_tests();
+    // run_init_tests();
 
     
     /*void stack_overflow(void) {
@@ -236,6 +236,15 @@ int real_main(int argc, char *argv[])
     grading_test_early();
 
     // TODO: Spawn system processes, boot second core etc. here
+    const char * boot_driver = "boot_armv8_generic";
+    const char * cpu_driver = "cpu_imx8x";
+    const char * init = "init";
+    struct frame_identity urpc_frame_id;
+    err = coreboot(1,boot_driver,cpu_driver,init,urpc_frame_id);
+    if(err_is_fail(err)){
+        DEBUG_ERR(err,"Failed to boot core");
+    }
+    //boot_core
 
     // Grading
     grading_test_late();
