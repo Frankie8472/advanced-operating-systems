@@ -270,24 +270,10 @@ errval_t coreboot(coreid_t mpid,
 
 
 
-
-
-    // static errval_t load_elf_binary(genvaddr_t binary, const struct mem_info *mem,
-    //                      genvaddr_t entry_point, genvaddr_t *reloc_entry_point)
-
-
-    // struct capability cap;
-    // err= invoke_cap_identify(capref,&cap);
-    //  genpaddr_t addr = get_address(&cap);
-
-
+    // Load boot driver
+    //====================================================
     struct mem_region* boot_driver_mem_region = multiboot_find_module(bi,boot_driver);
     assert(boot_driver_mem_region -> mr_type == RegionType_Module);
-    // genpaddr_t boot_driver_addr = boot_driver_mem_region -> mr_base;
-   
-
-    // struct mem_info boot_driver_mi;
-
     struct capref boot_driver_cap = {
         .cnode = cnode_module,
         .slot = boot_driver_mem_region->mrmod_slot
@@ -298,10 +284,6 @@ errval_t coreboot(coreid_t mpid,
     if(err_is_fail(err)){
         DEBUG_ERR(err,"Failed to map elf module for boot driver in coreboot\n");
     }
-    // debug_printf("Here is the the binary in our virtual address space:%lx\n",boot_binary);
-    // debug_printf("%x, '%c', '%c', '%c'\n", boot_binary[0], boot_binary[1], boot_binary[2], boot_binary[3]);
-
-
     struct capref new_boot_driver_cap;
     void* new_boot_binary;
     size_t boot_size = boot_driver_mem_region -> mrmod_size;    
@@ -367,15 +349,6 @@ errval_t coreboot(coreid_t mpid,
     genvaddr_t reloc_entry_point;
     err = load_elf_binary((genvaddr_t) old_boot_binary,&boot_mem_info,elf_sym -> st_value,&reloc_entry_point);
 
-
-
-    // uint64_t psci_use_hvc = 0 //This is ignored by i.MX8, doesnt matter
-    // //entry?
-    // //context = address to boot struct, addres of armv8_core_data
-    // err = invoke_monitor_spawn_core(mpid,CPU_ARM8,entry,context,psci_use_hvc);
-    // if(err_is_fail(err)){
-    //     DEBUG_ERR(err,"Failed to invoke core in coreboot c");
-    // }
 
     return SYS_ERR_OK;
 
