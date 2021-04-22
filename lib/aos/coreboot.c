@@ -13,7 +13,8 @@ extern struct bootinfo *bi;
 
 struct mem_info {
     size_t                size;      // Size in bytes of the memory region
-    void                  *buf;      // Address where the region is currently mapped
+    void                  *buf;      // Address where the region is currently mapped // -- virtual address?
+
     lpaddr_t              phys_base; // Physical base address   
 };
 
@@ -231,6 +232,8 @@ errval_t coreboot(coreid_t mpid,
     struct capref KCB;
     struct capref stack_cap;
     struct capref core_data_cap;
+    struct capref boot_driver_cap;
+    // struct capref cpu_driver_cap;
     size_t ret_size;
 
     //TODO: check alignment of these frame allocations?
@@ -256,17 +259,66 @@ errval_t coreboot(coreid_t mpid,
     assert(ret_size >= BASE_PAGE_SIZE && "Returned frame is not large enough to hold core data structure context in coreboot");
 
 
-    //
+
+    // static errval_t load_elf_binary(genvaddr_t binary, const struct mem_info *mem,
+    //                      genvaddr_t entry_point, genvaddr_t *reloc_entry_point)
+
+
+    // struct capability cap;
+    // err= invoke_cap_identify(capref,&cap);
+    //  genpaddr_t addr = get_address(&cap);
+
 
     struct mem_region* boot_driver_mem_region = multiboot_find_module(bi,boot_driver);
+    assert(boot_driver_mem_region -> mr_type == RegionType_Module);
+    // genpaddr_t boot_driver_addr = boot_driver_mem_region -> mr_base;
+    size_t boot_size = boot_driver_mem_region -> mrmod_size;
+    err = frame_alloc(&boot_driver_cap,boot_size,&ret_size);
+    if(err_is_fail(err)){
+        DEBUG_ERR(err,"Failed to allocate frame for boot driver binary in coreboot\n");
+    }
+    assert(ret_size >= boot_size && "Frame for bootdriver is too small in coreboot");
+
+    // struct mem_info boot_driver_mi;
+    char* boot_binary;
+    err = paging_map_frame_attr(get_current_paging_state(), (void **) &boot_binary,
+                      ret_size, boot_driver_cap,VREGION_FLAGS_READ_WRITE,NULL,NULL);
+    if(err_is_fail(err)){
+        DEBUG_ERR(err,"Failed to map elf module for boot driver in coreboot\n");
+    }
+    debug_printf("Here is the the binary in our virtual address space:%lx\n",boot_binary);
+    debug_printf("%x, '%c', '%c', '%c'\n", boot_binary[0], boot_binary[1], boot_binary[2], boot_binary[3]);
+
+    // struct mem_info boot_driver_mem_info;
+    // struct mem_info mi{
+    //     .size_t = boot_driver_mem_region -> mrmod_size,
+    //     .void* buf = 0,
+    //     .lpaddr_t = boot_driver_mem_region -> mr_base
+    // };
+    // err = load_elf_binary(boot_driver_addr,&mi,)
 
 
     struct mem_region* cpu_driver_mem_region = multiboot_find_module(bi,cpu_driver);
 
+    assert(cpu_driver_mem_region -> mr_type == RegionType_Module);
+
+
+
+    // void* elf_address;
+
+    // paging_map_frame_attr(get_current_paging_state(), (void **) &elf_address,
+    //                       mapping_size, child_frame, VREGION_FLAGS_READ_WRITE, NULL, NULL);
+
+
+
     debug_printf("Addr of boot_driver: %lx\n",boot_driver_mem_region -> mr_base);
+    debug_printf("Size of boot_driver: %lx\n",boot_driver_mem_region -> mrmod_size);
+    debug_printf("Ptrdiff boot_driver: %lx\n",boot_driver_mem_region -> mrmod_data);
     debug_printf("addr of cpu region: %lx\n",cpu_driver_mem_region -> mr_base);
+    debug_printf("size of cpu region: %lx\n",cpu_driver_mem_region -> mrmod_size);
+    debug_printf("Ptrdiff cpu driver: %lx\n",boot_driver_mem_region -> mrmod_data);
 
-
+ 
 
     // uint64_t psci_use_hvc = 0 //This is ignored by i.MX8, doesnt matter
     // //entry?
