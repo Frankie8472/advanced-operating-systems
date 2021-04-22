@@ -230,19 +230,29 @@ errval_t coreboot(coreid_t mpid,
     debug_printf("Starting coreboot\n");
     errval_t err;
     struct capref KCB;
+    struct capref KCB_Ram;
     struct capref stack_cap;
     struct capref core_data_cap;
-    struct capref boot_driver_cap;
     // struct capref cpu_driver_cap;
     size_t ret_size;
 
     //TODO: check alignment of these frame allocations?
-    err = frame_alloc(&KCB,OBJSIZE_KCB,&ret_size); 
+    // err = frame_alloc(&KCB,OBJSIZE_KCB,&ret_size); 
+    err = ram_alloc(&KCB_Ram,OBJSIZE_KCB);
     if(err_is_fail(err)){
         DEBUG_ERR(err,"Failed to allocated frame for KCB in coreboot\n");
 
     }
-    assert(ret_size >= OBJSIZE_KCB && "Returned frame not large enough for KCB!");
+
+    err = slot_alloc(&KCB);
+    if(err_is_fail(err)){
+        DEBUG_ERR(err,"Slot alloc failed in coreboot\n");
+    }
+    err = cap_retype(KCB,KCB_Ram,0,ObjType_KernelControlBlock,OBJSIZE_KCB,1);
+    if(err_is_fail(err)){
+        DEBUG_ERR(err,"Failed to retype ram cap into KCB cap in coreboot\n");
+    }
+
 
     err = frame_alloc(&stack_cap,16 * BASE_PAGE_SIZE,&ret_size);
     if(err_is_fail(err)){
@@ -260,6 +270,8 @@ errval_t coreboot(coreid_t mpid,
 
 
 
+
+
     // static errval_t load_elf_binary(genvaddr_t binary, const struct mem_info *mem,
     //                      genvaddr_t entry_point, genvaddr_t *reloc_entry_point)
 
@@ -272,22 +284,55 @@ errval_t coreboot(coreid_t mpid,
     struct mem_region* boot_driver_mem_region = multiboot_find_module(bi,boot_driver);
     assert(boot_driver_mem_region -> mr_type == RegionType_Module);
     // genpaddr_t boot_driver_addr = boot_driver_mem_region -> mr_base;
-    size_t boot_size = boot_driver_mem_region -> mrmod_size;
-    err = frame_alloc(&boot_driver_cap,boot_size,&ret_size);
-    if(err_is_fail(err)){
-        DEBUG_ERR(err,"Failed to allocate frame for boot driver binary in coreboot\n");
-    }
-    assert(ret_size >= boot_size && "Frame for bootdriver is too small in coreboot");
+   
 
     // struct mem_info boot_driver_mi;
-    char* boot_binary;
-    err = paging_map_frame_attr(get_current_paging_state(), (void **) &boot_binary,
+
+    struct capref boot_driver_cap = {
+        .cnode = cnode_module,
+        .slot = boot_driver_mem_region->mrmod_slot
+    };
+    void* old_boot_binary;  
+    err = paging_map_frame_attr(get_current_paging_state(), (void **) &old_boot_binary,
                       ret_size, boot_driver_cap,VREGION_FLAGS_READ_WRITE,NULL,NULL);
     if(err_is_fail(err)){
         DEBUG_ERR(err,"Failed to map elf module for boot driver in coreboot\n");
     }
-    debug_printf("Here is the the binary in our virtual address space:%lx\n",boot_binary);
-    debug_printf("%x, '%c', '%c', '%c'\n", boot_binary[0], boot_binary[1], boot_binary[2], boot_binary[3]);
+    // debug_printf("Here is the the binary in our virtual address space:%lx\n",boot_binary);
+    // debug_printf("%x, '%c', '%c', '%c'\n", boot_binary[0], boot_binary[1], boot_binary[2], boot_binary[3]);
+
+
+    struct capref new_boot_driver_cap;
+    void* new_boot_binary;
+    size_t boot_size = boot_driver_mem_region -> mrmod_size;    
+    err = frame_alloc(&new_boot_driver_cap,boot_size,&ret_size);
+    if(err_is_fail(err)){
+        DEBUG_ERR(err,"Failed to allocate frame for boot driver binary in coreboot\n");
+    }
+    assert(ret_size >= boot_size && "Frame for bootdriver is too small in coreboot");
+    err = paging_map_frame_attr(get_current_paging_state(), (void **) &new_boot_binary,
+                    ret_size, boot_driver_cap,VREGION_FLAGS_READ_WRITE,NULL,NULL);
+
+    if(err_is_fail(err)){
+        DEBUG_ERR(err,"Failed to map new boot address into virtual memory in coreboot");
+    }
+
+    struct mem_info boot_mem_info;
+    boot_mem_info.buf = new_boot_binary;
+    struct capability boot_capability;
+    invoke_cap_identify(new_boot_driver_cap,&boot_capability);
+    boot_mem_info.phys_base = get_address(&boot_capability);
+    boot_mem_info.size = get_size(&boot_capability);
+
+
+    uintptr_t sindex =0;
+    struct Elf64_Sym * elf_sym = elf64_find_symbol_by_name((genvaddr_t) old_boot_binary,boot_size,"boot_entry_psci",0,STT_FUNC,&sindex);
+
+    debug_printf("Here is the boot entry address: %lx\n",elf_sym -> st_value);
+
+    // get entry point of ELF file
+
+
 
     // struct mem_info boot_driver_mem_info;
     // struct mem_info mi{
@@ -318,7 +363,11 @@ errval_t coreboot(coreid_t mpid,
     debug_printf("size of cpu region: %lx\n",cpu_driver_mem_region -> mrmod_size);
     debug_printf("Ptrdiff cpu driver: %lx\n",boot_driver_mem_region -> mrmod_data);
 
- 
+    
+    genvaddr_t reloc_entry_point;
+    err = load_elf_binary((genvaddr_t) old_boot_binary,&boot_mem_info,elf_sym -> st_value,&reloc_entry_point);
+
+
 
     // uint64_t psci_use_hvc = 0 //This is ignored by i.MX8, doesnt matter
     // //entry?
