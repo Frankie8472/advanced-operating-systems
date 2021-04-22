@@ -56,6 +56,10 @@ errval_t paging_region_init_aligned(struct paging_state *st,
 
 struct paging_region *paging_region_lookup(struct paging_state *st, lvaddr_t vaddr);
 
+
+errval_t paging_region_delete(struct paging_state *ps, struct paging_region *pr);
+
+
 /**
  * \brief return a pointer to a bit of the paging region `pr`.
  * This function gets used in some of the code that is responsible
@@ -80,11 +84,6 @@ errval_t paging_alloc(struct paging_state *st, void **buf, size_t bytes,
 
 
 
-/** 
- * \brief Walk shadow page table to find cap with a given virtual address
- * 
- */
-errval_t page_table_walk(struct paging_state *st,lvaddr_t vaddr,struct capref* retcap);
 
 
 /**

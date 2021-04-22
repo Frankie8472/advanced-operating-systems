@@ -457,6 +457,12 @@ errval_t paging_region_init(struct paging_state *st, struct paging_region *pr,
     //return paging_region_init_aligned(st, pr, size, BASE_PAGE_SIZE, flags);
 }
 
+errval_t paging_region_delete(struct paging_state *ps, struct paging_region *pr)
+{
+    // TODO: implement
+    return LIB_ERR_NOT_IMPLEMENTED;
+}
+
 /**
  * \brief return a pointer to a bit of the paging region `pr`.
  * This function gets used in some of the code that is responsible
