@@ -531,6 +531,7 @@ sys_copy_remap(struct capability *ptable, cslot_t slot, capaddr_t source_cptr,
                                     offset, pte_count, mapping_cte));
 }
 
+//#include <aos/systime.h>
 struct sysret sys_delete(struct capability *root, capaddr_t cptr, uint8_t level)
 {
     errval_t err;

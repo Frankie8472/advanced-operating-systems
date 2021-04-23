@@ -309,6 +309,7 @@ errval_t cap_create(struct capref dest, enum objtype type, size_t size)
     return err;
 }
 
+#include <aos/systime.h>
 /**
  * \brief Delete the given capability
  *
@@ -324,7 +325,15 @@ errval_t cap_delete(struct capref cap)
     capaddr_t caddr = get_cap_addr(cap);
     enum cnode_type level = get_cap_level(cap);
 
+    //debug_printf("invoke_cnode_delete\n");
+    
+    static long counter = 0;
+    counter++;
+    systime_t beg = systime_now();
     err = invoke_cnode_delete(croot, caddr, level);
+    systime_t end = systime_now();
+    if (counter % 1000 == 1)
+        printf("invoke_cnode_delete %ld: %ld us\n", counter, systime_to_ns(end - beg) / 1000);
 
     if (err_no(err) == SYS_ERR_RETRY_THROUGH_MONITOR) {
         return cap_delete_remote(croot, caddr, level);

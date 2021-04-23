@@ -1,3 +1,4 @@
+#define NDEBUG
 #include <mdb/mdb_tree.h>
 #include <mdb/mdb.h>
 #include <cap_predicates.h>
@@ -659,6 +660,7 @@ mdb_exchange_child(struct cte *first, struct cte *first_parent,
     }
 }
 
+#include <systime.h>
 static void
 mdb_exchange_nodes(struct cte *first, struct cte *first_parent,
                    struct cte *second, struct cte *second_parent)
@@ -768,7 +770,10 @@ mdb_exchange_remove(struct cte *target, struct cte *target_parent,
         //printf("found leaf %p\n", current_);
         // found successor/predecessor leaf, exchange with target
         assert(!N(current_)->right && !N(current_)->left);
+        //systime_t beg = systime_now();
         mdb_exchange_nodes(target, target_parent, current_, parent);
+        //systime_t end = systime_now();
+        //printf("mdb_exchange_nodes: %ld\n", systime_to_ns(end - beg) / 1000);
 
         // "current" is now where target was, so set as ret_target
         *ret_target = current_;
@@ -780,6 +785,8 @@ mdb_exchange_remove(struct cte *target, struct cte *target_parent,
     }
 }
 
+
+#include <systime.h>
 static errval_t
 mdb_subtree_remove(struct cte *target, struct cte **current, struct cte *parent)
 {

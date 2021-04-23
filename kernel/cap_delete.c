@@ -11,7 +11,7 @@
  * If you do not find this file, copies can be found by writing to:
  * ETH Zurich D-INFK, Universitaetstrasse 6, CH-8092 Zurich. Attn: Systems Group.
  */
-
+#define NDEBUG
 #include <stdio.h>
 #include <string.h>
 #include <kernel.h>
@@ -87,6 +87,8 @@ static inline void delete_list_insert_tail(struct cte *cte)
     }
 }
 
+#include <systime.h>
+
 /**
  * \brief Try a "simple" delete of a cap. If this fails, the monitor needs to
  * negotiate a delete across the system.
@@ -102,6 +104,7 @@ static errval_t caps_try_delete(struct cte *cte)
     TRACE(KERNEL_CAPOPS, HAS_COPIES, seqnum);
     bool cap_has_copies = has_copies(cte);
     if (distcap_is_foreign(cte) || cap_has_copies) {
+
         return cleanup_copy(cte);
     }
     else if (cte->mdbnode.remote_copies
@@ -270,7 +273,7 @@ cleanup_copy(struct cte *cte)
         return err;
     }
     TRACE_CAP_MSG("cleaned up copy", cte);
-    assert(!mdb_reachable(cte));
+    assert(!mdb_reachable(cte)); // slow offender
     memset(cte, 0, sizeof(*cte));
 
     return SYS_ERR_OK;
@@ -804,6 +807,8 @@ static errval_t caps_copyout_last(struct cte *target, struct cte *ret_cte)
 /*
  * CNode invocations
  */
+
+#include <systime.h>
 
 errval_t caps_delete(struct cte *cte)
 {
