@@ -319,9 +319,11 @@ static int bsp_main(int argc, char *argv[])
     top = ROUND_DOWN(top, 32);
 
     // Call real_main with a new stack
-    debug_printf(">> Switching to new stack at %p with size of %ld B\n", (void *) top, stacksize);
+    /*debug_printf(">> Switching to new stack at %p with size of %ld B\n", (void *) top, stacksize);
     switch_stack(&real_main, (void*) top, argc, (uintptr_t) argv);
-    debug_printf(">> Returning to old stack\n");
+    debug_printf(">> Returning to old stack\n");*/
+    
+    real_main(argc, argv);
 
     return EXIT_SUCCESS;
 }
