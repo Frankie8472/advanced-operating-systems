@@ -245,7 +245,7 @@ genpaddr_t get_phys_addr(struct capref  cap_ref){
 
 }
 
-size_t get_phys_size(struct capref cap_ref){
+gensize_t get_phys_size(struct capref cap_ref){
     errval_t err;
     struct capability cap;
     err = invoke_cap_identify(cap_ref,&cap);
