@@ -376,7 +376,7 @@ errval_t coreboot(coreid_t mpid,
     genvaddr_t cpu_driver_start_reloc;
     debug_printf("cpu_driver_mem: %lx\n", cpu_driver_mr);
     load_elf_binary((genvaddr_t) cpu_driver_mr, &mi, cpu_driver_start->st_value, &cpu_driver_start_reloc);
-    relocate_elf((genvaddr_t) cpu_driver_mr, &mi, mi.phys_base + ARMv8_KERNEL_OFFSET);
+    relocate_elf((genvaddr_t) cpu_driver_mr, &mi, mi.phys_base);
     
     debug_printf("cpu_driver_start_reloc: 0x%lx\n", cpu_driver_start_reloc);
 
@@ -406,7 +406,7 @@ errval_t coreboot(coreid_t mpid,
     core_data -> cpu_driver_stack = get_phys_addr(stack_cap) + get_phys_size(stack_cap);
     core_data -> cpu_driver_stack_limit = get_phys_addr(stack_cap);
     // core_data -> cpu_driver_entry = //virtual address of cpu driver entry
-    memset(core_data -> cpu_driver_cmdline,0,128);
+    memset(core_data->cpu_driver_cmdline, 0, sizeof core_data->cpu_driver_cmdline);
     // core_data -> kcb = //physical address of KCB
 
 
