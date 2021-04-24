@@ -427,12 +427,17 @@ errval_t coreboot(coreid_t mpid,
     uint64_t psci_use_hvc = 0; //This is ignored by i.MX8, doesnt matter
     // //entry?
     // //context = address to boot struct, addres of armv8_core_data
+
+    cpu_dcache_wbinv_range((vm_offset_t)core_data, sizeof(*core_data));
+    cpu_nullop();
+
     err = invoke_monitor_spawn_core(mpid, CPU_ARM8, reloc_entry_point, context, psci_use_hvc);
     if(err_is_fail(err)){
         DEBUG_ERR(err,"Failed to invoke core in coreboot c");
     }
 
     // debug_printf("Here is physical ram address of KCB: %lx\n",get_phys_addr(KCB));
+
     return SYS_ERR_OK;
 
 }
