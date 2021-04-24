@@ -270,6 +270,7 @@ errval_t coreboot(coreid_t mpid,
 
 
 
+    struct paging_state *st = get_current_paging_state();
 
 
     // static errval_t load_elf_binary(genvaddr_t binary, const struct mem_info *mem,
@@ -329,6 +330,7 @@ errval_t coreboot(coreid_t mpid,
     
     genvaddr_t reloc_entry_point;
     load_elf_binary((genvaddr_t) old_boot_binary, &mi, elf_sym->st_value, &reloc_entry_point);
+    relocate_elf((genvaddr_t) old_boot_binary, &mi, mi.phys_base);
     
     debug_printf("reloc_entry_point: 0x%lx\n", reloc_entry_point);
 
@@ -337,24 +339,40 @@ errval_t coreboot(coreid_t mpid,
 
     struct mem_region* cpu_driver_mem_region = multiboot_find_module(bi,cpu_driver);
     assert(cpu_driver_mem_region -> mr_type == RegionType_Module);
+    struct capref cpu_driver_mod_cap = {
+        .cnode = cnode_module,
+        .slot = boot_driver_mem_region->mrmod_slot
+    };
+    void* cpu_driver_mr = NULL;
+
+    paging_map_frame_complete(st, &cpu_driver_mr, cpu_driver_mod_cap, NULL, NULL);
     
     struct capref cpu_driver_rc;
     err = frame_alloc(&cpu_driver_rc, cpu_driver_mem_region->mrmod_size, &ret_size);
+    
+    void *cpu_driver_mem_new;
+
+    err = paging_map_frame_attr(st, (void **) &cpu_driver_mem_new,
+                    ret_size, cpu_driver_rc, VREGION_FLAGS_READ_WRITE,NULL,NULL);
+    
     struct capability cpu_driver_ram;
     invoke_cap_identify(cpu_driver_rc, &cpu_driver_ram);
-    
-    void *cpu_driver_mem;
-
-    err = paging_map_frame_attr(get_current_paging_state(), (void **) &cpu_driver_mem,
-                    ret_size, cpu_driver_rc,VREGION_FLAGS_READ_WRITE,NULL,NULL);
-    
     mi = (struct mem_info) {
-        .buf = cpu_driver_mem,
+        .buf = cpu_driver_mem_new,
         .size = get_size(&cpu_driver_ram),
-        .phys_base = get_address(&cpu_driver_ram),
+        .phys_base = get_address(&cpu_driver_ram) + ARMv8_KERNEL_OFFSET,
     };
-
-    load_elf_binary((genvaddr_t) old_boot_binary, &mi, elf_sym->st_value, &reloc_entry_point);
+    sindex = 0;
+    struct Elf64_Sym *cpu_driver_start = elf64_find_symbol_by_name((genvaddr_t) cpu_driver_mr, cpu_driver_mem_region->mr_bytes, "arch_init", 0, STT_FUNC, &sindex);
+    if (cpu_driver_start == NULL) {
+        debug_printf("error: could not find arch_init\n");
+    }
+    genvaddr_t cpu_driver_start_reloc;
+    debug_printf("cpu_driver_mem: %lx\n", cpu_driver_mr);
+    load_elf_binary((genvaddr_t) cpu_driver_mr, &mi, cpu_driver_start->st_value, &cpu_driver_start_reloc);
+    relocate_elf((genvaddr_t) cpu_driver_mr, &mi, mi.phys_base + ARMv8_KERNEL_OFFSET);
+    
+    debug_printf("cpu_driver_start_reloc: 0x%lx\n", cpu_driver_start_reloc);
 
 
 
