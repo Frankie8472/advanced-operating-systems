@@ -281,13 +281,11 @@ errval_t coreboot(coreid_t mpid,
     //  genpaddr_t addr = get_address(&cap);
 
 
+    // Load boot driver
+    //====================================================
     struct mem_region* boot_driver_mem_region = multiboot_find_module(bi, boot_driver);
+
     assert(boot_driver_mem_region -> mr_type == RegionType_Module);
-    // genpaddr_t boot_driver_addr = boot_driver_mem_region -> mr_base;
-   
-
-    // struct mem_info boot_driver_mi;
-
     struct capref boot_driver_cap = {
         .cnode = cnode_module,
         .slot = boot_driver_mem_region->mrmod_slot
@@ -309,10 +307,6 @@ errval_t coreboot(coreid_t mpid,
     if(err_is_fail(err)){
         DEBUG_ERR(err,"Failed to map elf module for boot driver in coreboot\n");
     }
-    // debug_printf("Here is the the binary in our virtual address space:%lx\n",boot_binary);
-    // debug_printf("%x, '%c', '%c', '%c'\n", boot_binary[0], boot_binary[1], boot_binary[2], boot_binary[3]);
-
-
     struct capref new_boot_driver_cap;
     void* new_boot_binary;
     size_t boot_size = boot_driver_mem_region->mrmod_size;    
