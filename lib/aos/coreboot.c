@@ -167,6 +167,7 @@ relocate_elf(genvaddr_t binary, struct mem_info *mem, lvaddr_t load_offset)
 
                                 /* Delta(S) + A */
                                 *rel_target= addend + segment_delta + load_offset;
+                                debug_printf("Here is the relocation address: 0x%lx\n",*rel_target);
                                 break;
 
                             default:
@@ -236,7 +237,6 @@ errval_t coreboot(coreid_t mpid,
     struct capref stack_cap;
     struct capref core_data_cap;
     struct capref init_space;
-    // struct capref cpu_driver_cap;
     size_t ret_size;
 
     //TODO: check alignment of these frame allocations?
@@ -246,8 +246,6 @@ errval_t coreboot(coreid_t mpid,
         DEBUG_ERR(err,"Failed to allocated frame for KCB in coreboot\n");
 
     }
-    // debug_printf("Here is physial addres off KCB_RAM::%lx\n",get_phys_addr(KCB_Ram));
-
     err = slot_alloc(&KCB);
     if(err_is_fail(err)){
         DEBUG_ERR(err,"Slot alloc failed in coreboot\n");
@@ -258,7 +256,9 @@ errval_t coreboot(coreid_t mpid,
     }
 
 
-    err = frame_alloc(&stack_cap,16 * BASE_PAGE_SIZE,&ret_size);
+
+    void* stack_pointer;
+    err = frame_alloc_and_map(&stack_cap,16*BASE_PAGE_SIZE,&ret_size,&stack_pointer);
     if(err_is_fail(err)){
         DEBUG_ERR(err,"Failed to allocate frame for new kernel stack in coreboot");
     }
@@ -266,7 +266,7 @@ errval_t coreboot(coreid_t mpid,
     assert(ret_size >= 16 * BASE_PAGE_SIZE && "Returned frame less than 16 Pages for kernel stack");
 
 
-    struct armv8_core_data* core_data = NULL;
+    struct armv8_core_data* core_data;
     err = frame_alloc_and_map(&core_data_cap,BASE_PAGE_SIZE,&ret_size,(void ** ) &core_data);
     if(err_is_fail(err)){
        DEBUG_ERR(err,"Failed to allocate and core_data in coreboot\n");
@@ -286,14 +286,6 @@ errval_t coreboot(coreid_t mpid,
     struct paging_state *st = get_current_paging_state();
 
 
-    // static errval_t load_elf_binary(genvaddr_t binary, const struct mem_info *mem,
-    //                      genvaddr_t entry_point, genvaddr_t *reloc_entry_point)
-
-
-    // struct capability cap;
-    // err= invoke_cap_identify(capref,&cap);
-    //  genpaddr_t addr = get_address(&cap);
-
 
     // Load boot driver
     //====================================================
@@ -311,7 +303,7 @@ errval_t coreboot(coreid_t mpid,
     debug_printf("%x, '%c', '%c', '%c'\n", obb[0], obb[1], obb[2], obb[3]);
     debug_printf("BOI\n");
 
-    uintptr_t sindex = 0;
+    uintptr_t sindex;
     struct Elf64_Sym *elf_sym = elf64_find_symbol_by_name((genvaddr_t) old_boot_binary, boot_driver_mem_region->mr_bytes, "boot_entry_psci", 0, STT_FUNC, &sindex);
     debug_printf("Here is the boot entry address: %lx\n", elf_sym->st_value);
 
@@ -339,15 +331,20 @@ errval_t coreboot(coreid_t mpid,
         .phys_base = get_address(&boot_capability),
     };
     
-    genvaddr_t reloc_entry_point;
-    load_elf_binary((genvaddr_t) old_boot_binary, &mi, elf_sym->st_value, &reloc_entry_point);
-    relocate_elf((genvaddr_t) old_boot_binary, &mi, mi.phys_base);
+    genvaddr_t boot_driver_entry;
+
+    load_elf_binary((genvaddr_t) old_boot_binary, &mi, elf_sym->st_value, &boot_driver_entry);
+    debug_printf("boot driver reloc entry: 0x%lx\n", boot_driver_entry);
+    debug_printf("boot load offsett: 0x%lx\n", 0);
+    relocate_elf((genvaddr_t) old_boot_binary, &mi, 0);
     
-    debug_printf("reloc_entry_point: 0x%lx\n", reloc_entry_point);
+    debug_printf("reloc_entry_point: 0x%lx\n", boot_driver_entry);
 
 
 
 
+    // Load cpu driver
+    //====================================================
     struct mem_region* cpu_driver_mem_region = multiboot_find_module(bi,cpu_driver);
     assert(cpu_driver_mem_region -> mr_type == RegionType_Module);
     struct capref cpu_driver_mod_cap = {
@@ -378,19 +375,22 @@ errval_t coreboot(coreid_t mpid,
     if (cpu_driver_start == NULL) {
         debug_printf("error: could not find arch_init\n");
     }
-    genvaddr_t cpu_driver_start_reloc;
-    debug_printf("cpu_driver_mem: %lx\n", cpu_driver_mr);
-    load_elf_binary((genvaddr_t) cpu_driver_mr, &mi, cpu_driver_start->st_value, &cpu_driver_start_reloc);
-    relocate_elf((genvaddr_t) cpu_driver_mr, &mi, mi.phys_base + ARMv8_KERNEL_OFFSET);
+
+    // genvaddr_t cpu;
+    genvaddr_t cpu_entry;
+    debug_printf("cpu_driver_mem: 0x%lx\n", cpu_driver_mr);
+    load_elf_binary((genvaddr_t) cpu_driver_mr, &mi, cpu_driver_start->st_value, &cpu_entry);
     
-    debug_printf("cpu_driver_start_reloc: 0x%lx\n", cpu_driver_start_reloc);
+    debug_printf("cpu driver entry after load: 0x%lx\n", &cpu_entry);
+    debug_printf("cpu load offset: 0x%lx\n", ARMv8_KERNEL_OFFSET);
+    cpu_entry += ARMv8_KERNEL_OFFSET;
+    relocate_elf((genvaddr_t) cpu_driver_mr, &mi,ARMv8_KERNEL_OFFSET);
+    debug_printf("cpu driver entry after relocate: 0x%lx\n", cpu_entry);
+    // debug_printf("cpu_driver_start_reloc: 0x%lx\n", cpu_driver_start_reloc);
 
 
 
-    // void* elf_address;
 
-    // paging_map_frame_attr(get_current_paging_state(), (void **) &elf_address,
-    //                       mapping_size, child_frame, VREGION_FLAGS_READ_WRITE, NULL, NULL);
 
 
 
@@ -401,16 +401,13 @@ errval_t coreboot(coreid_t mpid,
     debug_printf("size of cpu region: %lx\n",cpu_driver_mem_region -> mrmod_size);
     debug_printf("Ptrdiff cpu driver: %lx\n",boot_driver_mem_region -> mrmod_data);
 
-    
-    //genvaddr_t reloc_entry_point;
-    //err = load_elf_binary((genvaddr_t) old_boot_binary,&boot_mem_info,elf_sym -> st_value,&reloc_entry_point);
 
 
     //Write core_data struct
     core_data -> boot_magic = ARMV8_BOOTMAGIC_PSCI;
     core_data -> cpu_driver_stack = get_phys_addr(stack_cap) + get_phys_size(stack_cap);
     core_data -> cpu_driver_stack_limit = get_phys_addr(stack_cap);
-    // core_data -> cpu_driver_entry = //virtual address of cpu driver entry
+    core_data -> cpu_driver_entry = cpu_entry;
     memset(core_data -> cpu_driver_cmdline,0,128);
     core_data -> memory.base  = get_phys_addr(init_space);
     core_data -> memory.length = get_phys_size(init_space);
@@ -425,18 +422,19 @@ errval_t coreboot(coreid_t mpid,
     genpaddr_t context = get_phys_addr(core_data_cap);
 
     uint64_t psci_use_hvc = 0; //This is ignored by i.MX8, doesnt matter
-    // //entry?
-    // //context = address to boot struct, addres of armv8_core_data
 
-    cpu_dcache_wbinv_range((vm_offset_t)core_data, sizeof(*core_data));
+
+    
+    cpu_dcache_wbinv_range((vm_offset_t)core_data, get_phys_size(core_data_cap));
+    cpu_dcache_wbinv_range((vm_offset_t) stack_pointer,get_phys_size(stack_cap));
     cpu_nullop();
 
-    err = invoke_monitor_spawn_core(mpid, CPU_ARM8, reloc_entry_point, context, psci_use_hvc);
+
+
+    err = invoke_monitor_spawn_core(mpid, CPU_ARM8, boot_driver_entry, context, psci_use_hvc);
     if(err_is_fail(err)){
         DEBUG_ERR(err,"Failed to invoke core in coreboot c");
     }
-
-    // debug_printf("Here is physical ram address of KCB: %lx\n",get_phys_addr(KCB));
 
     return SYS_ERR_OK;
 
