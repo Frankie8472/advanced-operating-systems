@@ -30,7 +30,7 @@ __BEGIN_DECLS
 
 
 genpaddr_t get_phys_addr(struct capref cap_ref);
-size_t get_phys_size(struct capref cap_ref);
+gensize_t get_phys_size(struct capref cap_ref);
 
 errval_t cnode_create(struct capref *ret_dest, struct cnoderef *cnoderef,
                  cslot_t slots, cslot_t *retslots);
