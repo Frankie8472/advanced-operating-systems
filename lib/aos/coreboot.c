@@ -305,9 +305,7 @@ errval_t coreboot(coreid_t mpid,
         .slot = boot_driver_mem_region->mrmod_slot
     };
     void* old_boot_binary;  
-    err = paging_map_frame_attr(get_current_paging_state(), (void **) &old_boot_binary,
-                      ret_size, boot_driver_cap,VREGION_FLAGS_READ_WRITE,NULL,NULL);
-
+    err = paging_map_frame_complete(get_current_paging_state(), (void **) &old_boot_binary,boot_driver_cap,NULL,NULL);
     debug_printf("ELF address = %lx\n", old_boot_binary);
     char* obb = (char*)old_boot_binary;
     debug_printf("%x, '%c', '%c', '%c'\n", obb[0], obb[1], obb[2], obb[3]);
@@ -332,7 +330,7 @@ errval_t coreboot(coreid_t mpid,
     err = paging_map_frame_attr(get_current_paging_state(), (void **) &new_boot_binary,
                     ret_size, new_boot_driver_cap,VREGION_FLAGS_READ_WRITE,NULL,NULL);
 
-    //new_boot_binary = malloc(boot_size);
+
     struct capability boot_capability;
     invoke_cap_identify(new_boot_driver_cap, &boot_capability);
     struct mem_info mi = {
