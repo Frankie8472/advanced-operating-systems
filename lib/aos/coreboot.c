@@ -7,6 +7,8 @@
 #include <aos/kernel_cap_invocations.h>
 #include <aos/cache.h>
 
+
+
 #define ARMv8_KERNEL_OFFSET 0xffff000000000000
 
 extern struct bootinfo *bi;
@@ -244,6 +246,7 @@ errval_t coreboot(coreid_t mpid,
 
     }
 
+
     err = slot_alloc(&KCB);
     if(err_is_fail(err)){
         DEBUG_ERR(err,"Slot alloc failed in coreboot\n");
@@ -261,12 +264,15 @@ errval_t coreboot(coreid_t mpid,
 
     assert(ret_size >= 16 * BASE_PAGE_SIZE && "Returned frame less than 16 Pages for kernel stack");
 
-    err = frame_alloc(&core_data_cap,BASE_PAGE_SIZE,&ret_size);
-    if(err_is_fail(err)){
-       DEBUG_ERR(err,"Failed to allcoate frame for core data in coreboot");
-    }
 
-    assert(ret_size >= BASE_PAGE_SIZE && "Returned frame is not large enough to hold core data structure context in coreboot");
+    struct armv8_core_data* core_data = NULL;
+    err = frame_alloc_and_map(&core_data_cap,BASE_PAGE_SIZE,&ret_size,(void ** ) &core_data);
+    if(err_is_fail(err)){
+       DEBUG_ERR(err,"Failed to allocate and core_data in coreboot\n");
+    }
+     assert(ret_size >= BASE_PAGE_SIZE && "Returned frame is not large enough to hold core data structure context in coreboot");
+    
+
 
 
 
@@ -377,16 +383,31 @@ errval_t coreboot(coreid_t mpid,
     //err = load_elf_binary((genvaddr_t) old_boot_binary,&boot_mem_info,elf_sym -> st_value,&reloc_entry_point);
 
 
-    genpaddr_t context = 0x0;
-    uint64_t psci_use_hvc = 0; //This is ignored by i.MX8, doesnt matter
+    //Write core_data struct
+    // core_data -> boot_magic = ??
+    core_data -> cpu_driver_stack = get_phys_addr(stack_cap) + get_phys_size(stack_cap);
+    core_data -> cpu_driver_stack_limit = get_phys_addr(stack_cap);
+    // core_data -> cpu_driver_entry = //virtual address of cpu driver entry
+    memset(core_data -> cpu_driver_cmdline,0,128);
+    // core_data -> kcb = //physical address of KCB
+
+
+    core_data -> src_core_id = disp_get_core_id();
+    core_data -> dst_core_id = mpid;
+    core_data -> src_arch_id = disp_get_core_id();
+    core_data -> dst_arch_id = mpid;
+
+    // genpaddr_t context = get_phys_addr(core_data_cap);
+
+    // uint64_t psci_use_hvc = 0; //This is ignored by i.MX8, doesnt matter
     // //entry?
     // //context = address to boot struct, addres of armv8_core_data
-    err = invoke_monitor_spawn_core(mpid, CPU_ARM8, reloc_entry_point, context, psci_use_hvc);
+    // err = invoke_monitor_spawn_core(mpid, CPU_ARM8, reloc_entry_point, context, psci_use_hvc);
     // if(err_is_fail(err)){
     //     DEBUG_ERR(err,"Failed to invoke core in coreboot c");
     // }
 
-
+    // debug_printf("Here is physical ram address of KCB: %lx\n",get_phys_addr(KCB));
     return SYS_ERR_OK;
 
 }

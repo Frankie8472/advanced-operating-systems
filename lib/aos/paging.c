@@ -22,7 +22,16 @@
 #include <string.h>
 
 static struct paging_state current;
+errval_t frame_alloc_and_map_flags(struct capref *cap,size_t bytes,size_t* retbytes,void **buf,int flags){
+    errval_t err;
+    err = frame_alloc(cap,bytes,retbytes);
+    ON_ERR_RETURN(err);
+    return paging_map_frame_attr(get_current_paging_state(),buf,*retbytes,*cap,flags,NULL,NULL);
+}
 
+errval_t frame_alloc_and_map(struct capref *cap,size_t bytes,size_t* retbytes,void **buf){
+    return frame_alloc_and_map_flags(cap,bytes,retbytes,buf,VREGION_FLAGS_READ_WRITE);
+}
 
 void page_fault_handler(enum exception_type type, int subtype, void *addr, arch_registers_state_t *regs) {
     errval_t err;

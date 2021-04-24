@@ -28,6 +28,11 @@ struct paging_region;
 
 
 struct thread;
+errval_t frame_alloc_and_map_flags(struct capref *cap,size_t bytes,size_t* retbytes,void **buf,int flags);
+
+errval_t frame_alloc_and_map(struct capref *cap,size_t bytes,size_t* retbytes,void **buf);
+
+
 
 errval_t paging_map_stack_guard(struct paging_state* ps, lvaddr_t stack_bottom);
 void page_fault_handler(enum exception_type type, int subtype, void *addr, arch_registers_state_t *regs);

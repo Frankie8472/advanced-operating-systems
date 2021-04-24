@@ -28,6 +28,10 @@
 #include <aos/invocations.h>
 __BEGIN_DECLS
 
+
+genpaddr_t get_phys_addr(struct capref cap_ref);
+size_t get_phys_size(struct capref cap_ref);
+
 errval_t cnode_create(struct capref *ret_dest, struct cnoderef *cnoderef,
                  cslot_t slots, cslot_t *retslots);
 errval_t cnode_create_foreign_l2(struct capref dest_l1, cslot_t dest_slot, struct cnoderef *cnoderef);

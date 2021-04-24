@@ -185,6 +185,10 @@ static inline bool backoff(int count)
     return true;
 }
 
+
+
+
+
 /**
  * \brief Retype a capability into one or more new capabilities, going through
  * the monitor to ensure consistancy with other cores.  Only necessary for
@@ -229,6 +233,28 @@ static errval_t cap_revoke_remote(struct capref root, capaddr_t src, uint8_t lev
 {
     return LIB_ERR_NOT_IMPLEMENTED;
 }
+
+genpaddr_t get_phys_addr(struct capref  cap_ref){
+    errval_t err;
+    struct capability cap;
+    err = invoke_cap_identify(cap_ref,&cap);
+    if(err_is_fail(err)){
+        debug_printf("Failed to get physcal address of cap ref\n");
+    }
+    return get_address(&cap);
+
+}
+
+size_t get_phys_size(struct capref cap_ref){
+    errval_t err;
+    struct capability cap;
+    err = invoke_cap_identify(cap_ref,&cap);
+    if(err_is_fail(err)){
+        debug_printf("Failed to get physcal size of cap ref\n");
+    }
+    return get_size(&cap);
+}
+
 
 /**
  * \brief Retype (part of) a capability into one or more new capabilities
