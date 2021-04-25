@@ -316,7 +316,7 @@ errval_t coreboot(coreid_t mpid,
     }
     struct capref new_boot_driver_cap;
     void* new_boot_binary;
-    size_t boot_size = boot_driver_mem_region->mrmod_size;    
+    size_t boot_size = elf_virtual_size((lvaddr_t) old_boot_binary);    
     err = frame_alloc(&new_boot_driver_cap, boot_size,&ret_size);
     if(err_is_fail(err)){
         DEBUG_ERR(err,"Failed to allocate frame for boot driver binary in coreboot\n");
@@ -356,9 +356,9 @@ errval_t coreboot(coreid_t mpid,
     void* cpu_driver_mr = NULL;
 
     paging_map_frame_complete(st, &cpu_driver_mr, cpu_driver_mod_cap, NULL, NULL);
-    
+    size_t cpu_driver_size = elf_virtual_size((lvaddr_t) cpu_driver_mr);
     struct capref cpu_driver_rc;
-    err = frame_alloc(&cpu_driver_rc, cpu_driver_mem_region->mrmod_size, &ret_size);
+    err = frame_alloc(&cpu_driver_rc, cpu_driver_size, &ret_size);
     
     void *cpu_driver_mem_new;
 
@@ -443,11 +443,11 @@ errval_t coreboot(coreid_t mpid,
     uint64_t psci_use_hvc = 0; //This is ignored by i.MX8, doesnt matter
 
 
-    cpu_nullop();
+    //cpu_nullop();
     cpu_dcache_wbinv_range((vm_offset_t)core_data, get_phys_size(core_data_cap));
-    cpu_dcache_wbinv_range((vm_offset_t)new_boot_binary, boot_driver_mem_region->mrmod_size);
-    cpu_dcache_wbinv_range((vm_offset_t)cpu_driver_mem_new, cpu_driver_mem_region->mrmod_size);
-    cpu_dcache_wbinv_range((vm_offset_t)bi, sizeof(bi));
+    cpu_dcache_wbinv_range((vm_offset_t)new_boot_binary, boot_size);
+    cpu_dcache_wbinv_range((vm_offset_t)cpu_driver_mem_new, cpu_driver_size);
+    //cpu_dcache_wbinv_range((vm_offset_t)bi, sizeof(bi));
     //cpu_dcache_wbinv_range((vm_offset_t) stack_pointer,get_phys_size(stack_cap));
     cpu_nullop();
 
