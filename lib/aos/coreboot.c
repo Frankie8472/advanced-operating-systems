@@ -277,7 +277,7 @@ errval_t coreboot(coreid_t mpid,
      assert(ret_size >= BASE_PAGE_SIZE && "Returned frame is not large enough to hold core data structure context in coreboot");
     
 
-    err = frame_alloc(&init_space,ARMV8_CORE_DATA_PAGES * BASE_PAGE_SIZE,&ret_size);
+    err = frame_alloc(&init_space, 614 * 1024 + ARMV8_CORE_DATA_PAGES * BASE_PAGE_SIZE,&ret_size);
     if(err_is_fail(err)){
         DEBUG_ERR(err,"Failed to alloc space for init process\n");
     }
@@ -340,7 +340,7 @@ errval_t coreboot(coreid_t mpid,
     debug_printf("boot driver phys mem: 0x%lx\n", get_address(&boot_capability));
     debug_printf("boot driver reloc entry: 0x%lx\n", boot_driver_entry);
     debug_printf("boot load offsett: 0x%lx\n", 0);
-    //relocate_elf((genvaddr_t) old_boot_binary, &mi, get_address(&boot_capability));
+    relocate_elf((genvaddr_t) old_boot_binary, &mi, 0);
     
     debug_printf("reloc_entry_point: 0x%lx\n", boot_driver_entry);
     
@@ -426,8 +426,8 @@ errval_t coreboot(coreid_t mpid,
     core_data -> boot_magic = ARMV8_BOOTMAGIC_PSCI;
     core_data -> cpu_driver_stack = get_phys_addr(stack_cap) + get_phys_size(stack_cap);
     core_data -> cpu_driver_stack_limit = get_phys_addr(stack_cap);
-    // core_data -> cpu_driver_entry = //virtual address of cpu driver entry
-    memset(core_data->cpu_driver_cmdline, 0, sizeof core_data->cpu_driver_cmdline);
+    core_data -> cpu_driver_entry = cpu_entry; //virtual address of cpu driver entry
+    memset(core_data->cpu_driver_cmdline, 0, 128 * sizeof(char));
     core_data -> memory.base  = get_phys_addr(init_space);
     core_data -> memory.length = get_phys_size(init_space);
     core_data -> kcb = get_phys_addr(KCB_Ram);
@@ -443,22 +443,24 @@ errval_t coreboot(coreid_t mpid,
     uint64_t psci_use_hvc = 0; //This is ignored by i.MX8, doesnt matter
 
 
+    cpu_nullop();
     cpu_dcache_wbinv_range((vm_offset_t)core_data, get_phys_size(core_data_cap));
     cpu_dcache_wbinv_range((vm_offset_t)new_boot_binary, boot_driver_mem_region->mrmod_size);
     cpu_dcache_wbinv_range((vm_offset_t)cpu_driver_mem_new, cpu_driver_mem_region->mrmod_size);
+    cpu_dcache_wbinv_range((vm_offset_t)bi, sizeof(bi));
     //cpu_dcache_wbinv_range((vm_offset_t) stack_pointer,get_phys_size(stack_cap));
     cpu_nullop();
 
-    size_t len = 1024 * 1024 * 4;
-    uint64_t *arr = malloc(len);
-    for (int i = 0; i < len; i++) {
-        arr[i] = i % 12345;
-        if (i > 123) {
-            arr[i % 123] += arr[i] % 3;
-            arr[i] += arr[i % 123] % 5;
-        }
-    }
-    aaadata = arr;
+    /* size_t len = 1024 * 1024 * 4; */
+    /* uint64_t *arr = malloc(len); */
+    /* for (int i = 0; i < len; i++) { */
+    /*     arr[i] = i % 12345; */
+    /*     if (i > 123) { */
+    /*         arr[i % 123] += arr[i] % 3; */
+    /*         arr[i] += arr[i % 123] % 5; */
+    /*     } */
+    /* } */
+    /* aaadata = arr; */
 
 
 
