@@ -46,7 +46,7 @@ struct armv8_core_data {
      * ARMv8 Boot magic field. Contains the value ARMV8_BOOTMAGIC_*
      */
     uint64_t boot_magic;
-
+    
     /**
      * Physical address of the kernel stack. Allocate at least 16 pages
      * for the stack. Remember the stack grows down, so this should
