@@ -144,6 +144,19 @@ static inline errval_t paging_map_frame_complete(struct paging_state *st, void *
             VREGION_FLAGS_READ_WRITE, arg1, arg2);
 }
 
+static inline errval_t paging_map_frame_complete_readable(struct paging_state *st, void **buf,
+                struct capref frame, void *arg1, void *arg2)
+{
+    errval_t err;
+    struct frame_identity id;
+    err = frame_identify(frame, &id);
+    if(err_is_fail(err)){
+        return err;
+    }
+    return paging_map_frame_attr(st, buf, id.bytes, frame,
+            VREGION_FLAGS_READ, arg1, arg2);
+}
+
 /// Map user provided frame at user provided VA.
 static inline errval_t paging_map_fixed(struct paging_state *st, lvaddr_t vaddr,
                                         struct capref frame, size_t bytes)
