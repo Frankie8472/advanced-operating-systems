@@ -404,6 +404,19 @@ errval_t coreboot(coreid_t mpid,
     
     //genvaddr_t reloc_entry_point;
     //err = load_elf_binary((genvaddr_t) old_boot_binary,&boot_mem_info,elf_sym -> st_value,&reloc_entry_point);
+    //
+    
+    struct mem_region* init_region = multiboot_find_module(bi, init);
+    struct capref init_region_cap = {
+        .cnode = cnode_module,
+        .slot = init_region->mrmod_slot
+    };
+    genpaddr_t init_region_phys = get_phys_addr(init_region_cap);
+    
+    core_data->monitor_binary = (struct armv8_coredata_memreg) {
+        .base = init_region_phys,
+        .length = init_region->mrmod_size
+    };
 
 
     //Write core_data struct
@@ -427,9 +440,13 @@ errval_t coreboot(coreid_t mpid,
     uint64_t psci_use_hvc = 0; //This is ignored by i.MX8, doesnt matter
     // //entry?
     // //context = address to boot struct, addres of armv8_core_data
+    
+
+    strcpy(core_data -> cpu_driver_cmdline, init);
 
     cpu_dcache_wbinv_range((vm_offset_t)core_data, sizeof(*core_data));
     cpu_nullop();
+    
 
     err = invoke_monitor_spawn_core(mpid, CPU_ARM8, reloc_entry_point, context, psci_use_hvc);
     if(err_is_fail(err)){
