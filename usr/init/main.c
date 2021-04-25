@@ -239,7 +239,18 @@ int real_main(int argc, char *argv[])
     const char * boot_driver = "boot_armv8_generic";
     const char * cpu_driver = "cpu_imx8x";
     const char * init = "init";
-    struct frame_identity urpc_frame_id;
+    struct capref urpc_cap;
+    size_t urpc_cap_size;
+    err  = frame_alloc(&urpc_cap,BASE_PAGE_SIZE,&urpc_cap_size);
+    if(err_is_fail(err)){
+        DEBUG_ERR(err,"Failed to allocate frame for urpc channel\n");
+    }
+    struct frame_identity urpc_frame_id = (struct frame_identity) {
+        .base = get_phys_addr(urpc_cap),
+        .bytes = urpc_cap_size,
+        .pasid = disp_get_core_id()
+    };
+
     err = coreboot(1,boot_driver,cpu_driver,init,urpc_frame_id);
     if(err_is_fail(err)){
         DEBUG_ERR(err,"Failed to boot core");

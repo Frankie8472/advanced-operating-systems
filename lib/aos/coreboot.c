@@ -421,7 +421,7 @@ errval_t coreboot(coreid_t mpid,
         .length = init_region->mrmod_size
     };
 
-
+    
     //Write core_data struct
     core_data -> boot_magic = ARMV8_BOOTMAGIC_PSCI;
     core_data -> cpu_driver_stack = get_phys_addr(stack_cap) + get_phys_size(stack_cap);
@@ -432,12 +432,15 @@ errval_t coreboot(coreid_t mpid,
     core_data -> memory.length = get_phys_size(init_space);
     core_data -> kcb = get_phys_addr(KCB_Ram);
     
-    
     core_data -> src_core_id = disp_get_core_id();
     core_data -> dst_core_id = mpid;
     core_data -> src_arch_id = disp_get_core_id();
     core_data -> dst_arch_id = mpid;
 
+    core_data -> urpc_frame = (struct armv8_coredata_memreg) {
+        .base = urpc_frame_id.base,
+        .length = urpc_frame_id.bytes
+    };
     genpaddr_t context = get_phys_addr(core_data_cap);
 
     uint64_t psci_use_hvc = 0; //This is ignored by i.MX8, doesnt matter
