@@ -223,8 +223,8 @@ int benchmark_mm(void)
 
 }
 
-// put your test functions in this array, keep NULL as last element
-int (*tests[])(void) = {
+// put your test functions for core 0 in this array, keep NULL as last element
+int (*bsp_tests[])(void) = {
     //&benchmark_mm,
     //&test_printf,
     //&test_getchar,
@@ -236,27 +236,34 @@ int (*tests[])(void) = {
     NULL
 };
 
+// put your test functions for the other cores in this array, also keep NULL as last element
+int (*app_tests[])(void) = {
+    NULL
+};
+
 /**
  * \brief Main testing function: calls functions from the `tests` array until
  * a testfunction returns something other than 0, or the array is exhausted.
  * \return 0 if all tests pass, non-zero int otherwise
  */
-int run_init_tests(void) {
-    debug_printf("=======================\n");
-    debug_printf("BEGINNING TESTS IN INIT\n");
+int run_init_tests(int core_id) {
+    debug_printf("===============================\n");
+    debug_printf("CORE %d, BEGINNING TESTS IN INIT\n", core_id);
+
+    int (**tests)(void) = core_id ? app_tests : bsp_tests;
 
     for (int i = 0; tests[i]; i++) {
         debug_printf("running test %d\n", i + 1);
         int out = (*tests[i])();
 
         if (out) {
-            debug_printf("function %d returned error, abort\n", i);
-            debug_printf("=======================\n");
+            debug_printf("core %d, function %d returned error %d, abort\n", core_id, i, out);
+            debug_printf("===============================\n");
             return out;
         }
     }
-    debug_printf("DONE RUNNING TESTS\n");
-    debug_printf("=======================\n");
+    debug_printf("CORE %d DONE RUNNING TESTS\n", core_id);
+    debug_printf("===============================\n");
     
     return 0;
 }
