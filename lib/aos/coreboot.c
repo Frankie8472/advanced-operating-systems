@@ -190,6 +190,55 @@ relocate_elf(genvaddr_t binary, struct mem_info *mem, lvaddr_t load_offset)
 }
 
 
+/**
+ * \brief maps a module into our vspace
+ */
+static errval_t map_module(struct mem_region *module, void **ret_addr)
+{
+    assert(module->mr_type == RegionType_Module);
+
+    struct capref module_cap = {
+        .cnode = cnode_module,
+        .slot = module->mrmod_slot
+    };
+
+    return paging_map_frame_complete_readable(get_current_paging_state(), ret_addr, module_cap, NULL, NULL);
+}
+
+/**
+ * \brief allocated memory to load, then loads and relocates an elf image
+ * 
+ * \param mi will be filled in with the allocated memory
+ */
+static errval_t load_and_relocate(void *elf_image, size_t elf_image_size, struct mem_info *mi,
+                                  const char *entry_sym_name, size_t relocate_offset,
+                                  genpaddr_t *entry)
+{
+    errval_t err;
+    uintptr_t eindex = 0;
+    struct Elf64_Sym *entry_sym = elf64_find_symbol_by_name((genvaddr_t) elf_image, elf_image_size, entry_sym_name, 0, STT_FUNC, &eindex);
+    if (entry_sym == NULL) {
+        return SPAWN_ERR_ELF_FIND_SYMBOL;
+    }
+    genvaddr_t boot_entry = entry_sym->st_value;
+    
+    size_t size = elf_virtual_size((lvaddr_t) elf_image);
+    
+    struct capref frame;
+    err = frame_alloc_and_map(&frame, size, &mi->size, &mi->buf);
+    mi->phys_base = get_phys_addr(frame);
+    
+    err = load_elf_binary((genvaddr_t) elf_image, mi, boot_entry, &boot_entry);
+    ON_ERR_RETURN(err);
+    err = relocate_elf((genvaddr_t) elf_image, mi, relocate_offset);
+    ON_ERR_RETURN(err);
+    
+    *entry = boot_entry + relocate_offset;
+
+    return SYS_ERR_OK;
+}
+
+
 
 /**
  * \brief Boot a core
@@ -201,18 +250,12 @@ relocate_elf(genvaddr_t binary, struct mem_info *mem, lvaddr_t load_offset)
  * \param urpc_frame_id Description of what will be passed as URPC frame
  *
  */
-
-
-extern uint64_t *aaadata;
-uint64_t *aaadata = 0;
-
 errval_t coreboot(coreid_t mpid,
         const char *boot_driver,
         const char *cpu_driver,
         const char *init,
         struct frame_identity urpc_frame_id)
 {
-
     // Implement me!
     // - Get a new KCB by retyping a RAM cap to ObjType_KernelControlBlock.
     //   Note that it should at least OBJSIZE_KCB, and it should also be aligned 
@@ -232,246 +275,133 @@ errval_t coreboot(coreid_t mpid,
     // - Call the invoke_monitor_spawn_core with the entry point 
     //   of the boot driver and pass the (physical, of course) address of the 
     //   boot struct as argument.
-
-    debug_printf("Starting coreboot\n");
+    
     errval_t err;
-    struct capref KCB;
-    struct capref KCB_Ram;
-    struct capref stack_cap;
-    struct capref core_data_cap;
-    struct capref init_space;
-    size_t ret_size;
-
-    //TODO: check alignment of these frame allocations?
-    // err = frame_alloc(&KCB,OBJSIZE_KCB,&ret_size); 
-    err = ram_alloc(&KCB_Ram,OBJSIZE_KCB);
-    if(err_is_fail(err)){
-        DEBUG_ERR(err,"Failed to allocated frame for KCB in coreboot\n");
-
-    }
-    err = slot_alloc(&KCB);
-    if(err_is_fail(err)){
-        DEBUG_ERR(err,"Slot alloc failed in coreboot\n");
-    }
-    err = cap_retype(KCB,KCB_Ram,0,ObjType_KernelControlBlock,OBJSIZE_KCB,1);
-    if(err_is_fail(err)){
-        DEBUG_ERR(err,"Failed to retype ram cap into KCB cap in coreboot\n");
-    }
-
-
-
-    //err = frame_alloc_and_map(&stack_cap,16*BASE_PAGE_SIZE,&ret_size,&stack_pointer);
-    err = ram_alloc(&stack_cap, 16 * BASE_PAGE_SIZE);
-    if(err_is_fail(err)){
-        DEBUG_ERR(err,"Failed to allocate frame for new kernel stack in coreboot");
-    }
-
-    //assert(ret_size >= 16 * BASE_PAGE_SIZE && "Returned frame less than 16 Pages for kernel stack");
-
-
-    struct armv8_core_data* core_data;
-    err = frame_alloc_and_map(&core_data_cap,BASE_PAGE_SIZE,&ret_size,(void ** ) &core_data);
-    if(err_is_fail(err)){
-       DEBUG_ERR(err,"Failed to allocate and core_data in coreboot\n");
-    }
-     assert(ret_size >= BASE_PAGE_SIZE && "Returned frame is not large enough to hold core data structure context in coreboot");
-    
-
-    err = frame_alloc(&init_space, 614 * 1024 + ARMV8_CORE_DATA_PAGES * BASE_PAGE_SIZE,&ret_size);
-    if(err_is_fail(err)){
-        DEBUG_ERR(err,"Failed to alloc space for init process\n");
-    }
-    assert(ret_size >= BASE_PAGE_SIZE * ARMV8_CORE_DATA_PAGES && "Size for init process is not large enough\n");
-
-
-
-
     struct paging_state *st = get_current_paging_state();
+    
+    assert(st);
+
+    // ==========================
+    // Alloc Kernel Control Block
+    // ==========================
+    struct capref kcb_ram;
+    struct capref kcb;
+    err = ram_alloc(&kcb_ram, OBJSIZE_KCB);
+    ON_ERR_PUSH_RETURN(err, LIB_ERR_RAM_ALLOC);
+    err = slot_alloc(&kcb);
+    ON_ERR_PUSH_RETURN(err, LIB_ERR_SLOT_ALLOC);
+    err = cap_retype(kcb, kcb_ram, 0, ObjType_KernelControlBlock, OBJSIZE_KCB, 1);
+    ON_ERR_PUSH_RETURN(err, LIB_ERR_CAP_RETYPE);
 
 
+    // ==========================================
+    // Load and relocate Boot Driver & CPU Driver
+    // ==========================================
+    struct mem_region *boot_mod = multiboot_find_module(bi, boot_driver);
+    struct mem_region *cpu_driver_mod = multiboot_find_module(bi, cpu_driver);
+    NULLPTR_CHECK(boot_mod, SPAWN_ERR_FIND_MODULE);
+    NULLPTR_CHECK(cpu_driver_mod, SPAWN_ERR_FIND_MODULE);
 
-    // Load boot driver
-    //====================================================
-    struct mem_region* boot_driver_mem_region = multiboot_find_module(bi, boot_driver);
+    void *boot_elf_blob;
+    void *cpu_driver_elf_blob;
 
-    assert(boot_driver_mem_region -> mr_type == RegionType_Module);
-    struct capref boot_driver_cap = {
+    struct mem_info boot_mi;
+    struct mem_info cpu_driver_mi;
+    genpaddr_t boot_entry;
+    genpaddr_t cpu_driver_entry;
+
+    err = map_module(boot_mod, &boot_elf_blob);
+    ON_ERR_RETURN(err);
+    err = load_and_relocate(boot_elf_blob, boot_mod->mrmod_size, &boot_mi, "boot_entry_psci", 0, &boot_entry);
+    ON_ERR_RETURN(err);
+
+    err = map_module(cpu_driver_mod, &cpu_driver_elf_blob);
+    ON_ERR_RETURN(err);
+    err = load_and_relocate(cpu_driver_elf_blob, cpu_driver_mod->mrmod_size, &cpu_driver_mi, "arch_init", ARMv8_KERNEL_OFFSET, &cpu_driver_entry);
+    ON_ERR_RETURN(err);
+
+
+    // ==============================
+    // Alloc Stack for new CPU Driver
+    // ==============================
+    struct capref stack_ram;
+    err = ram_alloc(&stack_ram, 16 * BASE_PAGE_SIZE);
+    ON_ERR_PUSH_RETURN(err, LIB_ERR_RAM_ALLOC);
+
+
+    // ================
+    // Locate init blob
+    // ================
+    struct mem_region *init_mod = multiboot_find_module(bi, init);
+    NULLPTR_CHECK(init_mod, SPAWN_ERR_FIND_MODULE);
+    struct capref init_mod_cap = {
         .cnode = cnode_module,
-        .slot = boot_driver_mem_region->mrmod_slot
+        .slot = init_mod->mrmod_slot
     };
-    void* old_boot_binary;  
-    err = paging_map_frame_complete_readable(get_current_paging_state(), (void **) &old_boot_binary,boot_driver_cap,NULL,NULL);
-    debug_printf("ELF address = %lx\n", old_boot_binary);
-    char* obb = (char*)old_boot_binary;
-    debug_printf("%x, '%c', '%c', '%c'\n", obb[0], obb[1], obb[2], obb[3]);
-    debug_printf("BOI\n");
 
-    uintptr_t sindex;
-    struct Elf64_Sym *elf_sym = elf64_find_symbol_by_name((genvaddr_t) old_boot_binary, boot_driver_mem_region->mr_bytes, "boot_entry_psci", 0, STT_FUNC, &sindex);
-    debug_printf("Here is the boot entry address: %lx\n", elf_sym->st_value);
+    void *init_image;
+    err = map_module(init_mod, &init_image);
+    ON_ERR_RETURN(err);
+    size_t init_size = elf_virtual_size((lvaddr_t) init_image);
 
 
-    if(err_is_fail(err)){
-        DEBUG_ERR(err,"Failed to map elf module for boot driver in coreboot\n");
-    }
-    struct capref new_boot_driver_cap;
-    void* new_boot_binary;
-    size_t boot_size = elf_virtual_size((lvaddr_t) old_boot_binary);    
-    err = frame_alloc(&new_boot_driver_cap, boot_size,&ret_size);
-    if(err_is_fail(err)){
-        DEBUG_ERR(err,"Failed to allocate frame for boot driver binary in coreboot\n");
-    }
-    assert(ret_size >= boot_size && "Frame for bootdriver is too small in coreboot");
-    err = paging_map_frame_attr(get_current_paging_state(), (void **) &new_boot_binary,
-                    ret_size, new_boot_driver_cap,VREGION_FLAGS_READ_WRITE,NULL,NULL);
+    // ============
+    // Alloc Memory 
+    // ============
+    struct capref init_ram;
+    size_t init_ram_size;
+    err = frame_alloc(&init_ram, ROUND_UP(init_size, BASE_PAGE_SIZE) + ARMV8_CORE_DATA_PAGES * BASE_PAGE_SIZE, &init_ram_size);
+    ON_ERR_PUSH_RETURN(err, LIB_ERR_RAM_ALLOC);
 
 
-    struct capability boot_capability;
-    invoke_cap_identify(new_boot_driver_cap, &boot_capability);
-    struct mem_info mi = {
-        .buf = new_boot_binary,
-        .size = get_size(&boot_capability),
-        .phys_base = get_address(&boot_capability),
-    };
-    
-    genvaddr_t boot_driver_entry;
+    // =======================
+    // Create Core Data struct
+    // =======================
+    struct capref core_data_frame;
+    err = frame_alloc(&core_data_frame, BASE_PAGE_SIZE, NULL);
+    ON_ERR_PUSH_RETURN(err, LIB_ERR_FRAME_ALLOC);
 
-    load_elf_binary((genvaddr_t) old_boot_binary, &mi, elf_sym->st_value, &boot_driver_entry);
-    debug_printf("boot driver phys mem: 0x%lx\n", get_address(&boot_capability));
-    debug_printf("boot driver reloc entry: 0x%lx\n", boot_driver_entry);
-    debug_printf("boot load offsett: 0x%lx\n", 0);
-    relocate_elf((genvaddr_t) old_boot_binary, &mi, 0);
-    
-    debug_printf("reloc_entry_point: 0x%lx\n", boot_driver_entry);
-    
+    struct armv8_core_data *core_data;
+    err = paging_map_frame_complete(st, (void **) &core_data, core_data_frame, NULL, NULL);
+    ON_ERR_PUSH_RETURN(err, LIB_ERR_PMAP_DO_MAP);
 
-    // Load cpu driver
-    //====================================================
-    struct mem_region* cpu_driver_mem_region = multiboot_find_module(bi,cpu_driver);
-    assert(cpu_driver_mem_region -> mr_type == RegionType_Module);
-    struct capref cpu_driver_mod_cap = {
-        .cnode = cnode_module,
-        .slot = cpu_driver_mem_region->mrmod_slot
-    };
-    void* cpu_driver_mr = NULL;
+    core_data->boot_magic = ARMV8_BOOTMAGIC_PSCI;
+    core_data->cpu_driver_stack_limit = get_phys_addr(stack_ram);
+    core_data->cpu_driver_stack = core_data->cpu_driver_stack_limit + get_phys_size(stack_ram);
+    core_data->kcb = get_phys_addr(kcb_ram);
+    core_data->cpu_driver_entry = cpu_driver_entry;
 
-    paging_map_frame_complete(st, &cpu_driver_mr, cpu_driver_mod_cap, NULL, NULL);
-    size_t cpu_driver_size = elf_virtual_size((lvaddr_t) cpu_driver_mr);
-    struct capref cpu_driver_rc;
-    err = frame_alloc(&cpu_driver_rc, cpu_driver_size, &ret_size);
-    
-    void *cpu_driver_mem_new;
+    core_data->src_core_id = disp_get_core_id();
+    core_data->dst_core_id = mpid;
+    core_data->src_arch_id = disp_get_core_id();
+    core_data->dst_arch_id = mpid;
 
-    err = paging_map_frame_attr(st, (void **) &cpu_driver_mem_new,
-                    ret_size, cpu_driver_rc, VREGION_FLAGS_READ_WRITE,NULL,NULL);
-    
-    struct capability cpu_driver_ram;
-    invoke_cap_identify(cpu_driver_rc, &cpu_driver_ram);
-    mi = (struct mem_info) {
-        .buf = cpu_driver_mem_new,
-        .size = get_size(&cpu_driver_ram),
-        .phys_base = get_address(&cpu_driver_ram),
-    };
-    sindex = 0;
-    struct Elf64_Sym *cpu_driver_start = elf64_find_symbol_by_name((genvaddr_t) cpu_driver_mr, cpu_driver_mem_region->mr_bytes, "arch_init", 0, STT_FUNC, &sindex);
-    //debug_printf("cpu_driver_start: %lx\n", cpu_driver_start->st_value);
-    if (cpu_driver_start == NULL) {
-        debug_printf("error: could not find arch_init\n");
-    }
-
-    // genvaddr_t cpu;
-    genvaddr_t cpu_entry;
-    debug_printf("cpu_driver_mem: 0x%lx\n", cpu_driver_mr);
-    load_elf_binary((genvaddr_t) cpu_driver_mr, &mi, cpu_driver_start->st_value, &cpu_entry);
-    
-    debug_printf("cpu driver entry after load: 0x%lx\n", &cpu_entry);
-    debug_printf("cpu load offset: 0x%lx\n", ARMv8_KERNEL_OFFSET);
-    cpu_entry += ARMv8_KERNEL_OFFSET;
-    relocate_elf((genvaddr_t) cpu_driver_mr, &mi, ARMv8_KERNEL_OFFSET);
-    debug_printf("cpu driver entry after relocate: 0x%lx\n", cpu_entry);
-    //debug_printf("cpu_driver_start_reloc: 0x%lx\n", cpu_driver_start_reloc);
-
-
-
-
-
-
-
-    debug_printf("Addr of boot_driver: %lx\n",boot_driver_mem_region -> mr_base);
-    debug_printf("Size of boot_driver: %lx\n",boot_driver_mem_region -> mrmod_size);
-    debug_printf("Ptrdiff boot_driver: %lx\n",boot_driver_mem_region -> mrmod_data);
-    debug_printf("addr of cpu region: %lx\n",cpu_driver_mem_region -> mr_base);
-    debug_printf("size of cpu region: %lx\n",cpu_driver_mem_region -> mrmod_size);
-    debug_printf("Ptrdiff cpu driver: %lx\n",boot_driver_mem_region -> mrmod_data);
-
-    
-    //genvaddr_t reloc_entry_point;
-    //err = load_elf_binary((genvaddr_t) old_boot_binary,&boot_mem_info,elf_sym -> st_value,&reloc_entry_point);
-    //
-    
-    struct mem_region* init_region = multiboot_find_module(bi, init);
-    struct capref init_region_cap = {
-        .cnode = cnode_module,
-        .slot = init_region->mrmod_slot
-    };
-    genpaddr_t init_region_phys = get_phys_addr(init_region_cap);
-    
     core_data->monitor_binary = (struct armv8_coredata_memreg) {
-        .base = init_region_phys,
-        .length = init_region->mrmod_size
+        .base = get_phys_addr(init_mod_cap),
+        .length = init_mod->mrmod_size
     };
 
-    
-    //Write core_data struct
-    core_data -> boot_magic = ARMV8_BOOTMAGIC_PSCI;
-    core_data -> cpu_driver_stack = get_phys_addr(stack_cap) + get_phys_size(stack_cap);
-    core_data -> cpu_driver_stack_limit = get_phys_addr(stack_cap);
-    core_data -> cpu_driver_entry = cpu_entry; //virtual address of cpu driver entry
-    memset(core_data->cpu_driver_cmdline, 0, 128 * sizeof(char));
-    core_data -> memory.base  = get_phys_addr(init_space);
-    core_data -> memory.length = get_phys_size(init_space);
-    core_data -> kcb = get_phys_addr(KCB_Ram);
-    
-    core_data -> src_core_id = disp_get_core_id();
-    core_data -> dst_core_id = mpid;
-    core_data -> src_arch_id = disp_get_core_id();
-    core_data -> dst_arch_id = mpid;
+    core_data->memory = (struct armv8_coredata_memreg) {
+        .base = get_phys_addr(init_ram),
+        .length = init_ram_size
+    };
 
-    core_data -> urpc_frame = (struct armv8_coredata_memreg) {
+
+    core_data->urpc_frame = (struct armv8_coredata_memreg) {
         .base = urpc_frame_id.base,
         .length = urpc_frame_id.bytes
     };
-    genpaddr_t context = get_phys_addr(core_data_cap);
-
-    uint64_t psci_use_hvc = 0; //This is ignored by i.MX8, doesnt matter
 
 
-    //cpu_nullop();
-    cpu_dcache_wbinv_range((vm_offset_t)core_data, get_phys_size(core_data_cap));
-    cpu_dcache_wbinv_range((vm_offset_t)new_boot_binary, boot_size);
-    cpu_dcache_wbinv_range((vm_offset_t)cpu_driver_mem_new, cpu_driver_size);
-    //cpu_dcache_wbinv_range((vm_offset_t)bi, sizeof(bi));
-    //cpu_dcache_wbinv_range((vm_offset_t) stack_pointer,get_phys_size(stack_cap));
-    cpu_nullop();
+    cpu_dcache_wbinv_range((vm_offset_t) boot_mi.buf, boot_mi.size);
+    cpu_dcache_wbinv_range((vm_offset_t) cpu_driver_mi.buf, cpu_driver_mi.size);
+    cpu_dcache_wbinv_range((vm_offset_t) core_data, sizeof *core_data);
 
-    /* size_t len = 1024 * 1024 * 4; */
-    /* uint64_t *arr = malloc(len); */
-    /* for (int i = 0; i < len; i++) { */
-    /*     arr[i] = i % 12345; */
-    /*     if (i > 123) { */
-    /*         arr[i % 123] += arr[i] % 3; */
-    /*         arr[i] += arr[i % 123] % 5; */
-    /*     } */
-    /* } */
-    /* aaadata = arr; */
-
-
-
-    err = invoke_monitor_spawn_core(mpid, CPU_ARM8, boot_driver_entry, context, psci_use_hvc);
-    if(err_is_fail(err)){
-        DEBUG_ERR(err,"Failed to invoke core in coreboot c");
-    }
-
+    // ==========
+    // Start core
+    // ==========
+    err = invoke_monitor_spawn_core(mpid, CPU_ARM8, boot_entry, get_phys_addr(core_data_frame), 0);
+    
     return SYS_ERR_OK;
-
 }
+

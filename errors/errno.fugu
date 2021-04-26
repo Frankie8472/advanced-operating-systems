@@ -626,6 +626,7 @@ errors spawn SPAWN_ERR_ {
     failure UNMAP_MODULE        "Failed unmapping module",
     failure CREATE_SEGCN        "Failed to create segment CNode",
     failure CREATE_SMALLCN      "Failed to create small RAM caps CNode",
+    failure ELF_FIND_SYMBOL     "Failed to find symbol in elf image",
 
     // setup env
     failure ARGSPG_OVERFLOW     "Overflow in arguments page: too many arguments or environment variables",
