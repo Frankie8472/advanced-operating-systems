@@ -30,6 +30,7 @@
 #include <aos/dispatcher_arch.h>
 #include <aos/curdispatcher_arch.h>
 #include <barrelfish_kpi/dispatcher_shared.h>
+#include <barrelfish_kpi/startup_arm.h>
 
 
 #include <spawn/spawn.h>
@@ -255,6 +256,16 @@ int real_main(int argc, char *argv[])
     if(err_is_fail(err)){
         DEBUG_ERR(err,"Failed to boot core");
     }
+
+    char *urpc_data = NULL;
+    paging_map_frame_complete(get_current_paging_state(), (void **) &urpc_data, urpc_cap, NULL, NULL);
+    for (int i = 0; i < 10; i++) {
+        debug_printf("reading urpc frame: %s\n", urpc_data);
+        for (int j = 0; j < 1000 * 1000 * 10; j++) {
+            __asm volatile("mov x0, x0");
+        }
+    }
+
     //boot_core
 
     // Grading
@@ -346,6 +357,34 @@ static int app_main(int argc, char *argv[])
     // - grading_setup_app_init(..);
     // - grading_test_early();
     // - grading_test_late();
+    
+    
+    
+
+    bi = (struct bootinfo *) strtol(argv[1], NULL, 10);
+    grading_setup_app_init(bi);
+
+
+    debug_printf("Hello from second core!\n");
+    struct capref urpc_frame = {
+        .cnode = cnode_task,
+        .slot = TASKCN_SLOT_MON_URPC
+    };
+
+    struct capability urpc_cap;
+
+    invoke_cap_identify(urpc_frame, &urpc_cap);
+
+    debug_printf("urpc_frame at: %p\n", get_address(&urpc_cap));
+    debug_printf("urpc_frame size: %p\n", get_size(&urpc_cap));
+    char *urpc_data = (char *) MON_URPC_VBASE;
+
+
+    strcpy(urpc_data, "Hello World!\n");
+    
+    grading_test_early();
+
+    grading_test_late();
     return LIB_ERR_NOT_IMPLEMENTED;
 }
 
