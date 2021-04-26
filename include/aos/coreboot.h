@@ -36,6 +36,7 @@ errval_t coreboot(coreid_t mpid,
         struct frame_identity urpc_frame_id);
 
 
+
 __END_DECLS
 
 #endif

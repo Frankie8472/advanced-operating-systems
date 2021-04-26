@@ -260,6 +260,10 @@ int real_main(int argc, char *argv[])
     paging_map_frame_complete(get_current_paging_state(), (void **) &urpc_data, urpc_cap, NULL, NULL);
 
 
+
+
+    //Write address of bootinfo into urpc frame to setup 
+    //================================================
     struct capref bootinfo_cap = {
         .cnode = cnode_task,
         .slot = TASKCN_SLOT_BOOTINFO,
@@ -278,7 +282,6 @@ int real_main(int argc, char *argv[])
     urpc_init[2] = get_phys_addr(core_ram);
     urpc_init[3] = get_phys_size(core_ram);
 
-
     cpu_dcache_wbinv_range((vm_offset_t) urpc_data, BASE_PAGE_SIZE);
 
 
@@ -286,7 +289,7 @@ int real_main(int argc, char *argv[])
     if(err_is_fail(err)){
         DEBUG_ERR(err,"Failed to boot core");
     }
-
+    //================================================
 
 
 
@@ -294,7 +297,8 @@ int real_main(int argc, char *argv[])
     // if(err_is_fail(err)){
     //     DEBUG_ERR(err,"Failed to spawn process in different core\n");
     // }
-    //boot_core
+
+
 
     // Grading
     grading_test_late();
@@ -383,6 +387,82 @@ static int bsp_main(int argc, char *argv[])
 
     return EXIT_SUCCESS;
 }
+static errval_t init_foreign_core(void){
+    errval_t err;
+    uint64_t *urpc_init = (uint64_t*) MON_URPC_VBASE;
+        debug_printf("Bootinfo base: %lx, bootinfo size: %lx\n",urpc_init[0],urpc_init[1]);
+    debug_printf("Ram base: %lx, Ram size: %lx\n",urpc_init[2],urpc_init[3]);
+    struct capref bootinfo_cap = {
+        .cnode = cnode_task,
+        .slot = TASKCN_SLOT_BOOTINFO,
+    };
+     struct capref core_ram = {
+        .cnode = cnode_super,
+        .slot = 0,
+    };
+
+    err =  frame_forge(bootinfo_cap,urpc_init[0],urpc_init[1],disp_get_current_core_id());
+    ON_ERR_RETURN(err);
+    
+    err = paging_map_frame_complete(get_current_paging_state(),(void **) &bi,bootinfo_cap,NULL,NULL);
+    ON_ERR_RETURN(err);
+    // if(err_is_fail(err)){
+    //     DEBUG_ERR(err,"Failed to map bootinfo struct");
+    // }
+
+    assert(bi && "Boot info in appmain is NULL");
+
+
+    err = ram_forge(core_ram,urpc_init[2],urpc_init[3],disp_get_current_core_id());
+    ON_ERR_RETURN(err);    
+    err = initialize_ram_alloc_foreign(core_ram);
+    ON_ERR_RETURN(err);
+    
+    const int nBenches = 100;
+
+    for (int i = 0; i < 10; i++) {
+        uint64_t before = systime_now();
+        for (int j = 0; j < nBenches; j++) {
+            struct capref thrown_away;
+            err  = ram_alloc(&thrown_away, BASE_PAGE_SIZE);
+            // debug_printf("Allocated ram!\n");
+            if(err_is_fail(err)){
+                DEBUG_ERR(err,"Failed to allocate ram in benchmarkmm\n");
+            }
+        }
+        uint64_t end = systime_now();
+
+        debug_printf("measurement %d took: %ld\n", i, systime_to_ns(end - before));
+    }
+
+
+    for(int i = 0; i < bi -> regions_length;++i){
+        
+        if(bi -> regions[i].mr_type == RegionType_Module){
+            struct capref module_cap = {
+                .cnode = cnode_module,
+                .slot = bi -> regions[i].mrmod_slot
+            };
+            debug_printf("Trying to forge cap\n");
+            err = frame_forge(module_cap,bi -> regions[i].mr_base,bi -> regions[i].mr_bytes,disp_get_current_core_id()); 
+            // ON_ERR_RETURN(err);
+            if(err_is_fail(err)){
+                DEBUG_ERR(err,"Failed to forge cap for modules held by bootinfo\n");
+                // bug comes from capabilities.c line 1304 
+            }
+        }
+    }
+    return SYS_ERR_OK;
+}
+
+
+
+
+
+
+
+
+
 
 static int app_main(int argc, char *argv[])
 {
@@ -401,7 +481,7 @@ static int app_main(int argc, char *argv[])
     // bi = (struct bootinfo *) strtol(argv[1], NULL, 10);
 
     
-    // grading_setup_app_init(bi);
+    
 
     // printf()
 
@@ -426,122 +506,14 @@ static int app_main(int argc, char *argv[])
     //     DEBUG_ERR(err,"AFiled to setup channel\n");
     // }
 
-
-
-
-
-
-
-    // struct capref cap;
-    // err = ram_alloc(&cap,BASE_PAGE_SIZE);
-    // if(err_is_fail(err)){
-    //     DEBUG_ERR(err,"Failed to allcotate ram in second core\n");
-    // }
-
     debug_printf("Hello from core: %d!\n",disp_get_current_core_id());
-    struct capref urpc_frame = {
-        .cnode = cnode_task,
-        .slot = TASKCN_SLOT_MON_URPC
-    };
-
-    struct capability urpc_cap;
-
-    invoke_cap_identify(urpc_frame, &urpc_cap);
-
-    debug_printf("urpc_frame at: %p\n", get_address(&urpc_cap));
-    debug_printf("urpc_frame size: %p\n", get_size(&urpc_cap));
-    char *urpc_data = (char *) MON_URPC_VBASE;
-
-    uint64_t *urpc_init = (uint64_t*) urpc_data;
-
-    debug_printf("Bootinfo base: %lx, bootinfo size: %lx\n",urpc_init[0],urpc_init[1]);
-    debug_printf("Ram base: %lx, Ram size: %lx\n",urpc_init[2],urpc_init[3]);
-    struct capref bootinfo_cap = {
-        .cnode = cnode_task,
-        .slot = TASKCN_SLOT_BOOTINFO,
-    };
-     struct capref core_ram = {
-        .cnode = cnode_super,
-        .slot = 0,
-    };
-
-
-
-
-
-    err =  frame_forge(bootinfo_cap,urpc_init[0],urpc_init[1],disp_get_current_core_id());
+    err = init_foreign_core();
     if(err_is_fail(err)){
-        DEBUG_ERR(err,"Failed to forge bootinfo cap\n");
-    }
-    
-    err = paging_map_frame_complete(get_current_paging_state(),(void **) &bi,bootinfo_cap,NULL,NULL);
-    if(err_is_fail(err)){
-        DEBUG_ERR(err,"Failed to map bootinfo struct");
+        DEBUG_ERR(err,"Failed to initialize ram and bootinfo for new core core\n");
     }
 
-    assert(bi && "Boot info in appmain is NULL");
+    grading_setup_app_init(bi);
 
-
-    
-
-
-
-
-    err = ram_forge(core_ram,urpc_init[2],urpc_init[3],disp_get_current_core_id());
-    if(err_is_fail(err)){
-        DEBUG_ERR(err,"Failed to forge ram cap in foreign core\n");
-    }
-    err = initialize_ram_alloc_foreign(core_ram);
-    if(err_is_fail(err)){
-        DEBUG_ERR(err,"Failed to initialize ram alloc foregin\n");
-    }
-    
-
-
-
-    // const int nBenches = 100;
-
-    // for (int i = 0; i < 10; i++) {
-    //     uint64_t before = systime_now();
-    //     for (int j = 0; j < nBenches; j++) {
-    //         struct capref thrown_away;
-    //         err  = ram_alloc(&thrown_away, BASE_PAGE_SIZE);
-    //         // debug_printf("Allocated ram!\n");
-    //         if(err_is_fail(err)){
-    //             DEBUG_ERR(err,"Failed to allocate ram in benchmarkmm\n");
-    //         }
-    //     }
-    //     uint64_t end = systime_now();
-
-    //     debug_printf("measurement %d took: %ld\n", i, systime_to_ns(end - before));
-    // }
-
-    for(int i = 0; i < bi -> regions_length;++i){
-        
-        if(bi -> regions[i].mr_type == RegionType_Module){
-            struct capref module_cap = {
-                .cnode = cnode_module,
-                .slot = bi -> regions[i].mrmod_slot
-            };
-            debug_printf("Trying to forge cap\n");
-            err = frame_forge(module_cap,bi -> regions[i].mr_base,bi -> regions[i].mr_bytes,disp_get_current_core_id()); 
-            if(err_is_fail(err)){
-                DEBUG_ERR(err,"Failed to forge cap for modules held by bootinfo\n");
-                // bug comes from capabilities.c line 1304 
-            }
-        }
-    }
-
-
-    // // spawning hello from inside app_main
-    // struct spawninfo *hello_si = spawn_create_spawninfo();
-    // domainid_t *hello_pid = &hello_si->pid;
-    //     err = spawn_load_by_name("hello", hello_si, hello_pid);
-    // if (err_is_fail(err)) {
-    //     DEBUG_ERR(err, "spawn loading failed");
-    // }
-
-    
     grading_test_early();
 
     grading_test_late();
