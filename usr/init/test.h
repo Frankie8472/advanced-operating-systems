@@ -3,4 +3,4 @@
     debug_printf("RUNNING TEST: %s\n", __func__);\
     debug_printf("======================\n");
 
-int run_init_tests(void);
+int run_init_tests(int core_id);
