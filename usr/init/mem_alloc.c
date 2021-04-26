@@ -113,3 +113,20 @@ errval_t initialize_ram_alloc(void)
     return SYS_ERR_OK;
 }
 
+
+errval_t initialize_ram_alloc_foreign(struct capref cap){
+    errval_t err;
+    err = initialize_ram_allocator();
+    if (err_is_fail(err)) {
+        return err;
+    }
+
+    err = mm_add(&aos_mm,cap,get_phys_addr(cap),get_phys_size(cap));
+    ON_ERR_RETURN(err);
+    err = ram_alloc_set(aos_ram_alloc_aligned);
+    ON_ERR_RETURN(err);
+    // ON_ERR_PUSH_RETURN(err, LIB_ERR_RAM_ALLOC_SET);
+
+    debug_printf("Added %ld B of physical memory on foreign core.\n", get_phys_size(cap));
+    return SYS_ERR_OK;
+}

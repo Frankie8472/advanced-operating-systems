@@ -149,6 +149,5 @@ struct mem_region *multiboot_find_module(struct bootinfo *bi, const char *name)
             return region;
         }
     }
-
     return NULL;
 }

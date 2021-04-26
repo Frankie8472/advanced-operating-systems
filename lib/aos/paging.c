@@ -52,8 +52,11 @@ void page_fault_handler(enum exception_type type, int subtype, void *addr, arch_
             debug_printf("this is probably due to a faulty region list\n");
             thread_exit(1);
         }
-
-        if (region->type == PAGING_REGION_STACK && ((lvaddr_t) addr) < region->base_addr + BASE_PAGE_SIZE) {
+        if(((lvaddr_t) addr == 0)){
+            debug_printf("Segmentation fault (core dumped)\n");
+            thread_exit(1);
+        }
+        else if (region->type == PAGING_REGION_STACK && ((lvaddr_t) addr) < region->base_addr + BASE_PAGE_SIZE) {
             // if it is in the first page of a stack region, we consider it a stack overflow
             debug_printf("Stack overflow!\n\n");
             debug_printf("addr: 0x%" PRIxLPADDR "\n", addr);

@@ -408,6 +408,7 @@ errval_t spawn_load_by_name(char *binary_name, struct spawninfo *si,
     // - Fill in argc/argv from the multiboot command line
     // - Call spawn_load_argv
     errval_t err = SYS_ERR_OK;
+    debug_printf("Hello\n");
 
     //TODO: is  bi correctly initialized by the init/usr/main.c
     struct mem_region* mem_region = multiboot_find_module(bi, binary_name);
@@ -416,6 +417,8 @@ errval_t spawn_load_by_name(char *binary_name, struct spawninfo *si,
         return SPAWN_ERR_MAP_MODULE;
     }
 
+
+    
     //this mem_region should be of type module
     assert(mem_region->mr_type == RegionType_Module);
     struct capability cap;
@@ -423,15 +426,18 @@ errval_t spawn_load_by_name(char *binary_name, struct spawninfo *si,
         .cnode = cnode_module,
         .slot = mem_region->mrmod_slot
     };
-
     err = invoke_cap_identify(child_frame, &cap);
+    debug_printf("Hello\n");
+
     ON_ERR_RETURN(err);
 
     size_t mapping_size = get_size(&cap);
     char* elf_address;
+    
     paging_map_frame_attr(get_current_paging_state(), (void **) &elf_address,
                           mapping_size, child_frame, VREGION_FLAGS_READ_WRITE, NULL, NULL);
 
+    debug_printf("Hello\n");
     si->mapped_elf = (lvaddr_t) elf_address;
     si->mapped_elf_size = (size_t) mem_region->mrmod_size;
     debug_printf("ELF address = %lx\n", elf_address);
