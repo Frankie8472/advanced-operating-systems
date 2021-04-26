@@ -358,13 +358,23 @@ static int app_main(int argc, char *argv[])
     // - grading_test_early();
     // - grading_test_late();
     
+    errval_t err;
+    
+
+    // bi = (struct bootinfo *) strtol(argv[1], NULL, 10);
+    // grading_setup_app_init(bi);
+
+
+    // char * test = malloc(1024 * sizeof(double));
+    // test[0] = 1;
+    struct capref cap;
+
+    err = ram_alloc(&cap,BASE_PAGE_SIZE);
+    if(err_is_fail(err)){
+        DEBUG_ERR(err,"Failed to allcotate ram in second core\n");
+    }
     
     
-
-    bi = (struct bootinfo *) strtol(argv[1], NULL, 10);
-    grading_setup_app_init(bi);
-
-
     debug_printf("Hello from second core!\n");
     struct capref urpc_frame = {
         .cnode = cnode_task,
@@ -385,7 +395,7 @@ static int app_main(int argc, char *argv[])
     grading_test_early();
 
     grading_test_late();
-    return LIB_ERR_NOT_IMPLEMENTED;
+    return SYS_ERR_OK;
 }
 
 
