@@ -426,7 +426,7 @@ errval_t spawn_load_by_name(char *binary_name, struct spawninfo *si,
         .cnode = cnode_module,
         .slot = mem_region->mrmod_slot
     };
-    //err = invoke_cap_identify(child_frame, &cap);
+    err = invoke_cap_identify(child_frame, &cap);
     char bbb[128];
     debug_print_cap_at_capref(bbb, 128, child_frame);
     debug_printf("Hello, %s\n", bbb);
@@ -434,6 +434,7 @@ errval_t spawn_load_by_name(char *binary_name, struct spawninfo *si,
     ON_ERR_RETURN(err);
 
     size_t mapping_size = get_size(&cap);
+    debug_printf("capsize: %ld\n", mapping_size);
     char* elf_address;
     
     paging_map_frame_attr(get_current_paging_state(), (void **) &elf_address,

@@ -50,6 +50,8 @@ void page_fault_handler(enum exception_type type, int subtype, void *addr, arch_
         if (region == NULL) {
             debug_printf("error in page handler: can't find paging region\n");
             debug_printf("this is probably due to a faulty region list\n");
+            debug_printf("addr: 0x%" PRIxLPADDR "\n", addr);
+            debug_printf("ip: 0x%" PRIxLPADDR "\n", regs->named.pc);
             thread_exit(1);
         }
         if(((lvaddr_t) addr == 0)){
@@ -284,7 +286,7 @@ void paging_init_onthread(struct thread *t)
     // TODO (M4): setup exception handler for thread `t'.
     assert(t != NULL);
     
-    size_t exception_stack_size = 8 * 1024; // 8 KB for exception handler
+    size_t exception_stack_size = 16 * 1024; // 8 KB for exception handler
     char *exception_stack = malloc(exception_stack_size);
 
     // as malloc'ed memory might not be paged yet, we write to it

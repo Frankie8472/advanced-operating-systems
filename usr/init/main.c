@@ -308,7 +308,6 @@ int real_main(int argc, char *argv[])
     debug_printf("Message handler loop\n");
     // Hang around
     struct waitset *default_ws = get_default_waitset();
-    return EXIT_SUCCESS;
     while (true) {
         err = event_dispatch(default_ws);
         if (err_is_fail(err)) {
@@ -415,11 +414,11 @@ static errval_t init_foreign_core(void){
     assert(bi && "Boot info in appmain is NULL");
 
 
-    err = ram_forge(core_ram,urpc_init[2],urpc_init[3],disp_get_current_core_id());
-    ON_ERR_RETURN(err);    
+    err = ram_forge(core_ram, urpc_init[2], urpc_init[3], disp_get_current_core_id());
+    ON_ERR_RETURN(err);
     err = initialize_ram_alloc_foreign(core_ram);
     ON_ERR_RETURN(err);
-    
+
     const int nBenches = 100;
 
     for (int i = 0; i < 10; i++) {
@@ -453,8 +452,9 @@ static errval_t init_foreign_core(void){
                 .cnode = cnode_module,
                 .slot = bi -> regions[i].mrmod_slot
             };
-            debug_printf("Trying to forge cap\n");
-            err = frame_forge(module_cap,bi -> regions[i].mr_base,bi -> regions[i].mr_bytes,disp_get_current_core_id()); 
+            size_t size = bi->regions[i].mrmod_size;
+            debug_printf("Trying to forge cap: %ld bytes\n", size);
+            err = frame_forge(module_cap, bi->regions[i].mr_base, ROUND_UP(size, BASE_PAGE_SIZE), disp_get_current_core_id()); 
             // ON_ERR_RETURN(err);
             if(err_is_fail(err)){
                 DEBUG_ERR(err,"Failed to forge cap for modules held by bootinfo\n");
@@ -543,6 +543,19 @@ static int app_main(int argc, char *argv[])
     grading_test_early();
 
     grading_test_late();
+
+    debug_printf("Message handler loop\n");
+    // Hang around
+    struct waitset *default_ws = get_default_waitset();
+    while (true) {
+        err = event_dispatch(default_ws);
+        if (err_is_fail(err)) {
+            DEBUG_ERR(err, "in event_dispatch");
+            abort();
+        }
+    }
+
+    thread_exit(0);
     return SYS_ERR_OK;
 }
 
