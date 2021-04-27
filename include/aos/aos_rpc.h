@@ -18,6 +18,7 @@
 #define AOS_RPC_MAX_FUNCTION_ARGUMENTS 8
 
 #include <aos/aos.h>
+#include <aos/ump_chan.h>
 
 #define AOS_RPC_RETURN_BIT 0x1000000
 
@@ -80,7 +81,12 @@ struct aos_rpc_function_binding
 
 /* An RPC binding, which may be transported over LMP or UMP. */
 struct aos_rpc {
-    struct lmp_chan channel;
+    enum aos_rpc_backend backend;
+
+    union backend_channel {
+        struct lmp_chan lmp;
+        struct ump_chan ump;
+    } channel;
 
     size_t n_bindings;
     struct aos_rpc_function_binding bindings[AOS_RPC_MAX_MSG_TYPES];
@@ -90,10 +96,17 @@ struct aos_rpc {
     // TODO(M3): Add state
 };
 
+
 /**
  * \brief Initialize an aos_rpc struct.
  */
 errval_t aos_rpc_init(struct aos_rpc *rpc, struct capref self_ep, struct capref end_ep, struct lmp_endpoint *lmp_ep);
+
+
+/**
+ * \brief Initialize an aos_rpc struct running on ump backend
+ */
+errval_t aos_rpc_init_ump(struct aos_rpc *rpc, lvaddr_t shared_page, size_t shared_page_size, bool first_half);
 
 /**
  * \brief initialize marshalling info for an rpc function

@@ -7,6 +7,8 @@
 
 #define UMP_MSG_SIZE 64 // TODO: set to cache line size
 
+#define UMP_FLAG_SENT 1
+#define UMP_FLAG_RECIEVED 2
 
 struct ump_msg
 {
