@@ -281,6 +281,8 @@ int real_main(int argc, char *argv[])
     urpc_init[1] = BOOTINFO_SIZE;
     urpc_init[2] = get_phys_addr(core_ram);
     urpc_init[3] = get_phys_size(core_ram);
+    urpc_init[4] = get_phys_addr(cap_mmstrings);
+    urpc_init[5] = get_phys_size(cap_mmstrings);
 
     cpu_dcache_wbinv_range((vm_offset_t) urpc_data, BASE_PAGE_SIZE);
 
@@ -364,7 +366,7 @@ static int bsp_main(int argc, char *argv[])
 
     struct paging_state *st = get_current_paging_state();
     struct paging_region hacc_stacc_region;
-    uint64_t stacksize = 1L << 50;
+    uint64_t stacksize = 1L << 20;    
     err = paging_region_init(st, &hacc_stacc_region, stacksize, VREGION_FLAGS_READ_WRITE);
     if (err_is_fail(err)) {
         DEBUG_ERR(err, "/>/> Error: Creating stack region\n");
@@ -412,11 +414,11 @@ static errval_t init_foreign_core(void){
     assert(bi && "Boot info in appmain is NULL");
 
 
-    err = ram_forge(core_ram,urpc_init[2],urpc_init[3],disp_get_current_core_id());
-    ON_ERR_RETURN(err);    
+    err = ram_forge(core_ram, urpc_init[2], urpc_init[3], disp_get_current_core_id());
+    ON_ERR_RETURN(err);
     err = initialize_ram_alloc_foreign(core_ram);
     ON_ERR_RETURN(err);
-    
+
     const int nBenches = 100;
 
     for (int i = 0; i < 10; i++) {
@@ -440,6 +442,9 @@ static errval_t init_foreign_core(void){
     };
     err = cnode_create_raw(mc, NULL, ObjType_L2CNode, L2_CNODE_SLOTS, NULL);
     
+    err = frame_forge(cap_mmstrings, urpc_init[4], urpc_init[5], 0);
+    ON_ERR_RETURN(err);
+    
     for(int i = 0; i < bi -> regions_length;++i) {
         
         if(bi -> regions[i].mr_type == RegionType_Module){
@@ -447,8 +452,9 @@ static errval_t init_foreign_core(void){
                 .cnode = cnode_module,
                 .slot = bi -> regions[i].mrmod_slot
             };
-            debug_printf("Trying to forge cap\n");
-            err = frame_forge(module_cap,bi -> regions[i].mr_base,bi -> regions[i].mr_bytes,disp_get_current_core_id()); 
+            size_t size = bi->regions[i].mrmod_size;
+            debug_printf("Trying to forge cap: %ld bytes\n", size);
+            err = frame_forge(module_cap, bi->regions[i].mr_base, ROUND_UP(size, BASE_PAGE_SIZE), disp_get_current_core_id()); 
             // ON_ERR_RETURN(err);
             if(err_is_fail(err)){
                 DEBUG_ERR(err,"Failed to forge cap for modules held by bootinfo\n");
@@ -524,6 +530,19 @@ static int app_main(int argc, char *argv[])
     grading_test_early();
 
     grading_test_late();
+
+    debug_printf("Message handler loop\n");
+    // Hang around
+    struct waitset *default_ws = get_default_waitset();
+    while (true) {
+        err = event_dispatch(default_ws);
+        if (err_is_fail(err)) {
+            DEBUG_ERR(err, "in event_dispatch");
+            abort();
+        }
+    }
+
+    thread_exit(0);
     return SYS_ERR_OK;
 }
 
