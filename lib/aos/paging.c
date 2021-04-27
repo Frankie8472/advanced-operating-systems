@@ -611,8 +611,11 @@ static errval_t paging_map_fixed_attr_with_offset(struct paging_state *st, lvadd
     if (shadow_table_l1 == NULL) { // if there is no l1 pt in l0
         struct capref l1;
         struct capref l1_mapping;
-        st->slot_alloc->alloc(st->slot_alloc, &l1_mapping);
-        pt_alloc(st, ObjType_VNode_AARCH64_l1, &l1);
+        err = st->slot_alloc->alloc(st->slot_alloc, &l1_mapping);
+        ON_ERR_RETURN(err);
+
+        err = pt_alloc(st, ObjType_VNode_AARCH64_l1, &l1);
+        ON_ERR_RETURN(err);
 
         //printf("mapping l1 node 0x%lx\n", l0_offset);
         err = vnode_map(shadow_table_l0->pt_cap, l1, l0_offset, VREGION_FLAGS_READ, 0, 1, l1_mapping);
@@ -632,8 +635,11 @@ static errval_t paging_map_fixed_attr_with_offset(struct paging_state *st, lvadd
     if (shadow_table_l2 == NULL) { // if there is no l2 pt in l1
         struct capref l2;
         struct capref l2_mapping;
-        st->slot_alloc->alloc(st->slot_alloc, &l2_mapping);
-        pt_alloc(st, ObjType_VNode_AARCH64_l2, &l2);
+        err = st->slot_alloc->alloc(st->slot_alloc, &l2_mapping);
+        ON_ERR_RETURN(err);
+
+        err = pt_alloc(st, ObjType_VNode_AARCH64_l2, &l2);
+        ON_ERR_RETURN(err);
 
         //printf("mapping l2 node 0x%lx\n", l1_offset);
         err = vnode_map(shadow_table_l1->pt_cap, l2, l1_offset, VREGION_FLAGS_READ, 0, 1, l2_mapping);

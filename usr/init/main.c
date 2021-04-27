@@ -257,8 +257,10 @@ int real_main(int argc, char *argv[])
         .pasid = disp_get_core_id()
     };
     char *urpc_data = NULL;
-    paging_map_frame_complete(get_current_paging_state(), (void **) &urpc_data, urpc_cap, NULL, NULL);
-
+    err = paging_map_frame_complete(get_current_paging_state(), (void **) &urpc_data, urpc_cap, NULL, NULL);
+    if(err_is_fail(err)){
+        DEBUG_ERR(err,"Failed to map frame for urpc channel\n");
+    }
 
 
 
@@ -269,7 +271,7 @@ int real_main(int argc, char *argv[])
         .slot = TASKCN_SLOT_BOOTINFO,
     };
     struct capref core_ram;
-    err = ram_alloc(&core_ram,1L << 24); //16 MB
+    err = ram_alloc(&core_ram,1L << 25); //16 MB
     if(err_is_fail(err)){
         DEBUG_ERR(err,"Failed to allcoate ram for new core\n");
     }
@@ -353,20 +355,14 @@ static int bsp_main(int argc, char *argv[])
     bi = (struct bootinfo *) strtol(argv[1], NULL, 10);
     assert(bi);
 
-
-    
-
     err = initialize_ram_alloc();
     if (err_is_fail(err)) {
         DEBUG_ERR(err, "/>/> Error: Initialize_ram_alloc");
     }
 
-
-
-
     struct paging_state *st = get_current_paging_state();
     struct paging_region hacc_stacc_region;
-    uint64_t stacksize = 1L << 20;    
+    uint64_t stacksize = 1L << 20;  // 1 MB
     err = paging_region_init(st, &hacc_stacc_region, stacksize, VREGION_FLAGS_READ_WRITE);
     if (err_is_fail(err)) {
         DEBUG_ERR(err, "/>/> Error: Creating stack region\n");
@@ -391,8 +387,8 @@ static int bsp_main(int argc, char *argv[])
 static errval_t init_foreign_core(void){
     errval_t err;
     uint64_t *urpc_init = (uint64_t*) MON_URPC_VBASE;
-        debug_printf("Bootinfo base: %lx, bootinfo size: %lx\n",urpc_init[0],urpc_init[1]);
-    debug_printf("Ram base: %lx, Ram size: %lx\n",urpc_init[2],urpc_init[3]);
+        debug_printf("Bootinfo base: %lx, bootinfo size: %lx\n", urpc_init[0], urpc_init[1]);
+    debug_printf("Ram base: %lx, Ram size: %lx\n", urpc_init[2], urpc_init[3]);
     struct capref bootinfo_cap = {
         .cnode = cnode_task,
         .slot = TASKCN_SLOT_BOOTINFO,
@@ -405,7 +401,7 @@ static errval_t init_foreign_core(void){
     err =  frame_forge(bootinfo_cap, urpc_init[0], urpc_init[1], 0);
     ON_ERR_RETURN(err);
     
-    err = paging_map_frame_complete(get_current_paging_state(),(void **) &bi,bootinfo_cap,NULL,NULL);
+    err = paging_map_frame_complete(get_current_paging_state(), (void **) &bi,bootinfo_cap, NULL, NULL);
     ON_ERR_RETURN(err);
     // if(err_is_fail(err)){
     //     DEBUG_ERR(err,"Failed to map bootinfo struct");
@@ -445,12 +441,12 @@ static errval_t init_foreign_core(void){
     err = frame_forge(cap_mmstrings, urpc_init[4], urpc_init[5], 0);
     ON_ERR_RETURN(err);
     
-    for(int i = 0; i < bi -> regions_length;++i) {
+    for(int i = 0; i < bi->regions_length;++i) {
         
-        if(bi -> regions[i].mr_type == RegionType_Module){
+        if(bi->regions[i].mr_type == RegionType_Module){
             struct capref module_cap = {
                 .cnode = cnode_module,
-                .slot = bi -> regions[i].mrmod_slot
+                .slot = bi->regions[i].mrmod_slot
             };
             size_t size = bi->regions[i].mrmod_size;
             debug_printf("Trying to forge cap: %ld bytes\n", size);
