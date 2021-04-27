@@ -396,7 +396,7 @@ errval_t coreboot(coreid_t mpid,
     cpu_dcache_wbinv_range((vm_offset_t) boot_mi.buf, boot_mi.size);
     cpu_dcache_wbinv_range((vm_offset_t) cpu_driver_mi.buf, cpu_driver_mi.size);
     cpu_dcache_wbinv_range((vm_offset_t) core_data, sizeof *core_data);
-
+    
     // ==========
     // Start core
     // ==========
@@ -404,4 +404,7 @@ errval_t coreboot(coreid_t mpid,
     
     return SYS_ERR_OK;
 }
+
+
+
 

@@ -191,7 +191,9 @@ int benchmark_mm(void);
  * \brief Benchmarks mm by doing a lot of calls to ram_alloc.
  */
 int benchmark_mm(void)
-{
+{   
+
+    errval_t err;
     TEST_START;
     const int nBenches = 5000;
 
@@ -199,7 +201,11 @@ int benchmark_mm(void)
         uint64_t before = systime_now();
         for (int j = 0; j < nBenches; j++) {
             struct capref thrown_away;
-            ram_alloc(&thrown_away, BASE_PAGE_SIZE);
+            err  = ram_alloc(&thrown_away, BASE_PAGE_SIZE);
+            // debug_printf("Allocated ram!\n");
+            if(err_is_fail(err)){
+                DEBUG_ERR(err,"Failed to allocate ram in benchmarkmm\n");
+            }
         }
         uint64_t end = systime_now();
 
@@ -225,13 +231,13 @@ int benchmark_mm(void)
 
 // put your test functions for core 0 in this array, keep NULL as last element
 int (*bsp_tests[])(void) = {
-    //&benchmark_mm,
+    &benchmark_mm,
     //&test_printf,
     //&test_getchar,
     //&test_malloc,
-    &test_malloc_lazy,
-    &test_malloc_64MiB,
-    &test_stack_overflow,
+    // &test_malloc_lazy,
+    // &test_malloc_64MiB,
+    // &test_stack_overflow,
     //&test_infinite_loop,
     NULL
 };
