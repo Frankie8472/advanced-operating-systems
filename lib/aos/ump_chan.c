@@ -25,7 +25,7 @@ bool ump_chan_send(struct ump_chan *chan, struct ump_msg *send)
     assert(((lvaddr_t) send_location) % UMP_MSG_SIZE == 0);
 
     struct ump_msg *write = send_location;
-    if (send->flag)  // check if the previous msg at location has been acked
+    if (write->flag)  // check if the previous msg at location has been acked
         return false;
 
     dmb();  // write after check
