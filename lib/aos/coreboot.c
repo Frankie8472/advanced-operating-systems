@@ -7,8 +7,6 @@
 #include <aos/kernel_cap_invocations.h>
 #include <aos/cache.h>
 
-
-
 #define ARMv8_KERNEL_OFFSET 0xffff000000000000
 
 extern struct bootinfo *bi;
@@ -33,7 +31,6 @@ static errval_t load_elf_binary(genvaddr_t binary, const struct mem_info *mem,
                          genvaddr_t entry_point, genvaddr_t *reloc_entry_point)
 
 {
-
     struct Elf64_Ehdr *ehdr = (struct Elf64_Ehdr *)binary;
 
     /* Load the CPU driver from its ELF image. */
@@ -78,15 +75,11 @@ static errval_t load_elf_binary(genvaddr_t binary, const struct mem_info *mem,
             }
         }
     }
-
     if (!found_entry_point) {
         USER_PANIC("No entry point loaded\n");
     }
-
     return SYS_ERR_OK;
 }
-
-
 
 /**
  * Relocate an already loaded ELF image. 
@@ -180,7 +173,6 @@ relocate_elf(genvaddr_t binary, struct mem_info *mem, lvaddr_t load_offset)
                     default:
                         DEBUG_PRINTF("Unexpected type\n");
                         break;
-
                 }
             }
         }
@@ -226,6 +218,8 @@ static errval_t load_and_relocate(void *elf_image, size_t elf_image_size, struct
     
     struct capref frame;
     err = frame_alloc_and_map(&frame, size, &mi->size, &mi->buf);
+    ON_ERR_RETURN(err);
+
     mi->phys_base = get_phys_addr(frame);
     
     err = load_elf_binary((genvaddr_t) elf_image, mi, boot_entry, &boot_entry);
@@ -237,8 +231,6 @@ static errval_t load_and_relocate(void *elf_image, size_t elf_image_size, struct
 
     return SYS_ERR_OK;
 }
-
-
 
 /**
  * \brief Boot a core
@@ -401,7 +393,8 @@ errval_t coreboot(coreid_t mpid,
     // Start core
     // ==========
     err = invoke_monitor_spawn_core(mpid, CPU_ARM8, boot_entry, get_phys_addr(core_data_frame), 0);
-    
+    ON_ERR_RETURN(err);
+
     return SYS_ERR_OK;
 }
 

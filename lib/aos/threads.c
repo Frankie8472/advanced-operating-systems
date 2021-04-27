@@ -1158,7 +1158,7 @@ static int bootstrap_thread(struct spawn_domain_params *params)
     size_t blocksize = sizeof(struct thread) + tls_block_total_len  + THREAD_ALIGNMENT;
     // err = paging_region_init(get_current_paging_state(), &thread_slabs_vm,
     //                          SLAB_STATIC_SIZE(MAX_THREADS, blocksize), VREGION_FLAGS_READ_WRITE);
-    // get_current_paging_state() -> thread_slab_region = thread_slabs_vm;
+    // get_current_paging_state()->thread_slab_region = thread_slabs_vm;
 
 
     err = paging_region_init(get_current_paging_state(), &thread_slabs_vm,
@@ -1540,25 +1540,25 @@ void thread_deliver_exception_disabled(dispatcher_handle_t handle,
 
     thread->in_exception = true;
 
-    lvaddr_t stack_top = (lvaddr_t)thread->exception_stack_top;
+    lvaddr_t stack_top = (lvaddr_t) thread->exception_stack_top;
 
     // save thread's state at time of fault on top of exception stack
     stack_top -= sizeof(arch_registers_state_t);
     // Make sure we store the state at an aligned position
     stack_top -= stack_top % STACK_ALIGNMENT;
-    arch_registers_state_t *cpuframe = (void *)stack_top;
+    arch_registers_state_t *cpuframe = (void *) stack_top;
     memcpy(cpuframe, regs, sizeof(arch_registers_state_t));
 
     // XXX: sanity-check to ensure we have a sensible amount of exception stack left
-    assert_disabled(stack_top > (lvaddr_t)thread->exception_stack + 8192);
+    assert_disabled(stack_top > (lvaddr_t) thread->exception_stack + 8192);
 
     // XXX: pack two small ints together to fit into a single register
     uintptr_t hack_arg = (uintptr_t)type << 16 | (subtype & 0xffff);
 
     registers_set_initial(&thread->regs, thread,
-                          (lvaddr_t)exception_handler_wrapper,
-                          stack_top, (lvaddr_t)cpuframe, hack_arg,
-                          (lvaddr_t)addr, 0);
+                          (lvaddr_t) exception_handler_wrapper,
+                          stack_top, (lvaddr_t) cpuframe, hack_arg,
+                          (lvaddr_t) addr, 0);
 
     disp_resume(handle, &thread->regs);
 }
