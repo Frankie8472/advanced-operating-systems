@@ -213,7 +213,7 @@ int real_main(int argc, char *argv[])
     struct paging_state* ps = get_current_paging_state();
     debug_print_paging_state(*ps);
 
-    // run_init_tests();
+    //run_init_tests(0);
 
     
     /*void stack_overflow(void) {
@@ -228,7 +228,7 @@ int real_main(int argc, char *argv[])
 
     // TODO: initialize mem allocator, vspace management here
 
-    // spawn_memeater();
+    spawn_memeater();
 
     // benchmark_mm();
 
@@ -274,7 +274,6 @@ int real_main(int argc, char *argv[])
     debug_printf("Message handler loop\n");
     // Hang around
     struct waitset *default_ws = get_default_waitset();
-    return EXIT_SUCCESS;
     while (true) {
         err = event_dispatch(default_ws);
         if (err_is_fail(err)) {
@@ -364,6 +363,9 @@ static int app_main(int argc, char *argv[])
     bi = (struct bootinfo *) strtol(argv[1], NULL, 10);
     grading_setup_app_init(bi);
 
+    for (int i = 0; i < argc; i++) {
+        debug_printf("argv[%d]: %s\n", i, argv[i]);
+    }
 
     debug_printf("Hello from second core!\n");
     struct capref urpc_frame = {

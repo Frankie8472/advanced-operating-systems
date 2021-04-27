@@ -20,7 +20,6 @@
 #include <aos/aos.h>
 
 #define AOS_RPC_RETURN_BIT 0x1000000
-#define AOS_RPC_MAX_MSG_TYPES 32
 
 /**
  * \brief different functions to call for rpc
@@ -30,7 +29,7 @@
  *
  */
 typedef enum aos_rpc_msg_type {
-    AOS_RPC_INITIATE = 1,
+    AOS_RPC_INITIATE = 0,
     AOS_RPC_SEND_NUMBER,
     AOS_RPC_SEND_STRING,
     AOS_RPC_REQUEST_RAM,
@@ -41,6 +40,7 @@ typedef enum aos_rpc_msg_type {
     AOS_RPC_SET_READ,
     AOS_RPC_FREE_READ,
     AOS_RPC_ROUNDTRIP, ///< rpc call that does nothing, for benchmarking
+    AOS_RPC_MAX_MSG_TYPES, // needs to be last
 } msg_type_t;
 
 
