@@ -38,9 +38,4 @@ void arm64_dcache_wbinv_range(vm_offset_t, vm_size_t);
 void arm64_dcache_inv_range(vm_offset_t, vm_size_t);
 void arm64_dcache_wb_range(vm_offset_t, vm_size_t);
 
-/**
- * short macro to insert a memory barrier
- */
-#define AOS_MEMORY_BARRIER asm volatile("": : :"memory")
-
 #endif
