@@ -653,8 +653,11 @@ static errval_t paging_map_fixed_attr_with_offset(struct paging_state *st, lvadd
     if (shadow_table_l3 == NULL) { // if there is no l3 pt in l2
         struct capref l3;
         struct capref l3_mapping;
-        st->slot_alloc->alloc(st->slot_alloc, &l3_mapping);
-        pt_alloc(st, ObjType_VNode_AARCH64_l3, &l3);
+        err = st->slot_alloc->alloc(st->slot_alloc, &l3_mapping);
+        ON_ERR_RETURN(err);
+
+        err = pt_alloc(st, ObjType_VNode_AARCH64_l3, &l3);
+        ON_ERR_RETURN(err);
 
         //printf("mapping l3 node\n");
         err = vnode_map(shadow_table_l2->pt_cap, l3, l2_offset, VREGION_FLAGS_READ, 0, 1, l3_mapping);
