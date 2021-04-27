@@ -281,6 +281,8 @@ int real_main(int argc, char *argv[])
     urpc_init[1] = BOOTINFO_SIZE;
     urpc_init[2] = get_phys_addr(core_ram);
     urpc_init[3] = get_phys_size(core_ram);
+    urpc_init[4] = get_phys_addr(cap_mmstrings);
+    urpc_init[5] = get_phys_size(cap_mmstrings);
 
     cpu_dcache_wbinv_range((vm_offset_t) urpc_data, BASE_PAGE_SIZE);
 
@@ -365,7 +367,7 @@ static int bsp_main(int argc, char *argv[])
 
     struct paging_state *st = get_current_paging_state();
     struct paging_region hacc_stacc_region;
-    uint64_t stacksize = 1L << 50;    
+    uint64_t stacksize = 1L << 20;    
     err = paging_region_init(st, &hacc_stacc_region, stacksize, VREGION_FLAGS_READ_WRITE);
     if (err_is_fail(err)) {
         DEBUG_ERR(err, "/>/> Error: Creating stack region\n");
@@ -441,6 +443,9 @@ static errval_t init_foreign_core(void){
     };
     err = cnode_create_raw(mc, NULL, ObjType_L2CNode, L2_CNODE_SLOTS, NULL);
     
+    err = frame_forge(cap_mmstrings, urpc_init[4], urpc_init[5], 0);
+    ON_ERR_RETURN(err);
+    
     for(int i = 0; i < bi -> regions_length;++i) {
         
         if(bi -> regions[i].mr_type == RegionType_Module){
@@ -457,6 +462,22 @@ static errval_t init_foreign_core(void){
             }
         }
     }
+
+    struct spawninfo *memeater_si = spawn_create_spawninfo();
+
+    domainid_t *memeater_pid = &memeater_si->pid;
+    err = spawn_load_by_name("memeater", memeater_si, memeater_pid);
+    if (err_is_fail(err)) {
+        DEBUG_ERR(err, "spawn loading failed");
+    }
+
+    struct aos_rpc *rpc = &memeater_si->rpc;
+    aos_rpc_init(rpc, memeater_si->cap_ep, NULL_CAP, memeater_si->lmp_ep);
+
+    err = lmp_chan_alloc_recv_slot(&rpc->channel);
+
+    err = initialize_rpc(memeater_si);
+
     return SYS_ERR_OK;
 }
 

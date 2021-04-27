@@ -408,11 +408,11 @@ errval_t spawn_load_by_name(char *binary_name, struct spawninfo *si,
     // - Fill in argc/argv from the multiboot command line
     // - Call spawn_load_argv
     errval_t err = SYS_ERR_OK;
-    debug_printf("Hello\n");
+    debug_printf("Halli Hallo\n");
 
     //TODO: is  bi correctly initialized by the init/usr/main.c
     struct mem_region* mem_region = multiboot_find_module(bi, binary_name);
-
+    
     if (mem_region == NULL) {
         return SPAWN_ERR_MAP_MODULE;
     }
@@ -426,8 +426,10 @@ errval_t spawn_load_by_name(char *binary_name, struct spawninfo *si,
         .cnode = cnode_module,
         .slot = mem_region->mrmod_slot
     };
-    err = invoke_cap_identify(child_frame, &cap);
-    debug_printf("Hello\n");
+    //err = invoke_cap_identify(child_frame, &cap);
+    char bbb[128];
+    debug_print_cap_at_capref(bbb, 128, child_frame);
+    debug_printf("Hello, %s\n", bbb);
 
     ON_ERR_RETURN(err);
 
