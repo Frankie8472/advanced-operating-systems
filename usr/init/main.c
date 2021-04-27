@@ -401,7 +401,7 @@ static errval_t init_foreign_core(void){
         .slot = 0,
     };
 
-    err =  frame_forge(bootinfo_cap,urpc_init[0],urpc_init[1],disp_get_current_core_id());
+    err =  frame_forge(bootinfo_cap, urpc_init[0], urpc_init[1], 0);
     ON_ERR_RETURN(err);
     
     err = paging_map_frame_complete(get_current_paging_state(),(void **) &bi,bootinfo_cap,NULL,NULL);
@@ -435,8 +435,13 @@ static errval_t init_foreign_core(void){
         debug_printf("measurement %d took: %ld\n", i, systime_to_ns(end - before));
     }
 
-
-    for(int i = 0; i < bi -> regions_length;++i){
+    struct capref mc = {
+        .cnode = cnode_root,
+        .slot = ROOTCN_SLOT_MODULECN
+    };
+    err = cnode_create_raw(mc, NULL, ObjType_L2CNode, L2_CNODE_SLOTS, NULL);
+    
+    for(int i = 0; i < bi -> regions_length;++i) {
         
         if(bi -> regions[i].mr_type == RegionType_Module){
             struct capref module_cap = {
