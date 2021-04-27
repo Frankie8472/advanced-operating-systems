@@ -17,6 +17,27 @@ errval_t ump_chan_init(struct ump_chan *chan,
     return SYS_ERR_OK;
 }
 
+bool ump_chan_send(struct ump_chan *chan, struct ump_msg *send)
+{
+    void *send_location = chan->send_pane + chan->send_buf_index * UMP_MSG_SIZE;
+    
+    // ensure cache line alignedness
+    assert(((lvaddr_t) send_location) % UMP_MSG_SIZE == 0);
+
+    struct ump_msg *write = send_location;
+    if (write->flag)  // check if the previous msg at location has been acked
+        return false;
+
+    dmb();  // write after check
+    memcpy(write, send, UMP_MSG_SIZE);
+
+    dmb();  // set after write
+    send->flag = 'm';
+
+    chan->send_buf_index++;
+    chan->send_buf_index %= chan->send_pane_size / UMP_MSG_SIZE;
+    return true;
+}
 
 bool ump_chan_poll_once(struct ump_chan *chan, struct ump_msg *recv)
 {
@@ -30,10 +51,11 @@ bool ump_chan_poll_once(struct ump_chan *chan, struct ump_msg *recv)
 
         dmb();
         memcpy(recv, read, UMP_MSG_SIZE);
+        dmb();
         read->flag = 0;
 
-        chan->recv_buf_index += UMP_MSG_SIZE;
-        chan->recv_buf_index %= chan->recv_pane_size;
+        chan->recv_buf_index++;
+        chan->recv_buf_index %= chan->recv_pane_size / UMP_MSG_SIZE;
         
         return true;
     }
