@@ -2,6 +2,12 @@
 
 #include <aos/aos.h>
 
+/**
+ * \brief Initialize an ump_chan struct.
+ * \param chan Pointer to instance to initialize
+ * \param send_buf, send_buf_size Location and size of the channel's send-buffer
+ * \param recv_buf, recv_buf_size Location and size of the channel's receive-buffer
+ */
 errval_t ump_chan_init(struct ump_chan *chan,
                        void *send_buf, size_t send_buf_size,
                        void *recv_buf, size_t recv_buf_size)
@@ -17,6 +23,13 @@ errval_t ump_chan_init(struct ump_chan *chan,
     return SYS_ERR_OK;
 }
 
+/**
+ * \brief Send a message over an ump-channel.
+ * \param chan Channel to use.
+ * \param send Pointer to the message to send.
+ * \return Flag: true if the message could be sent, false if the
+ * message could not be sent (because send-buffer is full).
+ */
 bool ump_chan_send(struct ump_chan *chan, struct ump_msg *send)
 {
     void *send_location = chan->send_pane + chan->send_buf_index * UMP_MSG_SIZE;
@@ -39,6 +52,13 @@ bool ump_chan_send(struct ump_chan *chan, struct ump_msg *send)
     return true;
 }
 
+/**
+ * \brief Poll an ump-channel for a new message.
+ * \param chan Channel to poll
+ * \param recv Location to write the result to.
+ * \return Flag: true if a message was received and written to ´recv´,
+ * false if no new message was received (and ´recv´ was not written to).
+ */
 bool ump_chan_poll_once(struct ump_chan *chan, struct ump_msg *recv)
 {
     void *poll_location = chan->recv_pane + chan->recv_buf_index * UMP_MSG_SIZE;
