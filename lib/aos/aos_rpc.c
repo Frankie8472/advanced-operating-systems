@@ -55,6 +55,24 @@ static errval_t setup_buf_page(struct aos_rpc *rpc, enum aos_rpc_msg_type msg_ty
 static errval_t aos_rpc_init_common(struct aos_rpc *rpc)
 {
     memset(rpc->bindings, 0, sizeof rpc->bindings);
+
+    // bind initiate function (to send our endpoint to init)
+    aos_rpc_initialize_binding(rpc, AOS_RPC_INITIATE, 1, 0, AOS_RPC_CAPABILITY);
+
+    // bind further functions
+    aos_rpc_initialize_binding(rpc, AOS_RPC_SEND_NUMBER, 1, 0, AOS_RPC_WORD);
+    aos_rpc_initialize_binding(rpc, AOS_RPC_SEND_STRING, 1, 0, AOS_RPC_STR);
+    aos_rpc_initialize_binding(rpc, AOS_RPC_REQUEST_RAM, 2, 2, AOS_RPC_WORD, AOS_RPC_WORD, AOS_RPC_CAPABILITY, AOS_RPC_WORD);
+
+    aos_rpc_initialize_binding(rpc, AOS_RPC_SETUP_PAGE, 3, 0, AOS_RPC_WORD, AOS_RPC_WORD, AOS_RPC_CAPABILITY);
+    aos_rpc_register_handler(rpc, AOS_RPC_SETUP_PAGE, &aos_rpc_setup_page_handler);
+
+    aos_rpc_initialize_binding(rpc, AOS_RPC_PROC_SPAWN_REQUEST, 2, 1, AOS_RPC_STR, AOS_RPC_WORD, AOS_RPC_WORD);
+
+    aos_rpc_initialize_binding(rpc, AOS_RPC_PUTCHAR, 1, 0, AOS_RPC_WORD);
+    aos_rpc_initialize_binding(rpc, AOS_RPC_GETCHAR, 0, 1, AOS_RPC_WORD);
+
+    aos_rpc_initialize_binding(rpc, AOS_RPC_ROUNDTRIP, 0, 0);
     
     return SYS_ERR_OK;
 }
@@ -88,23 +106,6 @@ errval_t aos_rpc_init(struct aos_rpc* rpc, struct capref self_ep, struct capref 
     rpc->channel.lmp.endpoint = lmp_ep;
     lmp_chan_alloc_recv_slot(&rpc->channel.lmp);
 
-    // bind initiate function (to send our endpoint to init)
-    aos_rpc_initialize_binding(rpc, AOS_RPC_INITIATE, 1, 0, AOS_RPC_CAPABILITY);
-
-    // bind further functions
-    aos_rpc_initialize_binding(rpc, AOS_RPC_SEND_NUMBER, 1, 0, AOS_RPC_WORD);
-    aos_rpc_initialize_binding(rpc, AOS_RPC_SEND_STRING, 1, 0, AOS_RPC_STR);
-    aos_rpc_initialize_binding(rpc, AOS_RPC_REQUEST_RAM, 2, 2, AOS_RPC_WORD, AOS_RPC_WORD, AOS_RPC_CAPABILITY, AOS_RPC_WORD);
-
-    aos_rpc_initialize_binding(rpc, AOS_RPC_SETUP_PAGE, 3, 0, AOS_RPC_WORD, AOS_RPC_WORD, AOS_RPC_CAPABILITY);
-    aos_rpc_register_handler(rpc, AOS_RPC_SETUP_PAGE, &aos_rpc_setup_page_handler);
-
-    aos_rpc_initialize_binding(rpc, AOS_RPC_PROC_SPAWN_REQUEST, 2, 1, AOS_RPC_STR, AOS_RPC_WORD, AOS_RPC_WORD);
-
-    aos_rpc_initialize_binding(rpc, AOS_RPC_PUTCHAR, 1, 0, AOS_RPC_WORD);
-    aos_rpc_initialize_binding(rpc, AOS_RPC_GETCHAR, 0, 1, AOS_RPC_WORD);
-
-    aos_rpc_initialize_binding(rpc, AOS_RPC_ROUNDTRIP, 0, 0);
 
     err = lmp_chan_register_recv(&rpc->channel.lmp, get_default_waitset(), MKCLOSURE(&aos_rpc_on_message, rpc));
 
@@ -134,6 +135,9 @@ errval_t aos_rpc_init_ump(struct aos_rpc *rpc, lvaddr_t shared_page, size_t shar
     rpc->backend = AOS_RPC_UMP;
     
     size_t half_page_size = shared_page_size / 2;
+    
+    assert(half_page_size % UMP_MSG_SIZE == 0);
+    assert(half_page_size + half_page_size == shared_page_size);
     
     void *send_pane = (void *) shared_page;
     void *recv_pane = (void *) shared_page + half_page_size;
@@ -240,11 +244,21 @@ static errval_t aos_rpc_unmarshall_retval_aarch64(
     return SYS_ERR_OK;
 }
 
+
 errval_t aos_rpc_call(struct aos_rpc *rpc, enum aos_rpc_msg_type msg_type, ...)
 {
     va_list args;
 
     errval_t err;
+
+    if (rpc->backend == AOS_RPC_UMP) {
+        struct ump_msg um = {
+            .data.u64 = {1, 2, 3, 4, 5, 6, 7},
+            .flag = 0
+        };
+        ump_chan_send(&rpc->channel.ump, &um);
+        return SYS_ERR_OK;
+    }
 
     struct aos_rpc_function_binding *binding = &rpc->bindings[msg_type];
     size_t n_args = binding->n_args;

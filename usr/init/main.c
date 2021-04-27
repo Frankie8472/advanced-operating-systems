@@ -203,7 +203,7 @@ __attribute__((unused)) static void spawn_page(void){
 
 int real_main(int argc, char *argv[]);
 int real_main(int argc, char *argv[])
-{   
+{
 
     debug_printf(">> Entering Real Main\n");
 
@@ -233,7 +233,7 @@ int real_main(int argc, char *argv[])
 
     // TODO: initialize mem allocator, vspace management here
 
-    spawn_memeater();
+    //spawn_memeater();
 
     // benchmark_mm();
 
@@ -290,6 +290,26 @@ int real_main(int argc, char *argv[])
     err = coreboot(1,boot_driver,cpu_driver,init,urpc_frame_id);
     if(err_is_fail(err)){
         DEBUG_ERR(err,"Failed to boot core");
+    }
+    
+    
+    
+    struct aos_rpc *ump_rpc_test = malloc(sizeof(struct aos_rpc));
+    aos_rpc_init_ump(ump_rpc_test, (lvaddr_t) urpc_init, BASE_PAGE_SIZE, true);
+    
+    //aos_rpc_register_handler(ump_rpc_test, AOS_RPC_SEND_NUMBER, &recv_number);
+
+    while(true) {
+        struct ump_msg um;
+        bool recvd = ump_chan_poll_once(&ump_rpc_test->channel.ump, &um);
+        if (recvd) {
+            debug_printf("recvd: %ld, %ld", um.data.u64[0], um.data.u64[1]);
+            break;
+        }
+        //sys_yield(CPTR_NULL);
+        for (int i = 0; i < 1000 * 1000 * 100; i++) {
+            __asm volatile ("mov x4, x4");
+        }
     }
     //================================================
 
@@ -402,7 +422,7 @@ static errval_t init_foreign_core(void){
         .slot = 0,
     };
 
-    err =  frame_forge(bootinfo_cap, urpc_init[0], urpc_init[1], 0);
+    err = frame_forge(bootinfo_cap, urpc_init[0], urpc_init[1], 0);
     ON_ERR_RETURN(err);
     
     err = paging_map_frame_complete(get_current_paging_state(),(void **) &bi,bootinfo_cap,NULL,NULL);
@@ -421,7 +441,7 @@ static errval_t init_foreign_core(void){
 
     const int nBenches = 100;
 
-    for (int i = 0; i < 10; i++) {
+    for (int i = 0; i < 3; i++) {
         uint64_t before = systime_now();
         for (int j = 0; j < nBenches; j++) {
             struct capref thrown_away;
@@ -462,8 +482,15 @@ static errval_t init_foreign_core(void){
             }
         }
     }
-    
+
     spawn_memeater();
+    
+    struct aos_rpc *ump_rpc_test = malloc(sizeof(struct aos_rpc));
+    aos_rpc_init_ump(ump_rpc_test, (lvaddr_t) urpc_init, BASE_PAGE_SIZE, false);
+    
+    aos_rpc_call(ump_rpc_test, AOS_RPC_SEND_NUMBER, 12345);
+
+    //cpu_dcache_wbinv_range((vm_offset_t) urpc_init, BASE_PAGE_SIZE);
 
     return SYS_ERR_OK;
 }
@@ -524,6 +551,7 @@ static int app_main(int argc, char *argv[])
     if(err_is_fail(err)){
         DEBUG_ERR(err,"Failed to initialize ram and bootinfo for new core core\n");
     }
+
 
     grading_setup_app_init(bi);
 
