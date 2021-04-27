@@ -21,6 +21,11 @@
 
 #define AOS_RPC_RETURN_BIT 0x1000000
 
+enum aos_rpc_backend {
+    AOS_RPC_LMP,
+    AOS_RPC_UMP,
+};
+
 /**
  * \brief different functions to call for rpc
  *
