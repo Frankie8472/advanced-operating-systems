@@ -97,7 +97,7 @@ static void req_ram(struct aos_rpc *r, uintptr_t size, uintptr_t alignment, stru
  */
 static void initiate(struct aos_rpc *rpc, struct capref cap) {
     debug_printf("rpc: %p\n", rpc);
-    rpc->channel.remote_cap = cap;
+    rpc->channel.lmp.remote_cap = cap;
 }
 
 static void spawn_handler(struct aos_rpc *old_rpc, const char *name, uintptr_t core_id, uintptr_t *new_pid) {
@@ -111,7 +111,7 @@ static void spawn_handler(struct aos_rpc *old_rpc, const char *name, uintptr_t c
     aos_rpc_init(rpc, si->cap_ep, NULL_CAP, si->lmp_ep);
     initialize_rpc(si);
 
-    errval_t err = lmp_chan_register_recv(&rpc->channel, get_default_waitset(), MKCLOSURE(&aos_rpc_on_message, &rpc));
+    errval_t err = lmp_chan_register_recv(&rpc->channel.lmp, get_default_waitset(), MKCLOSURE(&aos_rpc_on_message, &rpc));
     if (err_is_fail(err) && err == LIB_ERR_CHAN_ALREADY_REGISTERED) {
         // not too bad, already registered
     }
@@ -157,7 +157,7 @@ errval_t initialize_rpc(struct spawninfo *si)
     void instant_return(struct aos_rpc *r) { return; }
     aos_rpc_register_handler(rpc, AOS_RPC_ROUNDTRIP, &instant_return);
 
-    errval_t err = lmp_chan_register_recv(&rpc->channel, get_default_waitset(), MKCLOSURE(&aos_rpc_on_message, &rpc));
+    errval_t err = lmp_chan_register_recv(&rpc->channel.lmp, get_default_waitset(), MKCLOSURE(&aos_rpc_on_message, &rpc));
     return err;
 }
 
@@ -175,7 +175,7 @@ __attribute__((unused)) static void spawn_memeater(void)
     struct aos_rpc *rpc = &memeater_si->rpc;
     aos_rpc_init(rpc, memeater_si->cap_ep, NULL_CAP, memeater_si->lmp_ep);
 
-    err = lmp_chan_alloc_recv_slot(&rpc->channel);
+    err = lmp_chan_alloc_recv_slot(&rpc->channel.lmp);
 
     err = initialize_rpc(memeater_si);
 }
@@ -194,7 +194,7 @@ __attribute__((unused)) static void spawn_page(void){
 
     struct aos_rpc *rpc = &hello_si->rpc;
     aos_rpc_init(rpc, hello_si->cap_ep, NULL_CAP, hello_si->lmp_ep);
-    err = lmp_chan_alloc_recv_slot(&rpc->channel);
+    err = lmp_chan_alloc_recv_slot(&rpc->channel.lmp);
     ON_ERR_NO_RETURN(err);
 
     err = initialize_rpc(hello_si);
