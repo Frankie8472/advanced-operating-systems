@@ -32,7 +32,7 @@ bool ump_chan_send(struct ump_chan *chan, struct ump_msg *send)
     memcpy(write, send, UMP_MSG_SIZE);
 
     dmb();  // set after write
-    send->flag = 'm';
+    write->flag = 'm';
 
     chan->send_buf_index++;
     chan->send_buf_index %= chan->send_pane_size / UMP_MSG_SIZE;
