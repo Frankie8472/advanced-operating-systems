@@ -295,18 +295,16 @@ void paging_init_onthread(struct thread *t)
     // TODO (M4): setup exception handler for thread `t'.
     assert(t != NULL);
     
-    size_t exception_stack_size = 16 * 1024; // 8 KB for exception handler
-    char *exception_stack = malloc(exception_stack_size);
+    errval_t err;
+    size_t exception_stack_size = 16 * 1024; // 16 KB for exception handler
+    struct capref exception_stack_frame;
+    char *exception_stack;
+    err = frame_alloc_and_map(&exception_stack_frame, exception_stack_size, &exception_stack_size, (void **) &exception_stack);
 
-    // as malloc'ed memory might not be paged yet, we write to it
-    // (we should not have page faults inside the page fault handler)
-    for (size_t i = 0; i < exception_stack_size; i += BASE_PAGE_SIZE) {
-        exception_stack[i] = 0;
-    }
     t->exception_handler = page_fault_handler;
     t->exception_stack = exception_stack;
     t->exception_stack_top = (void *) ROUND_DOWN((lvaddr_t) exception_stack + exception_stack_size, 32);
-}   
+}
 
 /**
  * \brief Initialize a paging region in `pr`, such that it  starts
