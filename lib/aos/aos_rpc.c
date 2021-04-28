@@ -68,6 +68,7 @@ static errval_t aos_rpc_init_common(struct aos_rpc *rpc)
     aos_rpc_register_handler(rpc, AOS_RPC_SETUP_PAGE, &aos_rpc_setup_page_handler);
 
     aos_rpc_initialize_binding(rpc, AOS_RPC_PROC_SPAWN_REQUEST, 2, 1, AOS_RPC_STR, AOS_RPC_WORD, AOS_RPC_WORD);
+    aos_rpc_initialize_binding(rpc, AOS_RPC_FOREIGN_SPAWN, 2, 1, AOS_RPC_SHORTSTR, AOS_RPC_WORD, AOS_RPC_WORD);
 
     aos_rpc_initialize_binding(rpc, AOS_RPC_PUTCHAR, 1, 0, AOS_RPC_WORD);
     aos_rpc_initialize_binding(rpc, AOS_RPC_GETCHAR, 0, 1, AOS_RPC_WORD);
@@ -242,7 +243,7 @@ static errval_t aos_rpc_unmarshall_retval_aarch64(
     int msg_ind = 1;
     for (int i = 0; i < binding->n_rets; i++) {
         if (binding->rets[i] == AOS_RPC_WORD) {
-            *((uintptr_t*)retptrs[i]) = msg->buf.words[msg_ind];
+            *((uintptr_t*)retptrs[i]) = msg->words[msg_ind];
         }
         else if (binding->rets[i] == AOS_RPC_CAPABILITY) {
             *((struct capref*) retptrs[i]) = cap;
@@ -277,8 +278,15 @@ static errval_t aos_rpc_call_ump(struct aos_rpc *rpc, enum aos_rpc_msg_type msg_
         if (binding->args[i] == AOS_RPC_WORD) {
             um.data.u64[word_ind++] = va_arg(args, uintptr_t);
         }
+        else if (binding->args[i] == AOS_RPC_SHORTSTR) {
+            const char *str = va_arg(args, char*);
+            assert(strlen(str) < AOS_RPC_SHORTSTR_LENGTH);
+            strncpy((char *) &um.data.u64[word_ind], str, AOS_RPC_SHORTSTR_LENGTH);
+            word_ind += AOS_RPC_SHORTSTR_LENGTH / sizeof(uintptr_t);
+        }
         else {
-            debug_printf("non-word messages over ump NYI!\n");
+            debug_printf("%d\n", binding->args[i]);
+            debug_printf("non-word or shortstring messages over ump NYI!\n");
             return LIB_ERR_NOT_IMPLEMENTED;
         }
     }
@@ -290,6 +298,7 @@ static errval_t aos_rpc_call_ump(struct aos_rpc *rpc, enum aos_rpc_msg_type msg_
     do {
         sent = ump_chan_send(&rpc->channel.ump, &um);
     } while (!sent);
+    debug_printf("sent message!\n");
     
 
     struct ump_msg response;
@@ -300,7 +309,7 @@ static errval_t aos_rpc_call_ump(struct aos_rpc *rpc, enum aos_rpc_msg_type msg_
 
     for (int i = 0; i < n_rets; i++) {
         if (binding->rets[i] == AOS_RPC_WORD) {
-            *((uintptr_t *) retptrs[i]) = response.data.u64[i];
+            *((uintptr_t *) retptrs[i]) = response.data.u64[i + 1];
         }
         else {
             debug_printf("non-word responses over ump NYI!\n");
@@ -449,7 +458,7 @@ static errval_t aos_rpc_unmarshall_simple_aarch64(struct aos_rpc *rpc,
                         void *handler, struct aos_rpc_function_binding *binding,
                         struct lmp_recv_msg *msg, struct capref cap)
 {
-    //debug_printf("words: %ld %ld %ld %ld\n", msg->buf.words[0], msg->buf.words[1], msg->buf.words[2], msg->buf.words[3]);
+    //debug_printf("words: %ld %ld %ld %ld\n", msg->data.u64[0], msg->data.u64[1], msg->data.u64[2], msg->data.u64[3]);
 
     typedef uintptr_t ui;
     ui arg[8] = { 0 }; // Upper bound so only writes in register
@@ -462,14 +471,14 @@ static errval_t aos_rpc_unmarshall_simple_aarch64(struct aos_rpc *rpc,
     int ret_pos = 0;
     for (int i = 0; i < binding->n_args; i++) {
         if (binding->args[i] == AOS_RPC_WORD) {
-            arg[a_pos++] = msg->buf.words[buf_pos++];
+            arg[a_pos++] = msg->words[buf_pos++];
         }
         else if (binding->args[i] == AOS_RPC_CAPABILITY) {
             arg[a_pos++] = (cap.cnode.croot) | (((ui)cap.cnode.cnode) << 32);
             arg[a_pos++] = (cap.cnode.level) | (((ui)cap.slot) << 32);
         }
         else if (binding->args[i] == AOS_RPC_STR) {
-            arg[a_pos++] = ((ui) binding->buf_page_remote) + msg->buf.words[buf_pos++];
+            arg[a_pos++] = ((ui) binding->buf_page_remote) + msg->words[buf_pos++];
         }
         else {
             // TODO: error, can't transmit strings or other over simple channels
@@ -535,7 +544,7 @@ void aos_rpc_on_message(void *arg)
         lmp_chan_alloc_recv_slot(channel);
     }
 
-    uintptr_t msgtype = msg.buf.words[0];
+    uintptr_t msgtype = msg.words[0];
 
     bool is_response = false;
     if (msgtype & AOS_RPC_RETURN_BIT) {
@@ -581,32 +590,70 @@ static errval_t aos_rpc_unmarshall_ump_simple_aarch64(struct aos_rpc *rpc,
                         void *handler, struct aos_rpc_function_binding *binding,
                         struct ump_msg *msg)
 {
-    //debug_printf("words: %ld %ld %ld %ld\n", msg->buf.words[0], msg->buf.words[1], msg->buf.words[2], msg->buf.words[3]);
+    debug_printf("words: %ld %ld %ld %ld %ld %ld %ld\n",
+        msg->data.u64[0], msg->data.u64[1], msg->data.u64[2], msg->data.u64[3],
+        msg->data.u64[4], msg->data.u64[5], msg->data.u64[6]
+    );
 
     typedef uintptr_t ui;
     ui arg[8] = { 0 }; // Upper bound so only writes in register
-    errval_t (*h7)(struct aos_rpc*, ui, ui, ui, ui, ui, ui, ui, ui) = handler;
+    ui ret[6] = { 0 };
+    errval_t (*h8)(struct aos_rpc*, ui, ui, ui, ui, ui, ui, ui, ui) = handler;
     int a_pos = 0;
     int buf_pos = 1;
+    int ret_pos = 0;
     for (int i = 0; i < binding->n_args; i++) {
+        if (a_pos >= 8) {
+            return LIB_ERR_SLAB_ALLOC_FAIL; // todo create better error code
+        }
         if (binding->args[i] == AOS_RPC_WORD) {
             arg[a_pos++] = msg->data.u64[buf_pos++];
         }
+        else if (binding->args[i] == AOS_RPC_SHORTSTR) {
+            debug_printf("unmarshalling str: %s at arg pos %d\n", &msg->data.u64[buf_pos], a_pos);
+            arg[a_pos++] = (ui) &msg->data.u64[buf_pos];
+            buf_pos += 4;
+            debug_printf("string after: %s\n", arg[0]);
+        }
         else {
-            debug_printf("only integer arguments supported at the moment\n");
+            debug_printf("only integer and shortstr arguments supported at the moment\n");
             return LIB_ERR_NOT_IMPLEMENTED;
         }
-        if (a_pos >= 9) {
+    }
+    for (int i = 0; i < binding->n_rets; i++) {
+        if (a_pos >= 6) {
+            return LIB_ERR_SLAB_ALLOC_FAIL; // todo
+        }
+        if (binding->rets[i] == AOS_RPC_WORD) {
+            arg[a_pos++] = (ui) &ret[ret_pos++];
+        }
+        else if (binding->args[i] == AOS_RPC_SHORTSTR) {
+            arg[a_pos++] = (ui) &ret[ret_pos];
+            ret_pos += 4;
+        }
+        else {
+            debug_printf("only integer and shortstr arguments supported at the moment\n");
+            return LIB_ERR_NOT_IMPLEMENTED;
+        }
+        if (ret_pos >= 7) {
             return LIB_ERR_SLAB_ALLOC_FAIL; // todo
         }
     }
 
-    h7(rpc, arg[0], arg[1], arg[2], arg[3], arg[4], arg[5], arg[6], arg[7]);
+    h8(rpc, arg[0], arg[1], arg[2], arg[3], arg[4], arg[5], arg[6], arg[7]);
 
     // send response
     struct ump_msg response;
     response.data.u64[0] = msg->data.u64[0] | AOS_RPC_RETURN_BIT;
-    ump_chan_send(&rpc->channel.ump, &response);
+    for (int i = 0; i < ret_pos; i++) {
+        response.data.u64[i + 1] = ret[i];
+    }
+
+    bool sent = false;
+    do {
+        sent = ump_chan_send(&rpc->channel.ump, &response);
+    } while(!sent);
+
     //ON_ERR_PUSH_RETURN(err, LIB_ERR_UMP_CHAN_SEND);
 
     return SYS_ERR_OK;

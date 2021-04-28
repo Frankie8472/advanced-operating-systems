@@ -127,7 +127,7 @@ static void spawn_handler(struct aos_rpc *old_rpc, const char *name, uintptr_t c
     }else{
         errval_t err;
         struct aos_rpc* ump_chan = core_channels[core_id];
-        err = aos_rpc_call(ump_chan,AOS_RPC_PROC_SPAWN_REQUEST,name,new_pid);
+        err = aos_rpc_call(ump_chan,AOS_RPC_FOREIGN_SPAWN,name,new_pid);
         if(err_is_fail(err)){
             DEBUG_ERR(err,"Failed to call aos rpc in spawn handler for foreign core\n");
         }
@@ -253,14 +253,14 @@ int real_main(int argc, char *argv[])
 
     // TODO: initialize mem allocator, vspace management here
 
-    //spawn_memeater();
+    spawn_memeater();
 
     // benchmark_mm();
 
 
     // Grading
     grading_test_early();
-
+#pragma GCC diagnostic ignored "-Wunused-variable"
     // TODO: Spawn system processes, boot second core etc. here
     const char * boot_driver = "boot_armv8_generic";
     const char * cpu_driver = "cpu_imx8x";
@@ -320,8 +320,11 @@ int real_main(int argc, char *argv[])
     core_channels[coreid] = ump_rpc_test;
 
     aos_rpc_register_handler(ump_rpc_test, AOS_RPC_SEND_NUMBER, &recv_number);
+    
+    //domainid_t pid;
+    //err = aos_rpc_call(ump_rpc_test, AOS_RPC_FOREIGN_SPAWN, "memeater", 1, &pid);
 
-    int poller(void *arg) {
+    /*int poller(void *arg) {
         struct ump_poller *p = arg;
         ump_chan_run_poller(p);
         return 0;
@@ -330,7 +333,7 @@ int real_main(int argc, char *argv[])
     struct ump_poller *init_poller = ump_chan_get_default_poller();
 
     struct thread *pollthread = thread_create(&poller, init_poller);
-    pollthread = pollthread;
+    pollthread = pollthread;*/
     //================================================
 
 
@@ -503,14 +506,39 @@ static errval_t init_foreign_core(void){
     }
 
     //spawn_memeater();
+    //
+    void spawny(struct aos_rpc *origin_rpc, const char *name, uintptr_t core_id, uintptr_t *new_pid)
+    {
+        debug_printf("WE SPAWN: %s, %ld\n", name, core_id);
+        struct spawninfo *si = spawn_create_spawninfo();
+
+        domainid_t *pid = &si->pid;
+        spawn_load_by_name((char*) name, si, pid);
+        *new_pid = *pid;
+        struct aos_rpc *rpc = &si->rpc;
+        aos_rpc_init(rpc, si->cap_ep, NULL_CAP, si->lmp_ep);
+        initialize_rpc(si);
+        errval_t errr = lmp_chan_register_recv(&rpc->channel.lmp, get_default_waitset(), MKCLOSURE(&aos_rpc_on_message, &rpc));
+        if (err_is_fail(errr) && errr == LIB_ERR_CHAN_ALREADY_REGISTERED) {
+            // not too bad, already registered
+        }
+    }
     
     struct aos_rpc *ump_rpc_test = malloc(sizeof(struct aos_rpc));
     aos_rpc_init_ump(ump_rpc_test, (lvaddr_t) urpc_init, BASE_PAGE_SIZE, false);
+    aos_rpc_register_handler(ump_rpc_test, AOS_RPC_FOREIGN_SPAWN, spawny);
     core_channels[0] = ump_rpc_test;
-    aos_rpc_call(ump_rpc_test, AOS_RPC_SEND_NUMBER, 12345);
-    aos_rpc_call(ump_rpc_test, AOS_RPC_SEND_NUMBER, 12345);
-    aos_rpc_call(ump_rpc_test, AOS_RPC_SEND_NUMBER, 12345);
-    aos_rpc_call(ump_rpc_test, AOS_RPC_SEND_NUMBER, 12345);
+
+    int poller(void *arg) {
+        struct ump_poller *p = arg;
+        ump_chan_run_poller(p);
+        return 0;
+    }
+
+    struct ump_poller *init_poller = ump_chan_get_default_poller();
+
+    struct thread *pollthread = thread_create(&poller, init_poller);
+    pollthread = pollthread;
 
     return SYS_ERR_OK;
 }

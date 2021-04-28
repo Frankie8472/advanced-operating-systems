@@ -156,8 +156,8 @@ void debug_printf(const char *fmt, ...)
     if (me) {
         snprintf(id, sizeof(id), "%"PRIuPTR, thread_get_id(me));
     }
-    len = snprintf(str, sizeof(str), "\033[34m%.*s.\033[31m%u.%s\033[0m: ",
-                   DISP_NAME_LEN, disp_name(), disp_get_current_core_id(), id);
+    len = snprintf(str, sizeof(str), "\033[34m%.*s.\033[31m%u.%u.%s\033[0m: ",
+                   DISP_NAME_LEN, disp_name(), disp_get_current_core_id(), disp_get_domain_id(), id);
     if (len < sizeof(str)) {
         va_start(argptr, fmt);
         vsnprintf(str + len, sizeof(str) - len, fmt, argptr);

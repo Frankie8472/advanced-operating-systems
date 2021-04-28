@@ -41,6 +41,7 @@ typedef enum aos_rpc_msg_type {
     AOS_RPC_REQUEST_RAM,
     AOS_RPC_SETUP_PAGE,
     AOS_RPC_PROC_SPAWN_REQUEST,
+    AOS_RPC_FOREIGN_SPAWN,
     AOS_RPC_PUTCHAR,
     AOS_RPC_GETCHAR,
     AOS_RPC_SET_READ,
@@ -56,10 +57,13 @@ typedef enum aos_rpc_msg_type {
 enum aos_rpc_argument_type {
     AOS_RPC_NO_TYPE = 0,
     AOS_RPC_WORD,
-    AOS_RPC_STR,
+    AOS_RPC_SHORTSTR, ///< four word string (32 chars) (currently only over ump)
+    AOS_RPC_STR, ///< longer string (currently only over lmp)
     AOS_RPC_BYTES,
     AOS_RPC_CAPABILITY
 };
+
+#define AOS_RPC_SHORTSTR_LENGTH 32
 
 
 /**
