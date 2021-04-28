@@ -253,6 +253,39 @@ static errval_t aos_rpc_unmarshall_retval_aarch64(
 }
 
 
+static errval_t aos_rpc_call_ump(struct aos_rpc *rpc, enum aos_rpc_msg_type msg_type, va_list args)
+{
+    assert(rpc);
+    assert(rpc->backend == AOS_RPC_UMP);
+
+    struct aos_rpc_function_binding *binding = &rpc->bindings[msg_type];
+    size_t n_args = binding->n_args;
+    //size_t n_rets = binding->n_rets;
+
+    struct ump_msg um = {
+        .flag = 0
+    };
+
+    int word_ind = 0;
+    for (int i = 0; i < n_args; i++) {
+        if (binding->args[i] == AOS_RPC_WORD) {
+            um.data.u64[word_ind++] = va_arg(args, uintptr_t);
+        }
+        else {
+            debug_printf("non-word messages over ump NYI!\n");
+            return LIB_ERR_NOT_IMPLEMENTED;
+        }
+    }
+
+    bool sent = false;
+    do {
+        sent = ump_chan_send(&rpc->channel.ump, &um);
+    } while (!sent);
+
+    return SYS_ERR_OK;
+}
+
+
 errval_t aos_rpc_call(struct aos_rpc *rpc, enum aos_rpc_msg_type msg_type, ...)
 {
     va_list args;
@@ -260,12 +293,8 @@ errval_t aos_rpc_call(struct aos_rpc *rpc, enum aos_rpc_msg_type msg_type, ...)
     errval_t err;
 
     if (rpc->backend == AOS_RPC_UMP) {
-        struct ump_msg um = {
-            .data.u64 = {1, 2, 3, 4, 5, 6, 7},
-            .flag = 0
-        };
-        ump_chan_send(&rpc->channel.ump, &um);
-        return SYS_ERR_OK;
+        va_start(args, msg_type);
+        return aos_rpc_call_ump(rpc, msg_type, args);
     }
 
     struct aos_rpc_function_binding *binding = &rpc->bindings[msg_type];
@@ -520,6 +549,13 @@ on_error:
     DEBUG_ERR(err, "error handling message\n");
     return;
 }
+
+
+int aos_rpc_do_polling(void *arg)
+{
+        
+}
+
 
 /**
  * \brief Returns the RPC channel to init.

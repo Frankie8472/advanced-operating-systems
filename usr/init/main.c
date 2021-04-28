@@ -317,20 +317,25 @@ int real_main(int argc, char *argv[])
     struct aos_rpc *ump_rpc_test = malloc(sizeof(struct aos_rpc));
     aos_rpc_init_ump(ump_rpc_test, (lvaddr_t) urpc_init, BASE_PAGE_SIZE, true);
     
-    //aos_rpc_register_handler(ump_rpc_test, AOS_RPC_SEND_NUMBER, &recv_number);
-
-    /*while(true) {
-        struct ump_msg um;
-        bool recvd = ump_chan_poll_once(&ump_rpc_test->channel.ump, &um);
-        if (recvd) {
-            debug_printf("recvd: %ld, %ld", um.data.u64[0], um.data.u64[1]);
-            break;
+    aos_rpc_register_handler(ump_rpc_test, AOS_RPC_SEND_NUMBER, &recv_number);
+    
+    void ump_poller(struct aos_rpc *rpc) {
+        while(true) {
+            struct ump_msg um;
+            bool recvd = ump_chan_poll_once(&ump_rpc_test->channel.ump, &um);
+            if (recvd) {
+                debug_printf("recvd: %ld, %ld", um.data.u64[0], um.data.u64[1]);
+                break;
+            }
+            //sys_yield(CPTR_NULL);
+            for (int i = 0; i < 1000 * 1000 * 100; i++) {
+                __asm volatile ("mov x4, x4");
+            }
         }
-        //sys_yield(CPTR_NULL);
-        for (int i = 0; i < 1000 * 1000 * 100; i++) {
-            __asm volatile ("mov x4, x4");
-        }
-    }*/
+    }
+    
+    struct thread *pollthread = thread_create((int (*)(void *)) &ump_poller, ump_rpc_test);
+    pollthread = pollthread;
     //================================================
 
 
@@ -508,6 +513,9 @@ static errval_t init_foreign_core(void){
     struct aos_rpc *ump_rpc_test = malloc(sizeof(struct aos_rpc));
     aos_rpc_init_ump(ump_rpc_test, (lvaddr_t) urpc_init, BASE_PAGE_SIZE, false);
     
+    aos_rpc_call(ump_rpc_test, AOS_RPC_SEND_NUMBER, 12345);
+    aos_rpc_call(ump_rpc_test, AOS_RPC_SEND_NUMBER, 12345);
+    aos_rpc_call(ump_rpc_test, AOS_RPC_SEND_NUMBER, 12345);
     aos_rpc_call(ump_rpc_test, AOS_RPC_SEND_NUMBER, 12345);
 
     //cpu_dcache_wbinv_range((vm_offset_t) urpc_init, BASE_PAGE_SIZE);

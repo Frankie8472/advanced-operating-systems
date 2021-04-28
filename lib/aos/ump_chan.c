@@ -3,7 +3,9 @@
 #include <aos/aos.h>
 
 /**
- * \brief Initialize an ump_chan struct.
+ * \brief Initialize an ump_chan struct. Please make sure that both the send- and
+ * the receive-buffer have all their flag-bytes (or just everything to be sure) set
+ * to 0 before initializing the channel from either side.
  * \param chan Pointer to instance to initialize
  * \param send_buf, send_buf_size Location and size of the channel's send-buffer
  * \param recv_buf, recv_buf_size Location and size of the channel's receive-buffer
@@ -36,16 +38,19 @@ bool ump_chan_send(struct ump_chan *chan, struct ump_msg *send)
     
     // ensure cache line alignedness
     assert(((lvaddr_t) send_location) % UMP_MSG_SIZE == 0);
+    
+    // assert flag state
+    send->flag = 0;
 
     struct ump_msg *write = send_location;
-    if (write->flag)  // check if the previous msg at location has been acked
+    if (write->flag != UMP_FLAG_RECEIVED) // check if previous msg at location was acked
         return false;
 
     dmb();  // write after check
     memcpy(write, send, UMP_MSG_SIZE);
 
     dmb();  // set after write
-    write->flag = 'm';
+    write->flag = UMP_FLAG_SENT;
 
     chan->send_buf_index++;
     chan->send_buf_index %= chan->send_pane_size / UMP_MSG_SIZE;
@@ -67,12 +72,12 @@ bool ump_chan_poll_once(struct ump_chan *chan, struct ump_msg *recv)
     assert(((lvaddr_t) poll_location) % UMP_MSG_SIZE == 0);
     
     struct ump_msg *read = poll_location;
-    if (read->flag != 0) {
+    if (read->flag == UMP_FLAG_SENT) {
 
         dmb();
         memcpy(recv, read, UMP_MSG_SIZE);
         dmb();
-        read->flag = 0;
+        read->flag = UMP_FLAG_RECEIVED;
 
         chan->recv_buf_index++;
         chan->recv_buf_index %= chan->recv_pane_size / UMP_MSG_SIZE;
@@ -83,3 +88,22 @@ bool ump_chan_poll_once(struct ump_chan *chan, struct ump_msg *recv)
     return false;
 }
 
+
+errval_t ump_chan_init_poller(struct ump_poller *poller)
+{
+    const size_t start_capacity = 8;
+    poller->channels = malloc(sizeof (struct ump_channel *) * start_capacity);
+    poller->handlers = malloc(sizeof (ump_msg_handler_t) * start_capacity);
+    poller->n_channels = 0;
+    poller->capacity_channels = start_capacity;
+}
+
+errval_t ump_chan_register_polling(struct ump_chan *chan, ump_msg_handler_t handler)
+{
+}
+
+
+errval_t ump_chan_run_poller(struct ump_poller *poller)
+{
+    
+}

@@ -7,8 +7,8 @@
 
 #define UMP_MSG_SIZE 64 // TODO: set to cache line size
 
-#define UMP_FLAG_SENT 1
-#define UMP_FLAG_RECIEVED 2
+#define UMP_FLAG_SENT 1 // flag for sent slots / to be received & ackd
+#define UMP_FLAG_RECEIVED 0 // flag for ackd / open slots
 
 struct ump_msg
 {
@@ -41,5 +41,21 @@ bool ump_chan_send(struct ump_chan *chan, struct ump_msg *send);
 
 bool ump_chan_poll_once(struct ump_chan *chan, struct ump_msg *recv);
 
+
+typedef errval_t (*ump_msg_handler_t)(struct ump_msg *msg);
+
+struct ump_poller
+{
+    struct ump_chan **channels;
+    ump_msg_handler_t *handlers;
+    size_t n_channels;
+    size_t capacity_channels;
+};
+
+errval_t ump_chan_init_poller(struct ump_poller *poller);
+
+errval_t ump_chan_register_polling(struct ump_chan *chan, ump_msg_handler_t handler);
+
+errval_t ump_chan_run_poller(struct ump_poller *poller);
 
 #endif // BARRELFISH_UMP_CHAN_H
