@@ -61,6 +61,11 @@ struct terminal_state{
 struct terminal_state *terminal_state;
 struct bootinfo *bi;
 
+
+struct aos_rpc* core_channels[4];
+
+
+
 coreid_t my_core_id;
 
 errval_t initialize_rpc(struct spawninfo *si);

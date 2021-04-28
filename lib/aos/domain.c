@@ -1,4 +1,3 @@
-#include <aos/aos_rpc.h>
 
 /**
  * \file
@@ -220,16 +219,3 @@ struct aos_rpc *get_init_rpc(void)
 }
 
 
-
-void set_foregin_core_channel(coreid_t core_id, struct aos_rpc * chan)
-{       
-    assert(chan -> backend == AOS_RPC_UMP && "Tried to set channel to foreign core as LMP\n");
-    get_init_rpc() -> core_channels[core_id] = chan;
-
-}
-
-struct aos_rpc* get_foregin_core_channel(coreid_t core_id)
-{       
-    return  get_init_rpc() -> core_channels[core_id];
-
-}
