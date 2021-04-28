@@ -7,8 +7,8 @@
 
 #define UMP_MSG_SIZE 64 // TODO: set to cache line size
 
-#define UMP_FLAG_SENT 1
-#define UMP_FLAG_RECIEVED 2
+#define UMP_FLAG_SENT 1 // flag for sent slots / to be received & ackd
+#define UMP_FLAG_RECEIVED 0 // flag for ackd / open slots
 
 struct ump_msg
 {

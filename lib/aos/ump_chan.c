@@ -41,14 +41,14 @@ bool ump_chan_send(struct ump_chan *chan, struct ump_msg *send)
     send->flag = 0;
 
     struct ump_msg *write = send_location;
-    if (write->flag)  // check if the previous msg at location has been acked
+    if (write->flag != UMP_FLAG_RECEIVED) // check if previous msg at location was acked
         return false;
 
     dmb();  // write after check
     memcpy(write, send, UMP_MSG_SIZE);
 
     dmb();  // set after write
-    write->flag = 'm';
+    write->flag = UMP_FLAG_SENT;
 
     chan->send_buf_index++;
     chan->send_buf_index %= chan->send_pane_size / UMP_MSG_SIZE;
@@ -70,12 +70,12 @@ bool ump_chan_poll_once(struct ump_chan *chan, struct ump_msg *recv)
     assert(((lvaddr_t) poll_location) % UMP_MSG_SIZE == 0);
     
     struct ump_msg *read = poll_location;
-    if (read->flag != 0) {
+    if (read->flag == UMP_FLAG_SENT) {
 
         dmb();
         memcpy(recv, read, UMP_MSG_SIZE);
         dmb();
-        read->flag = 0;
+        read->flag = UMP_FLAG_RECEIVED;
 
         chan->recv_buf_index++;
         chan->recv_buf_index %= chan->recv_pane_size / UMP_MSG_SIZE;
