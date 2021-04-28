@@ -111,15 +111,12 @@ static void initiate(struct aos_rpc *rpc, struct capref cap) {
 static void spawn_handler(struct aos_rpc *old_rpc, const char *name, uintptr_t core_id, uintptr_t *new_pid) {
 
 
-
-
-    if(core_id == disp_get_current_core_id()){ // Case this spawn handler was received on the same core
+    if(core_id == disp_get_core_id()){
         struct spawninfo *si = spawn_create_spawninfo();
 
         domainid_t *pid = &si->pid;
         spawn_load_by_name((char*) name, si, pid);
         *new_pid = *pid;
-
         struct aos_rpc *rpc = &si->rpc;
         aos_rpc_init(rpc, si->cap_ep, NULL_CAP, si->lmp_ep);
         initialize_rpc(si);
@@ -128,21 +125,16 @@ static void spawn_handler(struct aos_rpc *old_rpc, const char *name, uintptr_t c
             // not too bad, already registered
         }
     }else{
-        //TODO: Get ump channel for init process on core {core_id}
-        //TODO: Setup a direct ump channel to the new process?
-        //
-        // struct ump_msg msg;
-        // struct ump_chan chan;
-        // msg.data.u64[0] = AOS_RPC_PROC_SPAWN_REQUEST;
-        // msg.data.u64[1] = (uint64_t) *new_pid;// pointer to name
-        // char * send_name = (char * ) msg.data.u64[2];
-        // for(int i = 0;;++i){
-        //     send_name[i] = name[i];
-        //     if(name[i] == '\0'){break;}
-        //     assert(i <= 6 * 8 && "Name of process does not fit into ump message, avoided buffer overflow and dumped core\n");
-        // }
-        // while(!ump_chan_send(&chan, &msg)){}
+        errval_t err;
+        struct aos_rpc* ump_chan = core_channels[core_id];
+        err = aos_rpc_call(ump_chan,AOS_RPC_PROC_SPAWN_REQUEST,name,new_pid);
+        if(err_is_fail(err)){
+            DEBUG_ERR(err,"Failed to call aos rpc in spawn handler for foreign core\n");
+        }
+        
     }
+
+
 }
 
 
@@ -314,8 +306,8 @@ int real_main(int argc, char *argv[])
 
     cpu_dcache_wbinv_range((vm_offset_t) urpc_data, BASE_PAGE_SIZE);
 
-
-    err = coreboot(1,boot_driver,cpu_driver,init,urpc_frame_id);
+    coreid_t coreid = 1;
+    err = coreboot(coreid,boot_driver,cpu_driver,init,urpc_frame_id);
     if(err_is_fail(err)){
         DEBUG_ERR(err,"Failed to boot core");
     }
@@ -325,6 +317,8 @@ int real_main(int argc, char *argv[])
     struct aos_rpc *ump_rpc_test = malloc(sizeof(struct aos_rpc));
     aos_rpc_init_ump(ump_rpc_test, (lvaddr_t) urpc_init, BASE_PAGE_SIZE, true);
     
+    core_channels[coreid] = ump_rpc_test;
+
     aos_rpc_register_handler(ump_rpc_test, AOS_RPC_SEND_NUMBER, &recv_number);
 
     int poller(void *arg) {
@@ -504,7 +498,6 @@ static errval_t init_foreign_core(void){
             // ON_ERR_RETURN(err);
             if(err_is_fail(err)){
                 DEBUG_ERR(err,"Failed to forge cap for modules held by bootinfo\n");
-                // bug comes from capabilities.c line 1304 
             }
         }
     }
@@ -513,7 +506,7 @@ static errval_t init_foreign_core(void){
     
     struct aos_rpc *ump_rpc_test = malloc(sizeof(struct aos_rpc));
     aos_rpc_init_ump(ump_rpc_test, (lvaddr_t) urpc_init, BASE_PAGE_SIZE, false);
-    
+    core_channels[0] = ump_rpc_test;
     aos_rpc_call(ump_rpc_test, AOS_RPC_SEND_NUMBER, 12345);
     aos_rpc_call(ump_rpc_test, AOS_RPC_SEND_NUMBER, 12345);
     aos_rpc_call(ump_rpc_test, AOS_RPC_SEND_NUMBER, 12345);
