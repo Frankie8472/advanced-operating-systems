@@ -92,16 +92,49 @@ errval_t ump_chan_init_poller(struct ump_poller *poller)
     const size_t start_capacity = 8;
     poller->channels = malloc(sizeof (struct ump_channel *) * start_capacity);
     poller->handlers = malloc(sizeof (ump_msg_handler_t) * start_capacity);
+    poller->args = malloc(sizeof (void *) * start_capacity);
     poller->n_channels = 0;
     poller->capacity_channels = start_capacity;
+    
+    return SYS_ERR_OK;
 }
 
-errval_t ump_chan_register_polling(struct ump_chan *chan, ump_msg_handler_t handler)
+errval_t ump_chan_register_polling(struct ump_poller *poller, struct ump_chan *chan, ump_msg_handler_t handler)
 {
+    // check for capacity limit reached
+    if (poller->n_channels >= poller->capacity_channels) {
+        size_t new_size = poller->capacity_channels * 2;
+        struct ump_chan **new_channels = malloc(sizeof (struct ump_channel *) * new_size);
+        ump_msg_handler_t *new_handlers = malloc(sizeof (ump_msg_handler_t) * new_size);
+        void **new_args = malloc(sizeof (void *) * new_size);
+        memcpy(new_channels, poller->channels, sizeof (struct ump_channel *) * poller->n_channels);
+        memcpy(new_handlers, poller->handlers, sizeof (ump_msg_handler_t) * poller->n_channels);
+        memcpy(new_args, poller->args, sizeof (void *) * poller->n_channels);
+        free(poller->channels);
+        free(poller->handlers);
+        free(poller->args);
+        poller->channels = new_channels;
+        poller->handlers = new_handlers;
+        poller->args = new_args;
+    }
+
+    poller->channels[poller->n_channels] = chan;
+    poller->handlers[poller->n_channels] = handler;
+    poller->n_channels ++;
+    return SYS_ERR_OK;
 }
 
 
 errval_t ump_chan_run_poller(struct ump_poller *poller)
 {
-    
+    while(true) {
+        size_t *volatile n_channels = &poller->n_channels;
+        for (int i = 0; i < *n_channels; i++) {
+            struct ump_msg um = { .flag = 0 };
+            bool received = ump_chan_poll_once(poller->channels[i], &um);
+            if (received) {
+                poller->handlers[i](poller->args[i], &um);
+            }
+        }
+    }
 }

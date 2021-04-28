@@ -551,10 +551,70 @@ on_error:
 }
 
 
-int aos_rpc_do_polling(void *arg)
+static errval_t aos_rpc_unmarshall_ump_simple_aarch64(struct aos_rpc *rpc,
+                        void *handler, struct aos_rpc_function_binding *binding,
+                        struct ump_msg *msg)
 {
-        
+    //debug_printf("words: %ld %ld %ld %ld\n", msg->buf.words[0], msg->buf.words[1], msg->buf.words[2], msg->buf.words[3]);
+
+    typedef uintptr_t ui;
+    ui arg[8] = { 0 }; // Upper bound so only writes in register
+    errval_t (*h7)(struct aos_rpc*, ui, ui, ui, ui, ui, ui, ui, ui) = handler;
+    int a_pos = 0;
+    int buf_pos = 1;
+    for (int i = 0; i < binding->n_args; i++) {
+        if (binding->args[i] == AOS_RPC_WORD) {
+            arg[a_pos++] = msg->data.u64[buf_pos++];
+        }
+        else {
+            debug_printf("only integer arguments supported at the moment\n");
+            return LIB_ERR_NOT_IMPLEMENTED;
+        }
+        if (a_pos >= 9) {
+            return LIB_ERR_SLAB_ALLOC_FAIL; // todo
+        }
+    }
+
+    h7(rpc, arg[0], arg[1], arg[2], arg[3], arg[4], arg[5], arg[6], arg[7]);
+
+    // send response
+    struct ump_msg response;
+    response.data.u64[0] = msg->data.u64[0] | AOS_RPC_RETURN_BIT;
+    ump_chan_send(&rpc->channel.ump, &response);
+    //ON_ERR_PUSH_RETURN(err, LIB_ERR_UMP_CHAN_SEND);
+
+    return SYS_ERR_OK;
 }
+
+void aos_rpc_on_ump_message(void *arg, struct ump_msg *msg)
+{
+    errval_t err;
+
+    struct aos_rpc *rpc = arg;
+    enum aos_rpc_msg_type msgtype = msg->data.u64[0];
+
+    void *handler = rpc->handlers[msgtype];
+    if (handler == NULL) {
+        debug_printf("no handler for %d\n", msgtype);
+        err = LIB_ERR_RPC_NO_HANDLER_SET;
+        return;
+    }
+
+    struct aos_rpc_function_binding *binding = &rpc->bindings[msgtype];
+
+    // in case of simple binding
+    if (binding->calling_simple) {
+        err = aos_rpc_unmarshall_ump_simple_aarch64(rpc, handler, binding, msg);
+        if (err_is_fail()) {
+            
+        }
+    }
+    else {
+        debug_printf("NYI in aos_rpc_on_message\n");
+    }
+}
+
+
 
 
 /**

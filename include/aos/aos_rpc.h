@@ -165,6 +165,12 @@ errval_t aos_rpc_register_handler(struct aos_rpc *rpc, enum aos_rpc_msg_type bin
  */
 void aos_rpc_on_message(void *rpc);
 
+
+/**
+ * message handler function for rpc calls via ump
+ */
+void aos_rpc_on_ump_message(void *arg, struct ump_msg *msg);
+
 /**
  * \brief Send a number.
  */
