@@ -46,8 +46,8 @@ struct paging_state *get_current_paging_state(void);
 void set_current_paging_state(struct paging_state *st);
 struct ram_alloc_state *get_ram_alloc_state(void);
 struct slot_alloc_state *get_slot_alloc_state(void);
-void set_foregin_core_channel(coreid_t core_id, struct aos_rpc * chan);
-struct aos_rpc* get_foregin_core_channel(coreid_t core_id);
+
+
 
 __END_DECLS
 

@@ -97,7 +97,7 @@ struct aos_rpc {
 
 
     // This is only for init rpcs
-    struct aos_rpc* core_channels[4];
+    
 };
 
 
