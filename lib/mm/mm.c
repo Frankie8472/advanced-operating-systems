@@ -292,6 +292,7 @@ errval_t mm_alloc_aligned(struct mm *mm, size_t size, size_t alignment, struct c
         DEBUG_PRINTF("invalid alignment of 0, using 1 instead");
         alignment = 1;
     }
+    size = ROUND_UP(size, BASE_PAGE_SIZE);
 
     errval_t err;
 
