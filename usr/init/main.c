@@ -110,12 +110,13 @@ static void initiate(struct aos_rpc *rpc, struct capref cap) {
 
 static void spawn_handler(struct aos_rpc *old_rpc, const char *name, uintptr_t core_id, uintptr_t *new_pid) {
 
+
+    if(core_id == disp_get_core_id()){
         struct spawninfo *si = spawn_create_spawninfo();
 
         domainid_t *pid = &si->pid;
         spawn_load_by_name((char*) name, si, pid);
         *new_pid = *pid;
-
         struct aos_rpc *rpc = &si->rpc;
         aos_rpc_init(rpc, si->cap_ep, NULL_CAP, si->lmp_ep);
         initialize_rpc(si);
@@ -123,6 +124,17 @@ static void spawn_handler(struct aos_rpc *old_rpc, const char *name, uintptr_t c
         if (err_is_fail(err) && err == LIB_ERR_CHAN_ALREADY_REGISTERED) {
             // not too bad, already registered
         }
+    }else{
+        errval_t err;
+        struct aos_rpc* ump_chan = core_channels[core_id];
+        err = aos_rpc_call(ump_chan,AOS_RPC_PROC_SPAWN_REQUEST,name,new_pid);
+        if(err_is_fail(err)){
+            DEBUG_ERR(err,"Failed to call aos rpc in spawn handler for foreign core\n");
+        }
+        
+    }
+
+
 }
 
 
