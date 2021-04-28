@@ -3,7 +3,9 @@
 #include <aos/aos.h>
 
 /**
- * \brief Initialize an ump_chan struct.
+ * \brief Initialize an ump_chan struct. Please make sure that both the send- and
+ * the receive-buffer have all their flag-bytes (or just everything to be sure) set
+ * to 0 before initializing the channel from either side.
  * \param chan Pointer to instance to initialize
  * \param send_buf, send_buf_size Location and size of the channel's send-buffer
  * \param recv_buf, recv_buf_size Location and size of the channel's receive-buffer
