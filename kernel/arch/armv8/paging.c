@@ -475,6 +475,65 @@ caps_map_l1(struct capability* dest,
 }
 
 static errval_t
+caps_map_block_l2(struct capability* dest,
+            cslot_t            slot,
+            struct capability* src,
+            uintptr_t          kpi_paging_flags,
+            uintptr_t          offset,
+            uintptr_t          pte_count,
+            struct cte*        mapping_cte)
+{
+    // check offset within frame
+    if ((offset + LARGE_PAGE_SIZE > get_size(src)) ||
+        ((offset % LARGE_PAGE_SIZE) != 0)) {
+        return SYS_ERR_FRAME_OFFSET_INVALID;
+    }
+
+    // check mapping does not overlap leaf page table
+    if (slot + pte_count > VMSAv8_64_PTABLE_NUM_ENTRIES ) {
+        return SYS_ERR_VM_MAP_SIZE;
+    }
+
+    // Destination
+    lpaddr_t dest_lpaddr = gen_phys_to_local_phys(get_address(dest));
+    lvaddr_t dest_lvaddr = local_phys_to_mem(dest_lpaddr);
+
+    union armv8_ttable_entry *entry = (union armv8_ttable_entry *)dest_lvaddr + slot;
+    if (entry->block_l2.valid) {
+        return SYS_ERR_VM_ALREADY_MAPPED;
+    }
+
+    lpaddr_t src_lpaddr = gen_phys_to_local_phys(get_address(src) + offset);
+    if ((src_lpaddr & (LARGE_PAGE_SIZE - 1))) {
+        return SYS_ERR_VM_FRAME_UNALIGNED;
+    }
+
+    create_mapping_cap(mapping_cte, src, cte_for_cap(dest), slot, pte_count);
+
+    for (int i = 0; i < pte_count; i++) {
+        entry->raw = 0;
+
+        entry->block_l2.valid = 1;
+        entry->block_l2.mb0 = 0;
+        entry->block_l2.af = 0;
+        paging_set_flags(entry, kpi_paging_flags);
+        entry->block_l2.base = (src_lpaddr + i * LARGE_PAGE_SIZE) >> 21;
+
+        debug(SUBSYS_PAGING, "L2 block mapping %08"PRIxLVADDR"[%"PRIuCSLOT"] @%p = %08"PRIx64"\n",
+            dest_lvaddr, slot, entry, entry->raw);
+
+        entry++;
+
+    }
+
+    // Flush TLB if remapping.
+    sysreg_invalidate_tlb();
+
+    return SYS_ERR_OK;
+}
+
+
+static errval_t
 caps_map_l2(struct capability* dest,
             cslot_t            slot,
             struct capability* src,
@@ -503,7 +562,12 @@ caps_map_l2(struct capability* dest,
         return SYS_ERR_VM_MAP_SIZE;
     }
 
-    if (src->type != ObjType_VNode_AARCH64_l3) {
+    if (src->type == ObjType_Frame) {
+        // if src is a frame, we need to map a superpage
+        return caps_map_block_l2(dest, slot, src, kpi_paging_flags, offset, pte_count, mapping_cte);
+    }
+    else if (src->type != ObjType_VNode_AARCH64_l3) {
+        // else it needs to be a l3 vnode
         return SYS_ERR_WRONG_MAPPING;
     }
 

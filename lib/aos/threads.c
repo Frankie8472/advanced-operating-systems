@@ -352,26 +352,6 @@ static void free_thread(struct thread *thread)
 struct thread *thread_create_unrunnable(thread_func_t start_func, void *arg,
                                         size_t stacksize)
 {
-
-    // struct paging_state* ps = ;
-    /*assert((stacksize % sizeof(uintptr_t)) == 0);
-    void *stack = malloc(stacksize);
-    void *stack_top = stack + stacksize;
-
-
-    if (stack == NULL) {
-        return NULL;
-    }
-
-    
-    
-
-
-    debug_printf("================= \n");
-    debug_printf("Created stack at address: %lx to %lx \n",stack,stack_top);
-    debug_printf("================= \n");*/
-
-
     // allocate space for TCB + initial TLS data
     // no mutex as it may deadlock: see comment for thread_slabs_spinlock
     // thread_mutex_lock(&thread_slabs_mutex);

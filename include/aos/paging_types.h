@@ -58,6 +58,7 @@ struct paging_region {
 
     enum paging_region_type type;
     bool lazily_mapped;
+    bool map_large_pages;
     paging_flags_t flags; ///< lazily mapped pages should be mapped using this flag
     
     struct paging_region *next;
@@ -80,10 +81,19 @@ struct mapping_table
     /// capref to the pagetable
     struct capref pt_cap;
 
-    /// entries in
-    struct capref mapping_caps[PTABLE_ENTRIES];
-    struct mapping_table *children[PTABLE_ENTRIES];
+    /// paging region that contains the first vaddr that is mapped in this pt
     struct paging_region *region;
+
+    /// mappings in this table
+    struct capref mapping_caps[PTABLE_ENTRIES];
+
+    /// \brief child tables
+    /// 
+    /// \note If at a certain index this array is NULL but the corresponding
+    ///       entry in mapping_caps is not a null capref, this means that a
+    ///       superpage mapping is done in this entry
+    ///
+    struct mapping_table *children[PTABLE_ENTRIES];
 };
 
 

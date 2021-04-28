@@ -697,7 +697,6 @@ errval_t vnode_create(struct capref dest, enum objtype type)
     return SYS_ERR_OK;
 }
 
-#include <aos/systime.h>
 /**
  * \brief Create a Frame cap referring to newly-allocated RAM in a given slot
  *
@@ -716,13 +715,19 @@ errval_t vnode_create(struct capref dest, enum objtype type)
  */
 errval_t frame_create(struct capref dest, size_t bytes, size_t *retbytes)
 {
+    return frame_create_aligned(dest, bytes, 1, retbytes);
+}
+
+
+errval_t frame_create_aligned(struct capref dest, size_t bytes, size_t alignment, size_t *retbytes)
+{
     assert(bytes > 0);
     errval_t err;
 
     bytes = ROUND_UP(bytes, BASE_PAGE_SIZE);
 
     struct capref ram;
-    err = ram_alloc(&ram, bytes);
+    err = ram_alloc_aligned(&ram, bytes, alignment);
     if (err_is_fail(err)) {
         if (err_no(err) == MM_ERR_NOT_FOUND ||
             err_no(err) == LIB_ERR_RAM_ALLOC_WRONG_SIZE) {
@@ -814,12 +819,18 @@ errval_t endpoint_create(size_t buflen, struct capref *retcap,
  */
 errval_t frame_alloc(struct capref *dest, size_t bytes, size_t *retbytes)
 {
+    return frame_alloc_aligned(dest, bytes, 1, retbytes);
+}
+
+
+errval_t frame_alloc_aligned(struct capref *dest, size_t bytes, size_t alignment, size_t *retbytes)
+{
     errval_t err = slot_alloc(dest);
     if (err_is_fail(err)) {
         return err_push(err, LIB_ERR_SLOT_ALLOC);
     }
 
-    return frame_create(*dest, bytes, retbytes);
+    return frame_create_aligned(*dest, bytes, alignment, retbytes);
 }
 
 /**
