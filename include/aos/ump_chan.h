@@ -55,8 +55,10 @@ struct ump_poller
 
 errval_t ump_chan_init_poller(struct ump_poller *poller);
 
-errval_t ump_chan_register_polling(struct ump_poller *poller, struct ump_chan *chan, ump_msg_handler_t handler);
+errval_t ump_chan_register_polling(struct ump_poller *poller, struct ump_chan *chan, ump_msg_handler_t handler, void *arg);
 
 errval_t ump_chan_run_poller(struct ump_poller *poller);
+
+struct ump_poller *ump_chan_get_default_poller(void);
 
 #endif // BARRELFISH_UMP_CHAN_H

@@ -101,7 +101,7 @@ errval_t ump_chan_init_poller(struct ump_poller *poller)
     return SYS_ERR_OK;
 }
 
-errval_t ump_chan_register_polling(struct ump_poller *poller, struct ump_chan *chan, ump_msg_handler_t handler)
+errval_t ump_chan_register_polling(struct ump_poller *poller, struct ump_chan *chan, ump_msg_handler_t handler, void *arg)
 {
     // check for capacity limit reached
     if (poller->n_channels >= poller->capacity_channels) {
@@ -122,6 +122,7 @@ errval_t ump_chan_register_polling(struct ump_poller *poller, struct ump_chan *c
 
     poller->channels[poller->n_channels] = chan;
     poller->handlers[poller->n_channels] = handler;
+    poller->args[poller->n_channels] = arg;
     poller->n_channels ++;
     return SYS_ERR_OK;
 }
@@ -130,13 +131,28 @@ errval_t ump_chan_register_polling(struct ump_poller *poller, struct ump_chan *c
 errval_t ump_chan_run_poller(struct ump_poller *poller)
 {
     while(true) {
-        size_t *volatile n_channels = &poller->n_channels;
+        volatile size_t *n_channels = &poller->n_channels;
         for (int i = 0; i < *n_channels; i++) {
             struct ump_msg um = { .flag = 0 };
             bool received = ump_chan_poll_once(poller->channels[i], &um);
             if (received) {
                 poller->handlers[i](poller->args[i], &um);
             }
+            else {
+            }
         }
     }
+}
+
+
+struct ump_poller *ump_chan_get_default_poller(void)
+{
+    static struct ump_poller default_poller;
+    static bool initialized = false;
+    
+    if (!initialized) {
+        ump_chan_init_poller(&default_poller);
+        initialized = true;
+    }
+    return &default_poller;
 }

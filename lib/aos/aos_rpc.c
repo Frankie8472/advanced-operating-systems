@@ -157,6 +157,8 @@ errval_t aos_rpc_init_ump(struct aos_rpc *rpc, lvaddr_t shared_page, size_t shar
 
     err = ump_chan_init(&rpc->channel.ump, send_pane, half_page_size, recv_pane, half_page_size);
     ON_ERR_RETURN(err);
+    err = ump_chan_register_polling(ump_chan_get_default_poller(), &rpc->channel.ump, &aos_rpc_on_ump_message, rpc);
+    ON_ERR_RETURN(err);
     
     return SYS_ERR_OK;
 }
@@ -260,13 +262,17 @@ static errval_t aos_rpc_call_ump(struct aos_rpc *rpc, enum aos_rpc_msg_type msg_
 
     struct aos_rpc_function_binding *binding = &rpc->bindings[msg_type];
     size_t n_args = binding->n_args;
-    //size_t n_rets = binding->n_rets;
+    size_t n_rets = binding->n_rets;
+    void* retptrs[4];
 
     struct ump_msg um = {
         .flag = 0
     };
 
-    int word_ind = 0;
+    um.data.u64[0] = msg_type;
+
+    int word_ind = 1;
+    int ret_ind = 0;
     for (int i = 0; i < n_args; i++) {
         if (binding->args[i] == AOS_RPC_WORD) {
             um.data.u64[word_ind++] = va_arg(args, uintptr_t);
@@ -276,11 +282,31 @@ static errval_t aos_rpc_call_ump(struct aos_rpc *rpc, enum aos_rpc_msg_type msg_
             return LIB_ERR_NOT_IMPLEMENTED;
         }
     }
+    for (int i = 0; i < n_rets; i++) {
+        retptrs[ret_ind++] = va_arg(args, void*);
+    }
 
     bool sent = false;
     do {
         sent = ump_chan_send(&rpc->channel.ump, &um);
     } while (!sent);
+    
+
+    struct ump_msg response;
+    bool received = false;
+    do {
+        received = ump_chan_poll_once(&rpc->channel.ump, &response);
+    } while(!received);
+
+    for (int i = 0; i < n_rets; i++) {
+        if (binding->rets[i] == AOS_RPC_WORD) {
+            *((uintptr_t *) retptrs[i]) = response.data.u64[i];
+        }
+        else {
+            debug_printf("non-word responses over ump NYI!\n");
+            return LIB_ERR_NOT_IMPLEMENTED;
+        }
+    }
 
     return SYS_ERR_OK;
 }
@@ -586,7 +612,7 @@ static errval_t aos_rpc_unmarshall_ump_simple_aarch64(struct aos_rpc *rpc,
     return SYS_ERR_OK;
 }
 
-void aos_rpc_on_ump_message(void *arg, struct ump_msg *msg)
+errval_t aos_rpc_on_ump_message(void *arg, struct ump_msg *msg)
 {
     errval_t err;
 
@@ -597,7 +623,7 @@ void aos_rpc_on_ump_message(void *arg, struct ump_msg *msg)
     if (handler == NULL) {
         debug_printf("no handler for %d\n", msgtype);
         err = LIB_ERR_RPC_NO_HANDLER_SET;
-        return;
+        return err;
     }
 
     struct aos_rpc_function_binding *binding = &rpc->bindings[msgtype];
@@ -612,6 +638,8 @@ void aos_rpc_on_ump_message(void *arg, struct ump_msg *msg)
     else {
         debug_printf("NYI in aos_rpc_on_message\n");
     }
+    
+    return SYS_ERR_OK;
 }
 
 

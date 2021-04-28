@@ -326,23 +326,16 @@ int real_main(int argc, char *argv[])
     aos_rpc_init_ump(ump_rpc_test, (lvaddr_t) urpc_init, BASE_PAGE_SIZE, true);
     
     aos_rpc_register_handler(ump_rpc_test, AOS_RPC_SEND_NUMBER, &recv_number);
-    
-    void ump_poller(struct aos_rpc *rpc) {
-        while(true) {
-            struct ump_msg um;
-            bool recvd = ump_chan_poll_once(&ump_rpc_test->channel.ump, &um);
-            if (recvd) {
-                debug_printf("recvd: %ld, %ld", um.data.u64[0], um.data.u64[1]);
-                break;
-            }
-            //sys_yield(CPTR_NULL);
-            for (int i = 0; i < 1000 * 1000 * 100; i++) {
-                __asm volatile ("mov x4, x4");
-            }
-        }
+
+    int poller(void *arg) {
+        struct ump_poller *p = arg;
+        ump_chan_run_poller(p);
+        return 0;
     }
-    
-    struct thread *pollthread = thread_create((int (*)(void *)) &ump_poller, ump_rpc_test);
+
+    struct ump_poller *init_poller = ump_chan_get_default_poller();
+
+    struct thread *pollthread = thread_create(&poller, init_poller);
     pollthread = pollthread;
     //================================================
 
@@ -516,7 +509,7 @@ static errval_t init_foreign_core(void){
         }
     }
 
-    spawn_memeater();
+    //spawn_memeater();
     
     struct aos_rpc *ump_rpc_test = malloc(sizeof(struct aos_rpc));
     aos_rpc_init_ump(ump_rpc_test, (lvaddr_t) urpc_init, BASE_PAGE_SIZE, false);
@@ -525,8 +518,6 @@ static errval_t init_foreign_core(void){
     aos_rpc_call(ump_rpc_test, AOS_RPC_SEND_NUMBER, 12345);
     aos_rpc_call(ump_rpc_test, AOS_RPC_SEND_NUMBER, 12345);
     aos_rpc_call(ump_rpc_test, AOS_RPC_SEND_NUMBER, 12345);
-
-    //cpu_dcache_wbinv_range((vm_offset_t) urpc_init, BASE_PAGE_SIZE);
 
     return SYS_ERR_OK;
 }
