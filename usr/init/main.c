@@ -86,7 +86,10 @@ static void handler_getchar(struct aos_rpc *r, uintptr_t *c) {
  * \brief handler function for ram alloc rpc call
  */
 static void req_ram(struct aos_rpc *r, uintptr_t size, uintptr_t alignment, struct capref *cap, uintptr_t *ret_size) {
-    ram_alloc_aligned(cap, size, alignment);
+    errval_t err = ram_alloc_aligned(cap, size, alignment);
+    if (err_is_fail(err)) {
+        DEBUG_ERR(err, "Error in remote ram allocation!\n");
+    }
 }
 
 /**
@@ -269,7 +272,7 @@ int real_main(int argc, char *argv[])
         .slot = TASKCN_SLOT_BOOTINFO,
     };
     struct capref core_ram;
-    err = ram_alloc(&core_ram,1L << 24); //16 MB
+    err = ram_alloc(&core_ram,1L << 28);
     if(err_is_fail(err)){
         DEBUG_ERR(err,"Failed to allcoate ram for new core\n");
     }
@@ -299,7 +302,7 @@ int real_main(int argc, char *argv[])
     
     //aos_rpc_register_handler(ump_rpc_test, AOS_RPC_SEND_NUMBER, &recv_number);
 
-    while(true) {
+    /*while(true) {
         struct ump_msg um;
         bool recvd = ump_chan_poll_once(&ump_rpc_test->channel.ump, &um);
         if (recvd) {
@@ -310,7 +313,7 @@ int real_main(int argc, char *argv[])
         for (int i = 0; i < 1000 * 1000 * 100; i++) {
             __asm volatile ("mov x4, x4");
         }
-    }
+    }*/
     //================================================
 
 

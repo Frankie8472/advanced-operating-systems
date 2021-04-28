@@ -99,6 +99,7 @@ struct mapping_table
 
 // struct to store the paging status of a process
 struct paging_state {
+    struct thread_mutex mutex;
     struct slot_allocator *slot_alloc;      // Slot allocator
 
     struct mapping_table map_l0;            // Shadow page table lv 0

@@ -151,6 +151,8 @@ errval_t paging_init_state(struct paging_state *st, lvaddr_t start_vaddr,
     memset(st, 0, sizeof(struct paging_state));
     st->slot_alloc = ca;
 
+    thread_mutex_init(&st->mutex);
+
     // Initialize shadowpagetable
     st->mappings_alloc_is_refilling = false;
     st->map_l0.pt_cap = pdir;
@@ -586,7 +588,9 @@ errval_t paging_map_frame_attr(struct paging_state *st, void **buf, size_t bytes
     errval_t err;
     // err = paging_alloc(st, buf, bytes, 1);
     size_t ret_size;
+    PAGING_LOCK(st);
     err = paging_region_map(&st->meta_region,bytes,buf,&ret_size);
+    PAGING_UNLOCK(st);
     ON_ERR_PUSH_RETURN(err, LIB_ERR_VSPACE_MAP);
 
     err = paging_map_fixed_attr(st, (lvaddr_t) *buf, frame, bytes, flags);
@@ -651,7 +655,6 @@ static errval_t paging_check_spt_refill(struct paging_state *st)
     if (slab_freecount(&st->mappings_alloc) < 10) {
         if (!st->mappings_alloc_is_refilling) {
             st->mappings_alloc_is_refilling = true;
-            debug_printf("refilling slab alloc\n");
             {
                 struct capref frameslot;
                 errval_t err = st->slot_alloc->alloc(st->slot_alloc, &frameslot);
@@ -715,6 +718,7 @@ errval_t paging_spt_find(struct paging_state *st, int level, lvaddr_t vaddr, boo
         ObjType_VNode_AARCH64_l3
     };
     
+    PAGING_LOCK(st);
 
     // walking shadow page table
     for (int i = 0; i < 3; i++) {
@@ -729,6 +733,7 @@ errval_t paging_spt_find(struct paging_state *st, int level, lvaddr_t vaddr, boo
 
             if (!capref_is_null(mapping_child)) {
                 // superpage mapping in place at this address
+                PAGING_UNLOCK(st);
                 return LIB_ERR_PMAP_NO_VNODE_BUT_SUPERPAGE;
             }
 
@@ -736,6 +741,7 @@ errval_t paging_spt_find(struct paging_state *st, int level, lvaddr_t vaddr, boo
                 if (ret != NULL) {
                     *ret = NULL;
                 }
+                PAGING_UNLOCK(st);
                 return SYS_ERR_OK;
             }
 
@@ -743,16 +749,28 @@ errval_t paging_spt_find(struct paging_state *st, int level, lvaddr_t vaddr, boo
             struct capref pt_cap;
             struct capref mapping_cap;
             err = st->slot_alloc->alloc(st->slot_alloc, &mapping_cap);
-            ON_ERR_PUSH_RETURN(err, LIB_ERR_SLOT_ALLOC);
+            if (err_is_fail(err)) {
+                PAGING_UNLOCK(st);
+                return err_push(err, LIB_ERR_SLOT_ALLOC);
+            }
 
             err = pt_alloc(st, child_type, &pt_cap);
-            ON_ERR_PUSH_RETURN(err, LIB_ERR_PMAP_ALLOC_VNODE);
+            if (err_is_fail(err)) {
+                PAGING_UNLOCK(st);
+                return err_push(err, LIB_ERR_PMAP_ALLOC_VNODE);
+            }
 
             err = vnode_map(table->pt_cap, pt_cap, index, VREGION_FLAGS_READ, 0, 1, mapping_cap);
-            ON_ERR_PUSH_RETURN(err, LIB_ERR_PMAP_DO_MAP);
+            if (err_is_fail(err)) {
+                PAGING_UNLOCK(st);
+                return err_push(err, LIB_ERR_PMAP_DO_MAP);
+            }
 
             child = slab_alloc(&st->mappings_alloc);
-            NULLPTR_CHECK(child, LIB_ERR_SLAB_ALLOC_FAIL);
+            if (child == NULL) {
+                PAGING_UNLOCK(st);
+                return LIB_ERR_SLAB_ALLOC_FAIL;
+            }
 
             init_mapping_table(child);
 
@@ -773,9 +791,11 @@ errval_t paging_spt_find(struct paging_state *st, int level, lvaddr_t vaddr, boo
             if (ret != NULL) {
                 *ret = child;
             }
+            PAGING_UNLOCK(st);
             return SYS_ERR_OK;
         }
     }
+    PAGING_UNLOCK(st);
 
     return LIB_ERR_PMAP_FIND_VNODE;
 }

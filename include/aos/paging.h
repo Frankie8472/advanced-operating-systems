@@ -27,6 +27,10 @@ struct paging_state;
 struct paging_region;
 
 
+#define PAGING_LOCK(st) thread_mutex_lock_nested(&(st)->mutex)
+#define PAGING_UNLOCK(st) thread_mutex_unlock(&(st)->mutex)
+
+
 struct thread;
 errval_t frame_alloc_and_map_flags(struct capref *cap,size_t bytes,size_t* retbytes,void **buf,int flags);
 

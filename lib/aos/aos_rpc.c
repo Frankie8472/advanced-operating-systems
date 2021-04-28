@@ -116,9 +116,14 @@ errval_t aos_rpc_init(struct aos_rpc* rpc, struct capref self_ep, struct capref 
         // call initiate function with our endpoint cap as argument in order
         // to make it known to init
         err = aos_rpc_call(rpc, AOS_RPC_INITIATE, rpc->channel.lmp.local_cap);
+        if (!err_is_fail(err)) {
+            debug_printf("init channel established!\n");
+        }
+        else {
+            DEBUG_ERR(err, "error establishing connection with init. aborting!\n");
+            abort();
+        }
         ON_ERR_PUSH_RETURN(err, LIB_ERR_MONITOR_RPC_BIND);
-
-
     }
 
     return err;
@@ -172,7 +177,10 @@ errval_t
 aos_rpc_get_ram_cap(struct aos_rpc *rpc, size_t bytes, size_t alignment,
                     struct capref *ret_cap, size_t *ret_bytes) {
     size_t _rs = 0;
+
     return aos_rpc_call(rpc, AOS_RPC_REQUEST_RAM, bytes, alignment, ret_cap, ret_bytes ? : &_rs);
+    debug_printf("here: ");
+    HERE;
 }
 
 errval_t
@@ -433,20 +441,16 @@ static errval_t aos_rpc_unmarshall_simple_aarch64(struct aos_rpc *rpc,
         }
     }
 
-
-    //debug_printf("calling handler for %d: %ld, %ld, %ld, %ld\n", binding->port, arg[0], arg[1], arg[2], arg[3]);
     if (a_pos == 4) {
         h4(rpc, arg[0], arg[1], arg[2], arg[3]);
     }
     else {
         h7(rpc, arg[0], arg[1], arg[2], arg[3], arg[4], arg[5], arg[6], arg[7]);
     }
-    //char buf[128];
-    //debug_print_cap_at_capref(buf, sizeof buf, retcap);
-    //debug_printf("retcap: %s\n", buf);
 
     // send response
-    lmp_chan_send(&rpc->channel.lmp, LMP_SEND_FLAGS_DEFAULT, retcap, ret_pos + 1, binding->port | AOS_RPC_RETURN_BIT, ret[0], ret[1], ret[2]);
+    errval_t err = lmp_chan_send(&rpc->channel.lmp, LMP_SEND_FLAGS_DEFAULT, retcap, ret_pos + 1, binding->port | AOS_RPC_RETURN_BIT, ret[0], ret[1], ret[2]);
+    ON_ERR_PUSH_RETURN(err, LIB_ERR_LMP_CHAN_SEND);
 
     return SYS_ERR_OK;
 }

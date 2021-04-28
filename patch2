@@ -1,0 +1,118 @@
+diff --git a/include/aos/aos_rpc.h b/include/aos/aos_rpc.h
+index 18ea0ab..d0d9584 100644
+--- a/include/aos/aos_rpc.h
++++ b/include/aos/aos_rpc.h
+@@ -20,19 +20,17 @@
+ #include <aos/aos.h>
+ 
+ #define AOS_RPC_RETURN_BIT 0x1000000
++#define AOS_RPC_MAX_MSG_TYPES 0x0FFFFFF
+ 
+ typedef enum aos_rpc_msg_type {
+     AOS_RPC_INITIATE = 1,
+-    AOS_RPC_ACK, //do we need this
+     AOS_RPC_SEND_NUMBER,
+     AOS_RPC_SEND_STRING,
+     AOS_RPC_REQUEST_RAM,
+-    AOS_RPC_RAM_SEND,
+-    AOS_RPC_RAM_ALLOC_FAIL,
++    AOS_RPC_SETUP_PAGE,
+     AOS_RPC_PROC_SPAWN_REQUEST,
+ } msg_type_t;
+ 
+-#define AOS_RPC_MAX_MSG_TYPES 32
+ 
+ 
+ enum aos_rpc_argument_type {
+@@ -43,12 +41,6 @@ enum aos_rpc_argument_type {
+     AOS_RPC_CAPABILITY
+ };
+ 
+-enum aos_rpc_binding_type {
+-    AOS_RPC_SIMPLE_BINDING  = 0x0,  ///< all parameter will be passed in one lmp_chan_send invocation
+-    AOS_RPC_CHOPPED_BINDING = 0x1,  ///< parameters will be split across multiple lmp_chan_send invocations
+-    AOS_RPC_MEMORY_BINDING  = 0x2,  ///< parameters will be written into a specifically allocated page
+-    AOS_RPC_CHOPMEM_BINDING = 0x3,  ///< parameters will be split over multiple written into a specifically allocated page
+-};
+ 
+ 
+ struct aos_rpc_function_binding
+diff --git a/lib/aos/aos_rpc.c b/lib/aos/aos_rpc.c
+index 041c2fd..2c45c34 100644
+--- a/lib/aos/aos_rpc.c
++++ b/lib/aos/aos_rpc.c
+@@ -17,7 +17,12 @@
+ #include <arch/aarch64/aos/lmp_chan_arch.h>
+ #include <stdarg.h>
+ 
+-
++//static void aos_rpc_setup_page_handler(struct aos_rpc* rpc, uintptr_t port, uintptr_t size, struct capref frame) {
++    /*errval_t err = paging_map_frame(get_current_paging_state(), &rpc->bindings[port].buf_page, size, frame, NULL, NULL);
++    if (err_is_fail(err)) {
++        DEBUG_ERR(err, "setting up communication page\n");
++    }*/
++//}
+ 
+ /**
+  * NOTE: maybe add remote and local cap as parameters?
+@@ -46,6 +51,11 @@ errval_t aos_rpc_init(struct aos_rpc* rpc) {
+     aos_rpc_initialize_binding(rpc, AOS_RPC_SEND_STRING, 1, 0, AOS_RPC_STR);
+     aos_rpc_initialize_binding(rpc, AOS_RPC_REQUEST_RAM, 2, 2, AOS_RPC_WORD, AOS_RPC_WORD, AOS_RPC_CAPABILITY, AOS_RPC_WORD);
+ 
++    //aos_rpc_initialize_binding(rpc, AOS_RPC_SETUP_PAGE, 3, 0, AOS_RPC_WORD, AOS_RPC_WORD, AOS_RPC_CAPABILITY);
++    //aos_rpc_register_handler(rpc, AOS_RPC_SETUP_PAGE, &aos_rpc_setup_page_handler);
++
++    //err = lmp_chan_register_recv(&rpc->channel, get_default_waitset(), MKCLOSURE(&aos_rpc_on_message, rpc));
++
+     if (!capref_is_null(rpc->channel.remote_cap)) {
+         // we are not in init
+         debug_printf("Trying to establish channel with init:\n");
+@@ -63,30 +73,6 @@ errval_t aos_rpc_init(struct aos_rpc* rpc) {
+ errval_t
+ aos_rpc_send_number(struct aos_rpc *rpc, uintptr_t num) {
+     return aos_rpc_call(rpc, AOS_RPC_SEND_NUMBER, num);
+-
+-    errval_t err = SYS_ERR_OK;
+-
+-    bool can_receive = lmp_chan_can_recv(&rpc->channel);
+-    // debug_printf("Curr can_receive: %d\n",can_receive);
+-
+-    // debug_printf("Waiting to receive ACK\n");
+-    err = lmp_chan_send2(&rpc -> channel, LMP_SEND_FLAGS_DEFAULT,NULL_CAP,AOS_RPC_SEND_NUMBER,num);
+-    if(err_is_fail(err)){
+-      DEBUG_ERR(err,"failed to send number");
+-    }
+-    while(!can_receive){
+-      can_receive = lmp_chan_can_recv(&rpc->channel);
+-    }
+-    // debug_printf("can_receive after send: %d\n",can_receive);
+-
+-    struct lmp_recv_msg msg = LMP_RECV_MSG_INIT;
+-    err = lmp_chan_recv(&rpc -> channel, &msg, &NULL_CAP);
+-    if(err_is_fail(err) || msg.words[0] != AOS_RPC_ACK){
+-      debug_printf("First word should be ACK, is: %d\n",msg.words[0]);
+-      DEBUG_ERR(err,"Could not get receive for sent number");
+-    }
+-    debug_printf("Acks for: %d has been received!\n",num);
+-    return err;
+ }
+ 
+ 
+@@ -96,7 +82,7 @@ errval_t
+ aos_rpc_send_string(struct aos_rpc *rpc, const char *string) {
+ 
+ return SYS_ERR_OK;
+-    errval_t err = SYS_ERR_OK;
++    /*errval_t err = SYS_ERR_OK;
+     size_t size = 0;
+     struct lmp_recv_msg msg = LMP_RECV_MSG_INIT;
+ 
+@@ -138,7 +124,7 @@ return SYS_ERR_OK;
+ 
+       i++;
+     }
+-    return err;
++    return err;*/
+ }
+ 
+ 

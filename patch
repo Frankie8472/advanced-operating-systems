@@ -1,0 +1,205 @@
+diff --git a/include/aos/aos_rpc.h b/include/aos/aos_rpc.h
+index 18ea0ab..d0d9584 100644
+--- a/include/aos/aos_rpc.h
++++ b/include/aos/aos_rpc.h
+@@ -20,19 +20,17 @@
+ #include <aos/aos.h>
+ 
+ #define AOS_RPC_RETURN_BIT 0x1000000
++#define AOS_RPC_MAX_MSG_TYPES 0x0FFFFFF
+ 
+ typedef enum aos_rpc_msg_type {
+     AOS_RPC_INITIATE = 1,
+-    AOS_RPC_ACK, //do we need this
+     AOS_RPC_SEND_NUMBER,
+     AOS_RPC_SEND_STRING,
+     AOS_RPC_REQUEST_RAM,
+-    AOS_RPC_RAM_SEND,
+-    AOS_RPC_RAM_ALLOC_FAIL,
++    AOS_RPC_SETUP_PAGE,
+     AOS_RPC_PROC_SPAWN_REQUEST,
+ } msg_type_t;
+ 
+-#define AOS_RPC_MAX_MSG_TYPES 32
+ 
+ 
+ enum aos_rpc_argument_type {
+@@ -43,12 +41,6 @@ enum aos_rpc_argument_type {
+     AOS_RPC_CAPABILITY
+ };
+ 
+-enum aos_rpc_binding_type {
+-    AOS_RPC_SIMPLE_BINDING  = 0x0,  ///< all parameter will be passed in one lmp_chan_send invocation
+-    AOS_RPC_CHOPPED_BINDING = 0x1,  ///< parameters will be split across multiple lmp_chan_send invocations
+-    AOS_RPC_MEMORY_BINDING  = 0x2,  ///< parameters will be written into a specifically allocated page
+-    AOS_RPC_CHOPMEM_BINDING = 0x3,  ///< parameters will be split over multiple written into a specifically allocated page
+-};
+ 
+ 
+ struct aos_rpc_function_binding
+diff --git a/lib/aos/aos_rpc.c b/lib/aos/aos_rpc.c
+index 041c2fd..2c45c34 100644
+--- a/lib/aos/aos_rpc.c
++++ b/lib/aos/aos_rpc.c
+@@ -17,7 +17,12 @@
+ #include <arch/aarch64/aos/lmp_chan_arch.h>
+ #include <stdarg.h>
+ 
+-
++//static void aos_rpc_setup_page_handler(struct aos_rpc* rpc, uintptr_t port, uintptr_t size, struct capref frame) {
++    /*errval_t err = paging_map_frame(get_current_paging_state(), &rpc->bindings[port].buf_page, size, frame, NULL, NULL);
++    if (err_is_fail(err)) {
++        DEBUG_ERR(err, "setting up communication page\n");
++    }*/
++//}
+ 
+ /**
+  * NOTE: maybe add remote and local cap as parameters?
+@@ -46,6 +51,11 @@ errval_t aos_rpc_init(struct aos_rpc* rpc) {
+     aos_rpc_initialize_binding(rpc, AOS_RPC_SEND_STRING, 1, 0, AOS_RPC_STR);
+     aos_rpc_initialize_binding(rpc, AOS_RPC_REQUEST_RAM, 2, 2, AOS_RPC_WORD, AOS_RPC_WORD, AOS_RPC_CAPABILITY, AOS_RPC_WORD);
+ 
++    //aos_rpc_initialize_binding(rpc, AOS_RPC_SETUP_PAGE, 3, 0, AOS_RPC_WORD, AOS_RPC_WORD, AOS_RPC_CAPABILITY);
++    //aos_rpc_register_handler(rpc, AOS_RPC_SETUP_PAGE, &aos_rpc_setup_page_handler);
++
++    //err = lmp_chan_register_recv(&rpc->channel, get_default_waitset(), MKCLOSURE(&aos_rpc_on_message, rpc));
++
+     if (!capref_is_null(rpc->channel.remote_cap)) {
+         // we are not in init
+         debug_printf("Trying to establish channel with init:\n");
+@@ -63,30 +73,6 @@ errval_t aos_rpc_init(struct aos_rpc* rpc) {
+ errval_t
+ aos_rpc_send_number(struct aos_rpc *rpc, uintptr_t num) {
+     return aos_rpc_call(rpc, AOS_RPC_SEND_NUMBER, num);
+-
+-    errval_t err = SYS_ERR_OK;
+-
+-    bool can_receive = lmp_chan_can_recv(&rpc->channel);
+-    // debug_printf("Curr can_receive: %d\n",can_receive);
+-
+-    // debug_printf("Waiting to receive ACK\n");
+-    err = lmp_chan_send2(&rpc -> channel, LMP_SEND_FLAGS_DEFAULT,NULL_CAP,AOS_RPC_SEND_NUMBER,num);
+-    if(err_is_fail(err)){
+-      DEBUG_ERR(err,"failed to send number");
+-    }
+-    while(!can_receive){
+-      can_receive = lmp_chan_can_recv(&rpc->channel);
+-    }
+-    // debug_printf("can_receive after send: %d\n",can_receive);
+-
+-    struct lmp_recv_msg msg = LMP_RECV_MSG_INIT;
+-    err = lmp_chan_recv(&rpc -> channel, &msg, &NULL_CAP);
+-    if(err_is_fail(err) || msg.words[0] != AOS_RPC_ACK){
+-      debug_printf("First word should be ACK, is: %d\n",msg.words[0]);
+-      DEBUG_ERR(err,"Could not get receive for sent number");
+-    }
+-    debug_printf("Acks for: %d has been received!\n",num);
+-    return err;
+ }
+ 
+ 
+@@ -96,7 +82,7 @@ errval_t
+ aos_rpc_send_string(struct aos_rpc *rpc, const char *string) {
+ 
+ return SYS_ERR_OK;
+-    errval_t err = SYS_ERR_OK;
++    /*errval_t err = SYS_ERR_OK;
+     size_t size = 0;
+     struct lmp_recv_msg msg = LMP_RECV_MSG_INIT;
+ 
+@@ -138,7 +124,7 @@ return SYS_ERR_OK;
+ 
+       i++;
+     }
+-    return err;
++    return err;*/
+ }
+ 
+ 
+@@ -374,10 +360,10 @@ static errval_t aos_rpc_unmarshall_simple_aarch64(struct aos_rpc *rpc,
+ {
+     typedef uintptr_t ui;
+     ui arg[8];
+-    ui ret[4];
++    ui ret[4] = {0, 0, 0, 0};
+     struct capref retcap = NULL_CAP;
+-    errval_t (*h4)(ui, ui, ui, ui) = handler;
+-    errval_t (*h8)(ui, ui, ui, ui, ui, ui, ui, ui) = handler;
++    errval_t (*h4)(struct aos_rpc*, ui, ui, ui, ui) = handler;
++    errval_t (*h7)(struct aos_rpc*, ui, ui, ui, ui, ui, ui, ui, ui) = handler;
+     int a_pos = 0;
+     int buf_pos = 1;
+     int ret_pos = 0;
+@@ -414,10 +400,10 @@ static errval_t aos_rpc_unmarshall_simple_aarch64(struct aos_rpc *rpc,
+ 
+     debug_printf("calling handler\n");
+     if (a_pos == 4) {
+-        h4(arg[0], arg[1], arg[2], arg[3]);
++        if(0) h4(rpc, arg[0], arg[1], arg[2], arg[3]);
+     }
+     else {
+-        h8(arg[0], arg[1], arg[2], arg[3], arg[4], arg[5], arg[6], arg[7]);
++        if(0) h7(rpc, arg[0], arg[1], arg[2], arg[3], arg[4], arg[5], arg[6], arg[7]);
+     }
+     char buf[128];
+     debug_print_cap_at_capref(buf, sizeof buf, retcap);
+@@ -444,7 +430,7 @@ void aos_rpc_on_message(void *arg)
+     struct lmp_recv_msg msg = LMP_RECV_MSG_INIT;
+     struct capref recieved_cap = NULL_CAP;
+     errval_t err;
+-    
++
+     err = lmp_chan_recv(channel, &msg, &recieved_cap);
+     if (err_is_fail(err)) {
+         err = err_push(err, LIB_ERR_LMP_CHAN_RECV);
+diff --git a/usr/init/main.c b/usr/init/main.c
+index 958559e..c359045 100644
+--- a/usr/init/main.c
++++ b/usr/init/main.c
+@@ -205,7 +205,7 @@ __attribute__((unused)) static void faulty_allocations(void)
+  *
+  * @param arg Multipl messages
+  */
+-__attribute__((unused)) static void init_handler(void *arg)
++/*__attribute__((unused)) static void init_handler(void *arg)
+ {
+     // debug_printf("init_handler called\n");
+     struct lmp_chan *channel = arg;
+@@ -341,7 +341,7 @@ __attribute__((unused)) static void init_handler(void *arg)
+         }
+     }
+     lmp_chan_register_recv(channel, get_default_waitset(), MKCLOSURE(&init_handler, arg));
+-}
++}*/
+ 
+ __attribute__((unused)) static void spawn_memeater(void)
+ {
+@@ -369,15 +369,15 @@ __attribute__((unused)) static void spawn_memeater(void)
+     err = lmp_chan_alloc_recv_slot(&aos_rpc.channel);
+     DEBUG_ERR(err, "alloc recv slot");
+ 
+-    void hand(struct capref cap) {
+-        aos_rpc.channel.remote_cap = cap;
++    void hand(struct aos_rpc *rpc, struct capref cap) {
++        rpc->channel.remote_cap = cap;
+     }
+ 
+-    void recv_number(uintptr_t number) {
++    void recv_number(struct aos_rpc *rpc, uintptr_t number) {
+         debug_printf("recieved number: %ld\n", number);
+     }
+ 
+-    void req_ram(uintptr_t size, uintptr_t alignment, struct capref *cap, uintptr_t *ret_size) {
++    void req_ram(struct aos_rpc *rpc, uintptr_t size, uintptr_t alignment, struct capref *cap, uintptr_t *ret_size) {
+         debug_printf("args are: %ld, %ld, %p, %p", size, alignment, cap, ret_size);
+         ram_alloc_aligned(cap, size, alignment);
+         //*ret_size = size;
+@@ -393,7 +393,7 @@ __attribute__((unused)) static void spawn_memeater(void)
+     aos_rpc_initialize_binding(&aos_rpc, AOS_RPC_REQUEST_RAM, 2, 2, AOS_RPC_WORD, AOS_RPC_WORD, AOS_RPC_CAPABILITY, AOS_RPC_WORD);
+     aos_rpc_register_handler(&aos_rpc, AOS_RPC_REQUEST_RAM, &req_ram);
+ 
+-    err = lmp_chan_register_recv(&aos_rpc.channel, get_default_waitset(), MKCLOSURE(&aos_rpc_on_message, &aos_rpc));
++    //err = lmp_chan_register_recv(&aos_rpc.channel, get_default_waitset(), MKCLOSURE(&aos_rpc_on_message, &aos_rpc));
+     //err = lmp_chan_register_recv(&si1->channel, get_default_waitset(),
+     //                             MKCLOSURE(&init_handler, &si1->channel));
+     DEBUG_ERR(err, "register recv");
