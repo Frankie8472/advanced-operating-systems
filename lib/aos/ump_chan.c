@@ -36,6 +36,9 @@ bool ump_chan_send(struct ump_chan *chan, struct ump_msg *send)
     
     // ensure cache line alignedness
     assert(((lvaddr_t) send_location) % UMP_MSG_SIZE == 0);
+    
+    // assert flag state
+    send->flag = 0;
 
     struct ump_msg *write = send_location;
     if (write->flag)  // check if the previous msg at location has been acked
@@ -83,3 +86,22 @@ bool ump_chan_poll_once(struct ump_chan *chan, struct ump_msg *recv)
     return false;
 }
 
+
+errval_t ump_chan_init_poller(struct ump_poller *poller)
+{
+    const size_t start_capacity = 8;
+    poller->channels = malloc(sizeof (struct ump_channel *) * start_capacity);
+    poller->handlers = malloc(sizeof (ump_msg_handler_t) * start_capacity);
+    poller->n_channels = 0;
+    poller->capacity_channels = start_capacity;
+}
+
+errval_t ump_chan_register_polling(struct ump_chan *chan, ump_msg_handler_t handler)
+{
+}
+
+
+errval_t ump_chan_run_poller(struct ump_poller *poller)
+{
+    
+}
