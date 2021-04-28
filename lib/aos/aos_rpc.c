@@ -605,8 +605,8 @@ void aos_rpc_on_ump_message(void *arg, struct ump_msg *msg)
     // in case of simple binding
     if (binding->calling_simple) {
         err = aos_rpc_unmarshall_ump_simple_aarch64(rpc, handler, binding, msg);
-        if (err_is_fail()) {
-            
+        if (err_is_fail(err)) {
+            DEBUG_ERR(err, "error in unmarshall\n");
         }
     }
     else {
