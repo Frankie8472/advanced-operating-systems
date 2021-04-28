@@ -551,10 +551,10 @@ on_error:
 }
 
 
-int aos_rpc_do_polling(void *arg)
-{
-        
-}
+// int aos_rpc_do_polling(void *arg)
+// {
+//     return -1;
+// }
 
 
 /**

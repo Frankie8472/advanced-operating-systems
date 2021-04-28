@@ -94,6 +94,10 @@ struct aos_rpc {
     // TODO: make solution dynamic to allow arbitrarily many rpc functions
     void *handlers[AOS_RPC_MAX_MSG_TYPES];
     // TODO(M3): Add state
+
+
+    // This is only for init rpcs
+    struct aos_rpc* core_channels[4];
 };
 
 

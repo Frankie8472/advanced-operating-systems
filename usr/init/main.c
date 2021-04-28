@@ -105,14 +105,16 @@ static void initiate(struct aos_rpc *rpc, struct capref cap) {
 
 static void spawn_handler(struct aos_rpc *old_rpc, const char *name, uintptr_t core_id, uintptr_t *new_pid) {
 
-    struct spawninfo *si = spawn_create_spawninfo();
-
-    domainid_t *pid = &si->pid;
-    spawn_load_by_name((char*) name, si, pid);
-    *new_pid = *pid;
 
 
-    if(core_id == disp_get_current_core_id()){
+
+    if(core_id == disp_get_current_core_id()){ // Case this spawn handler was received on the same core
+        struct spawninfo *si = spawn_create_spawninfo();
+
+        domainid_t *pid = &si->pid;
+        spawn_load_by_name((char*) name, si, pid);
+        *new_pid = *pid;
+
         struct aos_rpc *rpc = &si->rpc;
         aos_rpc_init(rpc, si->cap_ep, NULL_CAP, si->lmp_ep);
         initialize_rpc(si);
@@ -123,17 +125,18 @@ static void spawn_handler(struct aos_rpc *old_rpc, const char *name, uintptr_t c
     }else{
         //TODO: Get ump channel for init process on core {core_id}
         //TODO: Setup a direct ump channel to the new process?
-        struct ump_msg msg;
-        struct ump_chan chan;
-        msg.data.u64[0] = AOS_RPC_PROC_SPAWN_REQUEST;
-        msg.data.u64[1] = (uint64_t) *new_pid;// pointer to name
-        char * send_name = (char * ) msg.data.u64[2];
-        for(int i = 0;;++i){
-            send_name[i] = name[i];
-            if(name[i] == '\0'){break;}
-            assert(i <= 6 * 8 && "Name of process does not fit into ump message, avoided buffer overflow and dumped core\n");
-        }
-        while(!ump_chan_send(&chan, &msg)){}
+        //
+        // struct ump_msg msg;
+        // struct ump_chan chan;
+        // msg.data.u64[0] = AOS_RPC_PROC_SPAWN_REQUEST;
+        // msg.data.u64[1] = (uint64_t) *new_pid;// pointer to name
+        // char * send_name = (char * ) msg.data.u64[2];
+        // for(int i = 0;;++i){
+        //     send_name[i] = name[i];
+        //     if(name[i] == '\0'){break;}
+        //     assert(i <= 6 * 8 && "Name of process does not fit into ump message, avoided buffer overflow and dumped core\n");
+        // }
+        // while(!ump_chan_send(&chan, &msg)){}
     }
 }
 

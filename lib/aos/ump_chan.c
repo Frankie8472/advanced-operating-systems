@@ -89,21 +89,21 @@ bool ump_chan_poll_once(struct ump_chan *chan, struct ump_msg *recv)
 }
 
 
-errval_t ump_chan_init_poller(struct ump_poller *poller)
-{
-    const size_t start_capacity = 8;
-    poller->channels = malloc(sizeof (struct ump_channel *) * start_capacity);
-    poller->handlers = malloc(sizeof (ump_msg_handler_t) * start_capacity);
-    poller->n_channels = 0;
-    poller->capacity_channels = start_capacity;
-}
+// errval_t ump_chan_init_poller(struct ump_poller *poller)
+// {
+//     const size_t start_capacity = 8;
+//     poller->channels = malloc(sizeof (struct ump_channel *) * start_capacity);
+//     poller->handlers = malloc(sizeof (ump_msg_handler_t) * start_capacity);
+//     poller->n_channels = 0;
+//     poller->capacity_channels = start_capacity;
+// }
 
-errval_t ump_chan_register_polling(struct ump_chan *chan, ump_msg_handler_t handler)
-{
-}
+// errval_t ump_chan_register_polling(struct ump_chan *chan, ump_msg_handler_t handler)
+// {
+// }
 
 
-errval_t ump_chan_run_poller(struct ump_poller *poller)
-{
+// errval_t ump_chan_run_poller(struct ump_poller *poller)
+// {
     
-}
+// }
