@@ -31,22 +31,18 @@ static errval_t setup_buf_page(struct aos_rpc *rpc, enum aos_rpc_msg_type msg_ty
 {
     struct capref frame;
     errval_t err;
+    
+    // create frame to share
     err = frame_alloc(&frame, size, NULL);
-    //err = aos_rpc_get_ram_cap(rpc, BASE_PAGE_SIZE, 1, &frame, NULL);
     ON_ERR_PUSH_RETURN(err, LIB_ERR_FRAME_ALLOC);
 
-    char buf[128];
-    debug_print_cap_at_capref(buf, sizeof buf, frame);
-    //debug_printf("frame: %s\n", buf);
-
+    // map into local address space and store address in rpc->bindings[msg_type].buf_page
     err = paging_map_frame_complete(get_current_paging_state(), &rpc->bindings[msg_type].buf_page, frame, NULL, NULL);
-    //debug_printf("new buf_ptr %p\n", &rpc->bindings[msg_type].buf_page);
-    //DEBUG_ERR(err, "asasasa");
     ON_ERR_PUSH_RETURN(err, LIB_ERR_VSPACE_MAP);
 
-    //debug_printf("seting up the buffer!\n");
+    // call remote end to install shared frame into its own address space
     err = aos_rpc_call(rpc, AOS_RPC_SETUP_PAGE, msg_type, size, frame);
-    ON_ERR_PUSH_RETURN(err, LIB_ERR_GET_MEM_IREF); // TODO: New error code
+    ON_ERR_PUSH_RETURN(err, LIB_ERR_RPC_SETUP_PAGE); // TODO: New error code
 
     return SYS_ERR_OK;
 }
@@ -101,13 +97,17 @@ errval_t aos_rpc_init_lmp(struct aos_rpc* rpc, struct capref self_ep, struct cap
 
     rpc->channel.lmp.buflen_words = 256;
     rpc->channel.lmp.endpoint = lmp_ep;
-    lmp_chan_alloc_recv_slot(&rpc->channel.lmp);
+    
+    err = lmp_chan_alloc_recv_slot(&rpc->channel.lmp);
+    ON_ERR_PUSH_RETURN(err, LIB_ERR_LMP_ALLOC_RECV_SLOT);
 
 
     err = lmp_chan_register_recv(&rpc->channel.lmp, get_default_waitset(), MKCLOSURE(&aos_rpc_on_message, rpc));
+    ON_ERR_PUSH_RETURN(err, LIB_ERR_LMP_ENDPOINT_REGISTER);
 
     if (!capref_is_null(rpc->channel.lmp.remote_cap)) {
-        // we are not in init
+        // we are not in init and do already have a remote cap
+        // we need to initiate a connection so init gets our endpoint capability
         debug_printf("Trying to establish channel with init:\n");
 
         // call initiate function with our endpoint cap as argument in order
@@ -117,10 +117,9 @@ errval_t aos_rpc_init_lmp(struct aos_rpc* rpc, struct capref self_ep, struct cap
             debug_printf("init channel established!\n");
         }
         else {
-            DEBUG_ERR(err, "error establishing connection with init. aborting!\n");
-            abort();
+            DEBUG_ERR(err, "error establishing connection with init.\n");
+            ON_ERR_PUSH_RETURN(err, LIB_ERR_RPC_INITIATE);
         }
-        ON_ERR_PUSH_RETURN(err, LIB_ERR_MONITOR_RPC_BIND);
     }
 
     return err;

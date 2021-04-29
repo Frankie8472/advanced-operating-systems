@@ -195,8 +195,13 @@ errval_t barrelfish_init_onthread(struct spawn_domain_params *params)
     };
 
     err = aos_rpc_init(&init_rpc);
-    err = aos_rpc_init_lmp(&init_rpc, self_ep_cap, init_ep_cap, NULL);
     ON_ERR_RETURN(err);
+
+    err = aos_rpc_init_lmp(&init_rpc, self_ep_cap, init_ep_cap, NULL);
+    if (err_is_fail(err) && err_pop(err) == LIB_ERR_RPC_INITIATE) {
+        DEBUG_ERR(err, "Error establishing connection with init! aborting!");
+        abort();
+    }
 
     set_init_rpc(&init_rpc);
 

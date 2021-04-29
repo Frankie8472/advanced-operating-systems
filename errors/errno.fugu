@@ -445,6 +445,9 @@ errors libaos LIB_ERR_ {
 
     // rpc framework
     failure RPC_NO_HANDLER_SET      "No handler set for rpc binding",
+    failure RPC_INITIATE            "RPC connection could not be initiated",
+    failure RPC_SETUP_PAGE          "Error calling remote to setup shared frame",
+    failure RPC_ARGUMENT_OVERFLOW   "Too many arguments specified for rpc call",
 };
 
 // errors in Flounder-generated bindings
