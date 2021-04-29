@@ -750,6 +750,7 @@ void aos_rpc_on_ump_message(void *arg)
     bool received = ump_chan_poll_once(&rpc->channel.ump, &msg);
     if (!received) {
         debug_printf("aos_rpc_on_ump_message called but no message available\n");
+        ump_chan_register_recv(&rpc->channel.ump, get_default_waitset(), MKCLOSURE(&aos_rpc_on_ump_message, rpc));
         return;
     }
 
@@ -758,6 +759,7 @@ void aos_rpc_on_ump_message(void *arg)
     void *handler = rpc->handlers[msgtype];
     if (handler == NULL) {
         debug_printf("no handler for %d\n", msgtype);
+        ump_chan_register_recv(&rpc->channel.ump, get_default_waitset(), MKCLOSURE(&aos_rpc_on_ump_message, rpc));
         return;
     }
 
@@ -773,6 +775,7 @@ void aos_rpc_on_ump_message(void *arg)
     else {
         debug_printf("NYI in aos_rpc_on_ump_message\n");
     }
+    ump_chan_register_recv(&rpc->channel.ump, get_default_waitset(), MKCLOSURE(&aos_rpc_on_ump_message, rpc));
 }
 
 

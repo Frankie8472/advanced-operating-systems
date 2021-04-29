@@ -116,10 +116,12 @@ errval_t ump_chan_register_recv(struct ump_chan *chan, struct waitset *ws, struc
     dispatcher_handle_t handle = disp_disable();
     struct dispatcher_generic *dp = get_dispatcher_generic(handle);
 
-    if (ump_chan_can_receive(chan)) { // trigger immediately
+    /*if (ump_chan_can_receive(chan)) { // trigger immediately
         err = waitset_chan_trigger_closure_disabled(ws, &chan->waitset_state,
                                                     closure, handle);
-    } else {
+    }*/
+    
+    {
         err = waitset_chan_register_disabled(ws, &chan->waitset_state, closure);
         if (err_is_ok(err)) {
             /* enqueue on poll list */

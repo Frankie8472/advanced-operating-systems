@@ -215,12 +215,14 @@ void poll_channels_disabled(dispatcher_handle_t handle) {
         return;
     chan = dp->polled_channels;
     do {
+        //debug_printf("polling chan: %p\n", chan);
         bool chan_ready = false;
         switch (chan->chantype) {
             case CHANTYPE_UMP_IN:
                 // TODO: To add UMP channel support to waitsets,
                 // set chan_ready to true here if channel has a message ready
                 {
+                    //debug_printf("polling ump chan: %p\n", chan->arg);
                     struct ump_chan *ump = (struct ump_chan *) chan->arg;
                     if (ump_chan_can_receive(ump)) {
                         chan_ready = true;
