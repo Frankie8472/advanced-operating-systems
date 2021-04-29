@@ -334,7 +334,7 @@ int real_main(int argc, char *argv[])
     aos_rpc_register_handler(ump_rpc_test, AOS_RPC_SEND_NUMBER, &recv_number);
     aos_rpc_register_handler(ump_rpc_test, AOS_RPC_REQUEST_RAM, &req_ram);
     
-    struct capref ramcap;
+    /*struct capref ramcap;
     size_t retsize;
     err = aos_rpc_call(ump_rpc_test, AOS_RPC_REQUEST_RAM, BASE_PAGE_SIZE, 1, &ramcap, &retsize);
     DEBUG_ERR(err, "err?");
@@ -352,7 +352,7 @@ int real_main(int argc, char *argv[])
     debug_printf("got ram %ld\n", ramcap.cnode.level);
     debug_printf("mapped ram at %p\n", adres);
     int* adresint = adres; int local = *adresint = 123;
-    debug_printf("local: %d\n", local);
+    debug_printf("local: %d\n", local);*/
 
     
     //domainid_t pid;
@@ -588,7 +588,7 @@ static errval_t init_foreign_core(void){
 
     struct capref ram_cap;
     size_t ret_size;
-    err = aos_rpc_request_foreign_ram(core_channels[0],1L << 20,&ram_cap,&ret_size);
+    //err = aos_rpc_request_foreign_ram(core_channels[0],1L << 20,&ram_cap,&ret_size);
     ON_ERR_RETURN(err);
 
 
