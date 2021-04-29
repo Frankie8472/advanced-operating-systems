@@ -74,10 +74,11 @@ static int bsp_main(int argc, char *argv[])
 
     // TODO: Spawn system processes, boot second core etc. here
     
-    //spawn_new_core(my_core_id + 1);
-    spawn_new_domain("performance_tester", NULL);
+    spawn_new_core(my_core_id + 1);
+    //spawn_new_domain("performance_tester", NULL);
 
 
+    aos_rpc_call(core_channels[1], AOS_RPC_SEND_NUMBER, 12345);
 
     // Grading
     grading_test_late();
@@ -177,20 +178,6 @@ static errval_t init_foreign_core(void){
     //
 
     init_core_channel(0, (lvaddr_t) urpc_init);
-
-    int poller(void *arg) {
-        struct ump_poller *p = arg;
-        ump_chan_run_poller(p);
-        return 0;
-    }
-
-    //pc_request_foreignstruct ump_poller *init_poller = ump_chan_get_default_poller();
-
-    struct thread *pollthread = thread_create(&poller, core_channels[0]);
-    pollthread = pollthread;
-
-    //err = aos_rpc_request_foreign_ram(core_channels[0],1L << 20,&ram_cap,&ret_size);
-    //ON_ERR_RETURN(err);
 
     return SYS_ERR_OK;
 }

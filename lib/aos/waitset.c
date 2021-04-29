@@ -25,6 +25,7 @@
 #include <aos/dispatch.h>
 #include "threads_priv.h"
 #include "waitset_chan_priv.h"
+#include <aos/ump_chan.h>
 #include <stdio.h>
 #include <string.h>
 
@@ -219,7 +220,13 @@ void poll_channels_disabled(dispatcher_handle_t handle) {
             case CHANTYPE_UMP_IN:
                 // TODO: To add UMP channel support to waitsets,
                 // set chan_ready to true here if channel has a message ready
-                break;
+                {
+                    struct ump_chan *ump = (struct ump_chan *) chan->arg;
+                    if (ump_chan_can_receive(ump)) {
+                        chan_ready = true;
+                    }
+                    break;
+                }
             default:
                 assert_disabled(!ws_chantype_is_polled(chan->chantype));
                 assert_disabled(!"invalid channel type to poll!");

@@ -172,7 +172,7 @@ errval_t aos_rpc_register_handler(struct aos_rpc *rpc, enum aos_rpc_msg_type bin
                                   void* handler);
 
 /**
- * message handler function for rpc calls
+ * message handler function for rpc calls via lmp
  */
 void aos_rpc_on_message(void *rpc);
 
@@ -180,7 +180,7 @@ void aos_rpc_on_message(void *rpc);
 /**
  * message handler function for rpc calls via ump
  */
-errval_t aos_rpc_on_ump_message(void *arg, struct ump_msg *msg);
+void aos_rpc_on_ump_message(void *arg);
 
 /**
  * \brief Send a number.

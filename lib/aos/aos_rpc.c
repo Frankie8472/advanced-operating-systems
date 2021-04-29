@@ -151,7 +151,8 @@ errval_t aos_rpc_init_ump(struct aos_rpc *rpc, lvaddr_t shared_page, size_t shar
 
     err = ump_chan_init(&rpc->channel.ump, send_pane, half_page_size, recv_pane, half_page_size);
     ON_ERR_RETURN(err);
-    err = ump_chan_register_polling(ump_chan_get_default_poller(), &rpc->channel.ump, &aos_rpc_on_ump_message, rpc);
+    ump_chan_register_recv(&rpc->channel.ump, get_default_waitset(), MKCLOSURE(&aos_rpc_on_ump_message, rpc));
+    //err = ump_chan_register_polling(ump_chan_get_default_poller(), &rpc->channel.ump, &aos_rpc_on_ump_message, rpc);
     ON_ERR_RETURN(err);
     
     return SYS_ERR_OK;
@@ -314,7 +315,7 @@ static errval_t aos_rpc_call_ump(struct aos_rpc *rpc, enum aos_rpc_msg_type msg_
         return LIB_ERR_NOT_IMPLEMENTED; // todo errcode
     }
     
-    debug_printf("response words: %ld %ld %ld %ld %ld %ld %ld\n",
+    /*debug_printf("response words: %ld %ld %ld %ld %ld %ld %ld\n",
         response.data.u64[0],
         response.data.u64[1],
         response.data.u64[2],
@@ -322,7 +323,7 @@ static errval_t aos_rpc_call_ump(struct aos_rpc *rpc, enum aos_rpc_msg_type msg_
         response.data.u64[4],
         response.data.u64[5],
         response.data.u64[6]
-    );
+    );*/
 
     size_t ret_offs = 1;
     for (int i = 0; i < n_rets; i++) {
@@ -631,10 +632,10 @@ static errval_t aos_rpc_unmarshall_ump_simple_aarch64(struct aos_rpc *rpc,
                         void *handler, struct aos_rpc_function_binding *binding,
                         struct ump_msg *msg)
 {
-    debug_printf("words: %ld %ld %ld %ld %ld %ld %ld\n",
+    /*debug_printf("words: %ld %ld %ld %ld %ld %ld %ld\n",
         msg->data.u64[0], msg->data.u64[1], msg->data.u64[2], msg->data.u64[3],
         msg->data.u64[4], msg->data.u64[5], msg->data.u64[6]
-    );
+    );*/
 
     typedef uintptr_t ui;
     ui arg[8] = { 0 }; // Upper bound so only writes in register
@@ -739,25 +740,32 @@ static errval_t aos_rpc_unmarshall_ump_simple_aarch64(struct aos_rpc *rpc,
     return SYS_ERR_OK;
 }
 
-errval_t aos_rpc_on_ump_message(void *arg, struct ump_msg *msg)
+void aos_rpc_on_ump_message(void *arg)
 {
     errval_t err;
 
     struct aos_rpc *rpc = arg;
-    enum aos_rpc_msg_type msgtype = msg->data.u64[0];
+    struct ump_msg msg;
+
+    bool received = ump_chan_poll_once(&rpc->channel.ump, &msg);
+    if (!received) {
+        debug_printf("aos_rpc_on_ump_message called but no message available\n");
+        return;
+    }
+
+    enum aos_rpc_msg_type msgtype = msg.data.u64[0];
 
     void *handler = rpc->handlers[msgtype];
     if (handler == NULL) {
         debug_printf("no handler for %d\n", msgtype);
-        err = LIB_ERR_RPC_NO_HANDLER_SET;
-        return err;
+        return;
     }
 
     struct aos_rpc_function_binding *binding = &rpc->bindings[msgtype];
 
     // in case of simple binding
     if (binding->calling_simple) {
-        err = aos_rpc_unmarshall_ump_simple_aarch64(rpc, handler, binding, msg);
+        err = aos_rpc_unmarshall_ump_simple_aarch64(rpc, handler, binding, &msg);
         if (err_is_fail(err)) {
             DEBUG_ERR(err, "error in unmarshall\n");
         }
@@ -765,8 +773,6 @@ errval_t aos_rpc_on_ump_message(void *arg, struct ump_msg *msg)
     else {
         debug_printf("NYI in aos_rpc_on_ump_message\n");
     }
-    
-    return SYS_ERR_OK;
 }
 
 

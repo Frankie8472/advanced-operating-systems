@@ -1,6 +1,9 @@
 #include <aos/ump_chan.h>
 
 #include <aos/aos.h>
+#include <aos/dispatcher_arch.h>
+#include <aos/waitset.h>
+#include "waitset_chan_priv.h"
 
 /**
  * \brief Initialize an ump_chan struct. Please make sure that both the send- and
@@ -22,6 +25,10 @@ errval_t ump_chan_init(struct ump_chan *chan,
     chan->recv_pane_size = recv_buf_size;
     chan->recv_buf_index = 0;
     
+    chan->waitset_state.chantype = CHANTYPE_UMP_IN;
+    chan->waitset_state.state = CHAN_UNREGISTERED; 
+    chan->waitset_state.arg = chan;
+
     return SYS_ERR_OK;
 }
 
@@ -57,6 +64,19 @@ bool ump_chan_send(struct ump_chan *chan, struct ump_msg *send)
     return true;
 }
 
+
+bool ump_chan_can_receive(struct ump_chan *chan)
+{
+    void *poll_location = chan->recv_pane + chan->recv_buf_index * UMP_MSG_SIZE;
+    
+    // ensure cache line alignedness
+    assert(((lvaddr_t) poll_location) % UMP_MSG_SIZE == 0);
+    
+    struct ump_msg *read = poll_location;
+
+    return read->flag == UMP_FLAG_SENT;
+}
+
 /**
  * \brief Poll an ump-channel for a new message.
  * \param chan Channel to poll
@@ -88,6 +108,46 @@ bool ump_chan_poll_once(struct ump_chan *chan, struct ump_msg *recv)
     return false;
 }
 
+
+errval_t ump_chan_register_recv(struct ump_chan *chan, struct waitset *ws, struct event_closure closure)
+{
+    errval_t err;
+
+    dispatcher_handle_t handle = disp_disable();
+    struct dispatcher_generic *dp = get_dispatcher_generic(handle);
+
+    if (ump_chan_can_receive(chan)) { // trigger immediately
+        err = waitset_chan_trigger_closure_disabled(ws, &chan->waitset_state,
+                                                    closure, handle);
+    } else {
+        err = waitset_chan_register_disabled(ws, &chan->waitset_state, closure);
+        if (err_is_ok(err)) {
+            /* enqueue on poll list */
+            struct waitset_chanstate *cs = &chan->waitset_state;
+            if (dp->polled_channels == NULL) {
+                cs->polled_prev = cs;
+                cs->polled_next = cs;
+            } else {
+                cs->polled_next = dp->polled_channels;
+                cs->polled_prev = cs->polled_next->polled_prev;
+                cs->polled_next->polled_prev = cs;
+                cs->polled_prev->polled_next = cs;
+            }
+            dp->polled_channels = cs;
+        }
+    }
+
+    disp_enable(handle);
+
+    return err;
+}
+
+
+
+
+
+
+// dedicated polling thread deprecated
 
 errval_t ump_chan_init_poller(struct ump_poller *poller)
 {
@@ -126,6 +186,8 @@ errval_t ump_chan_register_polling(struct ump_poller *poller, struct ump_chan *c
     poller->n_channels ++;
     return SYS_ERR_OK;
 }
+
+
 
 
 errval_t ump_chan_run_poller(struct ump_poller *poller)

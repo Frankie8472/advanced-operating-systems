@@ -4,6 +4,7 @@
 #include <aos/types.h>
 #include <errors/errno.h>
 #include <assert.h>
+#include <aos/waitset.h>
 
 #define UMP_MSG_SIZE 64 // TODO: set to cache line size
 
@@ -30,6 +31,8 @@ struct ump_chan
     void *send_pane;
     size_t send_pane_size;
     size_t send_buf_index;
+    
+    struct waitset_chanstate waitset_state;
 };
 
 
@@ -39,8 +42,18 @@ errval_t ump_chan_init(struct ump_chan *chan,
 
 bool ump_chan_send(struct ump_chan *chan, struct ump_msg *send);
 
+bool ump_chan_can_receive(struct ump_chan *chan);
 bool ump_chan_poll_once(struct ump_chan *chan, struct ump_msg *recv);
 
+errval_t ump_chan_register_recv(struct ump_chan *chan, struct waitset *ws, struct event_closure closure);
+
+
+
+
+
+
+
+// dedicated polling thread deprecated
 
 typedef errval_t (*ump_msg_handler_t)(void *arg, struct ump_msg *msg);
 
