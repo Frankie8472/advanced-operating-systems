@@ -422,9 +422,8 @@ errval_t aos_rpc_call(struct aos_rpc *rpc, enum aos_rpc_msg_type msg_type, ...)
     //debug_printf("waiting for response\n");
 
     while(!lmp_chan_can_recv(&rpc->channel.lmp)) {
-        //dispatcher_handle_t d = disp_disable();
-        //sys_yield(CPTR_NULL);
-        //disp_enable(d);
+        // yield to dispatcher we are communicating with
+        thread_yield_dispatcher(rpc->channel.lmp.remote_cap);
     }
 
     //debug_printf("getting response\n");

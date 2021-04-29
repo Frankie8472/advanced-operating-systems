@@ -74,8 +74,8 @@ static int bsp_main(int argc, char *argv[])
 
     // TODO: Spawn system processes, boot second core etc. here
     
-    spawn_new_core(my_core_id + 1);
-    //spawn_new_domain("performance_tester", NULL);
+    //spawn_new_core(my_core_id + 1);
+    spawn_new_domain("performance_tester", NULL);
 
 
 
