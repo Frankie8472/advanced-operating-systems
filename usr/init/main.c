@@ -332,6 +332,7 @@ int real_main(int argc, char *argv[])
     core_channels[coreid] = ump_rpc_test;
 
     aos_rpc_register_handler(ump_rpc_test, AOS_RPC_SEND_NUMBER, &recv_number);
+    aos_rpc_register_handler(ump_rpc_test, AOS_RPC_REQUEST_RAM, &req_ram);
     
     struct capref ramcap;
     size_t retsize;
@@ -494,6 +495,7 @@ static errval_t init_foreign_core(void){
     err = ram_forge(core_ram, urpc_init[2], urpc_init[3], disp_get_current_core_id());
     ON_ERR_RETURN(err);
     err = initialize_ram_alloc_foreign(core_ram);
+    
     ON_ERR_RETURN(err);
 
     const int nBenches = 100;
@@ -582,6 +584,14 @@ static errval_t init_foreign_core(void){
 
     struct thread *pollthread = thread_create(&poller, init_poller);
     pollthread = pollthread;
+
+
+    struct capref ram_cap;
+    size_t ret_size;
+    err = aos_rpc_request_foreign_ram(core_channels[0],1L << 20,&ram_cap,&ret_size);
+    ON_ERR_RETURN(err);
+
+
 
     return SYS_ERR_OK;
 }

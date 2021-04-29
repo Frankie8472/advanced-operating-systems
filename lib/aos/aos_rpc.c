@@ -818,13 +818,12 @@ struct aos_rpc *aos_rpc_get_serial_channel(void)
 }
 
 
-errval_t request_foreign_ram(struct aos_rpc * rpc, size_t size,struct capref *ret_cap){
+errval_t aos_rpc_request_foreign_ram(struct aos_rpc * rpc, size_t size,struct capref *ret_cap,size_t * ret_size){
+    debug_printf("Got here!\n");
     errval_t err;
     assert(rpc -> backend == AOS_RPC_UMP && "Tried to call foreign ram request on an LMP channel!\n");
-    err = aos_rpc_call(rpc,AOS_RPC_REQUEST_FOREIGN_RAM,size,&ret_addr,&ret_size);
+    err = aos_rpc_call(rpc,AOS_RPC_REQUEST_RAM,size,1,ret_cap,ret_size);
     ON_ERR_RETURN(err);
-    struct capref ram_cap;
-    err = ram_forge(core_ram,ret_addr,ret_size,disp_get_core_id());
-    ON_ERR_RETURN(err); 
     return err;
+
 }

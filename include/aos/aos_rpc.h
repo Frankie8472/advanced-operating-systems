@@ -271,5 +271,5 @@ struct aos_rpc *aos_rpc_get_serial_channel(void);
 /**
  * \brief Returns a new capability of fresh ram from the core defined by core_id
  */
-errval_t request_foreign_ram(struct aos_rpc * rpc, size_t size,struct capref *ret_cap);
+errval_t aos_rpc_request_foreign_ram(struct aos_rpc * rpc, size_t size,struct capref *ret_cap,size_t * ret_size);
 #endif // _LIB_BARRELFISH_AOS_MESSAGES_H
