@@ -39,6 +39,7 @@ typedef enum aos_rpc_msg_type {
     AOS_RPC_SEND_NUMBER,
     AOS_RPC_SEND_STRING,
     AOS_RPC_REQUEST_RAM,
+    AOS_RPC_REQUEST_FOREIGN_RAM,
     AOS_RPC_SETUP_PAGE,
     AOS_RPC_PROC_SPAWN_REQUEST,
     AOS_RPC_FOREIGN_SPAWN,
@@ -264,4 +265,9 @@ struct aos_rpc *aos_rpc_get_process_channel(void);
  */
 struct aos_rpc *aos_rpc_get_serial_channel(void);
 
+
+/**
+ * \brief Returns a new capability of fresh ram from the core defined by core_id
+ */
+errval_t request_foreign_ram(struct aos_rpc * rpc, size_t size,struct capref *ret_cap);
 #endif // _LIB_BARRELFISH_AOS_MESSAGES_H

@@ -108,6 +108,11 @@ static void initiate(struct aos_rpc *rpc, struct capref cap) {
     rpc->channel.lmp.remote_cap = cap;
 }
 
+// static void  foreign_req_ram(struct aos_rpc *old_rpc,uintptr_t size){
+//     err = ram_alloc_aligned()
+// }
+
+
 static void spawn_handler(struct aos_rpc *old_rpc, const char *name, uintptr_t core_id, uintptr_t *new_pid) {
 
 

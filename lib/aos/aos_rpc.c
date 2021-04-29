@@ -16,6 +16,7 @@
 #include <aos/aos_rpc.h>
 #include <arch/aarch64/aos/lmp_chan_arch.h>
 #include <stdarg.h>
+#include <aos/kernel_cap_invocations.h>
 
 static void aos_rpc_setup_page_handler(struct aos_rpc* rpc, uintptr_t port, uintptr_t size, struct capref frame) {
     debug_printf("aos_rpc_setup_page_handler\n");
@@ -733,4 +734,16 @@ struct aos_rpc *aos_rpc_get_serial_channel(void)
     debug_printf("aos_rpc_get_serial_channel NYI\n");
     return aos_rpc_get_init_channel();
     return NULL;
+}
+
+
+errval_t request_foreign_ram(struct aos_rpc * rpc, size_t size,struct capref *ret_cap){
+    errval_t err;
+    assert(rpc -> backend == AOS_RPC_UMP && "Tried to call foreign ram request on an LMP channel!\n");
+    err = aos_rpc_call(rpc,AOS_RPC_REQUEST_FOREIGN_RAM,size,&ret_addr,&ret_size);
+    ON_ERR_RETURN(err);
+    struct capref ram_cap;
+    err = ram_forge(core_ram,ret_addr,ret_size,disp_get_core_id());
+    ON_ERR_RETURN(err); 
+    return err;
 }
