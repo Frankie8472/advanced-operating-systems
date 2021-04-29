@@ -56,6 +56,8 @@ void page_fault_handler(enum exception_type type, int subtype, void *addr, arch_
         }
         if(((lvaddr_t) addr == 0)){
             debug_printf("Segmentation fault (core dumped)\n");
+            debug_printf("addr: 0x%" PRIxLPADDR "\n", addr);
+            debug_printf("ip: 0x%" PRIxLPADDR "\n", regs->named.pc);
             thread_exit(1);
         }
         else if (region->type == PAGING_REGION_STACK && ((lvaddr_t) addr) < region->base_addr + BASE_PAGE_SIZE) {

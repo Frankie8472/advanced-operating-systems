@@ -106,10 +106,12 @@ struct aos_rpc {
 };
 
 
+errval_t aos_rpc_init(struct aos_rpc *rpc);
+
 /**
  * \brief Initialize an aos_rpc struct.
  */
-errval_t aos_rpc_init(struct aos_rpc *rpc, struct capref self_ep, struct capref end_ep, struct lmp_endpoint *lmp_ep);
+errval_t aos_rpc_init_lmp(struct aos_rpc *rpc, struct capref self_ep, struct capref end_ep, struct lmp_endpoint *lmp_ep);
 
 
 /**

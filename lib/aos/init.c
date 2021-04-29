@@ -194,7 +194,8 @@ errval_t barrelfish_init_onthread(struct spawn_domain_params *params)
       .slot = TASKCN_SLOT_INITEP
     };
 
-    err = aos_rpc_init(&init_rpc, self_ep_cap, init_ep_cap, NULL);
+    err = aos_rpc_init(&init_rpc);
+    err = aos_rpc_init_lmp(&init_rpc, self_ep_cap, init_ep_cap, NULL);
     ON_ERR_RETURN(err);
 
     set_init_rpc(&init_rpc);

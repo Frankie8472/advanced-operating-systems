@@ -14,6 +14,7 @@
 
 #include <aos/aos.h>
 #include <aos/aos_rpc.h>
+#include <aos/kernel_cap_invocations.h>
 #include <arch/aarch64/aos/lmp_chan_arch.h>
 #include <stdarg.h>
 #include <aos/kernel_cap_invocations.h>
@@ -45,15 +46,13 @@ static errval_t setup_buf_page(struct aos_rpc *rpc, enum aos_rpc_msg_type msg_ty
     ON_ERR_PUSH_RETURN(err, LIB_ERR_VSPACE_MAP);
 
     //debug_printf("seting up the buffer!\n");
-    err = aos_rpc_call(rpc, AOS_RPC_SEND_NUMBER, 12345);
-    err = aos_rpc_call(rpc, AOS_RPC_SEND_NUMBER, 54321);
     err = aos_rpc_call(rpc, AOS_RPC_SETUP_PAGE, msg_type, size, frame);
     ON_ERR_PUSH_RETURN(err, LIB_ERR_GET_MEM_IREF); // TODO: New error code
 
     return SYS_ERR_OK;
 }
 
-static errval_t aos_rpc_init_common(struct aos_rpc *rpc)
+errval_t aos_rpc_init(struct aos_rpc *rpc)
 {
     memset(rpc->bindings, 0, sizeof rpc->bindings);
 
@@ -86,12 +85,9 @@ static errval_t aos_rpc_init_common(struct aos_rpc *rpc)
  * and should be properly set beforehand
  * \brief Initialize an aos_rpc struct.
  */
-errval_t aos_rpc_init(struct aos_rpc* rpc, struct capref self_ep, struct capref end_ep, struct lmp_endpoint *lmp_ep) {
+errval_t aos_rpc_init_lmp(struct aos_rpc* rpc, struct capref self_ep, struct capref end_ep, struct lmp_endpoint *lmp_ep) {
     errval_t err;
     debug_printf("aos_rpc_init\n");
-    
-    err = aos_rpc_init_common(rpc);
-    ON_ERR_RETURN(err);
     
     rpc->backend = AOS_RPC_LMP;
 
@@ -136,9 +132,6 @@ errval_t aos_rpc_init_ump(struct aos_rpc *rpc, lvaddr_t shared_page, size_t shar
 {
     errval_t err;
 
-    err = aos_rpc_init_common(rpc);
-    ON_ERR_RETURN(err);
-    
     rpc->backend = AOS_RPC_UMP;
     
     size_t half_page_size = shared_page_size / 2;
@@ -285,8 +278,16 @@ static errval_t aos_rpc_call_ump(struct aos_rpc *rpc, enum aos_rpc_msg_type msg_
             strncpy((char *) &um.data.u64[word_ind], str, AOS_RPC_SHORTSTR_LENGTH);
             word_ind += AOS_RPC_SHORTSTR_LENGTH / sizeof(uintptr_t);
         }
+        else if (binding->args[i] == AOS_RPC_CAPABILITY) {
+            struct capref cr = va_arg(args, struct capref);
+            struct capability cap;
+            // non-portable assertion
+            static_assert(sizeof(struct capability) == 3 * sizeof(uintptr_t));
+            invoke_cap_identify(cr, &cap);
+            memcpy(&um.data.u64[word_ind], &cap, sizeof(struct capability));
+            word_ind += sizeof(struct capability) / sizeof(uintptr_t);
+        }
         else {
-            debug_printf("%d\n", binding->args[i]);
             debug_printf("non-word or shortstring messages over ump NYI!\n");
             return LIB_ERR_NOT_IMPLEMENTED;
         }
@@ -299,8 +300,7 @@ static errval_t aos_rpc_call_ump(struct aos_rpc *rpc, enum aos_rpc_msg_type msg_
     do {
         sent = ump_chan_send(&rpc->channel.ump, &um);
     } while (!sent);
-    debug_printf("sent message!\n");
-    
+
 
     struct ump_msg response;
     bool received = false;
@@ -308,9 +308,51 @@ static errval_t aos_rpc_call_ump(struct aos_rpc *rpc, enum aos_rpc_msg_type msg_
         received = ump_chan_poll_once(&rpc->channel.ump, &response);
     } while(!received);
 
+    if ((response.data.u64[0] | AOS_RPC_RETURN_BIT) && (response.data.u64[0] & ~AOS_RPC_RETURN_BIT) == msg_type) {
+        // okay
+    }
+    else {
+        return LIB_ERR_NOT_IMPLEMENTED; // todo errcode
+    }
+    
+    debug_printf("response words: %ld %ld %ld %ld %ld %ld %ld\n",
+        response.data.u64[0],
+        response.data.u64[1],
+        response.data.u64[2],
+        response.data.u64[3],
+        response.data.u64[4],
+        response.data.u64[5],
+        response.data.u64[6]
+    );
+
+    size_t ret_offs = 1;
     for (int i = 0; i < n_rets; i++) {
         if (binding->rets[i] == AOS_RPC_WORD) {
-            *((uintptr_t *) retptrs[i]) = response.data.u64[i + 1];
+            *((uintptr_t *) retptrs[i]) = response.data.u64[ret_offs++];
+        }
+        else if (binding->rets[i] == AOS_RPC_SHORTSTR) {
+            strncpy(((char *) retptrs[i]), (const char *) &response.data.u64[ret_offs], AOS_RPC_SHORTSTR_LENGTH);
+            ret_offs += AOS_RPC_SHORTSTR_LENGTH / sizeof(uintptr_t);
+        }
+        else if (binding->rets[i] == AOS_RPC_CAPABILITY) {
+            struct capability cap;
+            memcpy(&cap, &response.data.u64[ret_offs], sizeof cap);
+            ret_offs += sizeof(struct capability) / sizeof(uintptr_t);
+
+            struct capref forged;
+            errval_t err = slot_alloc(&forged);
+            ON_ERR_PUSH_RETURN(err, LIB_ERR_SLOT_ALLOC);
+
+            err = invoke_monitor_create_cap((uint64_t *) &cap,
+                                            get_cnode_addr(forged),
+                                            get_cnode_level(forged),
+                                            forged.slot,
+                                            disp_get_core_id()); // TODO: set owner correctly
+            if (err_is_fail(err)) {
+                DEBUG_ERR(err, "forging of cap failed\n");
+            }
+            ON_ERR_PUSH_RETURN(err, LIB_ERR_MONITOR_CAP_SEND);
+            *((struct capref *) retptrs[i]) = forged;
         }
         else {
             debug_printf("non-word responses over ump NYI!\n");
@@ -598,11 +640,12 @@ static errval_t aos_rpc_unmarshall_ump_simple_aarch64(struct aos_rpc *rpc,
 
     typedef uintptr_t ui;
     ui arg[8] = { 0 }; // Upper bound so only writes in register
-    ui ret[6] = { 0 };
+    ui ret[8] = { 0 };
     errval_t (*h8)(struct aos_rpc*, ui, ui, ui, ui, ui, ui, ui, ui) = handler;
     int a_pos = 0;
     int buf_pos = 1;
     int ret_pos = 0;
+    struct capref retcap;
     for (int i = 0; i < binding->n_args; i++) {
         if (a_pos >= 8) {
             return LIB_ERR_SLAB_ALLOC_FAIL; // todo create better error code
@@ -611,16 +654,33 @@ static errval_t aos_rpc_unmarshall_ump_simple_aarch64(struct aos_rpc *rpc,
             arg[a_pos++] = msg->data.u64[buf_pos++];
         }
         else if (binding->args[i] == AOS_RPC_SHORTSTR) {
-            debug_printf("unmarshalling str: %s at arg pos %d\n", &msg->data.u64[buf_pos], a_pos);
             arg[a_pos++] = (ui) &msg->data.u64[buf_pos];
             buf_pos += 4;
-            debug_printf("string after: %s\n", arg[0]);
+        }
+        else if (binding->args[i] == AOS_RPC_CAPABILITY) {
+            struct capability cap;
+            memcpy(&cap, &msg->data.u64[buf_pos], sizeof cap);
+            buf_pos += sizeof(struct capability) / sizeof(uintptr_t);
+
+            struct capref forged;
+            errval_t err = slot_alloc(&forged);
+            ON_ERR_PUSH_RETURN(err, LIB_ERR_SLOT_ALLOC);
+
+            err = invoke_monitor_create_cap((uint64_t *) &cap,
+                                            get_cnode_addr(forged),
+                                            get_cnode_level(forged),
+                                            forged.slot, !disp_get_core_id()); // TODO: set owner correctly
+            ON_ERR_PUSH_RETURN(err, LIB_ERR_MONITOR_CAP_SEND);
+
+            arg[a_pos++] = (forged.cnode.croot) | (((ui) forged.cnode.cnode) << 32);
+            arg[a_pos++] = (forged.cnode.level) | (((ui) forged.slot) << 32);
         }
         else {
             debug_printf("only integer and shortstr arguments supported at the moment\n");
             return LIB_ERR_NOT_IMPLEMENTED;
         }
     }
+    bool retcap_used = false;
     for (int i = 0; i < binding->n_rets; i++) {
         if (a_pos >= 6) {
             return LIB_ERR_SLAB_ALLOC_FAIL; // todo
@@ -628,12 +688,16 @@ static errval_t aos_rpc_unmarshall_ump_simple_aarch64(struct aos_rpc *rpc,
         if (binding->rets[i] == AOS_RPC_WORD) {
             arg[a_pos++] = (ui) &ret[ret_pos++];
         }
-        else if (binding->args[i] == AOS_RPC_SHORTSTR) {
+        else if (binding->rets[i] == AOS_RPC_SHORTSTR) {
             arg[a_pos++] = (ui) &ret[ret_pos];
             ret_pos += 4;
         }
+        else if (binding->rets[i] == AOS_RPC_CAPABILITY) {
+            if (retcap_used) return LIB_ERR_NOT_IMPLEMENTED; // error, sending multiple caps nyi
+            arg[a_pos++] = (ui) &retcap;
+        }
         else {
-            debug_printf("only integer and shortstr arguments supported at the moment\n");
+            debug_printf("only integer and shortstr arguments supported at the moment %d\n", binding->args[i]);
             return LIB_ERR_NOT_IMPLEMENTED;
         }
         if (ret_pos >= 7) {
@@ -646,8 +710,25 @@ static errval_t aos_rpc_unmarshall_ump_simple_aarch64(struct aos_rpc *rpc,
     // send response
     struct ump_msg response;
     response.data.u64[0] = msg->data.u64[0] | AOS_RPC_RETURN_BIT;
-    for (int i = 0; i < ret_pos; i++) {
-        response.data.u64[i + 1] = ret[i];
+
+    buf_pos = 1;
+    ret_pos = 0;
+    for (int i = 0; i < binding->n_rets; i++) {
+
+        if (binding->rets[i] == AOS_RPC_WORD) {
+            response.data.u64[buf_pos++] = ret[ret_pos++];
+        }
+        else if (binding->rets[i] == AOS_RPC_SHORTSTR) {
+            strncpy((char *) &response.data.u64[buf_pos], (const char *) &ret[ret_pos], AOS_RPC_SHORTSTR_LENGTH);
+            ret_pos += AOS_RPC_SHORTSTR_LENGTH / sizeof(uintptr_t);
+        }
+        else if (binding->rets[i] == AOS_RPC_CAPABILITY) {
+            struct capability cap;
+            errval_t err = invoke_cap_identify(retcap, &cap);
+            ON_ERR_PUSH_RETURN(err, LIB_ERR_CAP_IDENTIFY);
+            memcpy(&response.data.u64[buf_pos], &cap, sizeof cap);
+            buf_pos += sizeof(struct capability) / sizeof(uintptr_t);
+        }
     }
 
     bool sent = false;
@@ -684,7 +765,7 @@ errval_t aos_rpc_on_ump_message(void *arg, struct ump_msg *msg)
         }
     }
     else {
-        debug_printf("NYI in aos_rpc_on_message\n");
+        debug_printf("NYI in aos_rpc_on_ump_message\n");
     }
     
     return SYS_ERR_OK;

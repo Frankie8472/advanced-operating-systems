@@ -120,19 +120,27 @@ static void spawn_handler(struct aos_rpc *old_rpc, const char *name, uintptr_t c
         struct spawninfo *si = spawn_create_spawninfo();
 
         domainid_t *pid = &si->pid;
-        spawn_load_by_name((char*) name, si, pid);
-        *new_pid = *pid;
         struct aos_rpc *rpc = &si->rpc;
-        aos_rpc_init(rpc, si->cap_ep, NULL_CAP, si->lmp_ep);
+        aos_rpc_init(rpc);
+        spawn_load_by_name((char*) name, si, pid);
         initialize_rpc(si);
+        *new_pid = *pid;
         errval_t err = lmp_chan_register_recv(&rpc->channel.lmp, get_default_waitset(), MKCLOSURE(&aos_rpc_on_message, &rpc));
+        err = lmp_chan_register_recv(&rpc->channel.lmp, get_default_waitset(), MKCLOSURE(&aos_rpc_on_message, &rpc));
+        err = lmp_chan_register_recv(&rpc->channel.lmp, get_default_waitset(), MKCLOSURE(&aos_rpc_on_message, &rpc));
+        err = lmp_chan_register_recv(&rpc->channel.lmp, get_default_waitset(), MKCLOSURE(&aos_rpc_on_message, &rpc));
+        for (int i = 0; i < 1000000000; i++) {
+            __asm volatile ("mov x2, x2\n");
+        }
+        err = lmp_chan_register_recv(&rpc->channel.lmp, get_default_waitset(), MKCLOSURE(&aos_rpc_on_message, &rpc));
         if (err_is_fail(err) && err == LIB_ERR_CHAN_ALREADY_REGISTERED) {
             // not too bad, already registered
         }
     }else{
         errval_t err;
         struct aos_rpc* ump_chan = core_channels[core_id];
-        err = aos_rpc_call(ump_chan,AOS_RPC_FOREIGN_SPAWN,name,new_pid);
+        assert(ump_chan && "NO U!");
+        err = aos_rpc_call(ump_chan, AOS_RPC_FOREIGN_SPAWN, name, core_id, new_pid);
         if(err_is_fail(err)){
             DEBUG_ERR(err,"Failed to call aos rpc in spawn handler for foreign core\n");
         }
@@ -182,8 +190,8 @@ errval_t initialize_rpc(struct spawninfo *si)
     void instant_return(struct aos_rpc *r) { return; }
     aos_rpc_register_handler(rpc, AOS_RPC_ROUNDTRIP, &instant_return);
 
-    errval_t err = lmp_chan_register_recv(&rpc->channel.lmp, get_default_waitset(), MKCLOSURE(&aos_rpc_on_message, &rpc));
-    return err;
+    //errval_t err = lmp_chan_register_recv(&rpc->channel.lmp, get_default_waitset(), MKCLOSURE(&aos_rpc_on_message, &rpc));
+    return SYS_ERR_OK;
 }
 
 
@@ -192,17 +200,16 @@ __attribute__((unused)) static void spawn_memeater(void)
     struct spawninfo *memeater_si = spawn_create_spawninfo();
 
     domainid_t *memeater_pid = &memeater_si->pid;
+
+    struct aos_rpc *rpc = &memeater_si->rpc;
+    aos_rpc_init(rpc);
+    initialize_rpc(memeater_si);
+    aos_rpc_init_lmp(rpc, memeater_si->cap_ep, NULL_CAP, memeater_si->lmp_ep);
+
     errval_t err = spawn_load_by_name("memeater", memeater_si, memeater_pid);
     if (err_is_fail(err)) {
         DEBUG_ERR(err, "spawn loading failed");
     }
-
-    struct aos_rpc *rpc = &memeater_si->rpc;
-    aos_rpc_init(rpc, memeater_si->cap_ep, NULL_CAP, memeater_si->lmp_ep);
-
-    err = lmp_chan_alloc_recv_slot(&rpc->channel.lmp);
-
-    err = initialize_rpc(memeater_si);
 }
 
 
@@ -218,7 +225,7 @@ __attribute__((unused)) static void spawn_page(void){
     }
 
     struct aos_rpc *rpc = &hello_si->rpc;
-    aos_rpc_init(rpc, hello_si->cap_ep, NULL_CAP, hello_si->lmp_ep);
+    aos_rpc_init_lmp(rpc, hello_si->cap_ep, NULL_CAP, hello_si->lmp_ep);
     err = lmp_chan_alloc_recv_slot(&rpc->channel.lmp);
     ON_ERR_NO_RETURN(err);
 
@@ -258,7 +265,6 @@ int real_main(int argc, char *argv[])
 
     // TODO: initialize mem allocator, vspace management here
 
-    spawn_memeater();
 
     // benchmark_mm();
 
@@ -320,11 +326,33 @@ int real_main(int argc, char *argv[])
     
     
     struct aos_rpc *ump_rpc_test = malloc(sizeof(struct aos_rpc));
+    aos_rpc_init(ump_rpc_test);
     aos_rpc_init_ump(ump_rpc_test, (lvaddr_t) urpc_init, BASE_PAGE_SIZE, true);
     
     core_channels[coreid] = ump_rpc_test;
 
     aos_rpc_register_handler(ump_rpc_test, AOS_RPC_SEND_NUMBER, &recv_number);
+    
+    struct capref ramcap;
+    size_t retsize;
+    err = aos_rpc_call(ump_rpc_test, AOS_RPC_REQUEST_RAM, BASE_PAGE_SIZE, 1, &ramcap, &retsize);
+    DEBUG_ERR(err, "err?");
+    debug_printf("got ram %ld\n", ramcap.cnode.level);
+    char buuf[128];
+    debug_print_cap_at_capref(buuf, 128, ramcap);
+    debug_printf("ramcap is: %s\n", buuf);
+    void *adres;
+    struct capref dest; slot_alloc(&dest);
+    err = cap_retype(dest, ramcap, 0, ObjType_Frame, BASE_PAGE_SIZE, 1);
+    DEBUG_ERR(err, "retype\n");
+    
+    err = paging_map_frame_complete(get_current_paging_state(), &adres, dest, NULL, NULL);
+    DEBUG_ERR(err, "err?");
+    debug_printf("got ram %ld\n", ramcap.cnode.level);
+    debug_printf("mapped ram at %p\n", adres);
+    int* adresint = adres; int local = *adresint = 123;
+    debug_printf("local: %d\n", local);
+
     
     //domainid_t pid;
     //err = aos_rpc_call(ump_rpc_test, AOS_RPC_FOREIGN_SPAWN, "memeater", 1, &pid);
@@ -352,6 +380,7 @@ int real_main(int argc, char *argv[])
 
     // Grading
     grading_test_late();
+    spawn_memeater();
 
     debug_printf("Message handler loop\n");
     // Hang around
@@ -445,7 +474,7 @@ static errval_t init_foreign_core(void){
         .cnode = cnode_task,
         .slot = TASKCN_SLOT_BOOTINFO,
     };
-     struct capref core_ram = {
+    struct capref core_ram = {
         .cnode = cnode_super,
         .slot = 0,
     };
@@ -517,21 +546,30 @@ static errval_t init_foreign_core(void){
         debug_printf("WE SPAWN: %s, %ld\n", name, core_id);
         struct spawninfo *si = spawn_create_spawninfo();
 
+        struct aos_rpc *rpc = &si->rpc;
+        aos_rpc_init(rpc);
+        initialize_rpc(si);
+
         domainid_t *pid = &si->pid;
         spawn_load_by_name((char*) name, si, pid);
         *new_pid = *pid;
-        struct aos_rpc *rpc = &si->rpc;
-        aos_rpc_init(rpc, si->cap_ep, NULL_CAP, si->lmp_ep);
-        initialize_rpc(si);
         errval_t errr = lmp_chan_register_recv(&rpc->channel.lmp, get_default_waitset(), MKCLOSURE(&aos_rpc_on_message, &rpc));
         if (err_is_fail(errr) && errr == LIB_ERR_CHAN_ALREADY_REGISTERED) {
             // not too bad, already registered
         }
     }
+    void rammy(struct aos_rpc *origin_rpc, uintptr_t size, uintptr_t alignment, struct capref *retcap, uintptr_t *retsize)
+    {
+        debug_printf("rammy called\n");
+        ram_alloc_aligned(retcap, size, alignment);
+        *retsize = size;
+    }
     
     struct aos_rpc *ump_rpc_test = malloc(sizeof(struct aos_rpc));
+    aos_rpc_init(ump_rpc_test);
     aos_rpc_init_ump(ump_rpc_test, (lvaddr_t) urpc_init, BASE_PAGE_SIZE, false);
     aos_rpc_register_handler(ump_rpc_test, AOS_RPC_FOREIGN_SPAWN, spawny);
+    aos_rpc_register_handler(ump_rpc_test, AOS_RPC_REQUEST_RAM, rammy);
     core_channels[0] = ump_rpc_test;
 
     int poller(void *arg) {
