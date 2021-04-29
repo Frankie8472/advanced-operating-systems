@@ -102,7 +102,7 @@ static void debug_uart_initialize(void) {
 static void debug_serial_putc(char c)
 {
     while(lpuart_stat_tdre_rdf(&uart) == 0);
-    lpuart_write_data_wr(&uart,c);
+    lpuart_txdata_wr(&uart,c);
 }
 #endif
 
