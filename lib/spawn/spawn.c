@@ -308,6 +308,8 @@ errval_t spawn_load_argv(int argc, const char *const argv[], struct spawninfo *s
     err = cap_copy(si->dispatcher, child_dispatcher);
     ON_ERR_PUSH_RETURN(err, SPAWN_ERR_COPY_KERNEL_CAP);
 
+    aos_rpc_init_lmp(&si->rpc, cap_selfep, NULL_CAP, si->lmp_ep);
+
     err = invoke_dispatcher(si->dispatcher, cap_dispatcher, cnode_child_l1, child_l0_vnodecap, child_dispframe, true);
     ON_ERR_RETURN(err);
 
