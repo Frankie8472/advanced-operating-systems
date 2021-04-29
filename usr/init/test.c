@@ -16,6 +16,7 @@
 #include <spawn/process_manager.h>
 #include "mem_alloc.h"
 
+#include "spawn_server.h"
 #include "test.h"
 
 int test_stack_overflow(void);
@@ -231,13 +232,13 @@ int benchmark_mm(void)
 
 // put your test functions for core 0 in this array, keep NULL as last element
 int (*bsp_tests[])(void) = {
-    &benchmark_mm,
+    //&benchmark_mm,
     //&test_printf,
     //&test_getchar,
     //&test_malloc,
-    // &test_malloc_lazy,
-    // &test_malloc_64MiB,
-    // &test_stack_overflow,
+    //&test_malloc_lazy,
+    //&test_malloc_64MiB,
+    //&test_stack_overflow,
     //&test_infinite_loop,
     NULL
 };

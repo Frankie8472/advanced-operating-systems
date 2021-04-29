@@ -11,6 +11,8 @@
 /// MM allocator instance data
 struct mm aos_mm;
 
+struct bootinfo *bi;
+
 errval_t aos_ram_alloc_aligned(struct capref *ret, size_t size, size_t alignment)
 {
     return mm_alloc_aligned(&aos_mm, size, alignment, ret);
