@@ -25,5 +25,5 @@ errval_t initialize_ram_alloc(void);
 errval_t initialize_ram_alloc_foreign(struct capref cap);//Added by Matt for questions
 errval_t aos_ram_alloc_aligned(struct capref *ret, size_t size, size_t alignment);
 errval_t aos_ram_free(struct capref cap);
-
+errval_t add_foreign_ram_cap(struct capref cap);
 #endif /* _INIT_MEM_ALLOC_H_ */
