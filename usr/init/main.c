@@ -78,13 +78,15 @@ static int bsp_main(int argc, char *argv[])
     //spawn_new_domain("performance_tester", NULL);
 
 
-    size_t counter = 0;
+    aos_rpc_call(core_channels[1], AOS_RPC_FOREIGN_SPAWN, "performance_tester");
+    aos_rpc_call(core_channels[1], AOS_RPC_FOREIGN_SPAWN, "memeater");
+    /*size_t counter = 0;
     while(1) {
         if (counter % (1 << 28) == 0){
             aos_rpc_call(core_channels[1], AOS_RPC_SEND_NUMBER, counter);
         }
         counter++;
-    }
+    }*/
 
 
     // Grading
@@ -213,7 +215,8 @@ static int app_main(int argc, char *argv[])
     if(err_is_fail(err)){
         DEBUG_ERR(err,"Failed to initialize ram and bootinfo for new core core\n");
     }
-
+    
+    run_init_tests(my_core_id);
 
     grading_setup_app_init(bi);
 

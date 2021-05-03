@@ -55,7 +55,7 @@ errval_t spawn_new_core(coreid_t core)
 
     cpu_dcache_wbinv_range((vm_offset_t) urpc_data, BASE_PAGE_SIZE);
 
-    coreid_t coreid = 1;
+    coreid_t coreid = core;
     err = coreboot(coreid,boot_driver,cpu_driver,init,urpc_frame_id);
     if(err_is_fail(err)){
         DEBUG_ERR(err,"Failed to boot core");
