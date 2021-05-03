@@ -128,10 +128,16 @@ void handle_spawn(struct aos_rpc *old_rpc, const char *name, uintptr_t core_id, 
             DEBUG_ERR(err, "Failed to spawn new domain\n");
         }
         *new_pid = pid;
-    }else if (current_core_id != 0){
+    } else if (current_core_id != 0) {
         // ump to 0
-        AOS_RPC_PROC_SPAWN_REQUEST;
-    }else{ // is 0
+        errval_t err;
+        struct aos_rpc* ump_chan = core_channels[0];
+        assert(ump_chan && "NO U!");
+        err = aos_rpc_call(ump_chan, AOS_RPC_FOREIGN_SPAWN, name, core_id, new_pid);
+        if(err_is_fail(err)){
+            DEBUG_ERR(err,"Failed to call aos rpc in spawn handler for foreign core\n");
+        }
+    } else { // is 0
         // ump call to core_id
         //OR init distribute on creation of ump channel to all known channels
         errval_t err;

@@ -216,7 +216,7 @@ static int app_main(int argc, char *argv[])
         DEBUG_ERR(err,"Failed to initialize ram and bootinfo for new core core\n");
     }
     
-    run_init_tests(my_core_id);
+    //run_init_tests(my_core_id);
 
     grading_setup_app_init(bi);
 

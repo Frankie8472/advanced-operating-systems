@@ -7,6 +7,7 @@
 #include <aos/waitset.h>
 
 #define UMP_MSG_SIZE 64 // TODO: set to cache line size
+#define UMP_MSG_N_WORDS 7
 
 #define UMP_FLAG_SENT 1 // flag for sent slots / to be received & ackd
 #define UMP_FLAG_RECEIVED 0 // flag for ackd / open slots
