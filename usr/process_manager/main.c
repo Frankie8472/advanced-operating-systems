@@ -85,13 +85,14 @@ int main(int argc, char *argv[])
 
     debug_printf("Message handler loop\n");
     err = event_dispatch(default_ws);
-    // while (true) {
-    //     err = event_dispatch(default_ws);
+    while (true) {
+        err = event_dispatch(default_ws);
         if (err_is_fail(err)) {
-            DEBUG_ERR(err, "in event_dispatch");
-    //         abort();
+            debug_printf("err in event_dispatch\n");
+            //DEBUG_ERR(err, "in event_dispatch");
+            abort();
         }
-    // }
+    }
 
     return 0;
 }

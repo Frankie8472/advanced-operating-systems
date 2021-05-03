@@ -579,7 +579,12 @@ void aos_rpc_on_message(void *arg)
         debug_printf("transient error\n");
         err = lmp_chan_register_recv(channel, get_default_waitset(), MKCLOSURE(&aos_rpc_on_message, arg));
     }
+    else if (err == LIB_ERR_NO_LMP_MSG) {
+        err = lmp_chan_register_recv(channel, get_default_waitset(), MKCLOSURE(&aos_rpc_on_message, arg));
+        return;
+    }
     else if (err_is_fail(err)) {
+        debug_printf("error is: %ld\n", err);
         err = err_push(err, LIB_ERR_LMP_CHAN_RECV);
         goto on_error;
     }

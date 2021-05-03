@@ -94,10 +94,10 @@ static int bsp_main(int argc, char *argv[])
     }
     debug_printf("Process manager is online woooohooo!\n");
 
-    // err = aos_rpc_call(pm_rpc,AOS_RPC_REGISTER_PROCESS,1,0,"hello");
-    // if(err_is_fail(err)){
-    //     DEBUG_ERR(err,"Failed to send to pm\n");
-    // }
+    err = aos_rpc_call(pm_rpc,AOS_RPC_REGISTER_PROCESS,1,0,"hello");
+    if(err_is_fail(err)){
+        DEBUG_ERR(err,"Failed to send to pm\n");
+    }
     // event_dispatch(default_ws);
 
 
