@@ -92,7 +92,7 @@ bool ump_chan_poll_once(struct ump_chan *chan, struct ump_msg *recv)
     assert(((lvaddr_t) poll_location) % UMP_MSG_SIZE == 0);
     
     struct ump_msg *read = poll_location;
-    if (read->flag == UMP_FLAG_SENT) {
+    if (*((volatile uint8_t *) &read->flag) == UMP_FLAG_SENT) {
 
         dmb();
         memcpy(recv, read, UMP_MSG_SIZE);
