@@ -249,6 +249,25 @@ static errval_t aos_rpc_unmarshall_retval_aarch64(
     return SYS_ERR_OK;
 }
 
+/**
+ * \brief
+ *
+ * \param uc
+ * \param um
+ * \param word_ind
+ * \return
+ */
+static errval_t push_words(struct ump_chan *uc, struct ump_msg *um, int *word_ind, uintptr_t word)
+{
+    if (*word_ind >= 7) {
+        bool sent = false;
+        do {
+            sent = ump_chan_send(uc, um);
+        } while (!sent);
+    }
+    um->data.u64[(*word_ind)++] = word;
+}
+
 
 static errval_t aos_rpc_call_ump(struct aos_rpc *rpc, enum aos_rpc_msg_type msg_type, va_list args)
 {
@@ -268,10 +287,13 @@ static errval_t aos_rpc_call_ump(struct aos_rpc *rpc, enum aos_rpc_msg_type msg_
 
     int word_ind = 1;
     int ret_ind = 0;
+    bool fragmented = false;
     for (int i = 0; i < n_args; i++) {
         if (binding->args[i] == AOS_RPC_WORD) {
             um.data.u64[word_ind++] = va_arg(args, uintptr_t);
+            //push_words(&rpc->channel.ump, &um, &word_ind, va_arg(args, uintptr_t));
         }
+        // todo: delete
         else if (binding->args[i] == AOS_RPC_SHORTSTR) {
             const char *str = va_arg(args, char*);
             assert(strlen(str) < AOS_RPC_SHORTSTR_LENGTH);
@@ -287,33 +309,44 @@ static errval_t aos_rpc_call_ump(struct aos_rpc *rpc, enum aos_rpc_msg_type msg_
             memcpy(&um.data.u64[word_ind], &cap, sizeof(struct capability));
             word_ind += sizeof(struct capability) / sizeof(uintptr_t);
         }
+        else if (binding->args[i] == AOS_RPC_VARSTR) {
+            // check for str, set flag in accordance with last element of sended shortstr
+            const char *str = va_arg(args, char*);
+            size_t msg_len = strlen(str);
+            for (int i = 0; i < msg_len; i += sizeof(uintptr_t)) {
+                uintptr_t word = 0;
+                memcpy(&word, str + i, sizeof(uintptr_t));
+                push_words(&rpc->channel.ump, &um, &word_ind, (str + i);
+            }
+            // increase word index with msg_len
+        }
         else {
             debug_printf("non-word or shortstring messages over ump NYI!\n");
             return LIB_ERR_NOT_IMPLEMENTED;
         }
     }
+
     for (int i = 0; i < n_rets; i++) {
         retptrs[ret_ind++] = va_arg(args, void*);
     }
 
-    bool sent = false;
+    // Receive
     do {
-        sent = ump_chan_send(&rpc->channel.ump, &um);
-    } while (!sent);
+        struct ump_msg response;
+        bool received = false;
+        do {
+            received = ump_chan_poll_once(&rpc->channel.ump, &response);
+        } while (!received);
 
+        if (!((response.data.u64[0] | AOS_RPC_RETURN_BIT)
+              && (response.data.u64[0] & ~AOS_RPC_RETURN_BIT) == msg_type)) {
+            return LIB_ERR_NOT_IMPLEMENTED;  // todo errcode
+        }
 
-    struct ump_msg response;
-    bool received = false;
-    do {
-        received = ump_chan_poll_once(&rpc->channel.ump, &response);
-    } while(!received);
-
-    if ((response.data.u64[0] | AOS_RPC_RETURN_BIT) && (response.data.u64[0] & ~AOS_RPC_RETURN_BIT) == msg_type) {
-        // okay
-    }
-    else {
-        return LIB_ERR_NOT_IMPLEMENTED; // todo errcode
-    }
+        if (endpointblabla) {
+            fragmented = false;
+        }
+    } while (fragmented);
     
     /*debug_printf("response words: %ld %ld %ld %ld %ld %ld %ld\n",
         response.data.u64[0],

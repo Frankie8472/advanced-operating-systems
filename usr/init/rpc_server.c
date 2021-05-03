@@ -120,14 +120,20 @@ void handle_initiate(struct aos_rpc *rpc, struct capref cap) {
 
 
 void handle_spawn(struct aos_rpc *old_rpc, const char *name, uintptr_t core_id, uintptr_t *new_pid) {
-    if(core_id == disp_get_core_id()){
+    uintptr_t current_core_id = disp_get_core_id();
+    if(core_id == current_core_id) {
         domainid_t pid;
         errval_t err = spawn_new_domain(name, &pid);
         if (err_is_fail(err)) {
             DEBUG_ERR(err, "Failed to spawn new domain\n");
         }
         *new_pid = pid;
-    }else{
+    }else if (current_core_id != 0){
+        // ump to 0
+        AOS_RPC_PROC_SPAWN_REQUEST;
+    }else{ // is 0
+        // ump call to core_id
+        //OR init distribute on creation of ump channel to all known channels
         errval_t err;
         struct aos_rpc* ump_chan = core_channels[core_id];
         assert(ump_chan && "NO U!");
