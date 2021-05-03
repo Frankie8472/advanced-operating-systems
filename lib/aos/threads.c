@@ -80,9 +80,9 @@ __attribute__((unused)) static bool stack_warned=0;
 /// Wrapper function for most threads, runs given function then deletes itself
 static void thread_entry(thread_func_t start_func, void *start_data)
 {
-    int a;
-    debug_printf("THREAD ENTRY\n");
-    debug_printf("stack: %p\n", &a);
+    // int a;
+    // debug_printf("THREAD ENTRY\n");
+    // debug_printf("stack: %p\n", &a);
     assert((lvaddr_t)start_func >= BASE_PAGE_SIZE);
     int retval = start_func(start_data);
     thread_exit(retval);

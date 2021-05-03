@@ -54,7 +54,6 @@ errval_t aos_rpc_init(struct aos_rpc *rpc)
 
     // bind initiate function (to send our endpoint to init)
     aos_rpc_initialize_binding(rpc, AOS_RPC_INITIATE, 1, 0, AOS_RPC_CAPABILITY);
-
     // bind further functions
     aos_rpc_initialize_binding(rpc, AOS_RPC_SEND_NUMBER, 1, 0, AOS_RPC_WORD);
     aos_rpc_initialize_binding(rpc, AOS_RPC_SEND_STRING, 1, 0, AOS_RPC_STR);
@@ -70,7 +69,10 @@ errval_t aos_rpc_init(struct aos_rpc *rpc)
     aos_rpc_initialize_binding(rpc, AOS_RPC_GETCHAR, 0, 1, AOS_RPC_WORD);
 
     aos_rpc_initialize_binding(rpc, AOS_RPC_ROUNDTRIP, 0, 0);
-    
+
+    //Process manager bindings
+    aos_rpc_initialize_binding(rpc,AOS_RPC_PM_ONLINE,0,0);
+    aos_rpc_initialize_binding(rpc,AOS_RPC_REGISTER_PROCESS,3,0,AOS_RPC_WORD,AOS_RPC_WORD, AOS_RPC_STR);
     return SYS_ERR_OK;
 }
 
@@ -365,7 +367,7 @@ static errval_t aos_rpc_call_ump(struct aos_rpc *rpc, enum aos_rpc_msg_type msg_
 
 
 errval_t aos_rpc_call(struct aos_rpc *rpc, enum aos_rpc_msg_type msg_type, ...)
-{
+{   
     va_list args;
 
     errval_t err;
@@ -374,7 +376,6 @@ errval_t aos_rpc_call(struct aos_rpc *rpc, enum aos_rpc_msg_type msg_type, ...)
         va_start(args, msg_type);
         return aos_rpc_call_ump(rpc, msg_type, args);
     }
-
     struct aos_rpc_function_binding *binding = &rpc->bindings[msg_type];
     size_t n_args = binding->n_args;
     size_t n_rets = binding->n_rets;
@@ -413,17 +414,18 @@ errval_t aos_rpc_call(struct aos_rpc *rpc, enum aos_rpc_msg_type msg_type, ...)
             retptrs[ret_ind++] = va_arg(args, void*);
         }
         va_end(args);
-        //debug_printf("sending call %ld, %ld, %ld, %ld\n", msg_type, words[0], words[1], words[2]);
+        debug_printf("sending call %ld, %ld, %ld, %ld\n", msg_type, words[0], words[1], words[2]);
         lmp_chan_send(&rpc->channel.lmp, LMP_SEND_FLAGS_DEFAULT, cap, n_args + 1,
                     msg_type, words[0], words[1], words[2]);
     }
     else {
         debug_printf("unknown binding\n");
     }
-    //debug_printf("waiting for response\n");
 
+    debug_printf("waiting for response\n");
     while(!lmp_chan_can_recv(&rpc->channel.lmp)) {
         // yield to dispatcher we are communicating with
+        debug_printf("waiting for response\n");
         thread_yield_dispatcher(rpc->channel.lmp.remote_cap);
     }
 
@@ -616,7 +618,7 @@ void aos_rpc_on_message(void *arg)
 
 
 //on_success:
-    //debug_printf("reregister\n");
+    debug_printf("reregister\n");
     err = lmp_chan_register_recv(channel, get_default_waitset(), MKCLOSURE(&aos_rpc_on_message, arg));
     return;
 
