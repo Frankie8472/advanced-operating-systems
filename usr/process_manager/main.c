@@ -23,6 +23,17 @@ struct process_list{
     size_t size;
 };
 
+
+static char* strcopy(const char* str){
+    size_t n = strlen(str) + 1;
+    char * new_str = (char * ) malloc( n * sizeof(char));
+    for(size_t i = 0; i < n;++i){
+        new_str[i] = str[i];
+    }
+
+    return new_str;
+}
+
 // errval_t init_pl(struct process_list*)
 
 static errval_t add_process(domainid_t pid, coreid_t core_id,const char* name){
@@ -33,13 +44,8 @@ static errval_t add_process(domainid_t pid, coreid_t core_id,const char* name){
     p -> next = NULL,
     p -> pid = pid;
     p -> core_id = core_id;
-    p -> name = name;
-    // struct process p = (struct process) {
-    //     .next = NULL,
-    //     .pid = pid,
-    //     .core_id = core_id,
-    //     .name = name,
-    // };
+    p -> name = strcopy(name);
+
 
     if(pl.head == NULL){
         pl.head = p;
@@ -52,19 +58,14 @@ static errval_t add_process(domainid_t pid, coreid_t core_id,const char* name){
     return SYS_ERR_OK;
 };
 
+
+
+
 static void print_process_list(void){
     debug_printf("================ Processes ====================\n");
-    debug_printf("Size: %d\n",pl.size);
-    struct process* curr = pl.head;
-    for(size_t i = 0; i < pl.size;++i){
+    for(struct process* curr = pl.head; curr != NULL; curr = curr -> next){
         debug_printf("Pid:   %d  Core:   %d  Name:   %s\n",curr -> pid, curr -> core_id, curr -> name);
-
-
-        curr = curr -> next;
     }
-    // for(struct process* curr = pl.head; curr != NULL; curr = curr -> next){
-    //     debug_printf("Pid:   %d  Core:   %d  Name:   %s\n",curr -> pid, curr -> core_id, curr -> name);
-    // }
 }
 
 
@@ -93,10 +94,13 @@ int main(int argc, char *argv[])
     if(err_is_fail(err)){
         DEBUG_ERR(err,"Faile to send putchar\n");
     }
+    char * test = (char * ) malloc(sizeof(char));
+    test[0] = 'A';
+
+
     debug_printf("Starting process manager\n");
 
     
-    // aos_rpc_init(init_rpc);
     aos_rpc_register_handler(init_rpc,AOS_RPC_REGISTER_PROCESS,&handle_register_process);
 
     pl.head = NULL;
@@ -104,19 +108,10 @@ int main(int argc, char *argv[])
     pl.size = 0;
     struct waitset *default_ws = get_default_waitset();
 
-
-    // err = request_and_map_memory();
-    // if(err_is_fail(err)){
-    //     DEBUG_ERR(err,"Failed to request and map memory\n");
-    // }
-
     err = aos_rpc_call(init_rpc,AOS_RPC_PM_ONLINE);
     if(err_is_fail(err)){
         DEBUG_ERR(err,"Failed to call AOS_RPC_PM_ONLINE\n");
     }
-
-    char * test = (char * ) malloc(sizeof(char));
-    test[0] = 'A';
 
     
 

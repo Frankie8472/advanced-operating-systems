@@ -66,45 +66,12 @@ static errval_t init_process_manager(void){
             abort();
         }
     }
-    debug_printf("Process manager is online woooohooo!\n");
-
-    err = aos_rpc_call(pm_rpc,AOS_RPC_REGISTER_PROCESS,1,0,"hello");
-    if(err_is_fail(err)){
-        DEBUG_ERR(err,"Failed to send to pm\n");
-    }
-    // event_dispatch(default_ws);
-
-
-
-
-    // err = aos_rpc_send_number(pm_rpc,1);
-    // if(err_is_fail(err)){
-    //     DEBUG_ERR(err,"Failed to send number to pm!\n");
-    // }
-
-    // Grading
-    grading_test_early();
-
-    // TODO: Spawn system processes, boot second core etc. here
-    
-    //spawn_new_core(my_core_id + 1);
-    //spawn_new_domain("memeater", NULL);
-
-
-    //aos_rpc_call(core_channels[1], AOS_RPC_FOREIGN_SPAWN, "performance_tester");
-    //aos_rpc_call(core_channels[1], AOS_RPC_FOREIGN_SPAWN, "memeater");
-    /*size_t counter = 0;
-    while(1) {
-        if (counter % (1 << 28) == 0){
-            aos_rpc_call(core_channels[1], AOS_RPC_SEND_NUMBER, counter);
-        }
-        counter++;
-    }*/
     debug_printf("Process manager is online!\n");
 
     err = aos_rpc_call(pm_rpc,AOS_RPC_REGISTER_PROCESS,disp_get_domain_id(),disp_get_core_id(),"init");
     ON_ERR_RETURN(err);
     set_pm_rpc(pm_rpc);
+    debug_printf("all finished!\n");
 
     return SYS_ERR_OK;
 }
