@@ -416,12 +416,17 @@ struct thread *thread_create_unrunnable(thread_func_t start_func, void *arg,
 
     // create stack region
     struct paging_state *st = get_current_paging_state();
-    debug_printf("creating stack region\n");
+    //debug_printf("creating stack region\n");
     err = paging_region_init(st, &newthread->stack_region, stacksize, VREGION_FLAGS_READ_WRITE);
     if (err_is_fail(err)) {
         DEBUG_ERR(err, "error creating stack region\n");
     }
     newthread->stack_region.type = PAGING_REGION_STACK;
+    err = paging_map_stack_guard(st, (lvaddr_t) newthread->stack_region.base_addr);
+    for (size_t i = 1; i * BASE_PAGE_SIZE< stacksize; i++) {
+        int *ptr = (int *) (newthread->stack_region.base_addr + i * BASE_PAGE_SIZE);
+        *ptr = 0;
+    }
     snprintf(newthread->stack_region.region_name, sizeof newthread->stack_region.region_name, "thread stack %d", newthread->id);
 
     // init stack
@@ -446,7 +451,6 @@ struct thread *thread_create_unrunnable(thread_func_t start_func, void *arg,
 
 
 
-    err = paging_map_stack_guard(st, (lvaddr_t) newthread->stack_region.base_addr);
     return newthread;
 }
 
