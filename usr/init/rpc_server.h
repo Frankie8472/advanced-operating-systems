@@ -9,7 +9,6 @@ errval_t init_terminal_state(void);
 
 
 extern struct aos_rpc* core_channels[4];
-extern bool pm_online;
 
 errval_t init_core_channel(coreid_t coreid, lvaddr_t urpc_frame);
 void register_core_channel_handlers(struct aos_rpc *rpc);

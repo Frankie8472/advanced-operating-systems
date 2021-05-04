@@ -238,3 +238,6 @@ void barrelfish_init_disabled(dispatcher_handle_t handle, bool init_dom_arg)
     disp_init_disabled(handle);
     thread_init_disabled(handle, init_dom_arg);
 }
+
+
+

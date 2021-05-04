@@ -82,7 +82,9 @@ struct core_state_generic {
     struct ram_alloc_state ram_alloc_state;
     struct slot_alloc_state slot_alloc_state;
 
-    // struct aos_rpc *pm_rpc;
+
+    bool pm_online;
+    struct aos_rpc *pm_rpc;
 };
 
 #endif

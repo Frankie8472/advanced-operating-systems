@@ -216,15 +216,18 @@ int main(int argc, char *argv[])
     }
 
 
-    domainid_t pid = 0;
-    debug_printf("starting hello world process\n");
-    //aos_rpc_process_spawn(init_rpc, "hello", disp_get_current_core_id(), &pid);
-    aos_rpc_process_spawn(init_rpc, "hello", 1, &pid);
-    debug_printf("hello started with pid %d\n", pid);
+    char * test = (char * ) malloc(sizeof(char));
+    test[0] = 'A';
 
-    domainid_t perftest;
-    aos_rpc_process_spawn(init_rpc, "performance_tester", disp_get_current_core_id(), &perftest);
-    debug_printf("performance tester started with pid %d\n", perftest);
+    // domainid_t pid = 0;
+    // debug_printf("starting hello world process\n");
+    // //aos_rpc_process_spawn(init_rpc, "hello", disp_get_current_core_id(), &pid);
+    // aos_rpc_process_spawn(init_rpc, "hello", 1, &pid);
+    // debug_printf("hello started with pid %d\n", pid);
+
+    // domainid_t perftest;
+    // aos_rpc_process_spawn(init_rpc, "performance_tester", disp_get_current_core_id(), &perftest);
+    // debug_printf("performance tester started with pid %d\n", perftest);
 
     debug_printf("memeater terminated....\n");
     return EXIT_SUCCESS;

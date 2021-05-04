@@ -161,7 +161,7 @@ void handle_spawn(struct aos_rpc *old_rpc, const char *name, uintptr_t core_id, 
 
 
 void handle_pm_online(struct aos_rpc *r ){
-    pm_online = true;
+    set_pm_online();
     debug_printf("Handle pm online\n");
 }
 
@@ -229,19 +229,19 @@ errval_t initialize_rpc_handlers(struct aos_rpc *rpc)
 
 __attribute__((unused)) static void spawn_memeater(void)
 {
-    /*struct spawninfo *memeater_si = spawn_create_spawninfo();
+    struct spawninfo *memeater_si = spawn_create_spawninfo();
 
-    domainid_t *memeater_pid = &memeater_si->pid;
+domainid_t *memeater_pid = &memeater_si->pid;
 
     struct aos_rpc *rpc = &memeater_si->rpc;
     aos_rpc_init(rpc);
-    initialize_rpc_handlers(memeater_si);
+    initialize_rpc_handlers(rpc);
     aos_rpc_init_lmp(rpc, memeater_si->cap_ep, NULL_CAP, memeater_si->lmp_ep);
 
     errval_t err = spawn_load_by_name("memeater", memeater_si, memeater_pid);
     if (err_is_fail(err)) {
         DEBUG_ERR(err, "spawn loading failed");
-    }*/
+    }
 }
 
 
