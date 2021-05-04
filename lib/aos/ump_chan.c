@@ -6,6 +6,45 @@
 #include "waitset_chan_priv.h"
 
 /**
+ * \brief Like ump_chan_init, just with (maybe) a different msg_size than UMP_MSG_SIZE
+ * NOTE: make sure both involved processes initialize the channel with the same size!
+ * otherwise, things gonna get weird af (meaning: not usable)
+ */
+errval_t ump_chan_init_size(struct ump_chan *chan, size_t msg_size,
+                            void *send_buf, size_t send_buf_size,
+                            void *recv_buf, size_t recv_buf_size) {
+    chan->msg_size = msg_size;
+
+    chan->send_pane = send_buf;
+    chan->send_pane_size = send_buf_size;
+    chan->send_buf_index = 0;
+
+    chan->recv_pane = recv_buf;
+    chan->recv_pane_size = recv_buf_size;
+    chan->recv_buf_index = 0;
+    
+    chan->waitset_state.chantype = CHANTYPE_UMP_IN;
+    chan->waitset_state.state = CHAN_UNREGISTERED;
+    chan->waitset_state.arg = chan;
+
+    return SYS_ERR_OK;
+}
+
+/**
+ * \brief Like ump_chan_init, just with (maybe) a different number of uint64_t per message
+ * than 7
+ */
+errval_t ump_chan_init_len(struct ump_chan *chan, int len,
+                           void *send_buf, size_t send_buf_size,
+                           void *recv_buf, size_t recv_buf_size) {
+    size_t msg_size = (1 + len) * 64;
+    assert(msg_size > 8);
+    return ump_chan_init_size(chan, msg_size,
+                              send_buf, send_buf_size,
+                              recv_buf, recv_buf_size);
+}
+
+/**
  * \brief Initialize an ump_chan struct. Please make sure that both the send- and
  * the receive-buffer have all their flag-bytes (or just everything to be sure) set
  * to 0 before initializing the channel from either side.
@@ -17,19 +56,19 @@ errval_t ump_chan_init(struct ump_chan *chan,
                        void *send_buf, size_t send_buf_size,
                        void *recv_buf, size_t recv_buf_size)
 {
-    chan->send_pane = send_buf;
-    chan->send_pane_size = send_buf_size;
-    chan->send_buf_index = 0;
+    return ump_chan_init_size(chan, UMP_MSG_SIZE,
+                              send_buf, send_buf_size,
+                              recv_buf, recv_buf_size);
+}
 
-    chan->recv_pane = recv_buf;
-    chan->recv_pane_size = recv_buf_size;
-    chan->recv_buf_index = 0;
-    
-    chan->waitset_state.chantype = CHANTYPE_UMP_IN;
-    chan->waitset_state.state = CHAN_UNREGISTERED; 
-    chan->waitset_state.arg = chan;
-
-    return SYS_ERR_OK;
+/**
+ * \brief Given a channel, return the number of uint64 elements found in a single
+ * message's data array.
+ * \param chan ump_chan instance pointer
+ * \return Length of data array from a message inside that channel.
+ */
+int ump_chan_get_datasize(struct ump_chan *chan) {
+    return (chan->msg_size / 64) - 1;
 }
 
 /**
@@ -41,10 +80,10 @@ errval_t ump_chan_init(struct ump_chan *chan,
  */
 bool ump_chan_send(struct ump_chan *chan, struct ump_msg *send)
 {
-    void *send_location = chan->send_pane + chan->send_buf_index * UMP_MSG_SIZE;
+    void *send_location = chan->send_pane + chan->send_buf_index * chan->msg_size;
     
     // ensure cache line alignedness
-    assert(((lvaddr_t) send_location) % UMP_MSG_SIZE == 0);
+    assert(((lvaddr_t) send_location) % chan->msg_size == 0);
     
     // assert flag state
     send->flag = 0;
@@ -54,23 +93,23 @@ bool ump_chan_send(struct ump_chan *chan, struct ump_msg *send)
         return false;
 
     dmb();  // write after check
-    memcpy(write, send, UMP_MSG_SIZE);
+    memcpy(write, send, chan->msg_size);
 
     dmb();  // set after write
     write->flag = UMP_FLAG_SENT;
 
     chan->send_buf_index++;
-    chan->send_buf_index %= chan->send_pane_size / UMP_MSG_SIZE;
+    chan->send_buf_index %= chan->send_pane_size / chan->msg_size;
     return true;
 }
 
 
 bool ump_chan_can_receive(struct ump_chan *chan)
 {
-    void *poll_location = chan->recv_pane + chan->recv_buf_index * UMP_MSG_SIZE;
+    void *poll_location = chan->recv_pane + chan->recv_buf_index * chan->msg_size;
     
     // ensure cache line alignedness
-    assert(((lvaddr_t) poll_location) % UMP_MSG_SIZE == 0);
+    assert(((lvaddr_t) poll_location) % chan->msg_size == 0);
     
     struct ump_msg *read = poll_location;
 
@@ -86,21 +125,21 @@ bool ump_chan_can_receive(struct ump_chan *chan)
  */
 bool ump_chan_poll_once(struct ump_chan *chan, struct ump_msg *recv)
 {
-    void *poll_location = chan->recv_pane + chan->recv_buf_index * UMP_MSG_SIZE;
+    void *poll_location = chan->recv_pane + chan->recv_buf_index * chan->msg_size;
     
     // ensure cache line alignedness
-    assert(((lvaddr_t) poll_location) % UMP_MSG_SIZE == 0);
+    assert(((lvaddr_t) poll_location) % chan->msg_size == 0);
     
     struct ump_msg *read = poll_location;
     if (*((volatile uint8_t *) &read->flag) == UMP_FLAG_SENT) {
 
         dmb();
-        memcpy(recv, read, UMP_MSG_SIZE);
+        memcpy(recv, read, chan->msg_size);
         dmb();
         read->flag = UMP_FLAG_RECEIVED;
 
         chan->recv_buf_index++;
-        chan->recv_buf_index %= chan->recv_pane_size / UMP_MSG_SIZE;
+        chan->recv_buf_index %= chan->recv_pane_size / chan->msg_size;
         
         return true;
     }

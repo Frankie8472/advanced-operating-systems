@@ -13,17 +13,17 @@
 
 struct ump_msg
 {
-    union {
-        uint64_t u64[7];
-    } data;
-
     uint8_t flag;
+
+    uint64_t data[];
 };
 
-static_assert(sizeof(struct ump_msg) == UMP_MSG_SIZE, "ump_msg needs to be 64 bytes");
+/* static_assert(sizeof(struct ump_msg) == UMP_MSG_SIZE, "ump_msg needs to be 64 bytes"); */
 
 struct ump_chan
 {
+    size_t msg_size; // size of a single ump message
+
     void *recv_pane;
     size_t recv_pane_size;
     size_t recv_buf_index;
@@ -35,10 +35,19 @@ struct ump_chan
     struct waitset_chanstate waitset_state;
 };
 
+errval_t ump_chan_init_size(struct ump_chan *chan, size_t msg_size,
+                            void *send_buf, size_t send_buf_size,
+                            void *recv_buf, size_t recv_buf_size);
+
+errval_t ump_chan_init_len(struct ump_chan *chan, int len,
+                           void *send_buf, size_t send_buf_size,
+                           void *recv_buf, size_t recv_buf_size);
 
 errval_t ump_chan_init(struct ump_chan *chan,
                        void *send_buf, size_t send_buf_size,
                        void *recv_buf, size_t recv_buf_size);
+
+int ump_chan_get_datasize(struct ump_chan *chan);
 
 bool ump_chan_send(struct ump_chan *chan, struct ump_msg *send);
 
