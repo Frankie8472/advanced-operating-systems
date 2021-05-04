@@ -67,7 +67,7 @@ errval_t ump_chan_init(struct ump_chan *chan,
  * \param chan ump_chan instance pointer
  * \return Length of data array from a message inside that channel.
  */
-int ump_chan_get_datasize(struct ump_chan *chan) {
+int ump_chan_get_data_len(struct ump_chan *chan) {
     return (chan->msg_size / 64) - 1;
 }
 
