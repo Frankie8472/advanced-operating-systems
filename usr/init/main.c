@@ -66,6 +66,7 @@ static errval_t init_process_manager(void){
             abort();
         }
     }
+
     debug_printf("Process manager is online!\n");
 
     err = aos_rpc_call(pm_rpc,AOS_RPC_REGISTER_PROCESS,disp_get_domain_id(),disp_get_core_id(),"init");
@@ -147,18 +148,15 @@ static errval_t init_foreign_core(void){
             size_t size = bi->regions[i].mrmod_size;
             // debug_printf("Trying to forge cap: %ld bytes\n", size);
             err = frame_forge(module_cap, bi->regions[i].mr_base, ROUND_UP(size, BASE_PAGE_SIZE), disp_get_current_core_id()); 
-            // ON_ERR_RETURN(err);
-            if(err_is_fail(err)){
-                DEBUG_ERR(err,"Failed to forge cap for modules held by bootinfo\n");
-            }
+            ON_ERR_RETURN(err);
         }
     }
 
-    //spawn_memeater();
-    //
-
     init_core_channel(0, (lvaddr_t) urpc_init);
-
+    err = aos_rpc_call(core_channels[0],AOS_RPC_REGISTER_PROCESS,disp_get_domain_id(),disp_get_current_core_id(),"init");
+    if(err_is_fail(err)){
+        DEBUG_ERR(err,"Failed to register new init to pm\n");
+    }
     return SYS_ERR_OK;
 }
 
@@ -196,20 +194,24 @@ static int bsp_main(int argc, char *argv[])
         DEBUG_ERR(err,"Failed to init process manager!\n");
     }
 
-    struct spawninfo *memeater_si = spawn_create_spawninfo();
+    domainid_t pid;
+    err = spawn_new_domain("memeater",&pid);
 
-    domainid_t *memeater_pid = &memeater_si->pid;
-
-    struct aos_rpc *rpc = &memeater_si->rpc;
-    aos_rpc_init(rpc);
-    initialize_rpc_handlers(rpc);
-    aos_rpc_init_lmp(rpc, memeater_si->cap_ep, NULL_CAP, memeater_si->lmp_ep);
-
-    err = spawn_load_by_name("memeater", memeater_si, memeater_pid);
     if (err_is_fail(err)) {
         DEBUG_ERR(err, "spawn loading failed");
     }
-//run_init_tests(my_core_id);
+    
+    char buffer[512];
+    err = aos_rpc_call(get_pm_rpc(),AOS_RPC_GET_PROC_NAME,0,buffer);
+    if(err_is_fail(err)){
+        DEBUG_ERR(err,"Failed to resolve name 0\n");
+    }
+
+    debug_printf("Got string %s\n",buffer);
+
+    // spawn_new_core(my_core_id + 1);
+    
+    //run_init_tests(my_core_id);
 
     
 
@@ -254,7 +256,7 @@ static int bsp_main(int argc, char *argv[])
 
     // TODO: Spawn system processes, boot second core etc. here
     
-    // spawn_new_core(my_core_id + 1);
+    
     //spawn_new_domain("performance_tester", NULL);
 
 

@@ -13,7 +13,7 @@ struct process {
     struct process * next;
     domainid_t pid;
     coreid_t core_id;
-    const char* name;
+    char* name;
     // Status? alive dead etc etc.
 };
 
@@ -69,6 +69,15 @@ static void print_process_list(void){
 }
 
 
+// static void(void){
+//     debug_printf("================ Processes ====================\n");
+//     for(struct process* curr = pl.head; curr != NULL; curr = curr -> next){
+//         debug_printf("Pid:   %d  Core:   %d  Name:   %s\n",curr -> pid, curr -> core_id, curr -> name);
+//     }
+// }
+
+
+
 static void handle_register_process(struct aos_rpc *rpc,uintptr_t pid,uintptr_t core_id,const char* name){
     debug_printf("Handling process registering!\n");
     errval_t err = add_process((domainid_t) pid, (coreid_t) core_id,name);
@@ -81,6 +90,26 @@ static void handle_register_process(struct aos_rpc *rpc,uintptr_t pid,uintptr_t 
 
 }
 
+
+static void handle_get_proc_name(struct aos_rpc *rpc,uintptr_t pid, uintptr_t *name){
+    debug_printf("get process name of pid:%d\n",pid);
+    
+    for(struct process * curr = pl.head; curr != NULL; curr = curr -> next){
+        debug_printf("%d\n", curr -> pid);
+        if(curr -> pid == pid){
+            size_t n = strlen(curr -> name) + 1;
+            for(int i = 0; i < n;++i ){
+                debug_printf("name 0x%lx]\n",name);
+                // debug_printf("curr -> name 0x%lx",curr -> name);
+                name[i] = (curr -> name)[i];
+            }
+            // name = (uintptr_t *) curr -> name; 
+            return;
+        }
+    }
+    debug_printf("could not resolve pid name lookup!\n");
+
+}
 
 
 int main(int argc, char *argv[])
@@ -98,22 +127,20 @@ int main(int argc, char *argv[])
 
 
     debug_printf("Starting process manager\n");
-
     
-    aos_rpc_register_handler(init_rpc,AOS_RPC_REGISTER_PROCESS,&handle_register_process);
-
     pl.head = NULL;
     pl.tail = NULL;
     pl.size = 0;
+    
+    aos_rpc_register_handler(init_rpc,AOS_RPC_REGISTER_PROCESS,&handle_register_process);
+    aos_rpc_register_handler(init_rpc,AOS_RPC_GET_PROC_NAME,&handle_get_proc_name);
+
     struct waitset *default_ws = get_default_waitset();
 
     err = aos_rpc_call(init_rpc,AOS_RPC_PM_ONLINE);
     if(err_is_fail(err)){
         DEBUG_ERR(err,"Failed to call AOS_RPC_PM_ONLINE\n");
     }
-
-
-    
 
     debug_printf("Message handler loop\n");
     err = event_dispatch(default_ws);

@@ -73,6 +73,8 @@ errval_t aos_rpc_init(struct aos_rpc *rpc)
     //Process manager bindings
     aos_rpc_initialize_binding(rpc,AOS_RPC_PM_ONLINE,0,0);
     aos_rpc_initialize_binding(rpc,AOS_RPC_REGISTER_PROCESS,3,0,AOS_RPC_WORD,AOS_RPC_WORD, AOS_RPC_STR);
+    aos_rpc_initialize_binding(rpc,AOS_RPC_GET_PROC_NAME,1,1,AOS_RPC_WORD,AOS_RPC_WORD);
+
     return SYS_ERR_OK;
 }
 

@@ -29,5 +29,7 @@ void handle_foreign_spawn(struct aos_rpc *origin_rpc, const char *name,
 void handle_send_number(struct aos_rpc *r, uintptr_t number);
 void handle_send_string(struct aos_rpc *r, const char *string);
 void handle_pm_online(struct aos_rpc *r);
+void handle_init_process_register(struct aos_rpc *r,uintptr_t pid,uintptr_t core_id,const char* name);
+
 
 #endif // INIT_RPC_SERVER_H_

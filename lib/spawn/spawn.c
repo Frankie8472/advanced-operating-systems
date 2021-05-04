@@ -18,6 +18,7 @@
 
 extern struct bootinfo *bi;
 extern coreid_t my_core_id;
+extern struct aos_rpc* core_channels[4];
 
 
 /**
@@ -480,8 +481,10 @@ errval_t register_process_to_process_manager(char* binary_name,domainid_t pid){
         err = aos_rpc_call(pm_rpc,AOS_RPC_REGISTER_PROCESS,pid,core_id,binary_name);
         ON_ERR_RETURN(err);
     }else{
+
+        assert(core_channels[0] && "UMP channel to core 0 is not present!");
+        err = aos_rpc_call(core_channels[0],AOS_RPC_REGISTER_PROCESS,pid,core_id,binary_name);
         debug_printf("Register process to pm NYI for core != \n");
     }
-
     return SYS_ERR_OK;
 }

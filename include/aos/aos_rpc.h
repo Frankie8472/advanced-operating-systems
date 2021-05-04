@@ -49,6 +49,8 @@ typedef enum aos_rpc_msg_type {
     AOS_RPC_FREE_READ,
     AOS_RPC_REGISTER_PROCESS,
     AOS_RPC_PM_ONLINE,
+    AOS_RPC_GET_PROC_NAME,
+    AOS_RPC_GET_PROC_LIST,
     AOS_RPC_ROUNDTRIP, ///< rpc call that does nothing, for benchmarking
     AOS_RPC_MAX_MSG_TYPES, // needs to be last
 } msg_type_t;

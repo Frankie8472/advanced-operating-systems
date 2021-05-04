@@ -202,7 +202,7 @@ errval_t initialize_rpc_handlers(struct aos_rpc *rpc)
 
     void handle_roundtrip(struct aos_rpc *r) { return; }
     aos_rpc_register_handler(rpc, AOS_RPC_ROUNDTRIP, &handle_roundtrip);
-
+    aos_rpc_register_handler(rpc,AOS_RPC_REGISTER_PROCESS,&handle_init_process_register);
     return SYS_ERR_OK;
 }
 
@@ -242,4 +242,22 @@ __attribute__((unused)) static void spawn_page(void){
 
     err = initialize_rpc_handlers(hello_si);
     ON_ERR_NO_RETURN(err);*/
+}
+
+
+void handle_init_process_register(struct aos_rpc *r,uintptr_t pid,uintptr_t core_id,const char* name){
+    errval_t err;
+    if(disp_get_current_core_id() == 0){
+        debug_printf("Handling proces register in bsp_init\n");
+        err = aos_rpc_call(get_pm_rpc(),AOS_RPC_REGISTER_PROCESS,pid,core_id,name);
+        if(err_is_fail(err)){
+            DEBUG_ERR(err,"Failed to forward process registering to process manager in bsp init\n");
+        }
+    }
+    else {
+        err = aos_rpc_call(core_channels[0],AOS_RPC_REGISTER_PROCESS,pid,core_id,name);
+        if(err_is_fail(err)){
+            DEBUG_ERR(err,"Failed to forward process registering to process manager in bsp init\n");
+        }
+    }
 }
