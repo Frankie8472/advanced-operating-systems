@@ -47,101 +47,35 @@
 
 
 coreid_t my_core_id;
-bool pm_online;
 
-static int bsp_main(int argc, char *argv[])
-{
+static errval_t init_process_manager(void){
     errval_t err;
-
-    // Grading
-    grading_setup_bsp_init(argc, argv);
-
-    // First argument contains the bootinfo location, if it's not set
-    bi = (struct bootinfo *) strtol(argv[1], NULL, 10);
-    assert(bi);
-
-    // TODO: initialize mem allocator, vspace management here
-    err = initialize_ram_alloc();
-    if (err_is_fail(err)) {
-        DEBUG_ERR(err, "/>/> Error: Initialize_ram_alloc");
-    }
-
-    err = init_terminal_state();
-
-//run_init_tests(my_core_id);
-
     struct waitset *default_ws = get_default_waitset();
-
     struct spawninfo *pm_si = spawn_create_spawninfo();
     domainid_t *pm_pid = &pm_si -> pid;
     err = spawn_load_by_name("process_manager",pm_si,pm_pid);
+    ON_ERR_RETURN(err);
     struct aos_rpc *pm_rpc = &pm_si -> rpc;
     aos_rpc_init(pm_rpc);
     initialize_rpc_handlers(pm_rpc);
-
-    if(err_is_fail(err)){
-        DEBUG_ERR(err,"Failed to spawn pm!\n");
-    }
-
-
     debug_printf("waiting for process manager to come online...\n");
-    while(!pm_online){
+    while(!get_pm_online()){
         err = event_dispatch(default_ws);
         if (err_is_fail(err)) {
             DEBUG_ERR(err, "in event_dispatch");
             abort();
         }
     }
-    debug_printf("Process manager is online woooohooo!\n");
+    debug_printf("Process manager is online!\n");
 
-    err = aos_rpc_call(pm_rpc,AOS_RPC_REGISTER_PROCESS,1,0,"hello");
-    if(err_is_fail(err)){
-        DEBUG_ERR(err,"Failed to send to pm\n");
-    }
-    // event_dispatch(default_ws);
+    err = aos_rpc_call(pm_rpc,AOS_RPC_REGISTER_PROCESS,disp_get_domain_id(),disp_get_core_id(),"init");
+    ON_ERR_RETURN(err);
+    set_pm_rpc(pm_rpc);
 
-
-
-
-    // err = aos_rpc_send_number(pm_rpc,1);
-    // if(err_is_fail(err)){
-    //     DEBUG_ERR(err,"Failed to send number to pm!\n");
-    // }
-
-    // Grading
-    grading_test_early();
-
-    // TODO: Spawn system processes, boot second core etc. here
-    
-    // spawn_new_core(my_core_id + 1);
-    //spawn_new_domain("performance_tester", NULL);
-
-
-    // size_t counter = 0;
-    // while(1) {
-    //     if (counter % (1 << 28) == 0){
-    //         aos_rpc_call(core_channels[1], AOS_RPC_SEND_NUMBER, counter);
-    //     }
-    //     counter++;
-    // }
-
-
-    // Grading
-    grading_test_late();
-
-    debug_printf("Message handler loop\n");
-    // Hang around
-    
-    while (true) {
-        err = event_dispatch(default_ws);
-        if (err_is_fail(err)) {
-            DEBUG_ERR(err, "in event_dispatch");
-            abort();
-        }
-    }
-
-    return EXIT_SUCCESS;
+    return SYS_ERR_OK;
 }
+
+
 
 
 
@@ -226,6 +160,129 @@ static errval_t init_foreign_core(void){
     init_core_channel(0, (lvaddr_t) urpc_init);
 
     return SYS_ERR_OK;
+}
+
+
+
+
+
+
+
+
+static int bsp_main(int argc, char *argv[])
+{
+    errval_t err;
+
+    // Grading
+    grading_setup_bsp_init(argc, argv);
+
+    // First argument contains the bootinfo location, if it's not set
+    bi = (struct bootinfo *) strtol(argv[1], NULL, 10);
+    assert(bi);
+
+    // TODO: initialize mem allocator, vspace management here
+    err = initialize_ram_alloc();
+    if (err_is_fail(err)) {
+        DEBUG_ERR(err, "/>/> Error: Initialize_ram_alloc");
+    }
+
+    err = init_terminal_state();
+    if(err_is_fail(err)){
+        DEBUG_ERR(err,"Failed to init terminal state\n");
+    }
+
+    err  = init_process_manager();
+    if(err_is_fail(err)){
+        DEBUG_ERR(err,"Failed to init process manager!\n");
+    }
+
+    struct spawninfo *memeater_si = spawn_create_spawninfo();
+
+    domainid_t *memeater_pid = &memeater_si->pid;
+
+    struct aos_rpc *rpc = &memeater_si->rpc;
+    aos_rpc_init(rpc);
+    initialize_rpc_handlers(rpc);
+    aos_rpc_init_lmp(rpc, memeater_si->cap_ep, NULL_CAP, memeater_si->lmp_ep);
+
+    err = spawn_load_by_name("memeater", memeater_si, memeater_pid);
+    if (err_is_fail(err)) {
+        DEBUG_ERR(err, "spawn loading failed");
+    }
+//run_init_tests(my_core_id);
+
+    
+
+    // struct spawninfo *pm_si = spawn_create_spawninfo();
+    // domainid_t *pm_pid = &pm_si -> pid;
+    // err = spawn_load_by_name("process_manager",pm_si,pm_pid);
+    // struct aos_rpc *pm_rpc = &pm_si -> rpc;
+    // aos_rpc_init(pm_rpc);
+    // initialize_rpc_handlers(pm_rpc);
+
+    // if(err_is_fail(err)){
+    //     DEBUG_ERR(err,"Failed to spawn pm!\n");
+    // }
+
+
+    // debug_printf("waiting for process manager to come online...\n");
+    // while(!get_pm_online()){
+    //     err = event_dispatch(default_ws);
+    //     if (err_is_fail(err)) {
+    //         DEBUG_ERR(err, "in event_dispatch");
+    //         abort();
+    //     }
+    // }
+    // debug_printf("Process manager is online!\n");
+
+    // err = aos_rpc_call(pm_rpc,AOS_RPC_REGISTER_PROCESS,disp_get_domain_id(),disp_get_core_id(),"init");
+    // if(err_is_fail(err)){
+    //     DEBUG_ERR(err,"Failed to send to pm\n");
+    // }
+    // event_dispatch(default_ws);
+
+
+
+
+    // err = aos_rpc_send_number(pm_rpc,1);
+    // if(err_is_fail(err)){
+    //     DEBUG_ERR(err,"Failed to send number to pm!\n");
+    // }
+
+    // Grading
+    grading_test_early();
+
+    // TODO: Spawn system processes, boot second core etc. here
+    
+    // spawn_new_core(my_core_id + 1);
+    //spawn_new_domain("performance_tester", NULL);
+
+
+    // size_t counter = 0;
+    // while(1) {
+    //     if (counter % (1 << 28) == 0){
+    //         aos_rpc_call(core_channels[1], AOS_RPC_SEND_NUMBER, counter);
+    //     }
+    //     counter++;
+    // }
+
+
+    // Grading
+    grading_test_late();
+
+    debug_printf("Message handler loop\n");
+    // Hang around
+    
+    struct waitset *default_ws = get_default_waitset();
+    while (true) {
+        err = event_dispatch(default_ws);
+        if (err_is_fail(err)) {
+            DEBUG_ERR(err, "in event_dispatch");
+            abort();
+        }
+    }
+
+    return EXIT_SUCCESS;
 }
 
 

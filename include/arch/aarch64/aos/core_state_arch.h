@@ -19,6 +19,7 @@
 
 struct core_state_arch {
     struct core_state_generic c;
+    bool pm_online;
     // TODO: put your core state here...
 };
 

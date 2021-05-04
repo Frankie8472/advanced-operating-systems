@@ -313,6 +313,10 @@ errval_t spawn_load_argv(int argc, const char *const argv[], struct spawninfo *s
     err = invoke_dispatcher(si->dispatcher, cap_dispatcher, cnode_child_l1, child_l0_vnodecap, child_dispframe, true);
     ON_ERR_RETURN(err);
 
+
+    err = register_process_to_process_manager((char*)name,*pid);
+    ON_ERR_RETURN(err);
+
     //dump_dispatcher(disp);
     return SYS_ERR_OK;
 }
@@ -462,4 +466,22 @@ errval_t spawn_load_by_name(char *binary_name, struct spawninfo *si,
     si->binary_name = binary_name;
 
     return spawn_load_argv(argc,argv , si, pid);
+}
+
+
+errval_t register_process_to_process_manager(char* binary_name,domainid_t pid){
+    if(!get_pm_online()){
+        return SYS_ERR_OK;
+    }
+    errval_t err;
+    coreid_t core_id = disp_get_core_id();
+    if(core_id == 0){
+        struct aos_rpc* pm_rpc =  get_pm_rpc();
+        err = aos_rpc_call(pm_rpc,AOS_RPC_REGISTER_PROCESS,pid,core_id,binary_name);
+        ON_ERR_RETURN(err);
+    }else{
+        debug_printf("Register process to pm NYI for core != \n");
+    }
+
+    return SYS_ERR_OK;
 }

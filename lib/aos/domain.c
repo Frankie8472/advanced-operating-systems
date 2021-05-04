@@ -219,3 +219,27 @@ struct aos_rpc *get_init_rpc(void)
 }
 
 
+void set_pm_online(void){
+    dispatcher_handle_t handle = curdispatcher();
+    struct dispatcher_generic* disp = get_dispatcher_generic(handle);
+    disp->core_state.c.pm_online = true;
+} 
+
+
+bool get_pm_online(void){
+    dispatcher_handle_t handle = curdispatcher();
+    struct dispatcher_generic* disp = get_dispatcher_generic(handle);
+    return disp->core_state.c.pm_online;
+} 
+
+void set_pm_rpc(struct aos_rpc *pm_rpc){
+    dispatcher_handle_t handle = curdispatcher();
+    struct dispatcher_generic* disp = get_dispatcher_generic(handle);
+    disp->core_state.c.pm_rpc = pm_rpc;
+}
+
+struct aos_rpc* get_pm_rpc(void){
+    dispatcher_handle_t handle = curdispatcher();
+    struct dispatcher_generic* disp = get_dispatcher_generic(handle);
+    return disp->core_state.c.pm_rpc;
+}

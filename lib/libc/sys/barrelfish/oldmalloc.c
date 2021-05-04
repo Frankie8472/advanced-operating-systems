@@ -95,6 +95,7 @@ malloc(size_t nbytes)
 			}
 		}
 	}
+	
 	MALLOC_UNLOCK;
 }
 
