@@ -79,7 +79,7 @@ static errval_t init_process_manager(void){
 }
 
 
-static errval_t init_memory_server(domainid_t *mem_pid){
+__attribute__((unused)) static errval_t init_memory_server(domainid_t *mem_pid){
     errval_t err;
     struct spawninfo *mem_si = spawn_create_spawninfo();
     domainid_t *m_pid = &mem_si -> pid;
@@ -218,11 +218,11 @@ static int bsp_main(int argc, char *argv[])
     }
 
 
-    domainid_t mem_pid;
-    err = init_memory_server(&mem_pid);
-    if(err_is_fail(err)){
-        DEBUG_ERR(err,"Failed to init memory server\n");
-    }
+    // domainid_t mem_pid;
+    // err = init_memory_server(&mem_pid);
+    // if(err_is_fail(err)){
+    //     DEBUG_ERR(err,"Failed to init memory server\n");
+    // }
 
     err  = init_process_manager();
     if(err_is_fail(err)){
@@ -236,13 +236,13 @@ static int bsp_main(int argc, char *argv[])
         DEBUG_ERR(err, "spawn loading failed");
     }
     
-    char buffer[512];
-    err = aos_rpc_call(get_pm_rpc(),AOS_RPC_GET_PROC_NAME,0,buffer);
-    if(err_is_fail(err)){
-        DEBUG_ERR(err,"Failed to resolve name 0\n");
-    }
+    // char buffer[512];
+    // err = aos_rpc_call(get_pm_rpc(),AOS_RPC_GET_PROC_NAME,0,buffer);
+    // if(err_is_fail(err)){
+    //     DEBUG_ERR(err,"Failed to resolve name 0\n");
+    // }
 
-    debug_printf("Got string %s\n",buffer);
+    // debug_printf("Got string %s\n",buffer);
 
     // spawn_new_core(my_core_id + 1);
     
