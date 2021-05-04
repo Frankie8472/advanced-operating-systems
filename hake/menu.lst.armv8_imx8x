@@ -9,5 +9,5 @@ module /armv8/sbin/hello nice it works
 #module /armv8/sbin/page
 module /armv8/sbin/memeater
 module /armv8/sbin/performance_tester
-
+module /armv8/sbin/process_manager
 # newlines are important here

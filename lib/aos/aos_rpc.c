@@ -54,7 +54,6 @@ errval_t aos_rpc_init(struct aos_rpc *rpc)
 
     // bind initiate function (to send our endpoint to init)
     aos_rpc_initialize_binding(rpc, AOS_RPC_INITIATE, 1, 0, AOS_RPC_CAPABILITY);
-
     // bind further functions
     aos_rpc_initialize_binding(rpc, AOS_RPC_SEND_NUMBER, 1, 0, AOS_RPC_WORD);
     aos_rpc_initialize_binding(rpc, AOS_RPC_SEND_STRING, 1, 0, AOS_RPC_VARSTR);
@@ -70,7 +69,10 @@ errval_t aos_rpc_init(struct aos_rpc *rpc)
     aos_rpc_initialize_binding(rpc, AOS_RPC_GETCHAR, 0, 1, AOS_RPC_WORD);
 
     aos_rpc_initialize_binding(rpc, AOS_RPC_ROUNDTRIP, 0, 0);
-    
+
+    //Process manager bindings
+    aos_rpc_initialize_binding(rpc,AOS_RPC_PM_ONLINE,0,0);
+    aos_rpc_initialize_binding(rpc,AOS_RPC_REGISTER_PROCESS,3,0,AOS_RPC_WORD,AOS_RPC_WORD, AOS_RPC_STR);
     return SYS_ERR_OK;
 }
 
@@ -127,7 +129,11 @@ errval_t aos_rpc_init_lmp(struct aos_rpc* rpc, struct capref self_ep, struct cap
 }
 
 
-errval_t aos_rpc_init_ump(struct aos_rpc *rpc, lvaddr_t shared_page, size_t shared_page_size, bool first_half)
+/**
+ * \brief TODO
+ * - inits ump channel with default message size
+ */
+errval_t aos_rpc_init_ump_default(struct aos_rpc *rpc, lvaddr_t shared_page, size_t shared_page_size, bool first_half)
 {
     errval_t err;
 
@@ -233,12 +239,24 @@ aos_rpc_process_get_all_pids(struct aos_rpc *rpc, domainid_t **pids,
 static uintptr_t pull_word_lmp(struct lmp_chan *lc, struct lmp_recv_msg *lm, struct capref *cap, int *word_ind)
 {
     if (*word_ind >= LMP_MSG_LENGTH) {
+        bool can_receive = lmp_chan_can_recv(lc);
         bool received = false;
+        
+        while(!can_receive) {
+            thread_yield_dispatcher(lc->remote_cap);
+            can_receive = lmp_chan_can_recv(lc);
+        }
+
         do {
             errval_t err = lmp_chan_recv(lc, lm, cap);
             received = err == SYS_ERR_OK;
         } while(!received);
+        
         *word_ind = 0;
+        if (!capref_is_null(*cap)) {
+            debug_printf("realloccing slot\n");
+            lmp_chan_alloc_recv_slot(lc);
+        }
     }
     uintptr_t word = lm->words[*word_ind];
     (*word_ind)++;
@@ -250,12 +268,23 @@ static uintptr_t pull_word_lmp(struct lmp_chan *lc, struct lmp_recv_msg *lm, str
 static struct capref pull_cap_lmp(struct lmp_chan *lc, struct lmp_recv_msg *lm, struct capref *cap, int *word_ind)
 {
     if (capref_is_null(*cap)) {
+        bool can_receive = lmp_chan_can_recv(lc);
         bool received = false;
+        while(!can_receive) {
+            thread_yield_dispatcher(lc->remote_cap);
+            can_receive = lmp_chan_can_recv(lc);
+        }
+
         do {
             errval_t err = lmp_chan_recv(lc, lm, cap);
             received = err == SYS_ERR_OK;
         } while(!received);
+
         *word_ind = 0;
+        if (!capref_is_null(*cap)) {
+            debug_printf("realloccing slot\n");
+            lmp_chan_alloc_recv_slot(lc);
+        }
     }
     struct capref ret = *cap;
     *cap = NULL_CAP;
@@ -309,7 +338,7 @@ static errval_t aos_rpc_unmarshall_retval_aarch64(struct aos_rpc *rpc,
  */
 static void push_words(struct ump_chan *uc, struct ump_msg *um, int *word_ind, uintptr_t word)
 {
-    um->data.u64[(*word_ind)++] = word;
+    um->data[(*word_ind)++] = word;
 
     if (*word_ind >= UMP_MSG_N_WORDS) {
         bool sent = false;
@@ -343,18 +372,17 @@ static errval_t aos_rpc_call_ump(struct aos_rpc *rpc, enum aos_rpc_msg_type msg_
     size_t n_rets = binding->n_rets;
     void* retptrs[4];
 
-    struct ump_msg um = {
-        .flag = 0
-    };
+    /* struct ump_msg um = DECLARE_MESSAGE(rpc->channel.ump); */
+    DECLARE_MESSAGE(rpc->channel.ump, um);
+    um->flag = 0;
 
-    um.data.u64[0] = msg_type;
+    um->data[0] = msg_type;
 
     int word_ind = 1;
     int ret_ind = 0;
     for (int i = 0; i < n_args; i++) {
         if (binding->args[i] == AOS_RPC_WORD) {
-            //um.data.u64[word_ind++] = va_arg(args, uintptr_t);
-            push_words(&rpc->channel.ump, &um, &word_ind, va_arg(args, uintptr_t));
+            push_words(&rpc->channel.ump, um, &word_ind, va_arg(args, uintptr_t));
         }
         else if (binding->args[i] == AOS_RPC_SHORTSTR) {
             const int n_words = AOS_RPC_SHORTSTR_LENGTH / sizeof(uintptr_t);
@@ -365,7 +393,7 @@ static errval_t aos_rpc_call_ump(struct aos_rpc *rpc, enum aos_rpc_msg_type msg_
 
             memcpy(&words, str, strlen(str));
             for (int j = 0; j < n_words; j++) {
-                push_words(&rpc->channel.ump, &um, &word_ind, words[j]);
+                push_words(&rpc->channel.ump, um, &word_ind, words[j]);
             }
         }
         else if (binding->args[i] == AOS_RPC_CAPABILITY) {
@@ -377,18 +405,18 @@ static errval_t aos_rpc_call_ump(struct aos_rpc *rpc, enum aos_rpc_msg_type msg_
             invoke_cap_identify(cr, &cap);
             memcpy(&words, &cap, sizeof(struct capability));
             for (int j = 0; j < 3; j++) {
-                push_words(&rpc->channel.ump, &um, &word_ind, words[j]);
+                push_words(&rpc->channel.ump, um, &word_ind, words[j]);
             }
         }
         else if (binding->args[i] == AOS_RPC_VARSTR) {
             // check for str, set flag in accordance with last element of sended shortstr
             const char *str = va_arg(args, char*);
             size_t msg_len = strlen(str);
-            push_words(&rpc->channel.ump, &um, &word_ind, msg_len);
+            push_words(&rpc->channel.ump, um, &word_ind, msg_len);
             for (int j = 0; j < msg_len; j += sizeof(uintptr_t)) {
                 uintptr_t word = 0;
                 memcpy(&word, str + j, sizeof(uintptr_t));
-                push_words(&rpc->channel.ump, &um, &word_ind, word); // TODO: add check so we don't read over string end
+                push_words(&rpc->channel.ump, um, &word_ind, word); // TODO: add check so we don't read over string end
             }
         }
         else {
@@ -401,43 +429,43 @@ static errval_t aos_rpc_call_ump(struct aos_rpc *rpc, enum aos_rpc_msg_type msg_
         retptrs[ret_ind++] = va_arg(args, void*);
     }
 
-    send_remaining(&rpc->channel.ump, &um, &word_ind);
+    send_remaining(&rpc->channel.ump, um, &word_ind);
     
 
     // Receive
-    struct ump_msg response;
+    DECLARE_MESSAGE(rpc->channel.ump, response);
     bool received = false;
     do {
-        received = ump_chan_poll_once(&rpc->channel.ump, &response);
+        received = ump_chan_poll_once(&rpc->channel.ump, response);
     } while (!received);
 
-    if (!((response.data.u64[0] | AOS_RPC_RETURN_BIT)
-          && (response.data.u64[0] & ~AOS_RPC_RETURN_BIT) == msg_type)) {
+    if (!((response->data[0] | AOS_RPC_RETURN_BIT)
+          && (response->data[0] & ~AOS_RPC_RETURN_BIT) == msg_type)) {
         return LIB_ERR_NOT_IMPLEMENTED;  // todo errcode
     }
-    
+
     /*debug_printf("response words: %ld %ld %ld %ld %ld %ld %ld\n",
-        response.data.u64[0],
-        response.data.u64[1],
-        response.data.u64[2],
-        response.data.u64[3],
-        response.data.u64[4],
-        response.data.u64[5],
-        response.data.u64[6]
+        response->data[0],
+        response->data[1],
+        response->data[2],
+        response->data[3],
+        response->data[4],
+        response->data[5],
+        response->data[6]
     );*/
 
     size_t ret_offs = 1;
     for (int i = 0; i < n_rets; i++) {
         if (binding->rets[i] == AOS_RPC_WORD) {
-            *((uintptr_t *) retptrs[i]) = response.data.u64[ret_offs++];
+            *((uintptr_t *) retptrs[i]) = response->data[ret_offs++];
         }
         else if (binding->rets[i] == AOS_RPC_SHORTSTR) {
-            strncpy(((char *) retptrs[i]), (const char *) &response.data.u64[ret_offs], AOS_RPC_SHORTSTR_LENGTH);
+            strncpy(((char *) retptrs[i]), (const char *) &response->data[ret_offs], AOS_RPC_SHORTSTR_LENGTH);
             ret_offs += AOS_RPC_SHORTSTR_LENGTH / sizeof(uintptr_t);
         }
         else if (binding->rets[i] == AOS_RPC_CAPABILITY) {
             struct capability cap;
-            memcpy(&cap, &response.data.u64[ret_offs], sizeof cap);
+            memcpy(&cap, &response->data[ret_offs], sizeof cap);
             ret_offs += sizeof(struct capability) / sizeof(uintptr_t);
 
             struct capref forged;
@@ -484,6 +512,7 @@ static void push_word_lmp(struct lmp_chan *lc, uintptr_t *lm, struct capref *cap
 static void push_cap_lmp(struct lmp_chan *lc, uintptr_t *lm, struct capref *cap, int *word_ind, struct capref to_push)
 {
     if (!capref_is_null(*cap)) {
+        debug_printf("should not happen\n");
         bool sent = false;
         do {
             errval_t err = lmp_chan_send(lc, LMP_SEND_FLAGS_DEFAULT, *cap, 4,
@@ -502,8 +531,14 @@ static void send_remaining_lmp(struct lmp_chan *lc, uintptr_t *lm, struct capref
     if (*word_ind >= 0 || !capref_is_null(*cap)) {
         bool sent = false;
         do {
+            char buf[128];
+            debug_print_cap_at_capref(buf, 128, *cap);
+            //debug_printf("sending: %ld %ld %ld %ld, %s\n", lm[0], lm[1], lm[2], lm[3], buf);
             errval_t err = lmp_chan_send(lc, LMP_SEND_FLAGS_DEFAULT, *cap, 4,
                         lm[0], lm[1], lm[2], lm[3]);
+            if (err_is_fail(err)) {
+                DEBUG_ERR(err, "what is this?\n");
+            }
             sent = err == SYS_ERR_OK;
         } while (!sent);
     }
@@ -584,9 +619,10 @@ static errval_t aos_rpc_call_lmp(struct aos_rpc *rpc, enum aos_rpc_msg_type msg_
     }
 
 
-
+    //debug_printf("waiting for response\n");
     while(!lmp_chan_can_recv(&rpc->channel.lmp)) {
         // yield to dispatcher we are communicating with
+        //debug_printf("waiting for response\n");
         thread_yield_dispatcher(rpc->channel.lmp.remote_cap);
     }
 
@@ -618,9 +654,11 @@ errval_t aos_rpc_call(struct aos_rpc *rpc, enum aos_rpc_msg_type msg_type, ...)
     switch(rpc->backend) {
         case AOS_RPC_UMP:
             err = aos_rpc_call_ump(rpc, msg_type, args);
+            break;
             
         case AOS_RPC_LMP:
             err = aos_rpc_call_lmp(rpc, msg_type, args);
+            break;
         
     }
     va_end(args);
@@ -719,6 +757,7 @@ static errval_t aos_rpc_unmarshall_lmp_aarch64(struct aos_rpc *rpc,
 
             case AOS_RPC_VARSTR: {
                 size_t length = pull_word_lmp(lc, msg, &cap, &word_ind);
+                debug_printf("reading str arg %ld\n", length);
                 assert(length < sizeof argstring);
                 for (size_t j = 0; j < length; j += sizeof(uintptr_t)) {
                     uintptr_t piece = pull_word_lmp(lc, msg, &cap, &word_ind);
@@ -822,7 +861,12 @@ void aos_rpc_on_message(void *arg)
         debug_printf("transient error\n");
         err = lmp_chan_register_recv(channel, get_default_waitset(), MKCLOSURE(&aos_rpc_on_message, arg));
     }
+    else if (err == LIB_ERR_NO_LMP_MSG) {
+        err = lmp_chan_register_recv(channel, get_default_waitset(), MKCLOSURE(&aos_rpc_on_message, arg));
+        return;
+    }
     else if (err_is_fail(err)) {
+        debug_printf("error is: %ld\n", err);
         err = err_push(err, LIB_ERR_LMP_CHAN_RECV);
         goto on_error;
     }
@@ -848,17 +892,8 @@ void aos_rpc_on_message(void *arg)
 
     struct aos_rpc_function_binding *binding = &rpc->bindings[msgtype];
 
-    // in case of simple binding
-    if (binding->calling_simple) {
-        err = aos_rpc_unmarshall_lmp_aarch64(rpc, handler, binding, &msg, recieved_cap);
-        if (err_is_fail(err)) {
-            goto on_error;
-        }
-    }
-    else {
-        debug_printf("NYI in aos_rpc_on_message\n");
-    }
 
+    err = aos_rpc_unmarshall_lmp_aarch64(rpc, handler, binding, &msg, recieved_cap);
 
 //on_success:
     //debug_printf("reregister\n");
@@ -882,7 +917,7 @@ static uintptr_t pull_word(struct ump_chan *uc, struct ump_msg *um, int *word_in
         } while(!received);
         *word_ind = 0;
     }
-    uintptr_t word = um->data.u64[*word_ind];
+    uintptr_t word = um->data[*word_ind];
     (*word_ind)++;
 
     return word;
@@ -894,8 +929,8 @@ static errval_t aos_rpc_unmarshall_ump_simple_aarch64(struct aos_rpc *rpc,
                         struct ump_msg *msg)
 {
     /*debug_printf("words: %ld %ld %ld %ld %ld %ld %ld\n",
-        msg->data.u64[0], msg->data.u64[1], msg->data.u64[2], msg->data.u64[3],
-        msg->data.u64[4], msg->data.u64[5], msg->data.u64[6]
+        msg->data[0], msg->data[1], msg->data[2], msg->data[3],
+        msg->data[4], msg->data[5], msg->data[6]
     );*/
     
     struct ump_chan *uc = &rpc->channel.ump;
@@ -1000,8 +1035,9 @@ static errval_t aos_rpc_unmarshall_ump_simple_aarch64(struct aos_rpc *rpc,
     h8(rpc, arg[0], arg[1], arg[2], arg[3], arg[4], arg[5], arg[6], arg[7]);
 
     // send response
-    struct ump_msg response;
-    response.data.u64[0] = msg->data.u64[0] | AOS_RPC_RETURN_BIT;
+    DECLARE_MESSAGE(rpc->channel.ump, response);
+    response->flag = 0;
+    response->data[0] = msg->data[0] | AOS_RPC_RETURN_BIT;
 
     int buf_pos = 1;
     ret_pos = 0;
@@ -1009,7 +1045,7 @@ static errval_t aos_rpc_unmarshall_ump_simple_aarch64(struct aos_rpc *rpc,
         switch(binding->rets[i]) {
             case AOS_RPC_WORD: {
                 uintptr_t word = ret[ret_pos++];
-                push_words(uc, &response, &buf_pos, word);
+                push_words(uc, response, &buf_pos, word);
             }
             break;
             
@@ -1019,20 +1055,20 @@ static errval_t aos_rpc_unmarshall_ump_simple_aarch64(struct aos_rpc *rpc,
                 ON_ERR_PUSH_RETURN(err, LIB_ERR_CAP_IDENTIFY);
                 uintptr_t words[3];
                 memcpy(&words, &cap, sizeof cap);
-                push_words(uc, &response, &buf_pos, words[0]);
-                push_words(uc, &response, &buf_pos, words[1]);
-                push_words(uc, &response, &buf_pos, words[2]);
+                push_words(uc, response, &buf_pos, words[0]);
+                push_words(uc, response, &buf_pos, words[1]);
+                push_words(uc, response, &buf_pos, words[2]);
             }
             break;
 
             case AOS_RPC_VARSTR: {
                 uintptr_t length = strlen(retstring);
-                push_words(uc, &response, &buf_pos, length);
+                push_words(uc, response, &buf_pos, length);
                 
                 for (int j = 0; j < length; j += sizeof(uintptr_t)) {
                     uintptr_t word;
                     memcpy(&word, retstring + j, sizeof(uintptr_t));
-                    push_words(uc, &response, &buf_pos, word);
+                    push_words(uc, response, &buf_pos, word);
                 }
             }
             break;
@@ -1042,8 +1078,8 @@ static errval_t aos_rpc_unmarshall_ump_simple_aarch64(struct aos_rpc *rpc,
             break;
         }
     }
-    
-    send_remaining(uc, &response, &buf_pos);
+
+    send_remaining(uc, response, &buf_pos);
 
     return SYS_ERR_OK;
 }
@@ -1054,16 +1090,17 @@ void aos_rpc_on_ump_message(void *arg)
     errval_t err;
 
     struct aos_rpc *rpc = arg;
-    struct ump_msg msg;
+    DECLARE_MESSAGE(rpc->channel.ump, msg);
+    msg->flag = 0;
 
-    bool received = ump_chan_poll_once(&rpc->channel.ump, &msg);
+    bool received = ump_chan_poll_once(&rpc->channel.ump, msg);
     if (!received) {
         debug_printf("aos_rpc_on_ump_message called but no message available\n");
         ump_chan_register_recv(&rpc->channel.ump, get_default_waitset(), MKCLOSURE(&aos_rpc_on_ump_message, rpc));
         return;
     }
 
-    enum aos_rpc_msg_type msgtype = msg.data.u64[0];
+    enum aos_rpc_msg_type msgtype = msg->data[0];
 
     void *handler = rpc->handlers[msgtype];
     if (handler == NULL) {
@@ -1074,7 +1111,7 @@ void aos_rpc_on_ump_message(void *arg)
 
     struct aos_rpc_function_binding *binding = &rpc->bindings[msgtype];
 
-    err = aos_rpc_unmarshall_ump_simple_aarch64(rpc, handler, binding, &msg);
+    err = aos_rpc_unmarshall_ump_simple_aarch64(rpc, handler, binding, msg);
     if (err_is_fail(err)) {
         DEBUG_ERR(err, "error in unmarshall\n");
     }
@@ -1083,6 +1120,7 @@ void aos_rpc_on_ump_message(void *arg)
 
     // in case of simple binding
     /*if (binding->calling_simple) {
+        err = aos_rpc_unmarshall_ump_simple_aarch64(rpc, handler, binding, msg);
         if (err_is_fail(err)) {
             DEBUG_ERR(err, "error in unmarshall\n");
         }

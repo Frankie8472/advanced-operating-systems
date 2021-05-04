@@ -9,6 +9,7 @@ errval_t init_terminal_state(void);
 
 
 extern struct aos_rpc* core_channels[4];
+extern bool pm_online;
 
 errval_t init_core_channel(coreid_t coreid, lvaddr_t urpc_frame);
 void register_core_channel_handlers(struct aos_rpc *rpc);
@@ -28,6 +29,6 @@ void handle_foreign_spawn(struct aos_rpc *origin_rpc, const char *name,
                           uintptr_t core_id, uintptr_t *new_pid);
 void handle_send_number(struct aos_rpc *r, uintptr_t number);
 void handle_send_string(struct aos_rpc *r, const char *string);
-
+void handle_pm_online(struct aos_rpc *r);
 
 #endif // INIT_RPC_SERVER_H_

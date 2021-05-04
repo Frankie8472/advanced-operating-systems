@@ -63,7 +63,7 @@ errval_t init_core_channel(coreid_t coreid, lvaddr_t urpc_frame)
     errval_t err;
     err = aos_rpc_init(rpc);
     ON_ERR_PUSH_RETURN(err, LIB_ERR_RPC_INIT);
-    aos_rpc_init_ump(rpc, urpc_frame, BASE_PAGE_SIZE, coreid != 0);
+    aos_rpc_init_ump_default(rpc, urpc_frame, BASE_PAGE_SIZE, coreid != 0);
     ON_ERR_PUSH_RETURN(err, LIB_ERR_RPC_INIT);
 
     register_core_channel_handlers(rpc);
@@ -102,10 +102,12 @@ void handle_getchar(struct aos_rpc *r, uintptr_t *c) {
  * \brief handler function for ram alloc rpc call
  */
 void handle_request_ram(struct aos_rpc *r, uintptr_t size, uintptr_t alignment, struct capref *cap, uintptr_t *ret_size) {
+    debug_printf("handling ram request\n");
     errval_t err = ram_alloc_aligned(cap, size, alignment);
     if (err_is_fail(err)) {
         DEBUG_ERR(err, "Error in remote ram allocation!\n");
     }
+    debug_printf("ram request returning\n");
 }
 
 /**
@@ -147,6 +149,7 @@ void handle_spawn(struct aos_rpc *old_rpc, const char *name, uintptr_t core_id, 
         if (ump_chan == NULL) {
             debug_printf("can't spawn on core %d: no channel to core\n", core_id);
             *new_pid = 0;
+            return;
         }
         err = aos_rpc_call(ump_chan, AOS_RPC_FOREIGN_SPAWN, name, core_id, new_pid);
         if(err_is_fail(err)){
@@ -156,6 +159,11 @@ void handle_spawn(struct aos_rpc *old_rpc, const char *name, uintptr_t core_id, 
     }
 }
 
+
+void handle_pm_online(struct aos_rpc *r ){
+    pm_online = true;
+    debug_printf("Handle pm online\n");
+}
 
 void handle_foreign_spawn(struct aos_rpc *origin_rpc, const char *name, uintptr_t core_id, uintptr_t *new_pid)
 {
@@ -200,6 +208,7 @@ void handle_send_string(struct aos_rpc *r, const char *string) {
  */
 errval_t initialize_rpc_handlers(struct aos_rpc *rpc)
 {
+    aos_rpc_register_handler(rpc,AOS_RPC_PM_ONLINE,&handle_pm_online);
     aos_rpc_register_handler(rpc, AOS_RPC_INITIATE, &handle_initiate);
     aos_rpc_register_handler(rpc, AOS_RPC_SEND_NUMBER, &handle_send_number);
     aos_rpc_register_handler(rpc, AOS_RPC_SEND_STRING, &handle_send_string);
