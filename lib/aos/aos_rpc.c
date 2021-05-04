@@ -414,7 +414,7 @@ static errval_t aos_rpc_call_ump(struct aos_rpc *rpc, enum aos_rpc_msg_type msg_
         else if (binding->args[i] == AOS_RPC_VARSTR) {
             // check for str, set flag in accordance with last element of sended shortstr
             const char *str = va_arg(args, char*);
-            size_t msg_len = strlen(str);
+            size_t msg_len = strlen(str) + 1;
             push_words(&rpc->channel.ump, um, &word_ind, msg_len);
             for (int j = 0; j < msg_len; j += sizeof(uintptr_t)) {
                 uintptr_t word = 0;
@@ -583,7 +583,7 @@ static errval_t aos_rpc_call_lmp(struct aos_rpc *rpc, enum aos_rpc_msg_type msg_
             break;
             case AOS_RPC_VARSTR: {
                 const char *str = va_arg(args, const char *);
-                uintptr_t length = strlen(str);
+                uintptr_t length = strlen(str) + 1;
                 push_word_lmp(lc, words, &send_cap, &word_ind, length);
 
                 for (int j = 0; j < length; j += sizeof(uintptr_t)) {
@@ -827,7 +827,7 @@ static errval_t aos_rpc_unmarshall_lmp_aarch64(struct aos_rpc *rpc,
             break;
 
             case AOS_RPC_VARSTR: {
-                uintptr_t length = strlen(retstring);
+                uintptr_t length = strlen(retstring) + 1;
                 push_word_lmp(lc, response, &response_cap, &buf_pos, length);
                 for (int j = 0; j < length; j += sizeof(uintptr_t)) {
                     uintptr_t word;
