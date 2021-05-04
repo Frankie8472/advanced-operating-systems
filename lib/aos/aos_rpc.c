@@ -263,16 +263,6 @@ static errval_t aos_rpc_unmarshall_retval_aarch64(
  * \param word_ind
  * \return
  */
-static errval_t push_words(struct ump_chan *uc, struct ump_msg *um, int *word_ind, uintptr_t word)
-{
-    if (*word_ind >= ump_chan_get_data_len(uc)) {
-        bool sent = false;
-        do {
-            sent = ump_chan_send(uc, um);
-        } while (!sent);
-    }
-    um->data[(*word_ind)++] = word;
-}
 
 
 static errval_t aos_rpc_call_ump(struct aos_rpc *rpc, enum aos_rpc_msg_type msg_type, va_list args)
@@ -315,17 +305,6 @@ static errval_t aos_rpc_call_ump(struct aos_rpc *rpc, enum aos_rpc_msg_type msg_
             memcpy(&um.data[word_ind], &cap, sizeof(struct capability));
             word_ind += sizeof(struct capability) / sizeof(uintptr_t);
         }
-        else if (binding->args[i] == AOS_RPC_VARSTR) {
-            // check for str, set flag in accordance with last element of sended shortstr
-            const char *str = va_arg(args, char*);
-            size_t msg_len = strlen(str);
-            for (int i = 0; i < msg_len; i += sizeof(uintptr_t)) {
-                uintptr_t word = 0;
-                memcpy(&word, str + i, sizeof(uintptr_t));
-                push_words(&rpc->channel.ump, &um, &word_ind, (str + i);
-            }
-            // increase word index with msg_len
-        }
         else {
             debug_printf("non-word or shortstring messages over ump NYI!\n");
             return LIB_ERR_NOT_IMPLEMENTED;
@@ -350,9 +329,6 @@ static errval_t aos_rpc_call_ump(struct aos_rpc *rpc, enum aos_rpc_msg_type msg_
             return LIB_ERR_NOT_IMPLEMENTED;  // todo errcode
         }
 
-        if (endpointblabla) {
-            fragmented = false;
-        }
     } while (fragmented);
     
     /*debug_printf("response words: %ld %ld %ld %ld %ld %ld %ld\n",
@@ -367,6 +343,7 @@ static errval_t aos_rpc_call_ump(struct aos_rpc *rpc, enum aos_rpc_msg_type msg_
 
     size_t ret_offs = 1;
     for (int i = 0; i < n_rets; i++) {
+        DECLARE_MESSAGE(rpc->channel.ump, response);
         if (binding->rets[i] == AOS_RPC_WORD) {
             *((uintptr_t *) retptrs[i]) = response.data[ret_offs++];
         }

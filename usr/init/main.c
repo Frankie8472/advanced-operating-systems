@@ -117,17 +117,9 @@ static int bsp_main(int argc, char *argv[])
     //spawn_new_domain("performance_tester", NULL);
 
 
-<<<<<<< HEAD
-    aos_rpc_call(core_channels[1], AOS_RPC_FOREIGN_SPAWN, "performance_tester");
-    aos_rpc_call(core_channels[1], AOS_RPC_FOREIGN_SPAWN, "memeater");
-    /*size_t counter = 0;
-    while(1) {
-        if (counter % (1 << 28) == 0){
-            aos_rpc_call(core_channels[1], AOS_RPC_SEND_NUMBER, counter);
-        }
-        counter++;
-    }*/
-=======
+    /* aos_rpc_call(core_channels[1], AOS_RPC_FOREIGN_SPAWN, "performance_tester"); */
+    /* aos_rpc_call(core_channels[1], AOS_RPC_FOREIGN_SPAWN, "memeater"); */
+
     // size_t counter = 0;
     // while(1) {
     //     if (counter % (1 << 28) == 0){
@@ -135,7 +127,6 @@ static int bsp_main(int argc, char *argv[])
     //     }
     //     counter++;
     // }
->>>>>>> process_man
 
 
     // Grading

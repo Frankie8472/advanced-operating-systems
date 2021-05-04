@@ -130,7 +130,6 @@ void handle_spawn(struct aos_rpc *old_rpc, const char *name, uintptr_t core_id, 
         *new_pid = pid;
     }else if (current_core_id != 0){
         // ump to 0
-        AOS_RPC_PROC_SPAWN_REQUEST;
     }else{ // is 0
         // ump call to core_id
         //OR init distribute on creation of ump channel to all known channels
