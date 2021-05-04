@@ -37,7 +37,7 @@ errval_t ump_chan_init_size(struct ump_chan *chan, size_t msg_size,
 errval_t ump_chan_init_len(struct ump_chan *chan, int len,
                            void *send_buf, size_t send_buf_size,
                            void *recv_buf, size_t recv_buf_size) {
-    size_t msg_size = (1 + len) * 64;
+    size_t msg_size = (1 + len) * sizeof(uintptr_t);
     assert(msg_size > 8);
     return ump_chan_init_size(chan, msg_size,
                               send_buf, send_buf_size,
@@ -68,7 +68,7 @@ errval_t ump_chan_init(struct ump_chan *chan,
  * \return Length of data array from a message inside that channel.
  */
 int ump_chan_get_data_len(struct ump_chan *chan) {
-    return (chan->msg_size / 64) - 1;
+    return (chan->msg_size / sizeof(uintptr_t)) - 1;
 }
 
 /**
