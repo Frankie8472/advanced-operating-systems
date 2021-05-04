@@ -146,6 +146,11 @@ void handle_spawn(struct aos_rpc *old_rpc, const char *name, uintptr_t core_id, 
 }
 
 
+void handle_pm_online(struct aos_rpc *r ){
+    pm_online = true;
+    debug_printf("Handle pm online\n");
+}
+
 void handle_foreign_spawn(struct aos_rpc *origin_rpc, const char *name, uintptr_t core_id, uintptr_t *new_pid)
 {
     debug_printf("WE SPAWN: %s, %ld\n", name, core_id);
@@ -189,6 +194,7 @@ void handle_send_string(struct aos_rpc *r, const char *string) {
  */
 errval_t initialize_rpc_handlers(struct aos_rpc *rpc)
 {
+    aos_rpc_register_handler(rpc,AOS_RPC_PM_ONLINE,&handle_pm_online);
     aos_rpc_register_handler(rpc, AOS_RPC_INITIATE, &handle_initiate);
     aos_rpc_register_handler(rpc, AOS_RPC_SEND_NUMBER, &handle_send_number);
     aos_rpc_register_handler(rpc, AOS_RPC_SEND_STRING, &handle_send_string);

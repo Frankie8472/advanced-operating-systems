@@ -47,6 +47,7 @@
 
 
 coreid_t my_core_id;
+bool pm_online;
 
 static int bsp_main(int argc, char *argv[])
 {
@@ -67,17 +68,56 @@ static int bsp_main(int argc, char *argv[])
 
     err = init_terminal_state();
 
-    //run_init_tests(my_core_id);
+//run_init_tests(my_core_id);
+
+    struct waitset *default_ws = get_default_waitset();
+
+    struct spawninfo *pm_si = spawn_create_spawninfo();
+    domainid_t *pm_pid = &pm_si -> pid;
+    err = spawn_load_by_name("process_manager",pm_si,pm_pid);
+    struct aos_rpc *pm_rpc = &pm_si -> rpc;
+    aos_rpc_init(pm_rpc);
+    initialize_rpc_handlers(pm_rpc);
+
+    if(err_is_fail(err)){
+        DEBUG_ERR(err,"Failed to spawn pm!\n");
+    }
+
+
+    debug_printf("waiting for process manager to come online...\n");
+    while(!pm_online){
+        err = event_dispatch(default_ws);
+        if (err_is_fail(err)) {
+            DEBUG_ERR(err, "in event_dispatch");
+            abort();
+        }
+    }
+    debug_printf("Process manager is online woooohooo!\n");
+
+    err = aos_rpc_call(pm_rpc,AOS_RPC_REGISTER_PROCESS,1,0,"hello");
+    if(err_is_fail(err)){
+        DEBUG_ERR(err,"Failed to send to pm\n");
+    }
+    // event_dispatch(default_ws);
+
+
+
+
+    // err = aos_rpc_send_number(pm_rpc,1);
+    // if(err_is_fail(err)){
+    //     DEBUG_ERR(err,"Failed to send number to pm!\n");
+    // }
 
     // Grading
     grading_test_early();
 
     // TODO: Spawn system processes, boot second core etc. here
     
-    spawn_new_core(my_core_id + 1);
+    // spawn_new_core(my_core_id + 1);
     //spawn_new_domain("performance_tester", NULL);
 
 
+<<<<<<< HEAD
     aos_rpc_call(core_channels[1], AOS_RPC_FOREIGN_SPAWN, "performance_tester");
     aos_rpc_call(core_channels[1], AOS_RPC_FOREIGN_SPAWN, "memeater");
     /*size_t counter = 0;
@@ -87,6 +127,15 @@ static int bsp_main(int argc, char *argv[])
         }
         counter++;
     }*/
+=======
+    // size_t counter = 0;
+    // while(1) {
+    //     if (counter % (1 << 28) == 0){
+    //         aos_rpc_call(core_channels[1], AOS_RPC_SEND_NUMBER, counter);
+    //     }
+    //     counter++;
+    // }
+>>>>>>> process_man
 
 
     // Grading
@@ -94,7 +143,7 @@ static int bsp_main(int argc, char *argv[])
 
     debug_printf("Message handler loop\n");
     // Hang around
-    struct waitset *default_ws = get_default_waitset();
+    
     while (true) {
         err = event_dispatch(default_ws);
         if (err_is_fail(err)) {
@@ -174,7 +223,7 @@ static errval_t init_foreign_core(void){
                 .slot = bi -> regions[i].mrmod_slot
             };
             size_t size = bi->regions[i].mrmod_size;
-            debug_printf("Trying to forge cap: %ld bytes\n", size);
+            // debug_printf("Trying to forge cap: %ld bytes\n", size);
             err = frame_forge(module_cap, bi->regions[i].mr_base, ROUND_UP(size, BASE_PAGE_SIZE), disp_get_current_core_id()); 
             // ON_ERR_RETURN(err);
             if(err_is_fail(err)){
