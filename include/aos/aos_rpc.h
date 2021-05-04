@@ -120,7 +120,7 @@ errval_t aos_rpc_init_lmp(struct aos_rpc *rpc, struct capref self_ep, struct cap
 /**
  * \brief Initialize an aos_rpc struct running on ump backend
  */
-errval_t aos_rpc_init_ump(struct aos_rpc *rpc, lvaddr_t shared_page, size_t shared_page_size, bool first_half);
+errval_t aos_rpc_init_ump_default(struct aos_rpc *rpc, lvaddr_t shared_page, size_t shared_page_size, bool first_half);
 
 /**
  * \brief initialize marshalling info for an rpc function

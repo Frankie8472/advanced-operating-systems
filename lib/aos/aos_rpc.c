@@ -129,7 +129,11 @@ errval_t aos_rpc_init_lmp(struct aos_rpc* rpc, struct capref self_ep, struct cap
 }
 
 
-errval_t aos_rpc_init_ump(struct aos_rpc *rpc, lvaddr_t shared_page, size_t shared_page_size, bool first_half)
+/**
+ * \brief TODO
+ * - inits ump channel with default message size
+ */
+errval_t aos_rpc_init_ump_default(struct aos_rpc *rpc, lvaddr_t shared_page, size_t shared_page_size, bool first_half)
 {
     errval_t err;
 

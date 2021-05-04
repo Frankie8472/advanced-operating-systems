@@ -63,7 +63,7 @@ errval_t init_core_channel(coreid_t coreid, lvaddr_t urpc_frame)
     errval_t err;
     err = aos_rpc_init(rpc);
     ON_ERR_PUSH_RETURN(err, LIB_ERR_RPC_INIT);
-    aos_rpc_init_ump(rpc, urpc_frame, BASE_PAGE_SIZE, coreid != 0);
+    aos_rpc_init_ump_default(rpc, urpc_frame, BASE_PAGE_SIZE, coreid != 0);
     ON_ERR_PUSH_RETURN(err, LIB_ERR_RPC_INIT);
 
     register_core_channel_handlers(rpc);
