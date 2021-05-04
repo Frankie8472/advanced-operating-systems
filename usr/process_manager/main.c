@@ -27,9 +27,10 @@ struct process_list{
 static char* strcopy(const char* str){
     size_t n = strlen(str) + 1;
     char * new_str = (char * ) malloc( n * sizeof(char));
-    for(size_t i = 0; i < n;++i){
+    strncpy(new_str, str, n);
+    /*for(size_t i = 0; i < n;++i){
         new_str[i] = str[i];
-    }
+    }*/
 
     return new_str;
 }
@@ -70,7 +71,7 @@ static void print_process_list(void){
 
 
 static void handle_register_process(struct aos_rpc *rpc,uintptr_t pid,uintptr_t core_id,const char* name){
-    debug_printf("Handling process registering!\n");
+    debug_printf("Handling process registering! nam: %s\n", name);
     errval_t err = add_process((domainid_t) pid, (coreid_t) core_id,name);
     if(err_is_fail(err)){
         DEBUG_ERR(err,"Failed to add process to process list\n");
