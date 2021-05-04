@@ -194,28 +194,53 @@ errval_t barrelfish_init_onthread(struct spawn_domain_params *params)
       .slot = TASKCN_SLOT_INITEP
     };
 
-    err = aos_rpc_init(&init_rpc);
-    ON_ERR_RETURN(err);
 
-    err = aos_rpc_init_lmp(&init_rpc, self_ep_cap, init_ep_cap, NULL);
-    if (err_is_fail(err) && err_pop(err) == LIB_ERR_RPC_INITIATE) {
-        DEBUG_ERR(err, "Error establishing connection with init! aborting!");
-        abort();
+
+
+    if(!init_domain){
+        err = aos_rpc_init(&init_rpc);
+        ON_ERR_RETURN(err);
+        err = aos_rpc_init_lmp(&init_rpc, self_ep_cap, init_ep_cap, NULL);
+        if (err_is_fail(err) && err_pop(err) == LIB_ERR_RPC_INITIATE) {
+            DEBUG_ERR(err, "Error establishing connection with init! aborting!");
+            abort();
+         }
+
+        set_init_rpc(&init_rpc);
+
+
+        debug_printf("Is memory server online: %d?\n",get_mem_online());
+        if(get_mem_online()){
+            debug_printf("Trying to establish connection to memory server..\n");
+
+            struct lmp_endpoint * ep;
+            err = endpoint_create(256, &self_ep_cap, &ep);
+            ON_ERR_PUSH_RETURN(err, LIB_ERR_ENDPOINT_CREATE);
+
+            static struct aos_rpc mem_rpc;
+
+            err = aos_rpc_init(&mem_rpc);
+            ON_ERR_RETURN(err);
+            
+
+
+            err = aos_rpc_init_lmp(&mem_rpc,self_ep_cap,NULL_CAP, ep);
+            ON_ERR_RETURN(err);
+
+
+            struct capref mem_cap;
+            err = aos_rpc_call(&init_rpc,AOS_RPC_MEM_SERVER_REQ,self_ep_cap,&mem_cap);
+            ON_ERR_RETURN(err);
+            mem_rpc.channel.lmp.remote_cap = mem_cap;
+            set_mem_rpc(&mem_rpc);
+            debug_printf("Channel with memory server established\n");
+
+        }
+
     }
 
-    set_init_rpc(&init_rpc);
 
-
-    // struct lmp_ep;
-    // err = endpoint_create(256, &si->cap_ep, &lmp_ep);
-    // ON_ERR_PUSH_RETURN(err, LIB_ERR_ENDPOINT_CREATE);
-
-    // static struct aos_rpc mem_rpc;
-
-    // err = aos_rpc(&mem_rpc);
-    // ON_ERR_RETURN(err);
-    // err = aos_rpc_init_lmp(&mem_rpc,self_ep_cap,NULL_CAP,si -> lmp)
-
+    
     // TODO MILESTONE 3: register ourselves with init
     /* allocate lmp channel structure */
     /* create local endpoint */

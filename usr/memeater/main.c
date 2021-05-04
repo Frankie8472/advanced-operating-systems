@@ -219,6 +219,9 @@ int main(int argc, char *argv[])
     char * test = (char * ) malloc(sizeof(char));
     test[0] = 'A';
 
+
+    // aos_rpc_call(init_rpc,AOS_RPC_MEM_SERVER_REQ,)
+
     // domainid_t pid = 0;
     // debug_printf("starting hello world process\n");
     // //aos_rpc_process_spawn(init_rpc, "hello", disp_get_current_core_id(), &pid);

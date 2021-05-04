@@ -100,7 +100,8 @@ __attribute__((unused)) static errval_t init_memory_server(domainid_t *mem_pid){
         }
     }
     // err = spawn_new_domain("memory_server",&pid)
-    
+    set_mem_rpc(mem_rpc);
+    debug_printf("Memory server online!\n");
 
     *mem_pid = mem_si -> pid;
     return SYS_ERR_OK;
@@ -220,11 +221,11 @@ static int bsp_main(int argc, char *argv[])
     }
 
 
-    // domainid_t mem_pid;
-    // err = init_memory_server(&mem_pid);
-    // if(err_is_fail(err)){
-    //     DEBUG_ERR(err,"Failed to init memory server\n");
-    // }
+    domainid_t mem_pid;
+    err = init_memory_server(&mem_pid);
+    if(err_is_fail(err)){
+        DEBUG_ERR(err,"Failed to init memory server\n");
+    }
 
     err  = init_process_manager();
     if(err_is_fail(err)){
@@ -246,7 +247,7 @@ static int bsp_main(int argc, char *argv[])
 
     // debug_printf("Got string %s\n",buffer);
 
-    spawn_new_core(my_core_id + 1);
+    // spawn_new_core(my_core_id + 1);
     
     //run_init_tests(my_core_id);
 

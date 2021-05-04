@@ -218,6 +218,15 @@ void handle_init_process_register(struct aos_rpc *r,uintptr_t pid,uintptr_t core
 }
 
 
+void handle_mem_server_request(struct aos_rpc *r, struct capref client_cap, struct capref * server_cap){
+    errval_t err;
+    err = aos_rpc_call(get_mem_rpc(),AOS_RPC_MEM_SERVER_REQ,client_cap,server_cap);
+    if(err_is_fail(err)){
+        DEBUG_ERR(err,"Failed to relay memory server request\n");
+    }
+}
+
+
 /**
  * \brief initialize all handlers for rpc calls
  * 
@@ -243,6 +252,8 @@ errval_t initialize_rpc_handlers(struct aos_rpc *rpc)
     void handle_roundtrip(struct aos_rpc *r) { return; }
     aos_rpc_register_handler(rpc, AOS_RPC_ROUNDTRIP, &handle_roundtrip);
     aos_rpc_register_handler(rpc,AOS_RPC_REGISTER_PROCESS,&handle_init_process_register);
+    aos_rpc_register_handler(rpc,AOS_RPC_MEM_SERVER_REQ,&handle_mem_server_request);
+
     return SYS_ERR_OK;
 }
 

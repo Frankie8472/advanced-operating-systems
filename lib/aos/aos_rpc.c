@@ -75,6 +75,9 @@ errval_t aos_rpc_init(struct aos_rpc *rpc)
     aos_rpc_initialize_binding(rpc,AOS_RPC_REGISTER_PROCESS,3,0,AOS_RPC_WORD,AOS_RPC_WORD, AOS_RPC_VARSTR);
     aos_rpc_initialize_binding(rpc,AOS_RPC_GET_PROC_NAME,1,1,AOS_RPC_WORD,AOS_RPC_VARSTR);
 
+    //memory server bindings
+    aos_rpc_initialize_binding(rpc,AOS_RPC_MEM_SERVER_REQ,1,1,AOS_RPC_CAPABILITY,AOS_RPC_CAPABILITY);
+
     // aos_rpc_initialize_binding(rpc,AOS_RPC_REGISTER_PROCESS,3,0,AOS_RPC_WORD,AOS_RPC_WORD, AOS_RPC_VARSTR);
     return SYS_ERR_OK;
 }
@@ -114,7 +117,7 @@ errval_t aos_rpc_init_lmp(struct aos_rpc* rpc, struct capref self_ep, struct cap
     if (!capref_is_null(rpc->channel.lmp.remote_cap)) {
         // we are not in init and do already have a remote cap
         // we need to initiate a connection so init gets our endpoint capability
-        debug_printf("Trying to establish channel with init:\n");
+        debug_printf("Trying to establish channel with init (or memory server with client):\n");
 
         // call initiate function with our endpoint cap as argument in order
         // to make it known to init
@@ -130,6 +133,40 @@ errval_t aos_rpc_init_lmp(struct aos_rpc* rpc, struct capref self_ep, struct cap
 
     return err;
 }
+
+
+errval_t aos_rpc_init_lmp_without_init(struct aos_rpc* rpc, struct capref self_ep, struct capref end_ep, struct lmp_endpoint *lmp_ep) {
+    errval_t err;
+    debug_printf("aos_rpc_init\n");
+    
+    rpc->backend = AOS_RPC_LMP;
+
+    lmp_chan_init(&rpc->channel.lmp);
+    rpc->channel.lmp.local_cap = self_ep;
+    rpc->channel.lmp.remote_cap = end_ep;
+
+    if (lmp_ep == NULL) {
+        err = endpoint_create(256, &rpc->channel.lmp.local_cap, &lmp_ep);
+        ON_ERR_PUSH_RETURN(err, LIB_ERR_ENDPOINT_CREATE);
+    }
+
+    rpc->channel.lmp.buflen_words = 256;
+    rpc->channel.lmp.endpoint = lmp_ep;
+    
+    err = lmp_chan_alloc_recv_slot(&rpc->channel.lmp);
+    ON_ERR_PUSH_RETURN(err, LIB_ERR_LMP_ALLOC_RECV_SLOT);
+
+
+    err = lmp_chan_register_recv(&rpc->channel.lmp, get_default_waitset(), MKCLOSURE(&aos_rpc_on_message, rpc));
+    ON_ERR_PUSH_RETURN(err, LIB_ERR_LMP_ENDPOINT_REGISTER);
+
+    return err;
+}
+
+
+
+
+
 
 
 /**

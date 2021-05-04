@@ -51,6 +51,7 @@ typedef enum aos_rpc_msg_type {
     AOS_RPC_SERVICE_ON,
     AOS_RPC_GET_PROC_NAME,
     AOS_RPC_GET_PROC_LIST,
+    AOS_RPC_MEM_SERVER_REQ, //16
     AOS_RPC_ROUNDTRIP, ///< rpc call that does nothing, for benchmarking
     AOS_RPC_MAX_MSG_TYPES, // needs to be last
 } msg_type_t;
@@ -118,6 +119,7 @@ errval_t aos_rpc_init(struct aos_rpc *rpc);
  */
 errval_t aos_rpc_init_lmp(struct aos_rpc *rpc, struct capref self_ep, struct capref end_ep, struct lmp_endpoint *lmp_ep);
 
+errval_t aos_rpc_init_lmp_without_init(struct aos_rpc* rpc, struct capref self_ep, struct capref end_ep, struct lmp_endpoint *lmp_ep);
 
 /**
  * \brief Initialize an aos_rpc struct running on ump backend
@@ -144,6 +146,9 @@ errval_t aos_rpc_init_ump_default(struct aos_rpc *rpc, lvaddr_t shared_page, siz
  */
 errval_t aos_rpc_initialize_binding(struct aos_rpc *rpc, enum aos_rpc_msg_type binding,
                                     int n_args, int n_rets, ...);
+
+
+
 
 /**
  * \brief call a rpc function

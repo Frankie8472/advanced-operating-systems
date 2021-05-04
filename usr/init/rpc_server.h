@@ -35,6 +35,7 @@ void handle_send_number(struct aos_rpc *r, uintptr_t number);
 void handle_send_string(struct aos_rpc *r, const char *string);
 void handle_service_on(struct aos_rpc *r, uintptr_t service);
 void handle_init_process_register(struct aos_rpc *r,uintptr_t pid,uintptr_t core_id,const char* name);
+void handle_mem_server_request(struct aos_rpc *r, struct capref client_cap, struct capref * server_cap);
 
 
 #endif // INIT_RPC_SERVER_H_

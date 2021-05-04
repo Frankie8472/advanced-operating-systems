@@ -318,6 +318,13 @@ errval_t spawn_load_argv(int argc, const char *const argv[], struct spawninfo *s
     err = register_process_to_process_manager((char*)name,*pid);
     ON_ERR_RETURN(err);
 
+
+    if(get_mem_online()){
+        disp_gen -> core_state.c.mem_online = true;
+    }
+    if(get_pm_online()){
+        disp_gen -> core_state.c.pm_online = true;
+    }
     //dump_dispatcher(disp);
     return SYS_ERR_OK;
 }
@@ -415,7 +422,7 @@ errval_t spawn_load_by_name(char *binary_name, struct spawninfo *si,
     // - Fill in argc/argv from the multiboot command line
     // - Call spawn_load_argv
     errval_t err = SYS_ERR_OK;
-    debug_printf("Halli Hallo\n");
+    // debug_printf("Halli Hallo\n");
 
     //TODO: is  bi correctly initialized by the init/usr/main.c
     struct mem_region* mem_region = multiboot_find_module(bi, binary_name);
@@ -436,23 +443,23 @@ errval_t spawn_load_by_name(char *binary_name, struct spawninfo *si,
     err = invoke_cap_identify(child_frame, &cap);
     char bbb[128];
     debug_print_cap_at_capref(bbb, 128, child_frame);
-    debug_printf("Hello, %s\n", bbb);
+    // debug_printf("Hello, %s\n", bbb);
 
     ON_ERR_RETURN(err);
 
     size_t mapping_size = get_size(&cap);
-    debug_printf("capsize: %ld\n", mapping_size);
+    // debug_printf("capsize: %ld\n", mapping_size);
     char* elf_address;
     
     paging_map_frame_attr(get_current_paging_state(), (void **) &elf_address,
                           mapping_size, child_frame, VREGION_FLAGS_READ_WRITE, NULL, NULL);
 
-    debug_printf("Hello\n");
+    // debug_printf("Hello\n");
     si->mapped_elf = (lvaddr_t) elf_address;
     si->mapped_elf_size = (size_t) mem_region->mrmod_size;
-    debug_printf("ELF address = %lx\n", elf_address);
-    debug_printf("%x, '%c', '%c', '%c'\n", elf_address[0], elf_address[1], elf_address[2], elf_address[3]);
-    debug_printf("BOI\n");
+    // debug_printf("ELF address = %lx\n", elf_address);
+    // debug_printf("%x, '%c', '%c', '%c'\n", elf_address[0], elf_address[1], elf_address[2], elf_address[3]);
+    // debug_printf("BOI\n");
 
     char *args_string = (char *)  multiboot_module_opts(mem_region);
     char copy[strlen(args_string)];
