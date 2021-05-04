@@ -205,6 +205,17 @@ errval_t barrelfish_init_onthread(struct spawn_domain_params *params)
 
     set_init_rpc(&init_rpc);
 
+
+    // struct lmp_ep;
+    // err = endpoint_create(256, &si->cap_ep, &lmp_ep);
+    // ON_ERR_PUSH_RETURN(err, LIB_ERR_ENDPOINT_CREATE);
+
+    // static struct aos_rpc mem_rpc;
+
+    // err = aos_rpc(&mem_rpc);
+    // ON_ERR_RETURN(err);
+    // err = aos_rpc_init_lmp(&mem_rpc,self_ep_cap,NULL_CAP,si -> lmp)
+
     // TODO MILESTONE 3: register ourselves with init
     /* allocate lmp channel structure */
     /* create local endpoint */

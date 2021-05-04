@@ -36,7 +36,7 @@ errval_t frame_alloc_and_map(struct capref *cap,size_t bytes,size_t* retbytes,vo
 void page_fault_handler(enum exception_type type, int subtype, void *addr, arch_registers_state_t *regs) {
     errval_t err;
 
-    //debug_printf("handling pagefault!\n");
+    // debug_printf("handling pagefault!\n");
     //debug_printf("type: %d\n", type);
     //debug_printf("subtype: %d\n", subtype);
     //debug_printf("addr: 0x%" PRIxLPADDR "\n", addr);
@@ -71,6 +71,7 @@ void page_fault_handler(enum exception_type type, int subtype, void *addr, arch_
         }
         else if (region->lazily_mapped) {
             // in a lazily mapped region we should only page fault if a page is not mapped, so we map it
+            // debug_printf("Handling pag fault in lazily mapped region\n");
             err = paging_map_single_page_at(st,
                     (lvaddr_t) addr,
                     VREGION_FLAGS_READ_WRITE,

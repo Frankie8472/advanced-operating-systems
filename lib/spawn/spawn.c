@@ -478,6 +478,7 @@ errval_t register_process_to_process_manager(char* binary_name,domainid_t pid){
     coreid_t core_id = disp_get_core_id();
     if(core_id == 0){
         struct aos_rpc* pm_rpc =  get_pm_rpc();
+        debug_printf("calling register process\n");
         err = aos_rpc_call(pm_rpc,AOS_RPC_REGISTER_PROCESS,pid,core_id,binary_name);
         ON_ERR_RETURN(err);
     }else{

@@ -48,7 +48,7 @@ typedef enum aos_rpc_msg_type {
     AOS_RPC_SET_READ,
     AOS_RPC_FREE_READ,
     AOS_RPC_REGISTER_PROCESS,
-    AOS_RPC_PM_ONLINE,
+    AOS_RPC_SERVICE_ON,
     AOS_RPC_GET_PROC_NAME,
     AOS_RPC_GET_PROC_LIST,
     AOS_RPC_ROUNDTRIP, ///< rpc call that does nothing, for benchmarking
@@ -64,6 +64,7 @@ enum aos_rpc_argument_type {
     AOS_RPC_WORD,
     AOS_RPC_SHORTSTR, ///< four word string (32 chars) (currently only over ump)
     AOS_RPC_STR, ///< longer string (currently only over lmp)
+    AOS_RPC_VARSTR,
     AOS_RPC_BYTES,
     AOS_RPC_CAPABILITY
 };
@@ -121,7 +122,7 @@ errval_t aos_rpc_init_lmp(struct aos_rpc *rpc, struct capref self_ep, struct cap
 /**
  * \brief Initialize an aos_rpc struct running on ump backend
  */
-errval_t aos_rpc_init_ump(struct aos_rpc *rpc, lvaddr_t shared_page, size_t shared_page_size, bool first_half);
+errval_t aos_rpc_init_ump_default(struct aos_rpc *rpc, lvaddr_t shared_page, size_t shared_page_size, bool first_half);
 
 /**
  * \brief initialize marshalling info for an rpc function

@@ -60,6 +60,7 @@ static errval_t init_process_manager(void){
     initialize_rpc_handlers(pm_rpc);
     debug_printf("waiting for process manager to come online...\n");
     while(!get_pm_online()){
+
         err = event_dispatch(default_ws);
         if (err_is_fail(err)) {
             DEBUG_ERR(err, "in event_dispatch");
@@ -72,7 +73,34 @@ static errval_t init_process_manager(void){
     err = aos_rpc_call(pm_rpc,AOS_RPC_REGISTER_PROCESS,disp_get_domain_id(),disp_get_core_id(),"init");
     ON_ERR_RETURN(err);
     set_pm_rpc(pm_rpc);
+    debug_printf("all finished!\n");
 
+    return SYS_ERR_OK;
+}
+
+
+static errval_t init_memory_server(domainid_t *mem_pid){
+    errval_t err;
+    struct spawninfo *mem_si = spawn_create_spawninfo();
+    domainid_t *m_pid = &mem_si -> pid;
+    err = spawn_load_by_name("memory_server",mem_si,m_pid);
+    ON_ERR_RETURN(err);
+    struct aos_rpc *mem_rpc = &mem_si -> rpc;
+    aos_rpc_init(mem_rpc);
+    initialize_rpc_handlers(mem_rpc);
+    struct waitset *default_ws = get_default_waitset();
+    debug_printf("waiting for memory server to come online ... \n");
+    while(!get_mem_online()){
+        err = event_dispatch(default_ws);
+        if (err_is_fail(err)) {
+            DEBUG_ERR(err, "in event_dispatch");
+            abort();
+        }
+    }
+    // err = spawn_new_domain("memory_server",&pid)
+    
+
+    *mem_pid = mem_si -> pid;
     return SYS_ERR_OK;
 }
 
@@ -187,6 +215,13 @@ static int bsp_main(int argc, char *argv[])
     err = init_terminal_state();
     if(err_is_fail(err)){
         DEBUG_ERR(err,"Failed to init terminal state\n");
+    }
+
+
+    domainid_t mem_pid;
+    err = init_memory_server(&mem_pid);
+    if(err_is_fail(err)){
+        DEBUG_ERR(err,"Failed to init memory server\n");
     }
 
     err  = init_process_manager();
@@ -311,7 +346,8 @@ static int app_main(int argc, char *argv[])
     if(err_is_fail(err)){
         DEBUG_ERR(err,"Failed to initialize ram and bootinfo for new core core\n");
     }
-
+    
+    //run_init_tests(my_core_id);
 
     grading_setup_app_init(bi);
 

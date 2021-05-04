@@ -10,4 +10,5 @@ module /armv8/sbin/hello nice it works
 module /armv8/sbin/memeater
 module /armv8/sbin/performance_tester
 module /armv8/sbin/process_manager
+module /armv8/sbin/memory_server
 # newlines are important here

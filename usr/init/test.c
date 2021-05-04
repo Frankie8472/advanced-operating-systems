@@ -245,6 +245,7 @@ int (*bsp_tests[])(void) = {
 
 // put your test functions for the other cores in this array, also keep NULL as last element
 int (*app_tests[])(void) = {
+    &test_malloc,
     NULL
 };
 

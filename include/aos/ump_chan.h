@@ -7,23 +7,32 @@
 #include <aos/waitset.h>
 
 #define UMP_MSG_SIZE 64 // TODO: set to cache line size
+#define UMP_MSG_N_WORDS 7
 
 #define UMP_FLAG_SENT 1 // flag for sent slots / to be received & ackd
 #define UMP_FLAG_RECEIVED 0 // flag for ackd / open slots
 
 struct ump_msg
 {
-    union {
-        uint64_t u64[7];
-    } data;
-
     uint8_t flag;
+
+    uint64_t data[];
 };
 
-static_assert(sizeof(struct ump_msg) == UMP_MSG_SIZE, "ump_msg needs to be 64 bytes");
+/**
+ * \brief Declare an ump message for the channel `chan` on the stack.
+ * `chan` will then be initialized with type `struct ump_msg*`, pointing
+ * to the according stack location.
+ */
+#define DECLARE_MESSAGE(chan, msg_name) uint64_t _temp_##msg_name[1 + ump_chan_get_data_len(&chan)]; \
+    struct ump_msg *msg_name = (struct ump_msg *) &_temp_##msg_name;
+
+/* static_assert(sizeof(struct ump_msg) == UMP_MSG_SIZE, "ump_msg needs to be 64 bytes"); */
 
 struct ump_chan
 {
+    size_t msg_size; // size of a single ump message
+
     void *recv_pane;
     size_t recv_pane_size;
     size_t recv_buf_index;
@@ -35,10 +44,19 @@ struct ump_chan
     struct waitset_chanstate waitset_state;
 };
 
+errval_t ump_chan_init_size(struct ump_chan *chan, size_t msg_size,
+                            void *send_buf, size_t send_buf_size,
+                            void *recv_buf, size_t recv_buf_size);
+
+errval_t ump_chan_init_len(struct ump_chan *chan, int len,
+                           void *send_buf, size_t send_buf_size,
+                           void *recv_buf, size_t recv_buf_size);
 
 errval_t ump_chan_init(struct ump_chan *chan,
                        void *send_buf, size_t send_buf_size,
                        void *recv_buf, size_t recv_buf_size);
+
+int ump_chan_get_data_len(struct ump_chan *chan);
 
 bool ump_chan_send(struct ump_chan *chan, struct ump_msg *send);
 

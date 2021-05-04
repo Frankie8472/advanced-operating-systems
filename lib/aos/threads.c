@@ -427,6 +427,11 @@ struct thread *thread_create_unrunnable(thread_func_t start_func, void *arg,
     // init stack
     newthread->stack = (void *) newthread->stack_region.base_addr;
     newthread->stack_top = (char *)newthread->stack + stacksize;
+    
+
+    
+
+
 
     // waste space for alignment, if malloc gave us an unaligned stack
     newthread->stack_top = (char *)newthread->stack_top
