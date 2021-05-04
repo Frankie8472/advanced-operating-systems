@@ -277,23 +277,23 @@ static errval_t aos_rpc_call_ump(struct aos_rpc *rpc, enum aos_rpc_msg_type msg_
 
     /* struct ump_msg um = DECLARE_MESSAGE(rpc->channel.ump); */
     DECLARE_MESSAGE(rpc->channel.ump, um);
-    um.flag = 0;
+    um->flag = 0;
 
-    um.data[0] = msg_type;
+    um->data[0] = msg_type;
 
     int word_ind = 1;
     int ret_ind = 0;
     bool fragmented = false;
     for (int i = 0; i < n_args; i++) {
         if (binding->args[i] == AOS_RPC_WORD) {
-            um.data[word_ind++] = va_arg(args, uintptr_t);
+            um->data[word_ind++] = va_arg(args, uintptr_t);
             //push_words(&rpc->channel.ump, &um, &word_ind, va_arg(args, uintptr_t));
         }
         // todo: delete
         else if (binding->args[i] == AOS_RPC_SHORTSTR) {
             const char *str = va_arg(args, char*);
             assert(strlen(str) < AOS_RPC_SHORTSTR_LENGTH);
-            strncpy((char *) &um.data[word_ind], str, AOS_RPC_SHORTSTR_LENGTH);
+            strncpy((char *) &um->data[word_ind], str, AOS_RPC_SHORTSTR_LENGTH);
             word_ind += AOS_RPC_SHORTSTR_LENGTH / sizeof(uintptr_t);
         }
         else if (binding->args[i] == AOS_RPC_CAPABILITY) {
@@ -302,7 +302,7 @@ static errval_t aos_rpc_call_ump(struct aos_rpc *rpc, enum aos_rpc_msg_type msg_
             // non-portable assertion
             static_assert(sizeof(struct capability) == 3 * sizeof(uintptr_t));
             invoke_cap_identify(cr, &cap);
-            memcpy(&um.data[word_ind], &cap, sizeof(struct capability));
+            memcpy(&um->data[word_ind], &cap, sizeof(struct capability));
             word_ind += sizeof(struct capability) / sizeof(uintptr_t);
         }
         else {
@@ -318,14 +318,14 @@ static errval_t aos_rpc_call_ump(struct aos_rpc *rpc, enum aos_rpc_msg_type msg_
     // Receive
     do {
         DECLARE_MESSAGE(rpc->channel.ump, response);
-        response.flag = 0;
+        response->flag = 0;
         bool received = false;
         do {
-            received = ump_chan_poll_once(&rpc->channel.ump, &response);
+            received = ump_chan_poll_once(&rpc->channel.ump, response);
         } while (!received);
 
-        if (!((response.data[0] | AOS_RPC_RETURN_BIT)
-              && (response.data[0] & ~AOS_RPC_RETURN_BIT) == msg_type)) {
+        if (!((response->data[0] | AOS_RPC_RETURN_BIT)
+              && (response->data[0] & ~AOS_RPC_RETURN_BIT) == msg_type)) {
             return LIB_ERR_NOT_IMPLEMENTED;  // todo errcode
         }
 
@@ -345,15 +345,15 @@ static errval_t aos_rpc_call_ump(struct aos_rpc *rpc, enum aos_rpc_msg_type msg_
     for (int i = 0; i < n_rets; i++) {
         DECLARE_MESSAGE(rpc->channel.ump, response);
         if (binding->rets[i] == AOS_RPC_WORD) {
-            *((uintptr_t *) retptrs[i]) = response.data[ret_offs++];
+            *((uintptr_t *) retptrs[i]) = response->data[ret_offs++];
         }
         else if (binding->rets[i] == AOS_RPC_SHORTSTR) {
-            strncpy(((char *) retptrs[i]), (const char *) &response.data[ret_offs], AOS_RPC_SHORTSTR_LENGTH);
+            strncpy(((char *) retptrs[i]), (const char *) &response->data[ret_offs], AOS_RPC_SHORTSTR_LENGTH);
             ret_offs += AOS_RPC_SHORTSTR_LENGTH / sizeof(uintptr_t);
         }
         else if (binding->rets[i] == AOS_RPC_CAPABILITY) {
             struct capability cap;
-            memcpy(&cap, &response.data[ret_offs], sizeof cap);
+            memcpy(&cap, &response->data[ret_offs], sizeof cap);
             ret_offs += sizeof(struct capability) / sizeof(uintptr_t);
 
             struct capref forged;
@@ -730,32 +730,32 @@ static errval_t aos_rpc_unmarshall_ump_simple_aarch64(struct aos_rpc *rpc,
 
     // send response
     DECLARE_MESSAGE(rpc->channel.ump, response);
-    response.flag = 0;
-    response.data[0] = msg->data[0] | AOS_RPC_RETURN_BIT;
+    response->flag = 0;
+    response->data[0] = msg->data[0] | AOS_RPC_RETURN_BIT;
 
     buf_pos = 1;
     ret_pos = 0;
     for (int i = 0; i < binding->n_rets; i++) {
 
         if (binding->rets[i] == AOS_RPC_WORD) {
-            response.data[buf_pos++] = ret[ret_pos++];
+            response->data[buf_pos++] = ret[ret_pos++];
         }
         else if (binding->rets[i] == AOS_RPC_SHORTSTR) {
-            strncpy((char *) &response.data[buf_pos], (const char *) &ret[ret_pos], AOS_RPC_SHORTSTR_LENGTH);
+            strncpy((char *) &response->data[buf_pos], (const char *) &ret[ret_pos], AOS_RPC_SHORTSTR_LENGTH);
             ret_pos += AOS_RPC_SHORTSTR_LENGTH / sizeof(uintptr_t);
         }
         else if (binding->rets[i] == AOS_RPC_CAPABILITY) {
             struct capability cap;
             errval_t err = invoke_cap_identify(retcap, &cap);
             ON_ERR_PUSH_RETURN(err, LIB_ERR_CAP_IDENTIFY);
-            memcpy(&response.data[buf_pos], &cap, sizeof cap);
+            memcpy(&response->data[buf_pos], &cap, sizeof cap);
             buf_pos += sizeof(struct capability) / sizeof(uintptr_t);
         }
     }
 
     bool sent = false;
     do {
-        sent = ump_chan_send(&rpc->channel.ump, &response);
+        sent = ump_chan_send(&rpc->channel.ump, response);
     } while(!sent);
 
     //ON_ERR_PUSH_RETURN(err, LIB_ERR_UMP_CHAN_SEND);
@@ -769,16 +769,16 @@ void aos_rpc_on_ump_message(void *arg)
 
     struct aos_rpc *rpc = arg;
     DECLARE_MESSAGE(rpc->channel.ump, msg);
-    msg.flag = 0;
+    msg->flag = 0;
 
-    bool received = ump_chan_poll_once(&rpc->channel.ump, &msg);
+    bool received = ump_chan_poll_once(&rpc->channel.ump, msg);
     if (!received) {
         debug_printf("aos_rpc_on_ump_message called but no message available\n");
         ump_chan_register_recv(&rpc->channel.ump, get_default_waitset(), MKCLOSURE(&aos_rpc_on_ump_message, rpc));
         return;
     }
 
-    enum aos_rpc_msg_type msgtype = msg.data[0];
+    enum aos_rpc_msg_type msgtype = msg->data[0];
 
     void *handler = rpc->handlers[msgtype];
     if (handler == NULL) {
@@ -791,7 +791,7 @@ void aos_rpc_on_ump_message(void *arg)
 
     // in case of simple binding
     if (binding->calling_simple) {
-        err = aos_rpc_unmarshall_ump_simple_aarch64(rpc, handler, binding, &msg);
+        err = aos_rpc_unmarshall_ump_simple_aarch64(rpc, handler, binding, msg);
         if (err_is_fail(err)) {
             DEBUG_ERR(err, "error in unmarshall\n");
         }

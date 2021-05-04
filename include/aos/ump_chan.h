@@ -18,8 +18,13 @@ struct ump_msg
     uint64_t data[];
 };
 
+/**
+ * \brief Declare an ump message for the channel `chan` on the stack.
+ * `chan` will then be initialized with type `struct ump_msg*`, pointing
+ * to the according stack location.
+ */
 #define DECLARE_MESSAGE(chan, msg_name) uint64_t _temp_##msg_name[1 + ump_chan_get_data_len(&chan)]; \
-    struct ump_msg msg_name = *((struct ump_msg *) &_temp_##msg_name);
+    struct ump_msg *msg_name = (struct ump_msg *) &_temp_##msg_name;
 
 /* static_assert(sizeof(struct ump_msg) == UMP_MSG_SIZE, "ump_msg needs to be 64 bytes"); */
 
