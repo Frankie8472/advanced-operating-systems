@@ -74,13 +74,6 @@ errval_t init_core_channel(coreid_t coreid, lvaddr_t urpc_frame)
 }
 
 
-void register_core_channel_handlers(struct aos_rpc *rpc)
-{
-    aos_rpc_register_handler(rpc, AOS_RPC_SEND_NUMBER, &handle_send_number);
-    aos_rpc_register_handler(rpc, AOS_RPC_FOREIGN_SPAWN, &handle_foreign_spawn);
-    aos_rpc_register_handler(rpc, AOS_RPC_REQUEST_RAM, &handle_request_ram);
-}
-
 /**
  * \brief handler function for putchar rpc call
  */
@@ -205,6 +198,26 @@ void handle_send_string(struct aos_rpc *r, const char *string) {
     debug_printf("recieved string: %s\n", string);
 }
 
+
+
+void handle_init_process_register(struct aos_rpc *r,uintptr_t pid,uintptr_t core_id,const char* name){
+    errval_t err;
+    if(disp_get_current_core_id() == 0){
+        debug_printf("Handling proces register in bsp_init\n");
+        err = aos_rpc_call(get_pm_rpc(),AOS_RPC_REGISTER_PROCESS,pid,core_id,name);
+        if(err_is_fail(err)){
+            DEBUG_ERR(err,"Failed to forward process registering to process manager in bsp init\n");
+        }
+    }
+    else {
+        err = aos_rpc_call(core_channels[0],AOS_RPC_REGISTER_PROCESS,pid,core_id,name);
+        if(err_is_fail(err)){
+            DEBUG_ERR(err,"Failed to forward process registering to process manager in bsp init\n");
+        }
+    }
+}
+
+
 /**
  * \brief initialize all handlers for rpc calls
  * 
@@ -232,6 +245,17 @@ errval_t initialize_rpc_handlers(struct aos_rpc *rpc)
     aos_rpc_register_handler(rpc,AOS_RPC_REGISTER_PROCESS,&handle_init_process_register);
     return SYS_ERR_OK;
 }
+
+
+
+void register_core_channel_handlers(struct aos_rpc *rpc)
+{
+    aos_rpc_register_handler(rpc, AOS_RPC_SEND_NUMBER, &handle_send_number);
+    aos_rpc_register_handler(rpc, AOS_RPC_FOREIGN_SPAWN, &handle_foreign_spawn);
+    aos_rpc_register_handler(rpc, AOS_RPC_REQUEST_RAM, &handle_request_ram);
+    aos_rpc_register_handler(rpc, AOS_RPC_REGISTER_PROCESS, &handle_init_process_register);
+}
+
 
 
 __attribute__((unused)) static void spawn_memeater(void)
@@ -272,19 +296,3 @@ __attribute__((unused)) static void spawn_page(void){
 }
 
 
-void handle_init_process_register(struct aos_rpc *r,uintptr_t pid,uintptr_t core_id,const char* name){
-    errval_t err;
-    if(disp_get_current_core_id() == 0){
-        debug_printf("Handling proces register in bsp_init\n");
-        err = aos_rpc_call(get_pm_rpc(),AOS_RPC_REGISTER_PROCESS,pid,core_id,name);
-        if(err_is_fail(err)){
-            DEBUG_ERR(err,"Failed to forward process registering to process manager in bsp init\n");
-        }
-    }
-    else {
-        err = aos_rpc_call(core_channels[0],AOS_RPC_REGISTER_PROCESS,pid,core_id,name);
-        if(err_is_fail(err)){
-            DEBUG_ERR(err,"Failed to forward process registering to process manager in bsp init\n");
-        }
-    }
-}
