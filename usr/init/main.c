@@ -74,12 +74,12 @@ static int bsp_main(int argc, char *argv[])
 
     // TODO: Spawn system processes, boot second core etc. here
     
-    spawn_new_core(my_core_id + 1);
-    //spawn_new_domain("performance_tester", NULL);
+    //spawn_new_core(my_core_id + 1);
+    spawn_new_domain("memeater", NULL);
 
 
-    aos_rpc_call(core_channels[1], AOS_RPC_FOREIGN_SPAWN, "performance_tester");
-    aos_rpc_call(core_channels[1], AOS_RPC_FOREIGN_SPAWN, "memeater");
+    //aos_rpc_call(core_channels[1], AOS_RPC_FOREIGN_SPAWN, "performance_tester");
+    //aos_rpc_call(core_channels[1], AOS_RPC_FOREIGN_SPAWN, "memeater");
     /*size_t counter = 0;
     while(1) {
         if (counter % (1 << 28) == 0){

@@ -140,9 +140,14 @@ void handle_spawn(struct aos_rpc *old_rpc, const char *name, uintptr_t core_id, 
     } else { // is 0
         // ump call to core_id
         //OR init distribute on creation of ump channel to all known channels
+        debug_printf("spawn on core id: %d\n", core_id);
         errval_t err;
         struct aos_rpc* ump_chan = core_channels[core_id];
-        assert(ump_chan && "NO U!");
+        
+        if (ump_chan == NULL) {
+            debug_printf("can't spawn on core %d: no channel to core\n", core_id);
+            *new_pid = 0;
+        }
         err = aos_rpc_call(ump_chan, AOS_RPC_FOREIGN_SPAWN, name, core_id, new_pid);
         if(err_is_fail(err)){
             DEBUG_ERR(err,"Failed to call aos rpc in spawn handler for foreign core\n");
