@@ -72,6 +72,8 @@ static errval_t init_process_manager(void){
 
     err = aos_rpc_call(pm_rpc,AOS_RPC_REGISTER_PROCESS,disp_get_domain_id(),disp_get_core_id(),"init");
     ON_ERR_RETURN(err);
+    err = aos_rpc_call(pm_rpc,AOS_RPC_REGISTER_PROCESS,*pm_pid,disp_get_core_id(),"process_manager");
+    ON_ERR_RETURN(err);
     set_pm_rpc(pm_rpc);
     debug_printf("all finished!\n");
 
@@ -244,7 +246,7 @@ static int bsp_main(int argc, char *argv[])
 
     // debug_printf("Got string %s\n",buffer);
 
-    // spawn_new_core(my_core_id + 1);
+    spawn_new_core(my_core_id + 1);
     
     //run_init_tests(my_core_id);
 
