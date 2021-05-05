@@ -48,12 +48,15 @@
 
 coreid_t my_core_id;
 
+
+
 static errval_t init_process_manager(void){
     errval_t err;
     struct waitset *default_ws = get_default_waitset();
     struct spawninfo *pm_si = spawn_create_spawninfo();
     domainid_t *pm_pid = &pm_si -> pid;
     err = spawn_load_by_name("process_manager",pm_si,pm_pid);
+    *pm_pid = 0;
     ON_ERR_RETURN(err);
     struct aos_rpc *pm_rpc = &pm_si -> rpc;
     aos_rpc_init(pm_rpc);
@@ -71,11 +74,13 @@ static errval_t init_process_manager(void){
 
     debug_printf("Process manager is online!\n");
 
-    err = aos_rpc_call(pm_rpc,AOS_RPC_REGISTER_PROCESS,disp_get_domain_id(),disp_get_core_id(),"init");
+    domainid_t pid;
+    err = aos_rpc_call(pm_rpc,AOS_RPC_REGISTER_PROCESS,disp_get_core_id(),"init",&pid);
     ON_ERR_RETURN(err);
+    disp_set_domain_id(pid);
     //TODO: register memory server to PM
-    err = aos_rpc_call(pm_rpc,AOS_RPC_REGISTER_PROCESS,*pm_pid,disp_get_core_id(),"process_manager");
-    ON_ERR_RETURN(err);
+    // err = aos_rpc_call(pm_rpc,AOS_RPC_REGISTER_PROCESS,*pm_pid,disp_get_core_id(),"process_manager");
+    // ON_ERR_RETURN(err);
     set_pm_rpc(pm_rpc);
     debug_printf("all finished!\n");
 
@@ -197,8 +202,10 @@ static errval_t init_foreign_core(void){
     init_core_channel(0, (lvaddr_t) urpc_init);
 
     
-    disp_set_domain_id(disp_get_current_core_id() << 10);
-    err = aos_rpc_call(get_core_channel(0),AOS_RPC_REGISTER_PROCESS,disp_get_domain_id(),disp_get_current_core_id(),"init");
+    // disp_set_domain_id(disp_get_current_core_id() << 10);
+    domainid_t my_pid;
+    err = aos_rpc_call(get_core_channel(0),AOS_RPC_REGISTER_PROCESS,disp_get_current_core_id(),"init",&my_pid);
+    disp_set_domain_id(my_pid);
     if(err_is_fail(err)){
         DEBUG_ERR(err,"Failed to register new init to pm\n");
     }
@@ -253,97 +260,38 @@ static int bsp_main(int argc, char *argv[])
 
 
 
-    char * name;
-    err = aos_rpc_process_get_name(get_pm_rpc(),0,&name);
-    if(err_is_fail(err)){
-        DEBUG_ERR(err,"Failed to resolve pid name\n");
-    }
-
-    debug_printf("Received string: %s\n",name);
-
-
-    domainid_t* pids;
-    size_t pid_count;
-    err = aos_rpc_process_get_all_pids(get_pm_rpc(),&pids,&pid_count);
-    if(err_is_fail(err)){
-        DEBUG_ERR(err,"Failed to get all pids\n");
-    }
-
-
-    for(int i = 0; i < pid_count; ++i){
-        debug_printf("%d\n",pids[i]);
-    }
-
-
-
-
-
-
-
-    // size_t list_size;
-    // err = aos_rpc_call(get_pm_rpc(),AOS_RPC_GET_PROC_LIST,&list_size,buffer2);
-
-    // debug_printf("Size : %d, list: %s",list_size,buffer2);
+    // char * name;
+    // err = aos_rpc_process_get_name(get_pm_rpc(),0,&name);
     // if(err_is_fail(err)){
-    //     DEBUG_ERR(err,"Failed to call get proc list \n");
+    //     DEBUG_ERR(err,"Failed to resolve pid name\n");
     // }
 
+    // debug_printf("Received name for pid %d: %s\n",0,name);
 
-    // err = aos_rpc_call(get_pm_rpc(),AOS_RPC_GET_PROC_NAME,0,buffer);
-    // if(err_is_fail(err)){
-    //     DEBUG_ERR(err,"Failed to resolve name 0\n");
-    // }
-    // debug_printf("here is the process  name: %s\n",buffer);
 
-    // debug_printf("Got string %s\n",buffer);
+    // spawn_new_domain("memeater", NULL);
 
-    // spawn_new_core(my_core_id + 1);
+    spawn_new_core(my_core_id + 1);
     // spawn_new_core(my_core_id + 2);
     // spawn_new_core(my_core_id + 3);
+
+
+    // domainid_t* pids;
+    // size_t pid_count;
+    // err = aos_rpc_process_get_all_pids(get_pm_rpc(),&pids,&pid_count);
+    // if(err_is_fail(err)){
+    //     DEBUG_ERR(err,"Failed to get all pids\n");
+    // }
+
+
+    // for(int i = 0; i < pid_count; ++i){
+    //     debug_printf("%d\n",pids[i]);
+    // }
     
     //run_init_tests(my_core_id);
 
 
-    // spawn_new_domain("memeater",NULL);
-    // spawn_new_domain("memeater", NULL);
-
     
-
-    // struct spawninfo *pm_si = spawn_create_spawninfo();
-    // domainid_t *pm_pid = &pm_si -> pid;
-    // err = spawn_load_by_name("process_manager",pm_si,pm_pid);
-    // struct aos_rpc *pm_rpc = &pm_si -> rpc;
-    // aos_rpc_init(pm_rpc);
-    // initialize_rpc_handlers(pm_rpc);
-
-    // if(err_is_fail(err)){
-    //     DEBUG_ERR(err,"Failed to spawn pm!\n");
-    // }
-
-
-    // debug_printf("waiting for process manager to come online...\n");
-    // while(!get_pm_online()){
-    //     err = event_dispatch(default_ws);
-    //     if (err_is_fail(err)) {
-    //         DEBUG_ERR(err, "in event_dispatch");
-    //         abort();
-    //     }
-    // }
-    // debug_printf("Process manager is online!\n");
-
-    // err = aos_rpc_call(pm_rpc,AOS_RPC_REGISTER_PROCESS,disp_get_domain_id(),disp_get_core_id(),"init");
-    // if(err_is_fail(err)){
-    //     DEBUG_ERR(err,"Failed to send to pm\n");
-    // }
-    // event_dispatch(default_ws);
-
-
-
-
-    // err = aos_rpc_send_number(pm_rpc,1);
-    // if(err_is_fail(err)){
-    //     DEBUG_ERR(err,"Failed to send number to pm!\n");
-    // }
 
     // Grading
     grading_test_early();
@@ -351,16 +299,8 @@ static int bsp_main(int argc, char *argv[])
     // TODO: Spawn system processes, boot second core etc. here
     
     
-    //spawn_new_domain("performance_tester", NULL);
 
 
-    // size_t counter = 0;
-    // while(1) {
-    //     if (counter % (1 << 28) == 0){
-    //         aos_rpc_call(core_channels[1], AOS_RPC_SEND_NUMBER, counter);
-    //     }
-    //     counter++;
-    // }
 
 
     // Grading
@@ -415,8 +355,10 @@ static int app_main(int argc, char *argv[])
     // err = spawn_new_domain("memeater",NULL);
     // err = spawn_new_domain("memeater",NULL);
     // err = spawn_new_domain("memeater",NULL);
-    err = spawn_new_domain("memeater",NULL);
+    // err = spawn_new_domain("memeater",NULL);
 
+
+    err  = spawn_new_domain("hello",NULL);
     grading_setup_app_init(bi);
 
     grading_test_early();

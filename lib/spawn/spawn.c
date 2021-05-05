@@ -284,7 +284,7 @@ errval_t spawn_load_argv(int argc, const char *const argv[], struct spawninfo *s
     struct dispatcher_generic *disp_gen = get_dispatcher_generic(handle);
     arch_registers_state_t *enabled_area = dispatcher_get_enabled_save_area(handle);
     arch_registers_state_t *disabled_area = dispatcher_get_disabled_save_area(handle);
-    disp_gen->domain_id = *pid = spawn_get_new_domainid();
+    // disp_gen->domain_id = *pid = spawn_get_new_domainid();
 
     registers_set_param(enabled_area, child_arg_ptr);
 
@@ -305,17 +305,24 @@ errval_t spawn_load_argv(int argc, const char *const argv[], struct spawninfo *s
     err = slot_alloc(&si->dispatcher);
     ON_ERR_RETURN(err);
 
+
+
     err = cap_copy(si->dispatcher, child_dispatcher);
     ON_ERR_PUSH_RETURN(err, SPAWN_ERR_COPY_KERNEL_CAP);
 
     aos_rpc_init_lmp(&si->rpc, cap_selfep, NULL_CAP, si->lmp_ep);
 
+
+    err = register_process_to_process_manager((char*)name, pid);
+    ON_ERR_RETURN(err);
+    disp_gen->domain_id = *pid;
+
+
     err = invoke_dispatcher(si->dispatcher, cap_dispatcher, cnode_child_l1, child_l0_vnodecap, child_dispframe, true);
     ON_ERR_RETURN(err);
 
 
-    err = register_process_to_process_manager((char*)name,*pid);
-    ON_ERR_RETURN(err);
+
 
 
     if(get_mem_online()){
@@ -476,7 +483,7 @@ errval_t spawn_load_by_name(char *binary_name, struct spawninfo *si,
 }
 
 
-errval_t register_process_to_process_manager(char* binary_name,domainid_t pid){
+errval_t register_process_to_process_manager(char* binary_name,domainid_t* pid){
 
     if(!get_pm_online()){
         debug_printf("Pm is not online!\n");
@@ -488,12 +495,12 @@ errval_t register_process_to_process_manager(char* binary_name,domainid_t pid){
     if(core_id == 0){
         struct aos_rpc* pm_rpc =  get_pm_rpc();
         debug_printf("calling register process %s\n", binary_name);
-        err = aos_rpc_call(pm_rpc,AOS_RPC_REGISTER_PROCESS,pid,core_id,binary_name);
+        err = aos_rpc_call(pm_rpc,AOS_RPC_REGISTER_PROCESS,core_id,binary_name,pid);
         ON_ERR_RETURN(err);
     }else{
 
         assert(get_core_channel(0) && "UMP channel to core 0 is not present!");
-        err = aos_rpc_call(get_core_channel(0),AOS_RPC_REGISTER_PROCESS,pid,core_id,binary_name);
+        err = aos_rpc_call(get_core_channel(0),AOS_RPC_REGISTER_PROCESS,core_id,binary_name,pid);
         debug_printf("Register process to pm NYI for core != \n");
     }
     return SYS_ERR_OK;

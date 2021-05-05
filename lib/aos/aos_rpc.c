@@ -88,7 +88,7 @@ errval_t aos_rpc_init(struct aos_rpc *rpc)
 
     // process manager bindings
     aos_rpc_initialize_binding(rpc, AOS_RPC_SERVICE_ON, 1, 0, AOS_RPC_WORD);
-    aos_rpc_initialize_binding(rpc, AOS_RPC_REGISTER_PROCESS, 3, 0, AOS_RPC_WORD, AOS_RPC_WORD, AOS_RPC_VARSTR);
+    aos_rpc_initialize_binding(rpc, AOS_RPC_REGISTER_PROCESS, 2, 1, AOS_RPC_WORD, AOS_RPC_VARSTR,AOS_RPC_WORD);
     aos_rpc_initialize_binding(rpc, AOS_RPC_GET_PROC_NAME, 1, 1, AOS_RPC_WORD, AOS_RPC_VARSTR);
 
     aos_rpc_initialize_binding(rpc,AOS_RPC_GET_PROC_LIST,0,2,AOS_RPC_WORD,AOS_RPC_VARSTR);
@@ -1019,7 +1019,7 @@ static errval_t aos_rpc_unmarshall_lmp_aarch64(struct aos_rpc *rpc,
             break;
 
             default:
-            debug_printf("unhandled ret arg\n");
+            debug_printf("unhandled ret arg 1\n");
             break;
         }
     }
@@ -1213,13 +1213,18 @@ static errval_t aos_rpc_unmarshall_ump_simple_aarch64(struct aos_rpc *rpc,
                 retcap_used = true;
             }
             break;
-            case AOS_RPC_STR: {
+            case AOS_RPC_VARSTR: {
+                arg[a_pos++] = (ui) &retstring; // todo replace with scratch space
+            }
+            break;
+
+            case AOS_RPC_STR: { // TOOD
                 arg[a_pos++] = (ui) &retstring; // todo replace with scratch space
             }
             break;
 
             default:
-            debug_printf("unhandled ret arg\n");
+            debug_printf("unhandled ret arg 2\n");
             break;
         }
 
@@ -1270,7 +1275,7 @@ static errval_t aos_rpc_unmarshall_ump_simple_aarch64(struct aos_rpc *rpc,
             break;
 
             default:
-            debug_printf("unhandled ret arg\n");
+            debug_printf("unhandled ret arg 3\n");
             break;
         }
     }

@@ -10,6 +10,7 @@
 
 
 struct process_list pl;
+domainid_t process;
 
 struct process {
     struct process * next;
@@ -52,13 +53,13 @@ static void load_stack(int load_size){
 }
 // errval_t init_pl(struct process_list*)
 
-static errval_t add_process(domainid_t pid, coreid_t core_id,const char* name){
+static errval_t add_process(coreid_t core_id,const char* name,domainid_t *pid){
     
 
     struct process * p = (struct process * ) malloc(sizeof(struct process));
-
+    *pid = process++;
     p -> next = NULL,
-    p -> pid = pid;
+    p -> pid = *pid;
     p -> core_id = core_id;
     p -> name = strcopy(name);
 
@@ -94,12 +95,14 @@ static void print_process_list(void){
 
 
 
-static void handle_register_process(struct aos_rpc *rpc,uintptr_t pid,uintptr_t core_id,const char* name){
+static void handle_register_process(struct aos_rpc *rpc,uintptr_t core_id,const char* name,uintptr_t * pid){
     debug_printf("Handling process registering! nam: %s\n", name);
-    errval_t err = add_process((domainid_t) pid, (coreid_t) core_id,name);
+    
+    errval_t err = add_process(core_id,name,(domainid_t *) pid);
     if(err_is_fail(err)){
         DEBUG_ERR(err,"Failed to add process to process list\n");
     }
+    // *pid = new_pid;
     debug_printf("Finished!\n");
     print_process_list();
     return;
@@ -113,12 +116,12 @@ static void handle_get_proc_name(struct aos_rpc *rpc,uintptr_t pid, char *name){
     for(struct process * curr = pl.head; curr != NULL; curr = curr -> next){
         if(curr -> pid == pid){
             size_t n = strlen(curr -> name) + 1;
-            debug_printf("her is n:%d\n",n);
+            // debug_printf("her is n:%d\n",n);
             for(int i = 0; i < n;++i ){
                 // debug_printf("copying %c\n",curr -> name[i]);
                 name[i] = curr -> name[i];
             }
-            // debug_printf("Sending back pname of %s\n",name);
+            debug_printf("Sending back pname of %s\n",name);
             return;
         }
     }
@@ -152,12 +155,14 @@ static void handle_get_proc_list(struct aos_rpc *rpc, uintptr_t *size,char * pid
     }
 
     pids[index] = '\0';
-
     // debug_printf("%s\n",pids);
 }
 
 int main(int argc, char *argv[])
 {   
+
+
+
 
     char * test = (char * ) malloc(sizeof(char));
     test[0] = 'A';
@@ -172,6 +177,11 @@ int main(int argc, char *argv[])
     pl.head = NULL;
     pl.tail = NULL;
     pl.size = 0;
+
+    process = 0;
+    domainid_t my_pid;
+    add_process(0,"process_manager",&my_pid);
+    disp_set_domain_id(my_pid);
     
     aos_rpc_register_handler(init_rpc,AOS_RPC_REGISTER_PROCESS,&handle_register_process);
     aos_rpc_register_handler(init_rpc,AOS_RPC_GET_PROC_NAME,&handle_get_proc_name);
