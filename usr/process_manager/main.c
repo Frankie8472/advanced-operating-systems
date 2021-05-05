@@ -1,4 +1,6 @@
 #include <stdio.h>
+#include <stdlib.h>
+
 
 #include <aos/aos.h>
 #include <aos/aos_rpc.h>
@@ -105,43 +107,64 @@ static void handle_register_process(struct aos_rpc *rpc,uintptr_t pid,uintptr_t 
 }
 
 
-static void handle_get_proc_name(struct aos_rpc *rpc,uintptr_t pid, uintptr_t *name){
-    debug_printf("get process name of pid:%d\n",pid);
+static void handle_get_proc_name(struct aos_rpc *rpc,uintptr_t pid, char *name){
+    // debug_printf("get process name of pid:%d\n",pid);
     
     for(struct process * curr = pl.head; curr != NULL; curr = curr -> next){
-        debug_printf("%d\n", curr -> pid);
         if(curr -> pid == pid){
             size_t n = strlen(curr -> name) + 1;
+            debug_printf("her is n:%d\n",n);
             for(int i = 0; i < n;++i ){
-                debug_printf("name 0x%lx]\n",name);
-                // debug_printf("curr -> name 0x%lx",curr -> name);
-                name[i] = (curr -> name)[i];
+                // debug_printf("copying %c\n",curr -> name[i]);
+                name[i] = curr -> name[i];
             }
-            // name = (uintptr_t *) curr -> name; 
+            // debug_printf("Sending back pname of %s\n",name);
             return;
         }
     }
-    debug_printf("could not resolve pid name lookup!\n");
+    // debug_printf("could not resolve pid name lookup!\n");
 
 }
 
+
+static void handle_get_proc_list(struct aos_rpc *rpc, uintptr_t *size,char * pids){
+    debug_printf("Handle get list of processes\n");
+    *size = pl.size;
+    char buffer[12]; 
+    size_t index = 0;
+    for(struct process * curr = pl.head; curr != NULL; curr = curr -> next){
+        sprintf(buffer,"%d",curr -> pid);
+        // debug_printf("here is buf %s", buffer);
+        char * b_ptr = buffer;
+        while(*b_ptr != '\0'){
+            pids[index] =  *b_ptr;
+            index++;
+            b_ptr++;
+            if(index > 1021){
+                debug_printf("Buffer in channels is not large enough to sned full pid list!\n");
+                pids[index] = '\0';
+                return;
+            }
+        }
+
+        pids[index] = ',';
+        index++;
+    }
+
+    pids[index] = '\0';
+
+    // debug_printf("%s\n",pids);
+}
 
 int main(int argc, char *argv[])
 {   
 
     char * test = (char * ) malloc(sizeof(char));
     test[0] = 'A';
-
-
-
     load_stack(10);
+
     errval_t err;
     struct aos_rpc * init_rpc = get_init_rpc();
-
-    err = aos_rpc_call(init_rpc,AOS_RPC_PUTCHAR,'c');
-    if(err_is_fail(err)){
-        DEBUG_ERR(err,"Failed to send putchar\n");
-    }
 
 
     debug_printf("Starting process manager\n");
@@ -152,6 +175,7 @@ int main(int argc, char *argv[])
     
     aos_rpc_register_handler(init_rpc,AOS_RPC_REGISTER_PROCESS,&handle_register_process);
     aos_rpc_register_handler(init_rpc,AOS_RPC_GET_PROC_NAME,&handle_get_proc_name);
+    aos_rpc_register_handler(init_rpc,AOS_RPC_GET_PROC_LIST,&handle_get_proc_list);
 
     struct waitset *default_ws = get_default_waitset();
 

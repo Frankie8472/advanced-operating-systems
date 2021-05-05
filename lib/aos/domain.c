@@ -115,6 +115,19 @@ domainid_t disp_get_domain_id(void)
     return disp->domain_id;
 }
 
+
+
+/**
+ * \brief Sets domain id for the dispatcher, NOTE: do not do this if you are not init process in init_foreign core(ensures uniqueness of pids)
+ */
+void disp_set_domain_id(domainid_t pid)
+{
+    dispatcher_handle_t handle = curdispatcher();
+    struct dispatcher_generic* disp = get_dispatcher_generic(handle);
+     disp->domain_id = pid;
+}
+
+
 /**
  * \brief returns the core_id stored in disp_priv struct
  */
@@ -268,4 +281,31 @@ struct aos_rpc* get_mem_rpc(void){
     dispatcher_handle_t handle = curdispatcher();
     struct dispatcher_generic* disp = get_dispatcher_generic(handle);
     return disp->core_state.c.mem_rpc;
+}
+
+
+void set_init_domain(void){
+    dispatcher_handle_t handle = curdispatcher();
+    struct dispatcher_generic* disp = get_dispatcher_generic(handle);
+    disp -> core_state.c.init_domain = true;
+}
+bool get_init_domain(void){
+    dispatcher_handle_t handle = curdispatcher();
+    struct dispatcher_generic* disp = get_dispatcher_generic(handle);
+    return disp -> core_state.c.init_domain;
+}
+
+
+struct aos_rpc* get_core_channel(coreid_t core_id){
+    assert(core_id < 4 && "Tried to get channel for core >= 4!");
+    dispatcher_handle_t handle = curdispatcher();
+    struct dispatcher_generic* disp = get_dispatcher_generic(handle);
+    return disp -> core_state.c.core_channels[core_id];
+}
+
+void set_core_channel(coreid_t core_id, struct aos_rpc * core_channel){
+    assert(core_id < 4 && "Tried to set channel for core >= 4!");
+    dispatcher_handle_t handle = curdispatcher();
+    struct dispatcher_generic* disp = get_dispatcher_generic(handle);
+    disp -> core_state.c.core_channels[core_id] = core_channel;
 }

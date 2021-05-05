@@ -60,7 +60,6 @@ static errval_t init_process_manager(void){
     initialize_rpc_handlers(pm_rpc);
     debug_printf("waiting for process manager to come online...\n");
     while(!get_pm_online()){
-
         err = event_dispatch(default_ws);
         if (err_is_fail(err)) {
             DEBUG_ERR(err, "in event_dispatch");
@@ -68,14 +67,24 @@ static errval_t init_process_manager(void){
         }
     }
 
+
+
     debug_printf("Process manager is online!\n");
 
     err = aos_rpc_call(pm_rpc,AOS_RPC_REGISTER_PROCESS,disp_get_domain_id(),disp_get_core_id(),"init");
     ON_ERR_RETURN(err);
+    //TODO: register memory server to PM
     err = aos_rpc_call(pm_rpc,AOS_RPC_REGISTER_PROCESS,*pm_pid,disp_get_core_id(),"process_manager");
     ON_ERR_RETURN(err);
     set_pm_rpc(pm_rpc);
     debug_printf("all finished!\n");
+
+
+    // char buf1[512];
+    // char buf2[512];
+    // debug_printf("=============================================================\n\n");
+    // debug_print_cap_at_capref(buf1,512,pm_rpc->channel.lmp.local_cap);
+    // debug_print_cap_at_capref(buf2, 512, pm_rpc -> channel.lmp.remote_cap);
 
     return SYS_ERR_OK;
 }
@@ -113,6 +122,8 @@ __attribute__((unused)) static errval_t init_memory_server(domainid_t *mem_pid){
 
 static errval_t init_foreign_core(void){
     errval_t err;
+    set_pm_online();
+
     uint64_t *urpc_init = (uint64_t*) MON_URPC_VBASE;
         debug_printf("Bootinfo base: %lx, bootinfo size: %lx\n",urpc_init[0],urpc_init[1]);
     debug_printf("Ram base: %lx, Ram size: %lx\n",urpc_init[2],urpc_init[3]);
@@ -184,7 +195,10 @@ static errval_t init_foreign_core(void){
     }
 
     init_core_channel(0, (lvaddr_t) urpc_init);
-    err = aos_rpc_call(core_channels[0],AOS_RPC_REGISTER_PROCESS,disp_get_domain_id(),disp_get_current_core_id(),"init");
+
+    
+    disp_set_domain_id(disp_get_current_core_id() << 10);
+    err = aos_rpc_call(get_core_channel(0),AOS_RPC_REGISTER_PROCESS,disp_get_domain_id(),disp_get_current_core_id(),"init");
     if(err_is_fail(err)){
         DEBUG_ERR(err,"Failed to register new init to pm\n");
     }
@@ -232,24 +246,66 @@ static int bsp_main(int argc, char *argv[])
         DEBUG_ERR(err,"Failed to init process manager!\n");
     }
 
-    domainid_t pid;
-    err = spawn_new_domain("memeater",&pid);
-
     if (err_is_fail(err)) {
         DEBUG_ERR(err, "spawn loading failed");
     }
     
-    // char buffer[512];
+
+
+
+    char * name;
+    err = aos_rpc_process_get_name(get_pm_rpc(),0,&name);
+    if(err_is_fail(err)){
+        DEBUG_ERR(err,"Failed to resolve pid name\n");
+    }
+
+    debug_printf("Received string: %s\n",name);
+
+
+    domainid_t* pids;
+    size_t pid_count;
+    err = aos_rpc_process_get_all_pids(get_pm_rpc(),&pids,&pid_count);
+    if(err_is_fail(err)){
+        DEBUG_ERR(err,"Failed to get all pids\n");
+    }
+
+
+    for(int i = 0; i < pid_count; ++i){
+        debug_printf("%d\n",pids[i]);
+    }
+
+
+
+
+
+
+
+    // size_t list_size;
+    // err = aos_rpc_call(get_pm_rpc(),AOS_RPC_GET_PROC_LIST,&list_size,buffer2);
+
+    // debug_printf("Size : %d, list: %s",list_size,buffer2);
+    // if(err_is_fail(err)){
+    //     DEBUG_ERR(err,"Failed to call get proc list \n");
+    // }
+
+
     // err = aos_rpc_call(get_pm_rpc(),AOS_RPC_GET_PROC_NAME,0,buffer);
     // if(err_is_fail(err)){
     //     DEBUG_ERR(err,"Failed to resolve name 0\n");
     // }
+    // debug_printf("here is the process  name: %s\n",buffer);
 
     // debug_printf("Got string %s\n",buffer);
 
     // spawn_new_core(my_core_id + 1);
+    // spawn_new_core(my_core_id + 2);
+    // spawn_new_core(my_core_id + 3);
     
     //run_init_tests(my_core_id);
+
+
+    // spawn_new_domain("memeater",NULL);
+    // spawn_new_domain("memeater", NULL);
 
     
 
@@ -351,6 +407,15 @@ static int app_main(int argc, char *argv[])
     }
     
     //run_init_tests(my_core_id);
+    // err = spawn_new_domain("memeater",NULL);
+    // err = spawn_new_domain("memeater",NULL);
+    // err = spawn_new_domain("memeater",NULL);
+    // err = spawn_new_domain("memeater",NULL);
+    // err = spawn_new_domain("memeater",NULL);
+    // err = spawn_new_domain("memeater",NULL);
+    // err = spawn_new_domain("memeater",NULL);
+    // err = spawn_new_domain("memeater",NULL);
+    err = spawn_new_domain("memeater",NULL);
 
     grading_setup_app_init(bi);
 

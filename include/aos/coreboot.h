@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (c) 2020, ETH Zurich.
+ * Copyright (c) 2020, ETH Zurich.      
  * All rights reserved.
  *
  * This file is distributed under the terms in the attached LICENSE file.

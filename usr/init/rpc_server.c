@@ -25,7 +25,6 @@
 
 // #include <aos/curdispatcher_arch.h>
 
-
 struct terminal_queue {
     struct lmp_chan* cur;
     struct terminal_queue* next;
@@ -52,9 +51,13 @@ errval_t init_terminal_state(void)
 }
 
 
-struct aos_rpc* core_channels[4];
 
-
+/**
+ * \brief Establishing a RPC/UMP channel with another core
+ *
+ * \param coreid Coreid of foreign core
+ * \param urpc_frame Shared communication frame between the two cores
+ */
 errval_t init_core_channel(coreid_t coreid, lvaddr_t urpc_frame)
 {
     struct aos_rpc *rpc = malloc(sizeof(struct aos_rpc));
@@ -63,12 +66,13 @@ errval_t init_core_channel(coreid_t coreid, lvaddr_t urpc_frame)
     errval_t err;
     err = aos_rpc_init(rpc);
     ON_ERR_PUSH_RETURN(err, LIB_ERR_RPC_INIT);
-    aos_rpc_init_ump_default(rpc, urpc_frame, BASE_PAGE_SIZE, coreid != 0);
+    aos_rpc_init_ump_default(rpc, urpc_frame, BASE_PAGE_SIZE, coreid < disp_get_core_id());
     ON_ERR_PUSH_RETURN(err, LIB_ERR_RPC_INIT);
 
     register_core_channel_handlers(rpc);
 
-    core_channels[coreid] = rpc;
+
+    set_core_channel(coreid,rpc);
     
     return SYS_ERR_OK;
 }
@@ -124,7 +128,7 @@ void handle_spawn(struct aos_rpc *old_rpc, const char *name, uintptr_t core_id, 
     } else if (current_core_id != 0) {
         // ump to 0
         errval_t err;
-        struct aos_rpc* ump_chan = core_channels[0];
+        struct aos_rpc* ump_chan = get_core_channel(0);
         assert(ump_chan && "NO U!");
         err = aos_rpc_call(ump_chan, AOS_RPC_FOREIGN_SPAWN, name, core_id, new_pid);
         if(err_is_fail(err)){
@@ -135,7 +139,7 @@ void handle_spawn(struct aos_rpc *old_rpc, const char *name, uintptr_t core_id, 
         //OR init distribute on creation of ump channel to all known channels
         debug_printf("spawn on core id: %d\n", core_id);
         errval_t err;
-        struct aos_rpc* ump_chan = core_channels[core_id];
+        struct aos_rpc* ump_chan = get_core_channel(core_id);
         
         if (ump_chan == NULL) {
             debug_printf("can't spawn on core %d: no channel to core\n", core_id);
@@ -177,7 +181,7 @@ void handle_foreign_spawn(struct aos_rpc *origin_rpc, const char *name, uintptr_
     domainid_t *pid = &si->pid;
     spawn_load_by_name((char*) name, si, pid);
     *new_pid = *pid;
-    errval_t errr = lmp_chan_register_recv(&rpc->channel.lmp, get_default_waitset(), MKCLOSURE(&aos_rpc_on_message, &rpc));
+    errval_t errr = lmp_chan_register_recv(&rpc->channel.lmp, get_default_waitset(), MKCLOSURE(&aos_rpc_on_lmp_message, &rpc));
     if (err_is_fail(errr) && errr == LIB_ERR_CHAN_ALREADY_REGISTERED) {
         // not too bad, already registered
     }
@@ -210,7 +214,7 @@ void handle_init_process_register(struct aos_rpc *r,uintptr_t pid,uintptr_t core
         }
     }
     else {
-        err = aos_rpc_call(core_channels[0],AOS_RPC_REGISTER_PROCESS,pid,core_id,name);
+        err = aos_rpc_call(get_core_channel(0),AOS_RPC_REGISTER_PROCESS,pid,disp_get_current_core_id(),name);
         if(err_is_fail(err)){
             DEBUG_ERR(err,"Failed to forward process registering to process manager in bsp init\n");
         }
@@ -226,6 +230,37 @@ void handle_mem_server_request(struct aos_rpc *r, struct capref client_cap, stru
     }
 }
 
+
+void handle_init_get_proc_name(struct aos_rpc *r, uintptr_t pid, char *name){
+    debug_printf("Forwarding proc name request!\n");
+    debug_printf("In init domain? %d\n",get_init_domain());
+    errval_t err; 
+    // if()
+
+    char buffer[512];
+    if(disp_get_current_core_id() == 0){
+        // debug_printf("Handlin")
+        err = aos_rpc_call(get_pm_rpc(),AOS_RPC_GET_PROC_NAME,pid,buffer);
+        strcpy(name,buffer);
+        
+        if(err_is_fail(err)){
+            DEBUG_ERR(err,"Failed to forward process registering to process manager in bsp init\n");
+        }
+    }else if (disp_get_core_id() != 0){
+        debug_printf("Hello we are here\n");
+        err = aos_rpc_call(get_core_channel(0),AOS_RPC_GET_PROC_NAME,pid,buffer);
+        
+        if(err_is_fail(err)){
+            DEBUG_ERR(err,"Failed to forward process registering to process manager in app init\n");
+        }
+        strcpy(name,buffer);
+    }
+}
+
+
+void handle_init_get_proc_list(struct aos_rpc *r, uintptr_t *pid_count, char *list){
+    debug_printf("Handled init get proc list %d, %s\n");
+}
 
 /**
  * \brief initialize all handlers for rpc calls
@@ -254,6 +289,8 @@ errval_t initialize_rpc_handlers(struct aos_rpc *rpc)
     aos_rpc_register_handler(rpc,AOS_RPC_REGISTER_PROCESS,&handle_init_process_register);
     aos_rpc_register_handler(rpc,AOS_RPC_MEM_SERVER_REQ,&handle_mem_server_request);
 
+    aos_rpc_register_handler(rpc,AOS_RPC_GET_PROC_NAME,&handle_init_get_proc_name);
+    aos_rpc_register_handler(rpc,AOS_RPC_GET_PROC_LIST,&handle_init_get_proc_list);
     return SYS_ERR_OK;
 }
 
@@ -264,7 +301,10 @@ void register_core_channel_handlers(struct aos_rpc *rpc)
     aos_rpc_register_handler(rpc, AOS_RPC_SEND_NUMBER, &handle_send_number);
     aos_rpc_register_handler(rpc, AOS_RPC_FOREIGN_SPAWN, &handle_foreign_spawn);
     aos_rpc_register_handler(rpc, AOS_RPC_REQUEST_RAM, &handle_request_ram);
+
     aos_rpc_register_handler(rpc, AOS_RPC_REGISTER_PROCESS, &handle_init_process_register);
+    aos_rpc_register_handler(rpc,AOS_RPC_GET_PROC_NAME,&handle_init_get_proc_name);
+    aos_rpc_register_handler(rpc,AOS_RPC_GET_PROC_LIST,&handle_init_get_proc_list);
 }
 
 

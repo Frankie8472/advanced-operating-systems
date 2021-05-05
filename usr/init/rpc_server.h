@@ -8,7 +8,6 @@
 errval_t init_terminal_state(void);
 
 
-extern struct aos_rpc* core_channels[4];
 
 enum SERVICES {
     PROCESS_MANAGER,
@@ -37,5 +36,8 @@ void handle_service_on(struct aos_rpc *r, uintptr_t service);
 void handle_init_process_register(struct aos_rpc *r,uintptr_t pid,uintptr_t core_id,const char* name);
 void handle_mem_server_request(struct aos_rpc *r, struct capref client_cap, struct capref * server_cap);
 
+void handle_init_get_proc_name(struct aos_rpc *r, uintptr_t pid, char *name);
+
+void handle_init_get_proc_list(struct aos_rpc *r, uintptr_t *pid_count, char *list);
 
 #endif // INIT_RPC_SERVER_H_

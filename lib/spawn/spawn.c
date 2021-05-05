@@ -18,7 +18,6 @@
 
 extern struct bootinfo *bi;
 extern coreid_t my_core_id;
-extern struct aos_rpc* core_channels[4];
 
 
 /**
@@ -478,9 +477,12 @@ errval_t spawn_load_by_name(char *binary_name, struct spawninfo *si,
 
 
 errval_t register_process_to_process_manager(char* binary_name,domainid_t pid){
+
     if(!get_pm_online()){
+        debug_printf("Pm is not online!\n");
         return SYS_ERR_OK;
     }
+
     errval_t err;
     coreid_t core_id = disp_get_core_id();
     if(core_id == 0){
@@ -490,8 +492,8 @@ errval_t register_process_to_process_manager(char* binary_name,domainid_t pid){
         ON_ERR_RETURN(err);
     }else{
 
-        assert(core_channels[0] && "UMP channel to core 0 is not present!");
-        err = aos_rpc_call(core_channels[0],AOS_RPC_REGISTER_PROCESS,pid,core_id,binary_name);
+        assert(get_core_channel(0) && "UMP channel to core 0 is not present!");
+        err = aos_rpc_call(get_core_channel(0),AOS_RPC_REGISTER_PROCESS,pid,core_id,binary_name);
         debug_printf("Register process to pm NYI for core != \n");
     }
     return SYS_ERR_OK;

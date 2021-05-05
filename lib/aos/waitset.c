@@ -224,7 +224,7 @@ void poll_channels_disabled(dispatcher_handle_t handle) {
                 {
                     //debug_printf("polling ump chan: %p\n", chan->arg);
                     struct ump_chan *ump = (struct ump_chan *) chan->arg;
-                    if (ump_chan_can_receive(ump)) {
+                    if ( chan -> waitset != NULL && ump_chan_can_receive(ump)) {
                         chan_ready = true;
                     }
                     break;
