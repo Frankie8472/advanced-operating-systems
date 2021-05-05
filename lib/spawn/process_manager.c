@@ -64,5 +64,5 @@ domainid_t spawn_get_new_domainid(void)
 {
     struct process_manager *pm = get_process_manager();
     debug_printf("created pid: %d\n", pm->next_pid);
-    return pm->next_pid++;
+    return pm->next_pid++ + (disp_get_current_core_id() << 10);
 }

@@ -36,6 +36,7 @@ coreid_t disp_get_current_core_id(void);
 void disp_get_eh_frame(lvaddr_t *eh_frame, size_t *eh_frame_size);
 void disp_get_eh_frame_hdr(lvaddr_t *eh_frame_hdr, size_t *eh_frame_hdr_size);
 domainid_t disp_get_domain_id(void);
+void disp_set_domain_id(domainid_t pid);
 coreid_t disp_handle_get_core_id(dispatcher_handle_t handle);
 void set_init_chan(struct aos_chan *initchan);
 struct aos_chan *get_init_chan(void);
@@ -61,6 +62,10 @@ struct aos_rpc* get_pm_rpc(void);
 
 void set_init_domain(void);
 bool get_init_domain(void);
+
+struct aos_rpc* get_core_channel(coreid_t core_id);
+
+void set_core_channel(coreid_t core_id, struct aos_rpc *);
 
 
 __END_DECLS

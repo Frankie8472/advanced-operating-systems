@@ -44,13 +44,13 @@ typedef enum aos_rpc_msg_type {
     AOS_RPC_PROC_SPAWN_REQUEST,
     AOS_RPC_FOREIGN_SPAWN,
     AOS_RPC_PUTCHAR,
-    AOS_RPC_GETCHAR,
-    AOS_RPC_SET_READ,
-    AOS_RPC_FREE_READ,
+    AOS_RPC_GETCHAR, 
+    AOS_RPC_SET_READ, //10
+    AOS_RPC_FREE_READ, //11
     AOS_RPC_REGISTER_PROCESS, //12
-    AOS_RPC_SERVICE_ON,
+    AOS_RPC_SERVICE_ON, //13
     AOS_RPC_GET_PROC_NAME, //14
-    AOS_RPC_GET_PROC_LIST,
+    AOS_RPC_GET_PROC_LIST, //15
     AOS_RPC_MEM_SERVER_REQ, //16
     AOS_RPC_ROUNDTRIP, ///< rpc call that does nothing, for benchmarking
     AOS_RPC_MAX_MSG_TYPES, // needs to be last

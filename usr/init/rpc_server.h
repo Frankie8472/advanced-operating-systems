@@ -8,7 +8,6 @@
 errval_t init_terminal_state(void);
 
 
-extern struct aos_rpc* core_channels[4];
 
 enum SERVICES {
     PROCESS_MANAGER,

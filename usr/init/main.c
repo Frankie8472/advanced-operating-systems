@@ -186,7 +186,10 @@ static errval_t init_foreign_core(void){
     }
 
     init_core_channel(0, (lvaddr_t) urpc_init);
-    err = aos_rpc_call(core_channels[0],AOS_RPC_REGISTER_PROCESS,disp_get_domain_id(),disp_get_current_core_id(),"init");
+
+    
+    disp_set_domain_id(disp_get_current_core_id() << 10);
+    err = aos_rpc_call(get_core_channel(0),AOS_RPC_REGISTER_PROCESS,disp_get_domain_id(),disp_get_current_core_id(),"init");
     if(err_is_fail(err)){
         DEBUG_ERR(err,"Failed to register new init to pm\n");
     }
@@ -234,8 +237,8 @@ static int bsp_main(int argc, char *argv[])
         DEBUG_ERR(err,"Failed to init process manager!\n");
     }
 
-    domainid_t pid;
-    err = spawn_new_domain("memeater",&pid);
+    // domainid_t pid;
+    // err = spawn_new_domain("memeater",&pid);
 
     if (err_is_fail(err)) {
         DEBUG_ERR(err, "spawn loading failed");
@@ -246,8 +249,35 @@ static int bsp_main(int argc, char *argv[])
 
     // spawn_new_domain("performance_tester",NULL);
 
-    // char buffer[512];
-    // err = aos_rpc_call(get_pm_rpc(),AOS_RPC_GET_PROC_NAME,3,buffer);
+    char buffer[512];
+    err = aos_rpc_process_get_name(aos_rpc_get_process_channel(),0,(char **) &buffer);\
+    if(err_is_fail(err)){
+        DEBUG_ERR(err,"Failed to resolve pid name\n");
+    }
+
+
+    domainid_t* pids;
+    size_t pid_count;
+    err = aos_rpc_process_get_all_pids(aos_rpc_get_process_channel(),&pids,&pid_count);
+    if(err_is_fail(err)){
+        DEBUG_ERR(err,"Failed to get all pids\n");
+    }
+
+
+    for(int i = 0; i < pid_count; ++i){
+        debug_printf("%d\n",pids[i]);
+    }
+
+    // size_t list_size;
+    // err = aos_rpc_call(get_pm_rpc(),AOS_RPC_GET_PROC_LIST,&list_size,buffer2);
+
+    // debug_printf("Size : %d, list: %s",list_size,buffer2);
+    // if(err_is_fail(err)){
+    //     DEBUG_ERR(err,"Failed to call get proc list \n");
+    // }
+
+
+    // err = aos_rpc_call(get_pm_rpc(),AOS_RPC_GET_PROC_NAME,0,buffer);
     // if(err_is_fail(err)){
     //     DEBUG_ERR(err,"Failed to resolve name 0\n");
     // }
@@ -255,11 +285,15 @@ static int bsp_main(int argc, char *argv[])
 
     // debug_printf("Got string %s\n",buffer);
 
-    spawn_new_core(my_core_id + 1);
-    spawn_new_core(my_core_id + 2);
+    // spawn_new_core(my_core_id + 1);
+    // spawn_new_core(my_core_id + 2);
     // spawn_new_core(my_core_id + 3);
     
     //run_init_tests(my_core_id);
+
+
+    // spawn_new_domain("memeater",NULL);
+    // spawn_new_domain("memeater", NULL);
 
     
 
@@ -361,15 +395,16 @@ static int app_main(int argc, char *argv[])
     }
     
     //run_init_tests(my_core_id);
-    // domainid_t m_pid;
-    // err = spawn_new_domain("memeater",&m_pid);
-    // err = spawn_new_domain("memeater",&m_pid);
-    // err = spawn_new_domain("memeater",&m_pid);
-    // err = spawn_new_domain("memeater",&m_pid);
-    // err = spawn_new_domain("memeater",&m_pid);
-    // err = spawn_new_domain("memeater",&m_pid);
-    // err = spawn_new_domain("performance_tester",NULL);
     // err = spawn_new_domain("memeater",NULL);
+    // err = spawn_new_domain("memeater",NULL);
+    // err = spawn_new_domain("memeater",NULL);
+    // err = spawn_new_domain("memeater",NULL);
+    // err = spawn_new_domain("memeater",NULL);
+    // err = spawn_new_domain("memeater",NULL);
+    // err = spawn_new_domain("memeater",NULL);
+    // err = spawn_new_domain("memeater",NULL);
+    err = spawn_new_domain("memeater",NULL);
+
     grading_setup_app_init(bi);
 
     grading_test_early();

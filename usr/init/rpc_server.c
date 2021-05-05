@@ -51,7 +51,6 @@ errval_t init_terminal_state(void)
 }
 
 
-struct aos_rpc* core_channels[4];
 
 
 errval_t init_core_channel(coreid_t coreid, lvaddr_t urpc_frame)
@@ -67,7 +66,8 @@ errval_t init_core_channel(coreid_t coreid, lvaddr_t urpc_frame)
 
     register_core_channel_handlers(rpc);
 
-    core_channels[coreid] = rpc;
+
+    set_core_channel(coreid,rpc);
     
     return SYS_ERR_OK;
 }
@@ -123,7 +123,7 @@ void handle_spawn(struct aos_rpc *old_rpc, const char *name, uintptr_t core_id, 
     } else if (current_core_id != 0) {
         // ump to 0
         errval_t err;
-        struct aos_rpc* ump_chan = core_channels[0];
+        struct aos_rpc* ump_chan = get_core_channel(0);
         assert(ump_chan && "NO U!");
         err = aos_rpc_call(ump_chan, AOS_RPC_FOREIGN_SPAWN, name, core_id, new_pid);
         if(err_is_fail(err)){
@@ -134,7 +134,7 @@ void handle_spawn(struct aos_rpc *old_rpc, const char *name, uintptr_t core_id, 
         //OR init distribute on creation of ump channel to all known channels
         debug_printf("spawn on core id: %d\n", core_id);
         errval_t err;
-        struct aos_rpc* ump_chan = core_channels[core_id];
+        struct aos_rpc* ump_chan = get_core_channel(core_id);
         
         if (ump_chan == NULL) {
             debug_printf("can't spawn on core %d: no channel to core\n", core_id);
@@ -209,7 +209,7 @@ void handle_init_process_register(struct aos_rpc *r,uintptr_t pid,uintptr_t core
         }
     }
     else {
-        err = aos_rpc_call(core_channels[0],AOS_RPC_REGISTER_PROCESS,pid,disp_get_current_core_id(),name);
+        err = aos_rpc_call(get_core_channel(0),AOS_RPC_REGISTER_PROCESS,pid,disp_get_current_core_id(),name);
         if(err_is_fail(err)){
             DEBUG_ERR(err,"Failed to forward process registering to process manager in bsp init\n");
         }
@@ -243,7 +243,7 @@ void handle_init_get_proc_name(struct aos_rpc *r, uintptr_t pid, char *name){
         }
     }else if (disp_get_core_id() != 0){
         debug_printf("Hello we are here\n");
-        err = aos_rpc_call(core_channels[0],AOS_RPC_GET_PROC_NAME,pid,buffer);
+        err = aos_rpc_call(get_core_channel(0),AOS_RPC_GET_PROC_NAME,pid,buffer);
         
         if(err_is_fail(err)){
             DEBUG_ERR(err,"Failed to forward process registering to process manager in app init\n");

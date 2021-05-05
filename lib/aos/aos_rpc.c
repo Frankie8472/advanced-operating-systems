@@ -19,6 +19,9 @@
 #include <stdarg.h>
 #include <aos/kernel_cap_invocations.h>
 
+
+
+
 static void aos_rpc_setup_page_handler(struct aos_rpc* rpc, uintptr_t port, uintptr_t size, struct capref frame) {
     debug_printf("aos_rpc_setup_page_handler\n");
     errval_t err = paging_map_frame(get_current_paging_state(), &rpc->bindings[port].buf_page_remote, size, frame, NULL, NULL);
@@ -74,6 +77,8 @@ errval_t aos_rpc_init(struct aos_rpc *rpc)
     aos_rpc_initialize_binding(rpc,AOS_RPC_SERVICE_ON,1,0,AOS_RPC_WORD);
     aos_rpc_initialize_binding(rpc,AOS_RPC_REGISTER_PROCESS,3,0,AOS_RPC_WORD,AOS_RPC_WORD, AOS_RPC_VARSTR);
     aos_rpc_initialize_binding(rpc,AOS_RPC_GET_PROC_NAME,1,1,AOS_RPC_WORD,AOS_RPC_VARSTR);
+
+    aos_rpc_initialize_binding(rpc,AOS_RPC_GET_PROC_LIST,0,2,AOS_RPC_WORD,AOS_RPC_VARSTR);
 
     //memory server bindings
     aos_rpc_initialize_binding(rpc,AOS_RPC_MEM_SERVER_REQ,1,1,AOS_RPC_CAPABILITY,AOS_RPC_CAPABILITY);
@@ -264,6 +269,10 @@ aos_rpc_process_spawn(struct aos_rpc *rpc, char *cmdline,
 errval_t
 aos_rpc_process_get_name(struct aos_rpc *rpc, domainid_t pid, char **name) {
     // TODO (M5): implement name lookup for process given a process id
+    errval_t err;
+    assert(name != NULL && "buffer to write pid is NULL");
+    err = aos_rpc_call(rpc,AOS_RPC_GET_PROC_NAME,pid,name);
+    ON_ERR_RETURN(err);
     return SYS_ERR_OK;
 }
 
@@ -271,7 +280,36 @@ aos_rpc_process_get_name(struct aos_rpc *rpc, domainid_t pid, char **name) {
 errval_t
 aos_rpc_process_get_all_pids(struct aos_rpc *rpc, domainid_t **pids,
                              size_t *pid_count) {
-    // TODO (M5): implement process id discovery
+    errval_t err;
+    char buffer[1024];
+    err = aos_rpc_call(get_pm_rpc(),AOS_RPC_GET_PROC_LIST,pid_count,buffer);
+    if(err_is_fail(err)){
+        DEBUG_ERR(err,"Failed aos_rpc call in get all pids\n");
+    }
+    domainid_t* pid_heap = (domainid_t*) malloc(*pid_count * sizeof(domainid_t));
+    debug_printf("Received buffer: %s\n",buffer);
+    char * buf_ptr = buffer;
+    char strbuf[13];
+    size_t index = 0;
+    size_t pid_index = 0;
+    while(*buf_ptr != '\0'){
+        if(*buf_ptr == ','){
+            strbuf[index] = '\0';
+            domainid_t pid = atoi(strbuf);
+            debug_printf(" word : %s\n",strbuf);
+            debug_printf(" number : %d\n",pid);
+            pid_heap[pid_index] = pid;
+            pid_index++;
+            buf_ptr++;
+            index = 0;
+        }
+        else{
+            strbuf[index] = *buf_ptr;
+            buf_ptr++;
+            index++;
+        }
+    }
+    *pids = pid_heap;
     return SYS_ERR_OK;
 }
 
@@ -1199,9 +1237,18 @@ struct aos_rpc *aos_rpc_get_process_channel(void)
 {
     //TODO: Return channel to talk to process server process (or whoever
     //implements process server functionality)
-    debug_printf("aos_rpc_get_process_channel NYI\n");
-    return aos_rpc_get_init_channel();
-    return NULL;
+    // debug_printf("aos_rpc_get_process_channel NYI\n");
+    // return aos_rpc_get_init_channel();
+    // return NULL;
+    if(get_init_domain() && disp_get_current_core_id() == 0 ){
+        return get_pm_rpc();
+    }
+    else if(get_init_domain() && disp_get_core_id() != 0){
+        return get_core_channel(0);
+    }
+    else{
+        return get_init_rpc();
+    }
 }
 
 /**
