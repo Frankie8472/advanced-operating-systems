@@ -350,6 +350,22 @@ static void push_words(struct ump_chan *uc, struct ump_msg *um, int *word_ind, u
 }
 
 
+static uintptr_t pull_word(struct ump_chan *uc, struct ump_msg *um, int *word_ind)
+{
+    if (*word_ind >= UMP_MSG_N_WORDS) {
+        bool received = false;
+        do {
+            received = ump_chan_poll_once(uc, um);
+        } while(!received);
+        *word_ind = 0;
+    }
+    uintptr_t word = um->data[*word_ind];
+    (*word_ind)++;
+
+    return word;
+}
+
+
 static void send_remaining(struct ump_chan *uc, struct ump_msg *um, int *word_ind)
 {
     if (*word_ind >= 0) {
@@ -454,38 +470,52 @@ static errval_t aos_rpc_call_ump(struct aos_rpc *rpc, enum aos_rpc_msg_type msg_
         response->data[6]
     );*/
 
-    size_t ret_offs = 1;
+    int ret_offs = 1;
     for (int i = 0; i < n_rets; i++) {
-        if (binding->rets[i] == AOS_RPC_WORD) {
-            *((uintptr_t *) retptrs[i]) = response->data[ret_offs++];
-        }
-        else if (binding->rets[i] == AOS_RPC_SHORTSTR) {
-            strncpy(((char *) retptrs[i]), (const char *) &response->data[ret_offs], AOS_RPC_SHORTSTR_LENGTH);
-            ret_offs += AOS_RPC_SHORTSTR_LENGTH / sizeof(uintptr_t);
-        }
-        else if (binding->rets[i] == AOS_RPC_CAPABILITY) {
-            struct capability cap;
-            memcpy(&cap, &response->data[ret_offs], sizeof cap);
-            ret_offs += sizeof(struct capability) / sizeof(uintptr_t);
-
-            struct capref forged;
-            errval_t err = slot_alloc(&forged);
-            ON_ERR_PUSH_RETURN(err, LIB_ERR_SLOT_ALLOC);
-
-            err = invoke_monitor_create_cap((uint64_t *) &cap,
-                                            get_cnode_addr(forged),
-                                            get_cnode_level(forged),
-                                            forged.slot,
-                                            disp_get_core_id()); // TODO: set owner correctly
-            if (err_is_fail(err)) {
-                DEBUG_ERR(err, "forging of cap failed\n");
+        switch(binding->rets[i]) {
+            case AOS_RPC_WORD: {
+                *((uintptr_t *) retptrs[i]) = pull_word(&rpc->channel.ump, response, &ret_offs);
             }
-            ON_ERR_PUSH_RETURN(err, LIB_ERR_MONITOR_CAP_SEND);
-            *((struct capref *) retptrs[i]) = forged;
-        }
-        else {
-            debug_printf("non-word responses over ump NYI!\n");
-            return LIB_ERR_NOT_IMPLEMENTED;
+            break;
+            case AOS_RPC_CAPABILITY: {
+                uintptr_t vals[3];
+                vals[0] = pull_word(&rpc->channel.ump, response, &ret_offs);
+                vals[1] = pull_word(&rpc->channel.ump, response, &ret_offs);
+                vals[2] = pull_word(&rpc->channel.ump, response, &ret_offs);
+
+                struct capability cap;
+                memcpy(&cap, &vals, sizeof cap);
+                ret_offs += sizeof(struct capability) / sizeof(uintptr_t);
+
+                struct capref forged;
+                errval_t err = slot_alloc(&forged);
+                ON_ERR_PUSH_RETURN(err, LIB_ERR_SLOT_ALLOC);
+
+                err = invoke_monitor_create_cap((uint64_t *) &cap,
+                                                get_cnode_addr(forged),
+                                                get_cnode_level(forged),
+                                                forged.slot,
+                                                disp_get_core_id()); // TODO: set owner correctly
+                if (err_is_fail(err)) {
+                    DEBUG_ERR(err, "forging of cap failed\n");
+                }
+                ON_ERR_PUSH_RETURN(err, LIB_ERR_MONITOR_CAP_SEND);
+                *((struct capref *) retptrs[i]) = forged;
+            }
+            break;
+            case AOS_RPC_VARSTR: {
+                char *ret = (char *) retptrs[i];
+                size_t len = pull_word(&rpc->channel.ump, response, &ret_offs);
+
+                for (size_t j = 0; j < len; j += 8) {
+                    uintptr_t word = pull_word(&rpc->channel.ump, response, &ret_offs);
+                    memcpy(ret + j, &word, sizeof(uintptr_t));
+                }
+            }
+            break;
+            default:
+            debug_printf("UNHANDLED ARGUMENT TYPE NYI\n");
+            break;
         }
     }
 
@@ -905,22 +935,6 @@ on_error:
     err2 = lmp_chan_register_recv(channel, get_default_waitset(), MKCLOSURE(&aos_rpc_on_message, arg));
     DEBUG_ERR(err, "error handling message\n");
     return;
-}
-
-
-static uintptr_t pull_word(struct ump_chan *uc, struct ump_msg *um, int *word_ind)
-{
-    if (*word_ind >= UMP_MSG_N_WORDS) {
-        bool received = false;
-        do {
-            received = ump_chan_poll_once(uc, um);
-        } while(!received);
-        *word_ind = 0;
-    }
-    uintptr_t word = um->data[*word_ind];
-    (*word_ind)++;
-
-    return word;
 }
 
 
