@@ -56,7 +56,8 @@ typedef enum aos_rpc_msg_type {
     AOS_RPC_SERVICE_ON, //13
     AOS_RPC_GET_PROC_NAME, //14
     AOS_RPC_GET_PROC_LIST, //15
-    AOS_RPC_MEM_SERVER_REQ, //16
+    AOS_RPC_GET_PROC_CORE, //16
+    AOS_RPC_MEM_SERVER_REQ, //17
     AOS_RPC_ROUNDTRIP, ///< rpc call that does nothing, for benchmarking
     AOS_RPC_MAX_MSG_TYPES, // needs to be last
 } msg_type_t;

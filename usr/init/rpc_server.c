@@ -232,10 +232,6 @@ void handle_mem_server_request(struct aos_rpc *r, struct capref client_cap, stru
 
 
 void handle_init_get_proc_name(struct aos_rpc *r, uintptr_t pid, char *name){
-    debug_printf("Forwarding proc name request!\n");
-    debug_printf("addr of name: = %lx\n",name); // --> 0
-    // debug_printf("In init domain? %d\n",get_init_domain());
-    // debug_printf("In init domain? %d\n",get_init_domain());
     errval_t err; 
 
     char buffer[512];
@@ -243,27 +239,20 @@ void handle_init_get_proc_name(struct aos_rpc *r, uintptr_t pid, char *name){
         err = aos_rpc_call(get_pm_rpc(),AOS_RPC_GET_PROC_NAME,pid,buffer);
         debug_printf("String received : %s\n",buffer);
 
-        // debug_printf("addr of name: = %lx\n");
-
         strcpy(name,buffer);
         debug_printf("Got here!\n");
         if(err_is_fail(err)){
             DEBUG_ERR(err,"Failed to forward process registering to process manager in bsp init\n");
         }
-        
-        
     }else if (disp_get_core_id() != 0){
         err = aos_rpc_call(get_core_channel(0),AOS_RPC_GET_PROC_NAME,pid,buffer);
         
-
-
         if(err_is_fail(err)){
             DEBUG_ERR(err,"Failed to forward process registering to process manager in app init\n");
         }
         
     }
     strcpy(name,buffer);
-    debug_printf(" Sending out name: %s\n",name);
 }
 
 
@@ -271,20 +260,37 @@ void handle_init_get_proc_list(struct aos_rpc *r, uintptr_t *pid_count, char *li
     debug_printf("Handled init get proc list %d, %s\n");
 
     errval_t err;
-        if(disp_get_current_core_id() == 0){
-        err = aos_rpc_call(get_pm_rpc(),AOS_RPC_GET_PROC_LIST,pid_count,list);
-        // strcpy(name,buffer);
-        
-            if(err_is_fail(err)){
-                DEBUG_ERR(err,"Failed to forward process registering to process manager in bsp init\n");
-            }
-        }else if (disp_get_core_id() != 0){
-        err = aos_rpc_call(get_core_channel(0),AOS_RPC_GET_PROC_LIST,pid_count,list);
+    // char buffer[2048]; //TODO: 
+    if(disp_get_current_core_id() == 0){
+        err = aos_rpc_call(get_pm_rpc(),AOS_RPC_GET_PROC_LIST,pid_count,list);        
+        if(err_is_fail(err)){
+            DEBUG_ERR(err,"Failed to forward process registering to process manager in bsp init\n");
+        }
+    }else if (disp_get_core_id() != 0){
+         err = aos_rpc_call(get_core_channel(0),AOS_RPC_GET_PROC_LIST,pid_count,list);
         
         if(err_is_fail(err)){
             DEBUG_ERR(err,"Failed to forward process registering to process manager in app init\n");
         }
-        // strcpy(name,buffer);
+        
+    }
+    // strcpy(name,buffer);
+}
+
+
+void handle_init_get_core_id(struct aos_rpc *r, uintptr_t pid, uintptr_t * core_id){
+    errval_t err;
+    if(disp_get_current_core_id() == 0){
+        err = aos_rpc_call(get_pm_rpc(),AOS_RPC_GET_PROC_CORE,pid,core_id);        
+        if(err_is_fail(err)){
+            DEBUG_ERR(err,"Failed to forward process registering to process manager in bsp init\n");
+        }
+    }else if (disp_get_core_id() != 0){
+         err = aos_rpc_call(get_core_channel(0),AOS_RPC_GET_PROC_CORE,pid,core_id);
+        
+        if(err_is_fail(err)){
+            DEBUG_ERR(err,"Failed to forward process registering to process manager in app init\n");
+        }
     }
 }
 
@@ -317,6 +323,7 @@ errval_t initialize_rpc_handlers(struct aos_rpc *rpc)
 
     aos_rpc_register_handler(rpc,AOS_RPC_GET_PROC_NAME,&handle_init_get_proc_name);
     aos_rpc_register_handler(rpc,AOS_RPC_GET_PROC_LIST,&handle_init_get_proc_list);
+    aos_rpc_register_handler(rpc, AOS_RPC_GET_PROC_CORE,&handle_init_get_core_id);
     return SYS_ERR_OK;
 }
 
@@ -331,6 +338,7 @@ void register_core_channel_handlers(struct aos_rpc *rpc)
     aos_rpc_register_handler(rpc, AOS_RPC_REGISTER_PROCESS, &handle_init_process_register);
     aos_rpc_register_handler(rpc,AOS_RPC_GET_PROC_NAME,&handle_init_get_proc_name);
     aos_rpc_register_handler(rpc,AOS_RPC_GET_PROC_LIST,&handle_init_get_proc_list);
+    aos_rpc_register_handler(rpc, AOS_RPC_GET_PROC_CORE,&handle_init_get_core_id);
 }
 
 

@@ -29,6 +29,7 @@ struct process_list{
 
 
 
+
 static char* strcopy(const char* str){
     size_t n = strlen(str) + 1;
     char * new_str = (char * ) malloc( n * sizeof(char));
@@ -158,6 +159,29 @@ static void handle_get_proc_list(struct aos_rpc *rpc, uintptr_t *size,char * pid
     // debug_printf("%s\n",pids);
 }
 
+static void handle_get_proc_core(struct aos_rpc* rpc, uintptr_t pid,uintptr_t *core){
+    for(struct process* curr = pl.head; curr!= NULL; curr = curr ->  next){
+        if(curr -> pid == pid){
+            *core = curr -> core_id;
+            debug_printf("Sending back core %d\n",*core);
+            return;
+        }
+    }
+
+    *core = -1;
+    debug_printf("Could not find pid!\n");
+}
+
+
+static void register_proc_man_handler(struct aos_rpc * init_rpc){
+    aos_rpc_register_handler(init_rpc,AOS_RPC_REGISTER_PROCESS,&handle_register_process);
+    aos_rpc_register_handler(init_rpc,AOS_RPC_GET_PROC_NAME,&handle_get_proc_name);
+    aos_rpc_register_handler(init_rpc,AOS_RPC_GET_PROC_LIST,&handle_get_proc_list);
+    aos_rpc_register_handler(init_rpc,AOS_RPC_GET_PROC_CORE,&handle_get_proc_core);
+}
+
+
+
 int main(int argc, char *argv[])
 {   
 
@@ -170,7 +194,7 @@ int main(int argc, char *argv[])
 
     errval_t err;
     struct aos_rpc * init_rpc = get_init_rpc();
-
+    register_proc_man_handler(init_rpc);
 
     debug_printf("Starting process manager\n");
     
@@ -183,10 +207,6 @@ int main(int argc, char *argv[])
     add_process(0,"process_manager",&my_pid);
     disp_set_domain_id(my_pid);
     
-    aos_rpc_register_handler(init_rpc,AOS_RPC_REGISTER_PROCESS,&handle_register_process);
-    aos_rpc_register_handler(init_rpc,AOS_RPC_GET_PROC_NAME,&handle_get_proc_name);
-    aos_rpc_register_handler(init_rpc,AOS_RPC_GET_PROC_LIST,&handle_get_proc_list);
-
     struct waitset *default_ws = get_default_waitset();
 
     err = aos_rpc_call(init_rpc,AOS_RPC_SERVICE_ON,0);
