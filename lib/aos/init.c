@@ -176,6 +176,7 @@ errval_t barrelfish_init_onthread(struct spawn_domain_params *params)
     if (init_domain) { // init does not need a channel to itself
         err = cap_retype(cap_selfep, cap_dispatcher, 0, ObjType_EndPointLMP, 0, 1);
         ON_ERR_PUSH_RETURN(err, LIB_ERR_CAP_RETYPE);
+        set_init_domain();
         return SYS_ERR_OK;
     }
 
@@ -209,33 +210,33 @@ errval_t barrelfish_init_onthread(struct spawn_domain_params *params)
         set_init_rpc(&init_rpc);
 
 
-        debug_printf("Is memory server online: %d?\n",get_mem_online());
-        if(get_mem_online()){
-            debug_printf("Trying to establish connection to memory server..\n");
+        // debug_printf("Is memory server online: %d?\n",get_mem_online());
+        // if(get_mem_online()){
+        //     debug_printf("Trying to establish connection to memory server..\n");
 
-            struct lmp_endpoint * ep;
-            err = endpoint_create(256, &self_ep_cap, &ep);
-            ON_ERR_PUSH_RETURN(err, LIB_ERR_ENDPOINT_CREATE);
+        //     struct lmp_endpoint * ep;
+        //     err = endpoint_create(256, &self_ep_cap, &ep);
+        //     ON_ERR_PUSH_RETURN(err, LIB_ERR_ENDPOINT_CREATE);
 
-            static struct aos_rpc mem_rpc;
+        //     static struct aos_rpc mem_rpc;
 
-            err = aos_rpc_init(&mem_rpc);
-            ON_ERR_RETURN(err);
+        //     err = aos_rpc_init(&mem_rpc);
+        //     ON_ERR_RETURN(err);
             
 
 
-            err = aos_rpc_init_lmp(&mem_rpc,self_ep_cap,NULL_CAP, ep);
-            ON_ERR_RETURN(err);
+        //     err = aos_rpc_init_lmp(&mem_rpc,self_ep_cap,NULL_CAP, ep);
+        //     ON_ERR_RETURN(err);
 
 
-            struct capref mem_cap;
-            err = aos_rpc_call(&init_rpc,AOS_RPC_MEM_SERVER_REQ,self_ep_cap,&mem_cap);
-            ON_ERR_RETURN(err);
-            mem_rpc.channel.lmp.remote_cap = mem_cap;
-            set_mem_rpc(&mem_rpc);
-            debug_printf("Channel with memory server established\n");
+        //     struct capref mem_cap;
+        //     err = aos_rpc_call(&init_rpc,AOS_RPC_MEM_SERVER_REQ,self_ep_cap,&mem_cap);
+        //     ON_ERR_RETURN(err);
+        //     mem_rpc.channel.lmp.remote_cap = mem_cap;
+        //     set_mem_rpc(&mem_rpc);
+        //     debug_printf("Channel with memory server established\n");
 
-        }
+        // }
 
     }
 

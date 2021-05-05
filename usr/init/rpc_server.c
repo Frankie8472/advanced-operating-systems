@@ -25,7 +25,6 @@
 
 // #include <aos/curdispatcher_arch.h>
 
-
 struct terminal_queue {
     struct lmp_chan* cur;
     struct terminal_queue* next;
@@ -210,7 +209,7 @@ void handle_init_process_register(struct aos_rpc *r,uintptr_t pid,uintptr_t core
         }
     }
     else {
-        err = aos_rpc_call(core_channels[0],AOS_RPC_REGISTER_PROCESS,pid,core_id,name);
+        err = aos_rpc_call(core_channels[0],AOS_RPC_REGISTER_PROCESS,pid,disp_get_current_core_id(),name);
         if(err_is_fail(err)){
             DEBUG_ERR(err,"Failed to forward process registering to process manager in bsp init\n");
         }
@@ -226,6 +225,32 @@ void handle_mem_server_request(struct aos_rpc *r, struct capref client_cap, stru
     }
 }
 
+
+void handle_init_get_proc_name(struct aos_rpc *r, uintptr_t pid, char *name){
+    debug_printf("Forwarding proc name request!\n");
+    debug_printf("In init domain? %d\n",get_init_domain());
+    errval_t err; 
+    // if()
+
+    char buffer[512];
+    if(disp_get_current_core_id() == 0){
+        // debug_printf("Handlin")
+        err = aos_rpc_call(get_pm_rpc(),AOS_RPC_GET_PROC_NAME,pid,buffer);
+        strcpy(name,buffer);
+        
+        if(err_is_fail(err)){
+            DEBUG_ERR(err,"Failed to forward process registering to process manager in bsp init\n");
+        }
+    }else if (disp_get_core_id() != 0){
+        debug_printf("Hello we are here\n");
+        err = aos_rpc_call(core_channels[0],AOS_RPC_GET_PROC_NAME,pid,buffer);
+        
+        if(err_is_fail(err)){
+            DEBUG_ERR(err,"Failed to forward process registering to process manager in app init\n");
+        }
+        strcpy(name,buffer);
+    }
+}
 
 /**
  * \brief initialize all handlers for rpc calls
@@ -254,6 +279,7 @@ errval_t initialize_rpc_handlers(struct aos_rpc *rpc)
     aos_rpc_register_handler(rpc,AOS_RPC_REGISTER_PROCESS,&handle_init_process_register);
     aos_rpc_register_handler(rpc,AOS_RPC_MEM_SERVER_REQ,&handle_mem_server_request);
 
+    aos_rpc_register_handler(rpc,AOS_RPC_GET_PROC_NAME,&handle_init_get_proc_name);
     return SYS_ERR_OK;
 }
 
@@ -264,7 +290,9 @@ void register_core_channel_handlers(struct aos_rpc *rpc)
     aos_rpc_register_handler(rpc, AOS_RPC_SEND_NUMBER, &handle_send_number);
     aos_rpc_register_handler(rpc, AOS_RPC_FOREIGN_SPAWN, &handle_foreign_spawn);
     aos_rpc_register_handler(rpc, AOS_RPC_REQUEST_RAM, &handle_request_ram);
+
     aos_rpc_register_handler(rpc, AOS_RPC_REGISTER_PROCESS, &handle_init_process_register);
+    aos_rpc_register_handler(rpc,AOS_RPC_GET_PROC_NAME,&handle_init_get_proc_name);
 }
 
 

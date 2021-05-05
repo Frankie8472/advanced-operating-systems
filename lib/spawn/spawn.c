@@ -478,9 +478,12 @@ errval_t spawn_load_by_name(char *binary_name, struct spawninfo *si,
 
 
 errval_t register_process_to_process_manager(char* binary_name,domainid_t pid){
+
     if(!get_pm_online()){
+        debug_printf("Pm is not online!\n");
         return SYS_ERR_OK;
     }
+
     errval_t err;
     coreid_t core_id = disp_get_core_id();
     if(core_id == 0){

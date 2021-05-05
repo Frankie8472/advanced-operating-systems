@@ -269,3 +269,15 @@ struct aos_rpc* get_mem_rpc(void){
     struct dispatcher_generic* disp = get_dispatcher_generic(handle);
     return disp->core_state.c.mem_rpc;
 }
+
+
+void set_init_domain(void){
+    dispatcher_handle_t handle = curdispatcher();
+    struct dispatcher_generic* disp = get_dispatcher_generic(handle);
+    disp -> core_state.c.init_domain = true;
+}
+bool get_init_domain(void){
+    dispatcher_handle_t handle = curdispatcher();
+    struct dispatcher_generic* disp = get_dispatcher_generic(handle);
+    return disp -> core_state.c.init_domain;
+}

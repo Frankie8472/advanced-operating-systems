@@ -113,6 +113,8 @@ __attribute__((unused)) static errval_t init_memory_server(domainid_t *mem_pid){
 
 static errval_t init_foreign_core(void){
     errval_t err;
+    set_pm_online();
+
     uint64_t *urpc_init = (uint64_t*) MON_URPC_VBASE;
         debug_printf("Bootinfo base: %lx, bootinfo size: %lx\n",urpc_init[0],urpc_init[1]);
     debug_printf("Ram base: %lx, Ram size: %lx\n",urpc_init[2],urpc_init[3]);
@@ -239,15 +241,23 @@ static int bsp_main(int argc, char *argv[])
         DEBUG_ERR(err, "spawn loading failed");
     }
     
+
+
+
+    // spawn_new_domain("performance_tester",NULL);
+
     // char buffer[512];
-    // err = aos_rpc_call(get_pm_rpc(),AOS_RPC_GET_PROC_NAME,0,buffer);
+    // err = aos_rpc_call(get_pm_rpc(),AOS_RPC_GET_PROC_NAME,3,buffer);
     // if(err_is_fail(err)){
     //     DEBUG_ERR(err,"Failed to resolve name 0\n");
     // }
+    // debug_printf("here is the process  name: %s\n",buffer);
 
     // debug_printf("Got string %s\n",buffer);
 
-    // spawn_new_core(my_core_id + 1);
+    spawn_new_core(my_core_id + 1);
+    spawn_new_core(my_core_id + 2);
+    // spawn_new_core(my_core_id + 3);
     
     //run_init_tests(my_core_id);
 
@@ -351,7 +361,15 @@ static int app_main(int argc, char *argv[])
     }
     
     //run_init_tests(my_core_id);
-
+    // domainid_t m_pid;
+    // err = spawn_new_domain("memeater",&m_pid);
+    // err = spawn_new_domain("memeater",&m_pid);
+    // err = spawn_new_domain("memeater",&m_pid);
+    // err = spawn_new_domain("memeater",&m_pid);
+    // err = spawn_new_domain("memeater",&m_pid);
+    // err = spawn_new_domain("memeater",&m_pid);
+    // err = spawn_new_domain("performance_tester",NULL);
+    // err = spawn_new_domain("memeater",NULL);
     grading_setup_app_init(bi);
 
     grading_test_early();

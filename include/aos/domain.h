@@ -59,6 +59,8 @@ void set_pm_rpc(struct aos_rpc *pm_rpc);
 struct aos_rpc* get_pm_rpc(void);
 
 
+void set_init_domain(void);
+bool get_init_domain(void);
 
 
 __END_DECLS

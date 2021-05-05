@@ -105,23 +105,22 @@ static void handle_register_process(struct aos_rpc *rpc,uintptr_t pid,uintptr_t 
 }
 
 
-static void handle_get_proc_name(struct aos_rpc *rpc,uintptr_t pid, uintptr_t *name){
+static void handle_get_proc_name(struct aos_rpc *rpc,uintptr_t pid, char *name){
     debug_printf("get process name of pid:%d\n",pid);
     
     for(struct process * curr = pl.head; curr != NULL; curr = curr -> next){
-        debug_printf("%d\n", curr -> pid);
         if(curr -> pid == pid){
             size_t n = strlen(curr -> name) + 1;
+            debug_printf("her is n:%d\n",n);
             for(int i = 0; i < n;++i ){
-                debug_printf("name 0x%lx]\n",name);
-                // debug_printf("curr -> name 0x%lx",curr -> name);
-                name[i] = (curr -> name)[i];
+                // debug_printf("copying %c\n",curr -> name[i]);
+                name[i] = curr -> name[i];
             }
-            // name = (uintptr_t *) curr -> name; 
+            debug_printf("Sending back pname of %s\n",name);
             return;
         }
     }
-    debug_printf("could not resolve pid name lookup!\n");
+    // debug_printf("could not resolve pid name lookup!\n");
 
 }
 
@@ -137,11 +136,6 @@ int main(int argc, char *argv[])
     load_stack(10);
     errval_t err;
     struct aos_rpc * init_rpc = get_init_rpc();
-
-    err = aos_rpc_call(init_rpc,AOS_RPC_PUTCHAR,'c');
-    if(err_is_fail(err)){
-        DEBUG_ERR(err,"Failed to send putchar\n");
-    }
 
 
     debug_printf("Starting process manager\n");
