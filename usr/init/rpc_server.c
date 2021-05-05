@@ -299,6 +299,7 @@ errval_t initialize_rpc_handlers(struct aos_rpc *rpc)
 void register_core_channel_handlers(struct aos_rpc *rpc)
 {
     aos_rpc_register_handler(rpc, AOS_RPC_SEND_NUMBER, &handle_send_number);
+    aos_rpc_register_handler(rpc, AOS_RPC_SEND_STRING, &handle_send_string);
     aos_rpc_register_handler(rpc, AOS_RPC_FOREIGN_SPAWN, &handle_foreign_spawn);
     aos_rpc_register_handler(rpc, AOS_RPC_REQUEST_RAM, &handle_request_ram);
 
