@@ -454,9 +454,10 @@ static errval_t aos_rpc_call_ump(struct aos_rpc *rpc, enum aos_rpc_msg_type msg_
             size_t msg_len = strlen(str) + 1;
             push_words(&rpc->channel.ump, um, &word_ind, msg_len);
             for (int j = 0; j < msg_len; j += sizeof(uintptr_t)) {
+                int word_len = min(sizeof(uintptr_t), msg_len - j);
                 uintptr_t word = 0;
-                memcpy(&word, str + j, sizeof(uintptr_t));
-                push_words(&rpc->channel.ump, um, &word_ind, word); // TODO: add check so we don't read over string end
+                memcpy(&word, str + j, word_len);
+                push_words(&rpc->channel.ump, um, &word_ind, word);
             }
         }
         else {

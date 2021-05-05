@@ -22,6 +22,11 @@
 
 #define AOS_RPC_RETURN_BIT 0x1000000
 
+#define min(a,b) \
+   ({ __typeof__ (a) _a = (a); \
+       __typeof__ (b) _b = (b); \
+     _a < _b ? _a : _b; })
+
 enum aos_rpc_backend {
     AOS_RPC_LMP,
     AOS_RPC_UMP,
