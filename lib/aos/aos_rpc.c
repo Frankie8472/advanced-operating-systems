@@ -19,22 +19,30 @@
 #include <stdarg.h>
 #include <aos/kernel_cap_invocations.h>
 
-static void aos_rpc_setup_page_handler(struct aos_rpc* rpc, uintptr_t port, uintptr_t size, struct capref frame) {
+/**
+ * \brief Handler for mapping a newly sent frame into the own virtual address space.
+ * Is called for setting up a shared page between to endpoints.
+ */
+static void aos_rpc_setup_page_handler(struct aos_rpc* rpc, uintptr_t msg_type, uintptr_t frame_size, struct capref frame)
+{
     debug_printf("aos_rpc_setup_page_handler\n");
-    errval_t err = paging_map_frame(get_current_paging_state(), &rpc->bindings[port].buf_page_remote, size, frame, NULL, NULL);
+    errval_t err = paging_map_frame(get_current_paging_state(), &rpc->bindings[msg_type].buf_page_remote, frame_size, frame, NULL, NULL);
     if (err_is_fail(err)) {
         DEBUG_ERR(err, "setting up communication page\n");
     }
 }
 
-
-static errval_t setup_buf_page(struct aos_rpc *rpc, enum aos_rpc_msg_type msg_type, uintptr_t size)
+/**
+ * \brief Function for creating the buffer page for sending a (rather long) string over
+ * the LMP channel.
+ */
+static errval_t setup_buf_page(struct aos_rpc *rpc, enum aos_rpc_msg_type msg_type, uintptr_t buf_size)
 {
     struct capref frame;
     errval_t err;
     
     // create frame to share
-    err = frame_alloc(&frame, size, NULL);
+    err = frame_alloc(&frame, buf_size, NULL);
     ON_ERR_PUSH_RETURN(err, LIB_ERR_FRAME_ALLOC);
 
     // map into local address space and store address in rpc->bindings[msg_type].buf_page
@@ -42,18 +50,22 @@ static errval_t setup_buf_page(struct aos_rpc *rpc, enum aos_rpc_msg_type msg_ty
     ON_ERR_PUSH_RETURN(err, LIB_ERR_VSPACE_MAP);
 
     // call remote end to install shared frame into its own address space
-    err = aos_rpc_call(rpc, AOS_RPC_SETUP_PAGE, msg_type, size, frame);
+    err = aos_rpc_call(rpc, AOS_RPC_SETUP_PAGE, msg_type, buf_size, frame);
     ON_ERR_PUSH_RETURN(err, LIB_ERR_RPC_SETUP_PAGE); // TODO: New error code
 
     return SYS_ERR_OK;
 }
 
+/**
+ * \brief Initializes the RPC channel bindings and sets the default RPC channel bindings.
+ */
 errval_t aos_rpc_init(struct aos_rpc *rpc)
 {
     memset(rpc->bindings, 0, sizeof rpc->bindings);
 
-    // bind initiate function (to send our endpoint to init)
+    // initiate function binding (to send our endpoint to init)
     aos_rpc_initialize_binding(rpc, AOS_RPC_INITIATE, 1, 0, AOS_RPC_CAPABILITY);
+
     // bind further functions
     aos_rpc_initialize_binding(rpc, AOS_RPC_SEND_NUMBER, 1, 0, AOS_RPC_WORD);
     aos_rpc_initialize_binding(rpc, AOS_RPC_SEND_STRING, 1, 0, AOS_RPC_VARSTR);
@@ -70,24 +82,24 @@ errval_t aos_rpc_init(struct aos_rpc *rpc)
 
     aos_rpc_initialize_binding(rpc, AOS_RPC_ROUNDTRIP, 0, 0);
 
-    //Process manager bindings
-    aos_rpc_initialize_binding(rpc,AOS_RPC_SERVICE_ON,1,0,AOS_RPC_WORD);
-    aos_rpc_initialize_binding(rpc,AOS_RPC_REGISTER_PROCESS,3,0,AOS_RPC_WORD,AOS_RPC_WORD, AOS_RPC_VARSTR);
-    aos_rpc_initialize_binding(rpc,AOS_RPC_GET_PROC_NAME,1,1,AOS_RPC_WORD,AOS_RPC_VARSTR);
+    // process manager bindings
+    aos_rpc_initialize_binding(rpc, AOS_RPC_SERVICE_ON, 1, 0, AOS_RPC_WORD);
+    aos_rpc_initialize_binding(rpc, AOS_RPC_REGISTER_PROCESS, 3, 0, AOS_RPC_WORD, AOS_RPC_WORD, AOS_RPC_VARSTR);
+    aos_rpc_initialize_binding(rpc, AOS_RPC_GET_PROC_NAME, 1, 1, AOS_RPC_WORD, AOS_RPC_VARSTR);
 
-    //memory server bindings
-    aos_rpc_initialize_binding(rpc,AOS_RPC_MEM_SERVER_REQ,1,1,AOS_RPC_CAPABILITY,AOS_RPC_CAPABILITY);
+    // memory server bindings
+    aos_rpc_initialize_binding(rpc, AOS_RPC_MEM_SERVER_REQ, 1, 1, AOS_RPC_CAPABILITY, AOS_RPC_CAPABILITY);
 
-    // aos_rpc_initialize_binding(rpc,AOS_RPC_REGISTER_PROCESS,3,0,AOS_RPC_WORD,AOS_RPC_WORD, AOS_RPC_VARSTR);
+    //aos_rpc_initialize_binding(rpc, AOS_RPC_REGISTER_PROCESS, 3, 0, AOS_RPC_WORD, AOS_RPC_WORD, AOS_RPC_VARSTR);
     return SYS_ERR_OK;
 }
 
 /**
- * NOTE: maybe add remote and local cap as parameters?
- *       atm they have to be set before calling dis method
- * i.e. rpc->channel.local_cap / remote_cap are used here
- * and should be properly set beforehand
- * \brief Initialize an aos_rpc struct.
+ * \brief Initialize an RPC LMP backend. Set enpoints of both ends and create endpoint.
+ *
+ * \param self_ep Capref to endpoint to read from
+ * \param end_ep Capref to endpoint to write to
+ * \param lmp_ep Return parameter, address to empty lmp_endpoint struct
  */
 errval_t aos_rpc_init_lmp(struct aos_rpc* rpc, struct capref self_ep, struct capref end_ep, struct lmp_endpoint *lmp_ep) {
     errval_t err;
@@ -110,68 +122,17 @@ errval_t aos_rpc_init_lmp(struct aos_rpc* rpc, struct capref self_ep, struct cap
     err = lmp_chan_alloc_recv_slot(&rpc->channel.lmp);
     ON_ERR_PUSH_RETURN(err, LIB_ERR_LMP_ALLOC_RECV_SLOT);
 
-
-    err = lmp_chan_register_recv(&rpc->channel.lmp, get_default_waitset(), MKCLOSURE(&aos_rpc_on_message, rpc));
-    ON_ERR_PUSH_RETURN(err, LIB_ERR_LMP_ENDPOINT_REGISTER);
-
-    if (!capref_is_null(rpc->channel.lmp.remote_cap)) {
-        // we are not in init and do already have a remote cap
-        // we need to initiate a connection so init gets our endpoint capability
-        debug_printf("Trying to establish channel with init (or memory server with client):\n");
-
-        // call initiate function with our endpoint cap as argument in order
-        // to make it known to init
-        err = aos_rpc_call(rpc, AOS_RPC_INITIATE, rpc->channel.lmp.local_cap);
-        if (!err_is_fail(err)) {
-            debug_printf("init channel established!\n");
-        }
-        else {
-            debug_printf("error establishing connection with init.\n");
-            ON_ERR_PUSH_RETURN(err, LIB_ERR_RPC_INITIATE);
-        }
-    }
-
-    return err;
-}
-
-
-errval_t aos_rpc_init_lmp_without_init(struct aos_rpc* rpc, struct capref self_ep, struct capref end_ep, struct lmp_endpoint *lmp_ep) {
-    errval_t err;
-    debug_printf("aos_rpc_init\n");
-    
-    rpc->backend = AOS_RPC_LMP;
-
-    lmp_chan_init(&rpc->channel.lmp);
-    rpc->channel.lmp.local_cap = self_ep;
-    rpc->channel.lmp.remote_cap = end_ep;
-
-    if (lmp_ep == NULL) {
-        err = endpoint_create(256, &rpc->channel.lmp.local_cap, &lmp_ep);
-        ON_ERR_PUSH_RETURN(err, LIB_ERR_ENDPOINT_CREATE);
-    }
-
-    rpc->channel.lmp.buflen_words = 256;
-    rpc->channel.lmp.endpoint = lmp_ep;
-    
-    err = lmp_chan_alloc_recv_slot(&rpc->channel.lmp);
-    ON_ERR_PUSH_RETURN(err, LIB_ERR_LMP_ALLOC_RECV_SLOT);
-
-
-    err = lmp_chan_register_recv(&rpc->channel.lmp, get_default_waitset(), MKCLOSURE(&aos_rpc_on_message, rpc));
+    err = lmp_chan_register_recv(&rpc->channel.lmp, get_default_waitset(), MKCLOSURE(&aos_rpc_on_lmp_message, rpc));
     ON_ERR_PUSH_RETURN(err, LIB_ERR_LMP_ENDPOINT_REGISTER);
 
     return err;
 }
-
-
-
-
-
-
 
 /**
- * \brief TODO
- * - inits ump channel with default message size
+ * \brief Initialize an aos_rpc struct running on UMP backend with default settings
+ * Shared page is splittet 1:1 and ump message size is UMP_MSG_SIZE_DEFAULT todo
+ *
+ * \param first_half Boolean for choosing which part of the shared page is used for the caller
  */
 errval_t aos_rpc_init_ump_default(struct aos_rpc *rpc, lvaddr_t shared_page, size_t shared_page_size, bool first_half)
 {
@@ -197,6 +158,7 @@ errval_t aos_rpc_init_ump_default(struct aos_rpc *rpc, lvaddr_t shared_page, siz
 
     err = ump_chan_init(&rpc->channel.ump, send_pane, half_page_size, recv_pane, half_page_size);
     ON_ERR_RETURN(err);
+
     ump_chan_register_recv(&rpc->channel.ump, get_default_waitset(), MKCLOSURE(&aos_rpc_on_ump_message, rpc));
     //err = ump_chan_register_polling(ump_chan_get_default_poller(), &rpc->channel.ump, &aos_rpc_on_ump_message, rpc);
     ON_ERR_RETURN(err);
@@ -204,20 +166,21 @@ errval_t aos_rpc_init_ump_default(struct aos_rpc *rpc, lvaddr_t shared_page, siz
     return SYS_ERR_OK;
 }
 
-
-errval_t
-aos_rpc_send_number(struct aos_rpc *rpc, uintptr_t num) {
+errval_t aos_rpc_send_number(struct aos_rpc *rpc, uintptr_t num)
+{
     return aos_rpc_call(rpc, AOS_RPC_SEND_NUMBER, num);
 }
 
-errval_t
-aos_rpc_send_string(struct aos_rpc *rpc, const char *string)
+errval_t aos_rpc_send_string(struct aos_rpc *rpc, const char *string)
 {
     return aos_rpc_call(rpc, AOS_RPC_SEND_STRING, string);
 }
 
-errval_t
-aos_rpc_get_ram_cap(struct aos_rpc *rpc, size_t bytes, size_t alignment,
+/**
+ * \brief Request a RAM capability with >= request_bits of size over the given
+ * channel.
+ */
+errval_t aos_rpc_get_ram_cap(struct aos_rpc *rpc, size_t bytes, size_t alignment,
                     struct capref *ret_cap, size_t *ret_bytes) {
     size_t _rs = 0;
 
@@ -226,11 +189,14 @@ aos_rpc_get_ram_cap(struct aos_rpc *rpc, size_t bytes, size_t alignment,
     HERE;
 }
 
-errval_t
-aos_rpc_serial_getchar(struct aos_rpc *rpc, char *retc)
+/**
+ * \brief Get one character from the serial port
+ */
+errval_t aos_rpc_serial_getchar(struct aos_rpc *rpc, char *retc)
 {
     return aos_rpc_call(rpc, AOS_RPC_GETCHAR, retc);
 }
+
 
 errval_t aos_rpc_get_terminal_input(struct aos_rpc *rpc, char* buf, size_t len)
 {
@@ -246,36 +212,62 @@ errval_t aos_rpc_get_terminal_input(struct aos_rpc *rpc, char* buf, size_t len)
     return SYS_ERR_OK;
 }
 
-errval_t
-aos_rpc_serial_putchar(struct aos_rpc *rpc, char c)
+/**
+ * \brief Send one character to the serial port
+ */
+errval_t aos_rpc_serial_putchar(struct aos_rpc *rpc, char c)
 {
     return aos_rpc_call(rpc, AOS_RPC_PUTCHAR, c);
 }
 
-errval_t
-aos_rpc_process_spawn(struct aos_rpc *rpc, char *cmdline,
+/**
+ * \brief Request that the process manager start a new process
+ *
+ * \param cmdline The name of the process that needs to be spawned (without a
+ *           path prefix) and optionally any arguments to pass to it
+ * \param newpid The process id of the newly-spawned process
+ */
+errval_t aos_rpc_process_spawn(struct aos_rpc *rpc, char *cmdline,
                       coreid_t core, domainid_t *newpid) {
     // TODO (M5): implement spawn new process rpc
     return aos_rpc_call(rpc, AOS_RPC_PROC_SPAWN_REQUEST, cmdline, core, newpid);
 }
 
-
-
-errval_t
-aos_rpc_process_get_name(struct aos_rpc *rpc, domainid_t pid, char **name) {
+/**
+ * \brief Get the name of the process with the given PID.
+ *
+ * \param pid The process id to lookup
+ * \param name A null-terminated character array with the name of the process
+ * that is allocated by the rpc implementation. Freeing is the caller's
+ * responsibility.
+ */
+errval_t aos_rpc_process_get_name(struct aos_rpc *rpc, domainid_t pid, char **name) {
     // TODO (M5): implement name lookup for process given a process id
     return SYS_ERR_OK;
 }
 
-
-errval_t
-aos_rpc_process_get_all_pids(struct aos_rpc *rpc, domainid_t **pids,
+/**
+ * \brief Get PIDs of all running processes.
+ *
+ * \param pids An array containing the process ids of all currently active
+ * processes. Will be allocated by the rpc implementation. Freeing is the
+ * caller's  responsibility.
+ * \param pid_count The number of entries in `pids' if the call was successful
+ */
+errval_t aos_rpc_process_get_all_pids(struct aos_rpc *rpc, domainid_t **pids,
                              size_t *pid_count) {
     // TODO (M5): implement process id discovery
     return SYS_ERR_OK;
 }
 
-
+/**
+ * \brief LMP helper function for retrieving word snips from a already received message
+ * array. If the array has already be read, receive a new array.
+ *
+ * \param lm Address to LMP message array
+ * \param cap Address to capability slot of the message
+ * \param word_ind Address to index into the message array
+ */
 static uintptr_t pull_word_lmp(struct lmp_chan *lc, struct lmp_recv_msg *lm, struct capref *cap, int *word_ind)
 {
     if (*word_ind >= LMP_MSG_LENGTH) {
@@ -304,7 +296,14 @@ static uintptr_t pull_word_lmp(struct lmp_chan *lc, struct lmp_recv_msg *lm, str
     return word;
 }
 
-
+/**
+ * \brief LMP helper function for retrieving received capability over the channel.
+ * If the capref pointer is NULL, we try to receive a new message with a capref in it.
+ *
+ * \param lm Address to LMP message array
+ * \param cap Address to capability slot of the message
+ * \param word_ind Address to index into the message array
+ */
 static struct capref pull_cap_lmp(struct lmp_chan *lc, struct lmp_recv_msg *lm, struct capref *cap, int *word_ind)
 {
     if (capref_is_null(*cap)) {
@@ -331,7 +330,14 @@ static struct capref pull_cap_lmp(struct lmp_chan *lc, struct lmp_recv_msg *lm, 
     return ret;
 }
 
-
+/**
+ * \brief Helper function for unmarshalling received message
+ *
+ * \param retptrs Address to the return array
+ * \param binding ??? TODO
+ * \param msg Received LMP message
+ * \param cap Capability to ??? TODO
+ */
 static errval_t aos_rpc_unmarshall_retval_aarch64(struct aos_rpc *rpc,
                         void **retptrs, struct aos_rpc_function_binding *binding,
                         struct lmp_recv_msg *msg, struct capref cap)
@@ -369,14 +375,15 @@ static errval_t aos_rpc_unmarshall_retval_aarch64(struct aos_rpc *rpc,
 }
 
 /**
- * \brief
+ * \brief UMP helper function for adding word snips to the message array and sending the array
+ * over the channel if full
  *
- * \param uc
- * \param um
- * \param word_ind
- * \return
+ * \param uc UMP channel
+ * \param um UMP message array
+ * \param word_ind Index into the message array
+ * \param word Pointer to 8 byte message
  */
-static void push_words(struct ump_chan *uc, struct ump_msg *um, int *word_ind, uintptr_t word)
+static void push_words_ump(struct ump_chan *uc, struct ump_msg *um, int *word_ind, uintptr_t word)
 {
     um->data[(*word_ind)++] = word;
 
@@ -389,8 +396,13 @@ static void push_words(struct ump_chan *uc, struct ump_msg *um, int *word_ind, u
     }
 }
 
-
-static void send_remaining(struct ump_chan *uc, struct ump_msg *um, int *word_ind)
+/**
+ * \brief UMP helper function for sending the remaining message snips
+ * \param uc UMP channel
+ * \param um UMP message array
+ * \param word_ind Index into the message array
+ */
+static void send_remaining_ump(struct ump_chan *uc, struct ump_msg *um, int *word_ind)
 {
     if (*word_ind >= 0) {
         bool sent = false;
@@ -401,7 +413,15 @@ static void send_remaining(struct ump_chan *uc, struct ump_msg *um, int *word_in
     }
 }
 
-
+/**
+ * \brief Abstract function call for every message to be sent to another
+ * process on another core
+ *
+ * \param rpc The RPC channel
+ * \param msg_type The type of messege to be sent
+ * \param ... Parameters for the message to be sent
+ * \return err Error code
+ */
 static errval_t aos_rpc_call_ump(struct aos_rpc *rpc, enum aos_rpc_msg_type msg_type, va_list args)
 {
     assert(rpc);
@@ -415,14 +435,14 @@ static errval_t aos_rpc_call_ump(struct aos_rpc *rpc, enum aos_rpc_msg_type msg_
     /* struct ump_msg um = DECLARE_MESSAGE(rpc->channel.ump); */
     DECLARE_MESSAGE(rpc->channel.ump, um);
     um->flag = 0;
-
     um->data[0] = msg_type;
 
+    // Send
     int word_ind = 1;
     int ret_ind = 0;
     for (int i = 0; i < n_args; i++) {
         if (binding->args[i] == AOS_RPC_WORD) {
-            push_words(&rpc->channel.ump, um, &word_ind, va_arg(args, uintptr_t));
+            push_words_ump(&rpc->channel.ump, um, &word_ind, va_arg(args, uintptr_t));
         }
         else if (binding->args[i] == AOS_RPC_SHORTSTR) {
             const int n_words = AOS_RPC_SHORTSTR_LENGTH / sizeof(uintptr_t);
@@ -433,7 +453,7 @@ static errval_t aos_rpc_call_ump(struct aos_rpc *rpc, enum aos_rpc_msg_type msg_
 
             memcpy(&words, str, strlen(str));
             for (int j = 0; j < n_words; j++) {
-                push_words(&rpc->channel.ump, um, &word_ind, words[j]);
+                push_words_ump(&rpc->channel.ump, um, &word_ind, words[j]);
             }
         }
         else if (binding->args[i] == AOS_RPC_CAPABILITY) {
@@ -445,19 +465,19 @@ static errval_t aos_rpc_call_ump(struct aos_rpc *rpc, enum aos_rpc_msg_type msg_
             invoke_cap_identify(cr, &cap);
             memcpy(&words, &cap, sizeof(struct capability));
             for (int j = 0; j < 3; j++) {
-                push_words(&rpc->channel.ump, um, &word_ind, words[j]);
+                push_words_ump(&rpc->channel.ump, um, &word_ind, words[j]);
             }
         }
         else if (binding->args[i] == AOS_RPC_VARSTR) {
             // check for str, set flag in accordance with last element of sended shortstr
             const char *str = va_arg(args, char*);
             size_t msg_len = strlen(str) + 1;
-            push_words(&rpc->channel.ump, um, &word_ind, msg_len);
+            push_words_ump(&rpc->channel.ump, um, &word_ind, msg_len);
             for (int j = 0; j < msg_len; j += sizeof(uintptr_t)) {
                 int word_len = min(sizeof(uintptr_t), msg_len - j);
                 uintptr_t word = 0;
                 memcpy(&word, str + j, word_len);
-                push_words(&rpc->channel.ump, um, &word_ind, word);
+                push_words_ump(&rpc->channel.ump, um, &word_ind, word);
             }
         }
         else {
@@ -466,14 +486,12 @@ static errval_t aos_rpc_call_ump(struct aos_rpc *rpc, enum aos_rpc_msg_type msg_
         }
     }
 
+    send_remaining_ump(&rpc->channel.ump, um, &word_ind);
+
+    // Receive
     for (int i = 0; i < n_rets; i++) {
         retptrs[ret_ind++] = va_arg(args, void*);
     }
-
-    send_remaining(&rpc->channel.ump, um, &word_ind);
-    
-
-    // Receive
     DECLARE_MESSAGE(rpc->channel.ump, response);
     bool received = false;
     do {
@@ -533,7 +551,16 @@ static errval_t aos_rpc_call_ump(struct aos_rpc *rpc, enum aos_rpc_msg_type msg_
     return SYS_ERR_OK;
 }
 
-
+/**
+ * \brief LMP helper function for adding word snips to the message array and sending the array
+ * over the channel if full
+ *
+ * \param uc LMP channel
+ * \param um LMP message array
+ * \param cap Slot for sending a capability, can be NULL if no cap is to be sent
+ * \param word_ind Index into the message array
+ * \param word Pointer to 8 byte message
+ */
 static void push_word_lmp(struct lmp_chan *lc, uintptr_t *lm, struct capref *cap, int *word_ind, uintptr_t word)
 {
     lm[(*word_ind)++] = word;
@@ -549,7 +576,16 @@ static void push_word_lmp(struct lmp_chan *lc, uintptr_t *lm, struct capref *cap
     }
 }
 
-
+/**
+ * \brief LMP helper function for adding a capability to the message array and sending the array
+ * over the channel if slot already occupied
+ *
+ * \param uc Address to LMP channel
+ * \param um Address to LMP message array
+ * \param cap Address to slot for sending a capability, can be NULL if no cap is to be sent
+ * \param word_ind Address to index into the message array
+ * \param to_push Capability to be added to the message
+ */
 static void push_cap_lmp(struct lmp_chan *lc, uintptr_t *lm, struct capref *cap, int *word_ind, struct capref to_push)
 {
     if (!capref_is_null(*cap)) {
@@ -585,6 +621,15 @@ static void send_remaining_lmp(struct lmp_chan *lc, uintptr_t *lm, struct capref
     }
 }
 
+/**
+ * \brief Abstract function call for every message to be sent to another
+ * process on the same core
+ *
+ * \param rpc The RPC channel
+ * \param msg_type The type of messege to be sent
+ * \param args Parameters for the message to be sent
+ * \return err Error code
+ */
 static errval_t aos_rpc_call_lmp(struct aos_rpc *rpc, enum aos_rpc_msg_type msg_type, va_list args)
 {
     assert(rpc);
@@ -626,16 +671,21 @@ static errval_t aos_rpc_call_lmp(struct aos_rpc *rpc, enum aos_rpc_msg_type msg_
 
                 for (int j = 0; j < length; j += sizeof(uintptr_t)) {
                     uintptr_t word = 0;
-                    memcpy(&word, str + j, sizeof(uintptr_t));
-                    push_word_lmp(lc, words, &send_cap, &word_ind, word); // TODO: add check so we don't read over string end
+                    memcpy(&word, str + j, min(sizeof(uintptr_t), length - j));
+                    push_word_lmp(lc, words, &send_cap, &word_ind, word);
                 }
             }
             break;
             case AOS_RPC_STR: {
                 const char* str = va_arg(args, const char*);
+                size_t buf_page_size = BASE_PAGE_SIZE * 4;
+
                 if (binding->buf_page == NULL) {
-                    // TODO: implement size check for string
-                    err = setup_buf_page(rpc, msg_type, BASE_PAGE_SIZE * 4);
+                    if (strlen(str) > buf_page_size) {
+                        debug_printf("String is too big to send");
+                        return LIB_ERR_STRING_TOO_LONG;
+                    }
+                    err = setup_buf_page(rpc, msg_type, buf_page_size);
                     ON_ERR_PUSH_RETURN(err, LIB_ERR_FRAME_ALLOC); // Todo: create new error code
                 }
                 // send the offset into the buf_page
@@ -658,7 +708,6 @@ static errval_t aos_rpc_call_lmp(struct aos_rpc *rpc, enum aos_rpc_msg_type msg_
     for (int i = 0; i < n_rets; i++) {
         retptrs[ret_ind++] = va_arg(args, void*);
     }
-
 
     //debug_printf("waiting for response\n");
     while(!lmp_chan_can_recv(&rpc->channel.lmp)) {
@@ -685,7 +734,18 @@ static errval_t aos_rpc_call_lmp(struct aos_rpc *rpc, enum aos_rpc_msg_type msg_
     return SYS_ERR_OK;
 }
 
-
+/**
+ * \brief Abstract function call for every message to be sent to another
+ * process on any core
+ *
+ * \param msg_type The type of message to be sent/funtion to call
+ * \param ... Parameters for the message to be sent.
+ * Need to be of the types expected by this function.
+ *            AOS_RPC_WORD          becomes uintptr_t
+ *            AOS_RPC_STR           becomes const char*
+ *            AOS_RPC_BYTES         currently unimplemented
+ *            AOS_RPC_CAPABILITY    becomes struct capref
+ */
 errval_t aos_rpc_call(struct aos_rpc *rpc, enum aos_rpc_msg_type msg_type, ...)
 {
     va_list args;
@@ -707,22 +767,51 @@ errval_t aos_rpc_call(struct aos_rpc *rpc, enum aos_rpc_msg_type msg_type, ...)
     return err;
 }
 
-
-errval_t aos_rpc_register_handler(struct aos_rpc *rpc, enum aos_rpc_msg_type binding, void* handler)
+/**
+ * \brief Registers a handler function to be called when this rpc is invoked
+ *        and should be run in our domain.
+ *
+ * The handler should take arguments corresponding to the registered binding --
+ *
+ *        AOS_RPC_WORD          becomes uintptr_t
+ *        AOS_RPC_STR           becomes const char*
+ *        AOS_RPC_BYTES         currently unimplemented
+ *        AOS_RPC_CAPABILITY    becomes struct capref
+ *
+ * followed by the return values, that are of the corresponding pointer type.
+ * They each point to a valid location and need to be written to in order to
+ * return any values.
+ */
+errval_t aos_rpc_register_handler(struct aos_rpc *rpc, enum aos_rpc_msg_type msg_type, void* handler)
 {
-    rpc->handlers[binding] = handler;
+    rpc->handlers[msg_type] = handler;
     return SYS_ERR_OK;
 }
 
-
-errval_t aos_rpc_initialize_binding(struct aos_rpc *rpc, enum aos_rpc_msg_type binding,
+/**
+* \brief Initialize marshalling info for an rpc function
+*
+* In order to use an rpc msg_type, it needs to be registered here.
+* Once registered, the function can be called by using \link aos_rpc_call .
+*
+* Note that the callee domain still needs to set a handler for this function
+* using \link aos_rpc_register_handler.
+*
+* \param msg_type The function id to register
+* \param n_args Number of arguments
+* \param n_rets Number of return arguments
+* \param ... The remaining parameters are of type <code>enum aos_rpc_argument_type</code>
+*            first the \link n_args types of the arguments, then the \link n_rets types
+*            of the return types.
+*/
+errval_t aos_rpc_initialize_binding(struct aos_rpc *rpc, enum aos_rpc_msg_type msg_type,
                                     int n_args, int n_rets, ...)
 {
-    struct aos_rpc_function_binding *fb = &rpc->bindings[binding];
+    struct aos_rpc_function_binding *fb = &rpc->bindings[msg_type];
     va_list args;
     fb->n_args = n_args;
     fb->n_rets = n_rets;
-    fb->port = binding;
+    fb->port = msg_type;
 
     int wordargs = 0;
     int capargs = 0;
@@ -886,10 +975,12 @@ static errval_t aos_rpc_unmarshall_lmp_aarch64(struct aos_rpc *rpc,
     return SYS_ERR_OK;
 }
 
-
-void aos_rpc_on_message(void *arg)
+/**
+ * \brief Message handler function for rpc calls via lmp
+ */
+void aos_rpc_on_lmp_message(void *arg)
 {
-    //debug_printf("aos_rpc_on_message\n");
+    //debug_printf("aos_rpc_on_lmp_message\n");
     struct aos_rpc *rpc = arg;
     struct lmp_chan *channel = &rpc->channel.lmp;
 
@@ -900,10 +991,10 @@ void aos_rpc_on_message(void *arg)
     err = lmp_chan_recv(channel, &msg, &recieved_cap);
     if (err_is_fail(err) && lmp_err_is_transient(err)) {
         debug_printf("transient error\n");
-        err = lmp_chan_register_recv(channel, get_default_waitset(), MKCLOSURE(&aos_rpc_on_message, arg));
+        err = lmp_chan_register_recv(channel, get_default_waitset(), MKCLOSURE(&aos_rpc_on_lmp_message, arg));
     }
     else if (err == LIB_ERR_NO_LMP_MSG) {
-        err = lmp_chan_register_recv(channel, get_default_waitset(), MKCLOSURE(&aos_rpc_on_message, arg));
+        err = lmp_chan_register_recv(channel, get_default_waitset(), MKCLOSURE(&aos_rpc_on_lmp_message, arg));
         return;
     }
     else if (err_is_fail(err)) {
@@ -926,7 +1017,7 @@ void aos_rpc_on_message(void *arg)
 
     void *handler = rpc->handlers[msgtype];
     if (handler == NULL) {
-        debug_printf("no handler for %d\n", msgtype);
+        debug_printf("no handler for %lu\n", msgtype);
         err = LIB_ERR_RPC_NO_HANDLER_SET;
         goto on_error;
     }
@@ -938,18 +1029,24 @@ void aos_rpc_on_message(void *arg)
 
 //on_success:
     //debug_printf("reregister\n");
-    err = lmp_chan_register_recv(channel, get_default_waitset(), MKCLOSURE(&aos_rpc_on_message, arg));
+    err = lmp_chan_register_recv(channel, get_default_waitset(), MKCLOSURE(&aos_rpc_on_lmp_message, arg));
     return;
 
     errval_t err2;
 on_error:
-    err2 = lmp_chan_register_recv(channel, get_default_waitset(), MKCLOSURE(&aos_rpc_on_message, arg));
+    err2 = lmp_chan_register_recv(channel, get_default_waitset(), MKCLOSURE(&aos_rpc_on_lmp_message, arg));
     DEBUG_ERR(err, "error handling message\n");
     return;
 }
 
+/**
+ * \brief Helper function for retrieving a word of a ump message
 
-static uintptr_t pull_word(struct ump_chan *uc, struct ump_msg *um, int *word_ind)
+ * \param um Address to UMP message array
+ * \param word_ind Address to index in to the message array
+ * \return word Retrieved message
+ */
+static uintptr_t pull_word_ump(struct ump_chan *uc, struct ump_msg *um, int *word_ind)
 {
     if (*word_ind >= UMP_MSG_N_WORDS) {
         bool received = false;
@@ -963,7 +1060,6 @@ static uintptr_t pull_word(struct ump_chan *uc, struct ump_msg *um, int *word_in
 
     return word;
 }
-
 
 static errval_t aos_rpc_unmarshall_ump_simple_aarch64(struct aos_rpc *rpc,
                         void *handler, struct aos_rpc_function_binding *binding,
@@ -993,14 +1089,14 @@ static errval_t aos_rpc_unmarshall_ump_simple_aarch64(struct aos_rpc *rpc,
         
         switch(binding->args[i]) {
             case AOS_RPC_WORD: {
-                arg[a_pos++] = pull_word(uc, msg, &word_ind);
+                arg[a_pos++] = pull_word_ump(uc, msg, &word_ind);
             }
             break;
             case AOS_RPC_CAPABILITY: {
                 uintptr_t words[3];
-                words[0] = pull_word(uc, msg, &word_ind);
-                words[1] = pull_word(uc, msg, &word_ind);
-                words[2] = pull_word(uc, msg, &word_ind);
+                words[0] = pull_word_ump(uc, msg, &word_ind);
+                words[1] = pull_word_ump(uc, msg, &word_ind);
+                words[2] = pull_word_ump(uc, msg, &word_ind);
 
                 struct capability cap;
                 memcpy(&cap, words, sizeof cap);
@@ -1020,11 +1116,11 @@ static errval_t aos_rpc_unmarshall_ump_simple_aarch64(struct aos_rpc *rpc,
             }
             break;
             case AOS_RPC_VARSTR: {
-                uintptr_t length = pull_word(uc, msg, &word_ind);
+                uintptr_t length = pull_word_ump(uc, msg, &word_ind);
                 debug_printf("here on arg %d, length: %ld\n", i, length);
                 assert(length < sizeof argstring);
                 for (size_t j = 0; j < length; j += sizeof(uintptr_t)) {
-                    uintptr_t piece = pull_word(uc, msg, &word_ind);
+                    uintptr_t piece = pull_word_ump(uc, msg, &word_ind);
                     debug_printf("piece: %ld\n", piece);
                     memcpy(argstring + j, &piece, sizeof(uintptr_t));
                 }
@@ -1086,7 +1182,7 @@ static errval_t aos_rpc_unmarshall_ump_simple_aarch64(struct aos_rpc *rpc,
         switch(binding->rets[i]) {
             case AOS_RPC_WORD: {
                 uintptr_t word = ret[ret_pos++];
-                push_words(uc, response, &buf_pos, word);
+                push_words_ump(uc, response, &buf_pos, word);
             }
             break;
             
@@ -1096,20 +1192,20 @@ static errval_t aos_rpc_unmarshall_ump_simple_aarch64(struct aos_rpc *rpc,
                 ON_ERR_PUSH_RETURN(err, LIB_ERR_CAP_IDENTIFY);
                 uintptr_t words[3];
                 memcpy(&words, &cap, sizeof cap);
-                push_words(uc, response, &buf_pos, words[0]);
-                push_words(uc, response, &buf_pos, words[1]);
-                push_words(uc, response, &buf_pos, words[2]);
+                push_words_ump(uc, response, &buf_pos, words[0]);
+                push_words_ump(uc, response, &buf_pos, words[1]);
+                push_words_ump(uc, response, &buf_pos, words[2]);
             }
             break;
 
             case AOS_RPC_VARSTR: {
                 uintptr_t length = strlen(retstring);
-                push_words(uc, response, &buf_pos, length);
+                push_words_ump(uc, response, &buf_pos, length);
                 
                 for (int j = 0; j < length; j += sizeof(uintptr_t)) {
                     uintptr_t word;
                     memcpy(&word, retstring + j, sizeof(uintptr_t));
-                    push_words(uc, response, &buf_pos, word);
+                    push_words_ump(uc, response, &buf_pos, word);
                 }
             }
             break;
@@ -1120,11 +1216,14 @@ static errval_t aos_rpc_unmarshall_ump_simple_aarch64(struct aos_rpc *rpc,
         }
     }
 
-    send_remaining(uc, response, &buf_pos);
+    send_remaining_ump(uc, response, &buf_pos);
 
     return SYS_ERR_OK;
 }
 
+/**
+ * \brief Message handler function for rpc calls via ump
+ */
 void aos_rpc_on_ump_message(void *arg)
 {
     debug_printf("ump message received!\n");
@@ -1171,20 +1270,11 @@ void aos_rpc_on_ump_message(void *arg)
     }*/
 }
 
-
-
-
-/**
- * \brief Returns the RPC channel to init.
- */
 struct aos_rpc *aos_rpc_get_init_channel(void)
 {
     return get_init_rpc();
 }
 
-/**
- * \brief Returns the channel to the memory server
- */
 struct aos_rpc *aos_rpc_get_memory_channel(void)
 {
     //TODO: Return channel to talk to memory server process (or whoever
@@ -1193,9 +1283,6 @@ struct aos_rpc *aos_rpc_get_memory_channel(void)
     return get_init_rpc();
 }
 
-/**
- * \brief Returns the channel to the process manager
- */
 struct aos_rpc *aos_rpc_get_process_channel(void)
 {
     //TODO: Return channel to talk to process server process (or whoever
@@ -1217,13 +1304,15 @@ struct aos_rpc *aos_rpc_get_serial_channel(void)
     return NULL;
 }
 
-
-errval_t aos_rpc_request_foreign_ram(struct aos_rpc * rpc, size_t size,struct capref *ret_cap,size_t * ret_size){
+/**
+ * \brief Requesting ram via the rpc channel. Must be RPC channel to core 0!
+ */
+errval_t aos_rpc_request_foreign_ram(struct aos_rpc *rpc, size_t size, struct capref *ret_cap, size_t *ret_size)
+{
     debug_printf("Got here!\n");
     errval_t err;
-    assert(rpc -> backend == AOS_RPC_UMP && "Tried to call foreign ram request on an LMP channel!\n");
-    err = aos_rpc_call(rpc,AOS_RPC_REQUEST_RAM,size,1,ret_cap,ret_size);
+    assert(rpc->backend == AOS_RPC_UMP && "Tried to call foreign ram request on an LMP channel!\n");
+    err = aos_rpc_call(rpc,AOS_RPC_REQUEST_RAM, size, 1, ret_cap,ret_size);
     ON_ERR_RETURN(err);
     return err;
-
 }

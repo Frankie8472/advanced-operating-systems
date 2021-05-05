@@ -54,7 +54,12 @@ errval_t init_terminal_state(void)
 
 struct aos_rpc* core_channels[4];
 
-
+/**
+ * \brief Establishing a RPC/UMP channel with another core
+ *
+ * \param coreid Coreid of foreign core
+ * \param urpc_frame Shared communication frame between the two cores
+ */
 errval_t init_core_channel(coreid_t coreid, lvaddr_t urpc_frame)
 {
     struct aos_rpc *rpc = malloc(sizeof(struct aos_rpc));
@@ -63,7 +68,7 @@ errval_t init_core_channel(coreid_t coreid, lvaddr_t urpc_frame)
     errval_t err;
     err = aos_rpc_init(rpc);
     ON_ERR_PUSH_RETURN(err, LIB_ERR_RPC_INIT);
-    aos_rpc_init_ump_default(rpc, urpc_frame, BASE_PAGE_SIZE, coreid != 0);
+    aos_rpc_init_ump_default(rpc, urpc_frame, BASE_PAGE_SIZE, coreid < disp_get_core_id());
     ON_ERR_PUSH_RETURN(err, LIB_ERR_RPC_INIT);
 
     register_core_channel_handlers(rpc);
@@ -177,7 +182,7 @@ void handle_foreign_spawn(struct aos_rpc *origin_rpc, const char *name, uintptr_
     domainid_t *pid = &si->pid;
     spawn_load_by_name((char*) name, si, pid);
     *new_pid = *pid;
-    errval_t errr = lmp_chan_register_recv(&rpc->channel.lmp, get_default_waitset(), MKCLOSURE(&aos_rpc_on_message, &rpc));
+    errval_t errr = lmp_chan_register_recv(&rpc->channel.lmp, get_default_waitset(), MKCLOSURE(&aos_rpc_on_lmp_message, &rpc));
     if (err_is_fail(errr) && errr == LIB_ERR_CHAN_ALREADY_REGISTERED) {
         // not too bad, already registered
     }

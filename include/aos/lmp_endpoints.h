@@ -33,7 +33,7 @@ __BEGIN_DECLS
 /// LMP endpoint structure (including data accessed only by user code)
 struct lmp_endpoint {
     struct lmp_endpoint *next, *prev; ///< Next/prev endpoint in poll list
-    struct capref recv_slot;///< Receive slot
+    struct capref recv_slot; ///< Receive slot
     struct waitset_chanstate waitset_state; ///< Waitset per-channel state
     uint32_t buflen;        ///< Length of endpoint buffer (in words)
     uint32_t seen;          ///< Position in buffer processed by poll loop, but

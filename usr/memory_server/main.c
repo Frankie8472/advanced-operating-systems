@@ -30,7 +30,7 @@ static void handle_mem_server_request(struct aos_rpc *r, struct capref client_ca
     }
 
 
-    err = aos_rpc_init_lmp_without_init(&rpc,self_ep_cap,client_cap,lmp_ep);
+    err = aos_rpc_init_lmp(&rpc,self_ep_cap,client_cap,lmp_ep);
     if(err_is_fail(err)){
         DEBUG_ERR(err,"Failed to register waitset on rpc\n");
     }

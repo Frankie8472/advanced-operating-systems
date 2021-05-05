@@ -94,7 +94,6 @@ struct aos_rpc_function_binding
     enum aos_rpc_argument_type      rets[AOS_RPC_MAX_FUNCTION_ARGUMENTS];
 };
 
-
 /* An RPC binding, which may be transported over LMP or UMP. */
 struct aos_rpc {
     enum aos_rpc_backend backend;
@@ -110,181 +109,56 @@ struct aos_rpc {
     // TODO: make solution dynamic to allow arbitrarily many rpc functions
     void *handlers[AOS_RPC_MAX_MSG_TYPES];
     // TODO(M3): Add state
-
-
     // This is only for init rpcs
-    
 };
 
-
 errval_t aos_rpc_init(struct aos_rpc *rpc);
-
-/**
- * \brief Initialize an aos_rpc struct.
- */
 errval_t aos_rpc_init_lmp(struct aos_rpc *rpc, struct capref self_ep, struct capref end_ep, struct lmp_endpoint *lmp_ep);
-
-errval_t aos_rpc_init_lmp_without_init(struct aos_rpc* rpc, struct capref self_ep, struct capref end_ep, struct lmp_endpoint *lmp_ep);
-
-/**
- * \brief Initialize an aos_rpc struct running on ump backend
- */
 errval_t aos_rpc_init_ump_default(struct aos_rpc *rpc, lvaddr_t shared_page, size_t shared_page_size, bool first_half);
 
-/**
- * \brief initialize marshalling info for an rpc function
- * 
- * In order to use an rpc binding, it needs to be registered here.
- * Once registered, the function can be called by using \link aos_rpc_call .
- * 
- * Note that the callee domain still needs to set a handler for this function
- * using \link aos_rpc_register_handler.
- * 
- * \param rpc the rpc struct in which to register the function
- * \param binding the function id to register
- * \param n_args number of arguments
- * \param n_rets number of return arguments
- * \param ... the remaining parameters are of type <code>enum aos_rpc_argument_type</code>
- *            first the \link n_args types of the arguments, then the \link n_rets types
- *            of the return types.
- * 
- */
-errval_t aos_rpc_initialize_binding(struct aos_rpc *rpc, enum aos_rpc_msg_type binding,
+errval_t aos_rpc_initialize_binding(struct aos_rpc *rpc, enum aos_rpc_msg_type msg_type,
                                     int n_args, int n_rets, ...);
 
-
-
-
-/**
- * \brief call a rpc function
- * 
- * \param binding the function to call
- * \param ... the following arguments need to be of the types expected by this
- *            function.
- *            AOS_RPC_WORD          becomes uintptr_t
- *            AOS_RPC_STR           becomes const char*
- *            AOS_RPC_BYTES         currently unimplemented
- *            AOS_RPC_CAPABILITY    becomes struct capref
- */
 errval_t aos_rpc_call(struct aos_rpc *rpc, enum aos_rpc_msg_type binding, ...);
 
-/**
- * \brief registers a handler function to be called when this rpc is invoked
- *        and should be run in our domain.
- * 
- * The handler should take arguments corresponding to the registered binding --
- * 
- *        AOS_RPC_WORD          becomes uintptr_t
- *        AOS_RPC_STR           becomes const char*
- *        AOS_RPC_BYTES         currently unimplemented
- *        AOS_RPC_CAPABILITY    becomes struct capref
- * 
- * followed by the return values, that are of the corresponding pointer type.
- * They each point to a valid location and need to be written to in order to
- * return any values.
- */
 errval_t aos_rpc_register_handler(struct aos_rpc *rpc, enum aos_rpc_msg_type binding,
                                   void* handler);
 
-/**
- * message handler function for rpc calls via lmp
- */
-void aos_rpc_on_message(void *rpc);
+void aos_rpc_on_lmp_message(void *rpc);
 
 
-/**
- * message handler function for rpc calls via ump
- */
 void aos_rpc_on_ump_message(void *arg);
 
-/**
- * \brief Send a number.
- */
 errval_t aos_rpc_send_number(struct aos_rpc *chan, uintptr_t val);
 
-/**
- * \brief Send a string.
- */
 errval_t aos_rpc_send_string(struct aos_rpc *chan, const char *string);
 
-
-/**
- * \brief Request a RAM capability with >= request_bits of size over the given
- * channel.
- */
 errval_t aos_rpc_get_ram_cap(struct aos_rpc *chan, size_t bytes,
                              size_t alignment, struct capref *retcap,
                              size_t *ret_bytes);
 
-
-/**
- * \brief Get one character from the serial port
- */
 errval_t aos_rpc_serial_getchar(struct aos_rpc *chan, char *retc);
 
-
-/**
- * \brief Send one character to the serial port
- */
 errval_t aos_rpc_serial_putchar(struct aos_rpc *chan, char c);
 
-/**
- * \brief Request that the process manager start a new process
- * \arg cmdline the name of the process that needs to be spawned (without a
- *           path prefix) and optionally any arguments to pass to it
- * \arg newpid the process id of the newly-spawned process
- */
 errval_t aos_rpc_process_spawn(struct aos_rpc *chan, char *cmdline,
                                coreid_t core, domainid_t *newpid);
 
-
-/**
- * \brief Get name of process with the given PID.
- * \arg pid the process id to lookup
- * \arg name A null-terminated character array with the name of the process
- * that is allocated by the rpc implementation. Freeing is the caller's
- * responsibility.
- */
 errval_t aos_rpc_process_get_name(struct aos_rpc *chan, domainid_t pid,
                                   char **name);
 
-
-/**
- * \brief Get PIDs of all running processes.
- * \arg pids An array containing the process ids of all currently active
- * processes. Will be allocated by the rpc implementation. Freeing is the
- * caller's  responsibility.
- * \arg pid_count The number of entries in `pids' if the call was successful
- */
 errval_t aos_rpc_process_get_all_pids(struct aos_rpc *chan,
                                       domainid_t **pids, size_t *pid_count);
 
-
-
 errval_t aos_rpc_get_terminal_input(struct aos_rpc *chan, char* buf,size_t le);
-/**
- * \brief Returns the RPC channel to init.
- */
+
 struct aos_rpc *aos_rpc_get_init_channel(void);
 
-/**
- * \brief Returns the channel to the memory server
- */
 struct aos_rpc *aos_rpc_get_memory_channel(void);
 
-/**
- * \brief Returns the channel to the process manager
- */
 struct aos_rpc *aos_rpc_get_process_channel(void);
 
-/**
- * \brief Returns the channel to the serial console
- */
 struct aos_rpc *aos_rpc_get_serial_channel(void);
 
-
-/**
- * \brief Returns a new capability of fresh ram from the core defined by core_id
- */
 errval_t aos_rpc_request_foreign_ram(struct aos_rpc * rpc, size_t size,struct capref *ret_cap,size_t * ret_size);
 #endif // _LIB_BARRELFISH_AOS_MESSAGES_H
