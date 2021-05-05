@@ -195,39 +195,65 @@ errval_t barrelfish_init_onthread(struct spawn_domain_params *params)
       .slot = TASKCN_SLOT_INITEP
     };
 
+    err = aos_rpc_init(&init_rpc);
+    ON_ERR_RETURN(err);
+
+    err = aos_rpc_init_lmp(&init_rpc, self_ep_cap, init_ep_cap, NULL);
+    ON_ERR_RETURN(err);
+
+    // we are not in init and do already have a remote cap
+    // we need to initiate a connection so init gets our endpoint capability
+    debug_printf("Trying to establish channel with init (or memory server with client):\n");
+
+    
+    err = aos_rpc_init(&init_rpc);
+    ON_ERR_RETURN(err);
+    err = aos_rpc_init_lmp(&init_rpc, self_ep_cap, init_ep_cap, NULL);
+    if (err_is_fail(err) && err_pop(err) == LIB_ERR_RPC_INITIATE) {
+        DEBUG_ERR(err, "Error establishing connection with init! aborting!");
+        abort();
+        }
+
+    set_init_rpc(&init_rpc);
 
 
+    // debug_printf("Is memory server online: %d?\n",get_mem_online());
+    // if(get_mem_online()){
+    //     debug_printf("Trying to establish connection to memory server..\n");
 
-    if(!init_domain){
-        err = aos_rpc_init(&init_rpc);
-        ON_ERR_RETURN(err);
-        err = aos_rpc_init_lmp(&init_rpc, self_ep_cap, init_ep_cap, NULL);
-        if (err_is_fail(err) && err_pop(err) == LIB_ERR_RPC_INITIATE) {
-            DEBUG_ERR(err, "Error establishing connection with init! aborting!");
-            abort();
-         }
+    //     struct lmp_endpoint * ep;
+    //     err = endpoint_create(256, &self_ep_cap, &ep);
+    //     ON_ERR_PUSH_RETURN(err, LIB_ERR_ENDPOINT_CREATE);
 
-        set_init_rpc(&init_rpc);
+    //     static struct aos_rpc mem_rpc;
 
-
-        // debug_printf("Is memory server online: %d?\n",get_mem_online());
-        // if(get_mem_online()){
-        //     debug_printf("Trying to establish connection to memory server..\n");
-
-        //     struct lmp_endpoint * ep;
-        //     err = endpoint_create(256, &self_ep_cap, &ep);
-        //     ON_ERR_PUSH_RETURN(err, LIB_ERR_ENDPOINT_CREATE);
-
-        //     static struct aos_rpc mem_rpc;
-
-        //     err = aos_rpc_init(&mem_rpc);
-        //     ON_ERR_RETURN(err);
+    //     err = aos_rpc_init(&mem_rpc);
+    //     ON_ERR_RETURN(err);
             
 
+    // call initiate function with our endpoint cap as argument in order
+    // to make it known to init
+    err = aos_rpc_call(&init_rpc, AOS_RPC_INITIATE, init_rpc.channel.lmp.local_cap);
+    if (!err_is_fail(err)) {
+        debug_printf("init channel established!\n");
+    }
+    else {
+        DEBUG_ERR(err, "Error establishing connection with init! aborting!");
+        abort();
+    }
 
-        //     err = aos_rpc_init_lmp(&mem_rpc,self_ep_cap,NULL_CAP, ep);
-        //     ON_ERR_RETURN(err);
+    set_init_rpc(&init_rpc);
 
+    debug_printf("Is memory server online: %d?\n",get_mem_online());
+    if(get_mem_online()){
+        debug_printf("Trying to establish connection to memory server..\n");
+
+
+        struct lmp_endpoint *ep;
+        err = endpoint_create(256, &self_ep_cap, &ep);
+        ON_ERR_PUSH_RETURN(err, LIB_ERR_ENDPOINT_CREATE);
+
+        static struct aos_rpc mem_rpc;
 
         //     struct capref mem_cap;
         //     err = aos_rpc_call(&init_rpc,AOS_RPC_MEM_SERVER_REQ,self_ep_cap,&mem_cap);
@@ -237,7 +263,19 @@ errval_t barrelfish_init_onthread(struct spawn_domain_params *params)
         //     debug_printf("Channel with memory server established\n");
 
         // }
+        err = aos_rpc_init(&mem_rpc);
+        ON_ERR_RETURN(err);
 
+        err = aos_rpc_init_lmp(&mem_rpc, self_ep_cap, NULL_CAP, ep);
+        ON_ERR_RETURN(err);
+
+
+        struct capref mem_cap;
+        err = aos_rpc_call(&init_rpc, AOS_RPC_MEM_SERVER_REQ, self_ep_cap,&mem_cap);
+        ON_ERR_RETURN(err);
+        mem_rpc.channel.lmp.remote_cap = mem_cap;
+        set_mem_rpc(&mem_rpc);
+        debug_printf("Channel with memory server established\n");
     }
 
 
