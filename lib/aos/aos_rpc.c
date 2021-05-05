@@ -615,6 +615,7 @@ static void push_word_lmp(struct lmp_chan *lc, uintptr_t *lm, struct capref *cap
                         lm[0], lm[1], lm[2], lm[3]);
             sent = err == SYS_ERR_OK;
         } while (!sent);
+        *cap = NULL_CAP;
         *word_ind = 0;
     }
 }
@@ -639,6 +640,7 @@ static void push_cap_lmp(struct lmp_chan *lc, uintptr_t *lm, struct capref *cap,
                         lm[0], lm[1], lm[2], lm[3]);
             sent = err == SYS_ERR_OK;
         } while (!sent);
+        *cap = NULL_CAP;
         *word_ind = 0;
     }
 
@@ -648,7 +650,7 @@ static void push_cap_lmp(struct lmp_chan *lc, uintptr_t *lm, struct capref *cap,
 
 static void send_remaining_lmp(struct lmp_chan *lc, uintptr_t *lm, struct capref *cap, int *word_ind)
 {
-    if (*word_ind >= 0 || !capref_is_null(*cap)) {
+    if (*word_ind > 0 || !capref_is_null(*cap)) {
         bool sent = false;
         do {
             char buf[128];
@@ -661,6 +663,8 @@ static void send_remaining_lmp(struct lmp_chan *lc, uintptr_t *lm, struct capref
             }
             sent = err == SYS_ERR_OK;
         } while (!sent);
+        *cap = NULL_CAP;
+        *word_ind = 0;
     }
 }
 
@@ -1066,6 +1070,8 @@ void aos_rpc_on_lmp_message(void *arg)
     if (msgtype & AOS_RPC_RETURN_BIT) {
         msgtype &= ~AOS_RPC_RETURN_BIT;
         is_response = true;
+        err = LIB_ERR_RPC_NO_HANDLER_SET;
+        goto on_error;
     }
 
     void *handler = rpc->handlers[msgtype];
