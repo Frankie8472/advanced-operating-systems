@@ -15,6 +15,7 @@
 #include <spawn/spawn.h>
 #include <spawn/process_manager.h>
 #include "mem_alloc.h"
+#include "rpc_server.h"
 
 #include "spawn_server.h"
 #include "test.h"
@@ -230,6 +231,23 @@ int benchmark_mm(void)
 
 }
 
+int benchmark_ump(void);
+/**
+ * \brief Try sending a bunch of numbers to core 0.
+ * TODO: measure performance
+ */
+int benchmark_ump(void) {
+    errval_t err;
+    TEST_START;
+    for (int i = 0; i < 100; i++) {
+        err = aos_rpc_send_number(core_channels[0], i);
+        if (err_is_fail(err)) {
+            return 1;
+        }
+    }
+    return 0;
+}
+
 // put your test functions for core 0 in this array, keep NULL as last element
 int (*bsp_tests[])(void) = {
     //&benchmark_mm,
@@ -245,7 +263,8 @@ int (*bsp_tests[])(void) = {
 
 // put your test functions for the other cores in this array, also keep NULL as last element
 int (*app_tests[])(void) = {
-    &test_malloc,
+    &benchmark_ump,
+    /* &test_malloc, */
     NULL
 };
 
