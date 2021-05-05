@@ -133,9 +133,8 @@ static void handle_get_proc_list(struct aos_rpc *rpc, uintptr_t *size,char * pid
     char buffer[12]; 
     size_t index = 0;
     for(struct process * curr = pl.head; curr != NULL; curr = curr -> next){
-        // char [count] = 
         sprintf(buffer,"%d",curr -> pid);
-        debug_printf("here is buf %s", buffer);
+        // debug_printf("here is buf %s", buffer);
         char * b_ptr = buffer;
         while(*b_ptr != '\0'){
             pids[index] =  *b_ptr;
@@ -154,7 +153,7 @@ static void handle_get_proc_list(struct aos_rpc *rpc, uintptr_t *size,char * pid
 
     pids[index] = '\0';
 
-    debug_printf("%s\n",pids);
+    // debug_printf("%s\n",pids);
 }
 
 int main(int argc, char *argv[])

@@ -38,6 +38,6 @@ void handle_mem_server_request(struct aos_rpc *r, struct capref client_cap, stru
 
 void handle_init_get_proc_name(struct aos_rpc *r, uintptr_t pid, char *name);
 
-
+void handle_init_get_proc_list(struct aos_rpc *r, uintptr_t *pid_count, char *list);
 
 #endif // INIT_RPC_SERVER_H_

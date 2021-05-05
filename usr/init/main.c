@@ -60,7 +60,6 @@ static errval_t init_process_manager(void){
     initialize_rpc_handlers(pm_rpc);
     debug_printf("waiting for process manager to come online...\n");
     while(!get_pm_online()){
-
         err = event_dispatch(default_ws);
         if (err_is_fail(err)) {
             DEBUG_ERR(err, "in event_dispatch");
@@ -68,14 +67,24 @@ static errval_t init_process_manager(void){
         }
     }
 
+
+
     debug_printf("Process manager is online!\n");
 
     err = aos_rpc_call(pm_rpc,AOS_RPC_REGISTER_PROCESS,disp_get_domain_id(),disp_get_core_id(),"init");
     ON_ERR_RETURN(err);
+    //TODO: register memory server to PM
     err = aos_rpc_call(pm_rpc,AOS_RPC_REGISTER_PROCESS,*pm_pid,disp_get_core_id(),"process_manager");
     ON_ERR_RETURN(err);
     set_pm_rpc(pm_rpc);
     debug_printf("all finished!\n");
+
+
+    // char buf1[512];
+    // char buf2[512];
+    // debug_printf("=============================================================\n\n");
+    // debug_print_cap_at_capref(buf1,512,pm_rpc->channel.lmp.local_cap);
+    // debug_print_cap_at_capref(buf2, 512, pm_rpc -> channel.lmp.remote_cap);
 
     return SYS_ERR_OK;
 }
@@ -237,9 +246,6 @@ static int bsp_main(int argc, char *argv[])
         DEBUG_ERR(err,"Failed to init process manager!\n");
     }
 
-    // domainid_t pid;
-    // err = spawn_new_domain("memeater",&pid);
-
     if (err_is_fail(err)) {
         DEBUG_ERR(err, "spawn loading failed");
     }
@@ -247,18 +253,18 @@ static int bsp_main(int argc, char *argv[])
 
 
 
-    // spawn_new_domain("performance_tester",NULL);
-
-    char buffer[512];
-    err = aos_rpc_process_get_name(aos_rpc_get_process_channel(),0,(char **) &buffer);\
+    char * name;
+    err = aos_rpc_process_get_name(get_pm_rpc(),0,&name);
     if(err_is_fail(err)){
         DEBUG_ERR(err,"Failed to resolve pid name\n");
     }
 
+    debug_printf("Received string: %s\n",name);
+
 
     domainid_t* pids;
     size_t pid_count;
-    err = aos_rpc_process_get_all_pids(aos_rpc_get_process_channel(),&pids,&pid_count);
+    err = aos_rpc_process_get_all_pids(get_pm_rpc(),&pids,&pid_count);
     if(err_is_fail(err)){
         DEBUG_ERR(err,"Failed to get all pids\n");
     }
@@ -267,6 +273,12 @@ static int bsp_main(int argc, char *argv[])
     for(int i = 0; i < pid_count; ++i){
         debug_printf("%d\n",pids[i]);
     }
+
+
+
+
+
+
 
     // size_t list_size;
     // err = aos_rpc_call(get_pm_rpc(),AOS_RPC_GET_PROC_LIST,&list_size,buffer2);

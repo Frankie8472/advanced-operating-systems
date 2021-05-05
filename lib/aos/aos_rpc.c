@@ -270,9 +270,12 @@ errval_t
 aos_rpc_process_get_name(struct aos_rpc *rpc, domainid_t pid, char **name) {
     // TODO (M5): implement name lookup for process given a process id
     errval_t err;
-    assert(name != NULL && "buffer to write pid is NULL");
-    err = aos_rpc_call(rpc,AOS_RPC_GET_PROC_NAME,pid,name);
+    char * new_name = malloc(8 * 1024 * sizeof(char));
+    err = aos_rpc_call(rpc,AOS_RPC_GET_PROC_NAME,pid,new_name);
     ON_ERR_RETURN(err);
+    size_t n = strlen(new_name) + 1;
+    char * new_new_name = realloc(new_name, n * sizeof(char));
+    *name = new_new_name; 
     return SYS_ERR_OK;
 }
 
@@ -287,7 +290,7 @@ aos_rpc_process_get_all_pids(struct aos_rpc *rpc, domainid_t **pids,
         DEBUG_ERR(err,"Failed aos_rpc call in get all pids\n");
     }
     domainid_t* pid_heap = (domainid_t*) malloc(*pid_count * sizeof(domainid_t));
-    debug_printf("Received buffer: %s\n",buffer);
+    // debug_printf("Received buffer: %s\n",buffer);
     char * buf_ptr = buffer;
     char strbuf[13];
     size_t index = 0;
@@ -296,8 +299,8 @@ aos_rpc_process_get_all_pids(struct aos_rpc *rpc, domainid_t **pids,
         if(*buf_ptr == ','){
             strbuf[index] = '\0';
             domainid_t pid = atoi(strbuf);
-            debug_printf(" word : %s\n",strbuf);
-            debug_printf(" number : %d\n",pid);
+            // debug_printf(" word : %s\n",strbuf);
+            // debug_printf(" number : %d\n",pid);
             pid_heap[pid_index] = pid;
             pid_index++;
             buf_ptr++;
@@ -624,6 +627,12 @@ static void send_remaining_lmp(struct lmp_chan *lc, uintptr_t *lm, struct capref
 
 static errval_t aos_rpc_call_lmp(struct aos_rpc *rpc, enum aos_rpc_msg_type msg_type, va_list args)
 {
+
+
+
+    
+    // debug_printf("THis domain: %d is calling call with type %d\n",disp_get_domain_id(),msg_type );
+
     assert(rpc);
     assert(rpc->backend == AOS_RPC_LMP);
     
@@ -725,6 +734,7 @@ static errval_t aos_rpc_call_lmp(struct aos_rpc *rpc, enum aos_rpc_msg_type msg_
 
 errval_t aos_rpc_call(struct aos_rpc *rpc, enum aos_rpc_msg_type msg_type, ...)
 {
+
     va_list args;
     va_start(args, msg_type);
 
@@ -928,6 +938,9 @@ void aos_rpc_on_message(void *arg)
 {
     //debug_printf("aos_rpc_on_message\n");
     struct aos_rpc *rpc = arg;
+    // debug_printf("PM channel : %lx", get_pm_rpc());
+    // debug_printf("Receive channel : %lx",rpc);
+
     struct lmp_chan *channel = &rpc->channel.lmp;
 
     struct lmp_recv_msg msg = LMP_RECV_MSG_INIT;

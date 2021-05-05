@@ -44,6 +44,7 @@ lmp_ep_send(
     uintptr_t arg4
     )
 {
+    // debug_printf("sending message over lmp channel %d!\n",arg1);
     uint8_t invoke_level = get_cap_level(ep);
     capaddr_t invoke_cptr = get_cap_addr(ep);
 

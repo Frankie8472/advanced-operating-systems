@@ -252,6 +252,11 @@ void handle_init_get_proc_name(struct aos_rpc *r, uintptr_t pid, char *name){
     }
 }
 
+
+void handle_init_get_proc_list(struct aos_rpc *r, uintptr_t *pid_count, char *list){
+    debug_printf("Handled init get proc list %d, %s\n");
+}
+
 /**
  * \brief initialize all handlers for rpc calls
  * 
@@ -280,6 +285,7 @@ errval_t initialize_rpc_handlers(struct aos_rpc *rpc)
     aos_rpc_register_handler(rpc,AOS_RPC_MEM_SERVER_REQ,&handle_mem_server_request);
 
     aos_rpc_register_handler(rpc,AOS_RPC_GET_PROC_NAME,&handle_init_get_proc_name);
+    aos_rpc_register_handler(rpc,AOS_RPC_GET_PROC_LIST,&handle_init_get_proc_list);
     return SYS_ERR_OK;
 }
 
@@ -293,6 +299,7 @@ void register_core_channel_handlers(struct aos_rpc *rpc)
 
     aos_rpc_register_handler(rpc, AOS_RPC_REGISTER_PROCESS, &handle_init_process_register);
     aos_rpc_register_handler(rpc,AOS_RPC_GET_PROC_NAME,&handle_init_get_proc_name);
+    aos_rpc_register_handler(rpc,AOS_RPC_GET_PROC_LIST,&handle_init_get_proc_list);
 }
 
 
