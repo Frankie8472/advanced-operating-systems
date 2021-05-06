@@ -28,7 +28,9 @@ static void push_word_ump(struct ump_chan *uc, struct ump_msg *um, int *word_ind
 static void send_remaining_ump(struct ump_chan *uc, struct ump_msg *um, int *word_ind);
 static errval_t aos_rpc_unmarshall_ump_simple_aarch64(struct aos_rpc *rpc, void *handler, struct aos_rpc_function_binding *binding, struct ump_msg *msg);
 static errval_t aos_rpc_call_lmp(struct aos_rpc *rpc, enum aos_rpc_msg_type msg_type, va_list args);
+
 static void push_word_lmp(struct lmp_chan *lc, uintptr_t *lm, struct capref *cap, int *word_ind, uintptr_t word);
+static uintptr_t pull_word_ump(struct ump_chan *uc, struct ump_msg *um, int *word_ind);
 static void push_cap_lmp(struct lmp_chan *lc, uintptr_t *lm, struct capref *cap, int *word_ind, struct capref to_push);
 static void send_remaining_lmp(struct lmp_chan *lc, uintptr_t *lm, struct capref *cap, int *word_ind);
 static errval_t aos_rpc_unmarshall_retval_aarch64(struct aos_rpc *rpc, void **retptrs, struct aos_rpc_function_binding *binding, struct lmp_recv_msg *msg, struct capref cap);
@@ -65,10 +67,14 @@ errval_t aos_rpc_init(struct aos_rpc *rpc)
 
     // process manager bindings
     aos_rpc_initialize_binding(rpc, AOS_RPC_SERVICE_ON, 1, 0, AOS_RPC_WORD);
-    aos_rpc_initialize_binding(rpc, AOS_RPC_REGISTER_PROCESS, 3, 0, AOS_RPC_WORD, AOS_RPC_WORD, AOS_RPC_VARSTR);
+    aos_rpc_initialize_binding(rpc, AOS_RPC_REGISTER_PROCESS, 2, 1, AOS_RPC_WORD, AOS_RPC_VARSTR,AOS_RPC_WORD);
     aos_rpc_initialize_binding(rpc, AOS_RPC_GET_PROC_NAME, 1, 1, AOS_RPC_WORD, AOS_RPC_VARSTR);
 
     aos_rpc_initialize_binding(rpc,AOS_RPC_GET_PROC_LIST,0,2,AOS_RPC_WORD,AOS_RPC_VARSTR);
+
+    aos_rpc_initialize_binding(rpc, AOS_RPC_GET_PROC_CORE,1,1, AOS_RPC_WORD,AOS_RPC_WORD);
+
+    aos_rpc_initialize_binding(rpc, AOS_RPC_BINDING_REQUEST,3,1,AOS_RPC_WORD,AOS_RPC_WORD,AOS_RPC_CAPABILITY,AOS_RPC_CAPABILITY);
 
     //memory server bindings
     aos_rpc_initialize_binding(rpc,AOS_RPC_MEM_SERVER_REQ,1,1,AOS_RPC_CAPABILITY,AOS_RPC_CAPABILITY);
@@ -367,38 +373,52 @@ static errval_t aos_rpc_call_ump(struct aos_rpc *rpc, enum aos_rpc_msg_type msg_
         response->data[6]
     );*/
 
-    size_t ret_offs = 1;
+    int ret_offs = 1;
     for (int i = 0; i < n_rets; i++) {
-        if (binding->rets[i] == AOS_RPC_WORD) {
-            *((uintptr_t *) retptrs[i]) = response->data[ret_offs++];
-        }
-        else if (binding->rets[i] == AOS_RPC_SHORTSTR) {
-            strncpy(((char *) retptrs[i]), (const char *) &response->data[ret_offs], AOS_RPC_SHORTSTR_LENGTH);
-            ret_offs += AOS_RPC_SHORTSTR_LENGTH / sizeof(uintptr_t);
-        }
-        else if (binding->rets[i] == AOS_RPC_CAPABILITY) {
-            struct capability cap;
-            memcpy(&cap, &response->data[ret_offs], sizeof cap);
-            ret_offs += sizeof(struct capability) / sizeof(uintptr_t);
-
-            struct capref forged;
-            errval_t err = slot_alloc(&forged);
-            ON_ERR_PUSH_RETURN(err, LIB_ERR_SLOT_ALLOC);
-
-            err = invoke_monitor_create_cap((uint64_t *) &cap,
-                                            get_cnode_addr(forged),
-                                            get_cnode_level(forged),
-                                            forged.slot,
-                                            disp_get_core_id()); // TODO: set owner correctly
-            if (err_is_fail(err)) {
-                DEBUG_ERR(err, "forging of cap failed\n");
+        switch(binding->rets[i]) {
+            case AOS_RPC_WORD: {
+                *((uintptr_t *) retptrs[i]) = pull_word_ump(&rpc->channel.ump, response, &ret_offs);
             }
-            ON_ERR_PUSH_RETURN(err, LIB_ERR_MONITOR_CAP_SEND);
-            *((struct capref *) retptrs[i]) = forged;
-        }
-        else {
-            debug_printf("non-word responses over ump NYI!\n");
-            return LIB_ERR_NOT_IMPLEMENTED;
+            break;
+            case AOS_RPC_CAPABILITY: {
+                uintptr_t vals[3];
+                vals[0] = pull_word_ump(&rpc->channel.ump, response, &ret_offs);
+                vals[1] = pull_word_ump(&rpc->channel.ump, response, &ret_offs);
+                vals[2] = pull_word_ump(&rpc->channel.ump, response, &ret_offs);
+
+                struct capability cap;
+                memcpy(&cap, &vals, sizeof cap);
+                ret_offs += sizeof(struct capability) / sizeof(uintptr_t);
+
+                struct capref forged;
+                errval_t err = slot_alloc(&forged);
+                ON_ERR_PUSH_RETURN(err, LIB_ERR_SLOT_ALLOC);
+
+                err = invoke_monitor_create_cap((uint64_t *) &cap,
+                                                get_cnode_addr(forged),
+                                                get_cnode_level(forged),
+                                                forged.slot,
+                                                disp_get_core_id()); // TODO: set owner correctly
+                if (err_is_fail(err)) {
+                    DEBUG_ERR(err, "forging of cap failed\n");
+                }
+                ON_ERR_PUSH_RETURN(err, LIB_ERR_MONITOR_CAP_SEND);
+                *((struct capref *) retptrs[i]) = forged;
+            }
+            break;
+            case AOS_RPC_VARSTR: {
+                char *ret = (char *) retptrs[i];
+                size_t len = pull_word_ump(&rpc->channel.ump, response, &ret_offs);
+
+                for (size_t j = 0; j < len; j += 8) {
+                    uintptr_t word = pull_word_ump(&rpc->channel.ump, response, &ret_offs);
+                    memcpy(ret + j, &word, sizeof(uintptr_t));
+                }
+            }
+            break;
+            default:
+            debug_printf("UNHANDLED ARGUMENT TYPE NYI\n");
+            break;
         }
     }
 
@@ -1207,7 +1227,7 @@ static errval_t aos_rpc_unmarshall_lmp_aarch64(struct aos_rpc *rpc, void *handle
             break;
 
             default:
-            debug_printf("unhandled ret arg\n");
+            debug_printf("unhandled ret arg 3\n");
             break;
         }
     }
@@ -1408,4 +1428,44 @@ errval_t aos_rpc_request_foreign_ram(struct aos_rpc *rpc, size_t size, struct ca
     err = aos_rpc_call(rpc,AOS_RPC_REQUEST_RAM, size, 1, ret_cap,ret_size);
     ON_ERR_RETURN(err);
     return err;
+}
+
+
+errval_t aos_rpc_new_binding(domainid_t pid, coreid_t core_id, struct aos_rpc* ret_rpc){
+    
+    // struct aos_rpc rpc;
+    // if(get_init_domain()){
+    //     rpc = get_core_channel
+    // }
+    errval_t err;
+    struct capref self_ep_cap = (struct capref) {
+      .cnode = cnode_task,
+      .slot = TASKCN_SLOT_SELFEP
+    };
+    debug_printf("Trying to establish connection with process %d on core %d ...\n",pid,core_id);
+    struct aos_rpc *rpc = aos_rpc_get_init_channel();
+
+    if(core_id == disp_get_current_core_id()){ //lmp channel
+
+        struct lmp_endpoint *ep;
+        err = endpoint_create(256, &self_ep_cap, &ep);
+        ON_ERR_PUSH_RETURN(err, LIB_ERR_ENDPOINT_CREATE);
+        err = aos_rpc_init(ret_rpc);
+        ON_ERR_RETURN(err);
+
+        err = aos_rpc_init_lmp(ret_rpc, self_ep_cap, NULL_CAP, ep);
+        ON_ERR_RETURN(err);
+
+        struct capref remote_cap;
+
+        err = aos_rpc_call(rpc,AOS_RPC_BINDING_REQUEST,pid,core_id,self_ep_cap,&remote_cap);
+        ret_rpc -> channel.lmp.remote_cap = remote_cap;
+
+        // *ret_rpc = new_rpc;
+        debug_printf("Channel with %d on %d established!\n",pid,core_id);
+    }else{ //ump channel
+
+    }
+
+    return SYS_ERR_OK;
 }

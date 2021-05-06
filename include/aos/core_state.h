@@ -92,7 +92,7 @@ struct core_state_generic {
     bool init_domain;
 
     struct aos_rpc* core_channels[4];
-    
+
 };
 
 #endif

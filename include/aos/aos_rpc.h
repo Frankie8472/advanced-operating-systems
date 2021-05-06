@@ -55,7 +55,9 @@ typedef enum aos_rpc_msg_type {
     AOS_RPC_SERVICE_ON, //13
     AOS_RPC_GET_PROC_NAME, //14
     AOS_RPC_GET_PROC_LIST, //15
-    AOS_RPC_MEM_SERVER_REQ, //16
+    AOS_RPC_GET_PROC_CORE, //16
+    AOS_RPC_BINDING_REQUEST, // 17
+    AOS_RPC_MEM_SERVER_REQ, //18
     AOS_RPC_ROUNDTRIP, ///< rpc call that does nothing, for benchmarking
     AOS_RPC_MAX_MSG_TYPES, // needs to be last
 } msg_type_t;
@@ -160,4 +162,7 @@ struct aos_rpc *aos_rpc_get_process_channel(void);
 struct aos_rpc *aos_rpc_get_serial_channel(void);
 
 errval_t aos_rpc_request_foreign_ram(struct aos_rpc * rpc, size_t size,struct capref *ret_cap,size_t * ret_size);
+
+
+errval_t aos_rpc_new_binding(domainid_t pid, coreid_t core_id, struct aos_rpc* ret_rpc);
 #endif // _LIB_BARRELFISH_AOS_MESSAGES_H

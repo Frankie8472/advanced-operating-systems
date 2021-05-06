@@ -6,7 +6,6 @@ struct process_manager
 {
     struct slab_allocator si_allocator;
     struct spawninfo *first;
-    domainid_t next_pid;
 } instance;
 
 
@@ -36,7 +35,6 @@ static struct process_manager *get_process_manager(void)
         slab_init(&instance.si_allocator, sizeof(struct spawninfo), &slab_big_refill);
         slab_big_refill(&instance.si_allocator);
         instance.first = NULL;
-        instance.next_pid = 1;
         initialized = true;
     }
     return &instance;
@@ -60,9 +58,24 @@ struct spawninfo *spawn_create_spawninfo(void)
 }
 
 
-domainid_t spawn_get_new_domainid(void)
-{
+struct aos_rpc *get_rpc_from_spawn_info(domainid_t pid){
     struct process_manager *pm = get_process_manager();
-    debug_printf("created pid: %d\n", pm->next_pid);
-    return pm->next_pid++ + (disp_get_current_core_id() << 10);
+    for(struct spawninfo * curr = pm -> first; curr != NULL;curr = curr -> next ){
+        if(curr  -> pid == pid){
+
+            return &curr -> rpc;
+        }
+    }
+
+    debug_printf("Did not find rpc from spawninfos for pid = %d\n",pid);
+    return NULL;
 }
+
+
+
+// domainid_t spawn_get_new_domainid(void)
+// {
+//     struct process_manager *pm = get_process_manager();
+//     debug_printf("created pid: %d\n", pm->next_pid);
+//     return pm->next_pid++ + (disp_get_current_core_id() << 10);
+// }
