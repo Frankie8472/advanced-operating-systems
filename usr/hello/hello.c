@@ -39,7 +39,7 @@ int main(int argc, char *argv[])
 
     errval_t err;
     // char * name;
-    // char buffer[512];
+    
     debug_printf("Trying to resolve name\n");
     struct aos_rpc * init_rpc = get_init_rpc();
     debug_printf("Got initrpc!\n");
@@ -53,14 +53,14 @@ int main(int argc, char *argv[])
 
     // aos_rpc_call(init_rpc, AOS_INIT_NEW_CHANNEL )
 
+    char buffer[512];
+    err = aos_rpc_call(init_rpc,AOS_RPC_GET_PROC_NAME,0,buffer);
+    // err = aos_rpc_process_get_name(aos_rpc_get_process_channel(),0,&buffer);
+    if(err_is_fail(err)){
+        DEBUG_ERR(err,"Failed to resolve pid name\n");
+    }
 
-    // err = aos_rpc_call(init_rpc,AOS_RPC_GET_PROC_NAME,0,buffer);
-    // // err = aos_rpc_process_get_name(aos_rpc_get_process_channel(),0,&buffer);
-    // if(err_is_fail(err)){
-    //     DEBUG_ERR(err,"Failed to resolve pid name\n");
-    // }
-
-    // debug_printf("Received name for pid %d: %s\n",0,buffer);
+    debug_printf("Received name for pid %d: %s\n",0,buffer);
 
 
     return EXIT_SUCCESS;
