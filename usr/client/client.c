@@ -47,10 +47,10 @@ int main(int argc, char *argv[])
     //     DEBUG_ERR(err,"Failed to init binding iwth server rpc\n");
     // }
 
-    err = aos_rpc_send_number(&server_rpc,100);
-    if(err_is_fail(err)){
-        DEBUG_ERR(err,"Failed to send number from client to server\n");
-    }
+    // err = aos_rpc_send_number(&server_rpc,100);
+    // if(err_is_fail(err)){
+    //     DEBUG_ERR(err,"Failed to send number from client to server\n");
+    // }
 
 
 
