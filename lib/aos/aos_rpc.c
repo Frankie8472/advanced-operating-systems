@@ -1233,7 +1233,7 @@ static errval_t aos_rpc_unmarshall_ump_simple_aarch64(struct aos_rpc *rpc,
     // send response
     DECLARE_MESSAGE(rpc->channel.ump, response);
     response->flag = 0;
-    response->data[0] = msg->data[0] | AOS_RPC_RETURN_BIT;
+    response->data[0] = binding->port | AOS_RPC_RETURN_BIT;
 
     int buf_pos = 1;
     ret_pos = 0;
