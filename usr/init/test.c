@@ -15,6 +15,7 @@
 #include <spawn/spawn.h>
 #include <spawn/process_manager.h>
 #include "mem_alloc.h"
+#include "rpc_server.h"
 
 #include "spawn_server.h"
 #include "test.h"
@@ -229,6 +230,71 @@ int benchmark_mm(void)
     */
 
 }
+int benchmark_ump_strings(void);
+int benchmark_ump_strings(void) {
+    char *ref = "Chapter one - The boy who lived: Mr and Mrs Dursley, of number four, "
+        "Privet Drive, were proud  to  say  that  they  were  perfectly  normal,  thank"
+        "  you very much. They were the last people you’d expect to be involved in "
+        "anything strange or mysterious, because they just didn’t hold with such nonsense."
+        "   Mr  Dursley  was  the  director  of  a  fi  rm  called  Grunnings,  which "
+        " made  drills.  He  was  a  big,  beefy  man  with  hardly  any  neck,  although"
+        "  he  did  have  a  very  large  moustache.  Mrs  Dursley  was  thin  and  blonde"
+        "  and  had  nearly  twice  the  usual amount of neck, which came in very useful "
+        "as she spent so much of her time craning over garden fences, spying on the "
+        "neighbours. The Dursleys had a small son called Dudley and in their opinion there"
+        " was no fi ner boy anywhere.   The  Dursleys  had  everything  they  wanted,  "
+        "but  they  also  had a secret, and their greatest fear was that somebody would"
+        " discover  it.  They  didn’t  think  they  could  bear  it  if  anyone  found  "
+        "out  about  the  Potters.  Mrs  Potter  was  Mrs  Dursley’s";
+    char *msg_str = malloc(1024 * sizeof(char));
+    memset(msg_str, 0, 1024 * sizeof(char));
+
+    errval_t err;
+    uint64_t x[1024];
+    uint64_t y[1024];
+    int lim = 512;
+    for (int i = 0; i < 512; i++) {
+        uint64_t before = systime_now();
+        err = aos_rpc_send_string(get_core_channel(0), msg_str);
+        uint64_t after = systime_now();
+        x[i] = i + 1;
+        y[i] = systime_to_ns(after - before);
+
+        msg_str[i] = ref[i];
+
+        if (err_is_fail(err)) {
+            lim = i;
+            break;
+        }
+        debug_printf("finished iter %d\n", i);
+    }
+    debug_printf("length,delay\n");
+    for (int i = 0; i <= lim; i++) {
+        debug_printf("%d,%ld\n", x[i], y[i]);
+    }
+
+    return 0;
+}
+
+int benchmark_ump_numbers(void);
+/**
+ * \brief Try sending a bunch of numbers to core 0, print performance info (delay).
+ */
+int benchmark_ump_numbers(void) {
+    errval_t err;
+    TEST_START;
+    debug_printf("message,delay[ns]\n");
+    for (int i = 0; i < 512; i++) {
+        uint64_t before = systime_now();
+        err = aos_rpc_send_number(get_core_channel(0), i);
+        uint64_t after = systime_now();
+        if (err_is_fail(err)) {
+            return 1;
+        }
+        debug_printf("%d,%ld\n", i, systime_to_ns(after - before));
+    }
+    return 0;
+}
 
 // put your test functions for core 0 in this array, keep NULL as last element
 int (*bsp_tests[])(void) = {
@@ -245,7 +311,9 @@ int (*bsp_tests[])(void) = {
 
 // put your test functions for the other cores in this array, also keep NULL as last element
 int (*app_tests[])(void) = {
-    &test_malloc,
+    //&test_malloc,
+    &benchmark_ump_strings,
+    /* &benchmark_ump_numbers, */
     NULL
 };
 

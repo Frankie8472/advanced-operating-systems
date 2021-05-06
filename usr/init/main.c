@@ -274,7 +274,7 @@ static int bsp_main(int argc, char *argv[])
 
     // spawn_new_domain("memeater", NULL);
 
-    // spawn_new_core(my_core_id + 1);
+    spawn_new_core(my_core_id + 1);
     // spawn_new_core(my_core_id + 2);
     // spawn_new_core(my_core_id + 3);
 
@@ -349,7 +349,7 @@ static int app_main(int argc, char *argv[])
         DEBUG_ERR(err,"Failed to initialize ram and bootinfo for new core core\n");
     }
     
-    //run_init_tests(my_core_id);
+    run_init_tests(my_core_id);
     // err = spawn_new_domain("memeater",NULL);
     // err = spawn_new_domain("memeater",NULL);
     // err = spawn_new_domain("memeater",NULL);

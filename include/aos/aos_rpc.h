@@ -37,7 +37,6 @@ enum aos_rpc_backend {
  *
  * \warning current implementation only supports up to \link AOS_RPC_MAX_MSG_TYPES
  *          different functions.
- *
  */
 typedef enum aos_rpc_msg_type {
     AOS_RPC_INITIATE = 0,
