@@ -300,7 +300,11 @@ struct aos_rpc* get_core_channel(coreid_t core_id){
     assert(core_id < 4 && "Tried to get channel for core >= 4!");
     dispatcher_handle_t handle = curdispatcher();
     struct dispatcher_generic* disp = get_dispatcher_generic(handle);
-    return disp -> core_state.c.core_channels[core_id];
+    struct aos_rpc *ret = disp->core_state.c.core_channels[core_id];
+    if (ret == NULL) {
+        debug_printf("Returning NULL channel\n");
+    }
+    return ret;
 }
 
 void set_core_channel(coreid_t core_id, struct aos_rpc * core_channel){
