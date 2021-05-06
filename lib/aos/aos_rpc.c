@@ -426,7 +426,7 @@ static errval_t aos_rpc_unmarshall_retval_aarch64(struct aos_rpc *rpc,
  * \param word_ind Index into the message array
  * \param word Pointer to 8 byte message
  */
-static void push_words_ump(struct ump_chan *uc, struct ump_msg *um, int *word_ind, uintptr_t word)
+static void push_word_ump(struct ump_chan *uc, struct ump_msg *um, int *word_ind, uintptr_t word)
 {
     um->data[(*word_ind)++] = word;
 
@@ -447,7 +447,7 @@ static void push_words_ump(struct ump_chan *uc, struct ump_msg *um, int *word_in
  */
 static void send_remaining_ump(struct ump_chan *uc, struct ump_msg *um, int *word_ind)
 {
-    if (*word_ind >= 0) {
+    if (*word_ind > 0) {
         bool sent = false;
         do {
             sent = ump_chan_send(uc, um);
@@ -485,7 +485,7 @@ static errval_t aos_rpc_call_ump(struct aos_rpc *rpc, enum aos_rpc_msg_type msg_
     int ret_ind = 0;
     for (int i = 0; i < n_args; i++) {
         if (binding->args[i] == AOS_RPC_WORD) {
-            push_words_ump(&rpc->channel.ump, um, &word_ind, va_arg(args, uintptr_t));
+            push_word_ump(&rpc->channel.ump, um, &word_ind, va_arg(args, uintptr_t));
         }
         else if (binding->args[i] == AOS_RPC_SHORTSTR) {
             const int n_words = AOS_RPC_SHORTSTR_LENGTH / sizeof(uintptr_t);
@@ -496,7 +496,7 @@ static errval_t aos_rpc_call_ump(struct aos_rpc *rpc, enum aos_rpc_msg_type msg_
 
             memcpy(&words, str, strlen(str));
             for (int j = 0; j < n_words; j++) {
-                push_words_ump(&rpc->channel.ump, um, &word_ind, words[j]);
+                push_word_ump(&rpc->channel.ump, um, &word_ind, words[j]);
             }
         }
         else if (binding->args[i] == AOS_RPC_CAPABILITY) {
@@ -508,19 +508,19 @@ static errval_t aos_rpc_call_ump(struct aos_rpc *rpc, enum aos_rpc_msg_type msg_
             invoke_cap_identify(cr, &cap);
             memcpy(&words, &cap, sizeof(struct capability));
             for (int j = 0; j < 3; j++) {
-                push_words_ump(&rpc->channel.ump, um, &word_ind, words[j]);
+                push_word_ump(&rpc->channel.ump, um, &word_ind, words[j]);
             }
         }
         else if (binding->args[i] == AOS_RPC_VARSTR) {
             // check for str, set flag in accordance with last element of sended shortstr
             const char *str = va_arg(args, char*);
             size_t msg_len = strlen(str) + 1;
-            push_words_ump(&rpc->channel.ump, um, &word_ind, msg_len);
+            push_word_ump(&rpc->channel.ump, um, &word_ind, msg_len);
             for (int j = 0; j < msg_len; j += sizeof(uintptr_t)) {
                 int word_len = min(sizeof(uintptr_t), msg_len - j);
                 uintptr_t word = 0;
                 memcpy(&word, str + j, word_len);
-                push_words_ump(&rpc->channel.ump, um, &word_ind, word);
+                push_word_ump(&rpc->channel.ump, um, &word_ind, word);
             }
         }
         else {
@@ -1241,7 +1241,7 @@ static errval_t aos_rpc_unmarshall_ump_simple_aarch64(struct aos_rpc *rpc,
         switch(binding->rets[i]) {
             case AOS_RPC_WORD: {
                 uintptr_t word = ret[ret_pos++];
-                push_words_ump(uc, response, &buf_pos, word);
+                push_word_ump(uc, response, &buf_pos, word);
             }
             break;
             
@@ -1251,20 +1251,20 @@ static errval_t aos_rpc_unmarshall_ump_simple_aarch64(struct aos_rpc *rpc,
                 ON_ERR_PUSH_RETURN(err, LIB_ERR_CAP_IDENTIFY);
                 uintptr_t words[3];
                 memcpy(&words, &cap, sizeof cap);
-                push_words_ump(uc, response, &buf_pos, words[0]);
-                push_words_ump(uc, response, &buf_pos, words[1]);
-                push_words_ump(uc, response, &buf_pos, words[2]);
+                push_word_ump(uc, response, &buf_pos, words[0]);
+                push_word_ump(uc, response, &buf_pos, words[1]);
+                push_word_ump(uc, response, &buf_pos, words[2]);
             }
             break;
 
             case AOS_RPC_VARSTR: {
                 uintptr_t length = strlen(retstring);
-                push_words_ump(uc, response, &buf_pos, length);
+                push_word_ump(uc, response, &buf_pos, length);
                 
                 for (int j = 0; j < length; j += sizeof(uintptr_t)) {
                     uintptr_t word;
                     memcpy(&word, retstring + j, sizeof(uintptr_t));
-                    push_words_ump(uc, response, &buf_pos, word);
+                    push_word_ump(uc, response, &buf_pos, word);
                 }
             }
             break;
