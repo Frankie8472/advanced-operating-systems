@@ -159,22 +159,22 @@ static errval_t init_foreign_core(void){
     
     ON_ERR_RETURN(err);
 
-    const int nBenches = 100;
+    // const int nBenches = 100;
 
-    for (int i = 0; i < 3; i++) {
-        uint64_t before = systime_now();
-        for (int j = 0; j < nBenches; j++) {
-            struct capref thrown_away;
-            err  = ram_alloc(&thrown_away, BASE_PAGE_SIZE);
-            // debug_printf("Allocated ram!\n");
-            if(err_is_fail(err)){
-                DEBUG_ERR(err,"Failed to allocate ram in benchmarkmm\n");
-            }
-        }
-        uint64_t end = systime_now();
+    // for (int i = 0; i < 3; i++) {
+    //     uint64_t before = systime_now();
+    //     for (int j = 0; j < nBenches; j++) {
+    //         struct capref thrown_away;
+    //         err  = ram_alloc(&thrown_away, BASE_PAGE_SIZE);
+    //         // debug_printf("Allocated ram!\n");
+    //         if(err_is_fail(err)){
+    //             DEBUG_ERR(err,"Failed to allocate ram in benchmarkmm\n");
+    //         }
+    //     }
+    //     uint64_t end = systime_now();
 
-        debug_printf("measurement %d took: %ld\n", i, systime_to_ns(end - before));
-    }
+    //     debug_printf("measurement %d took: %ld\n", i, systime_to_ns(end - before));
+    // }
 
     struct capref mc = {
         .cnode = cnode_root,
@@ -258,10 +258,11 @@ static int bsp_main(int argc, char *argv[])
     }
     
 
-    // spawn_new_domain("server", NULL);
-    // spawn_new_core(my_core_id + 3);
-    // spawn_new_core(my_core_id + 2);
-    // spawn_new_core(my_core_id + 3);
+    spawn_new_domain("server", NULL);
+    spawn_new_domain("client",NULL);
+    spawn_new_core(my_core_id + 1);
+    spawn_new_core(my_core_id + 2);
+    spawn_new_core(my_core_id + 3);
 
 
     

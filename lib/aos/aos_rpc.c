@@ -1442,7 +1442,6 @@ errval_t aos_rpc_get_ram_cap(struct aos_rpc *rpc, size_t bytes, size_t alignment
  */
 errval_t aos_rpc_request_foreign_ram(struct aos_rpc *rpc, size_t size, struct capref *ret_cap, size_t *ret_size)
 {
-    debug_printf("Got here!\n");
     errval_t err;
     assert(rpc->backend == AOS_RPC_UMP && "Tried to call foreign ram request on an LMP channel!\n");
     err = aos_rpc_call(rpc,AOS_RPC_REQUEST_RAM, size, 1, ret_cap,ret_size);

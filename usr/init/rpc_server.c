@@ -244,10 +244,9 @@ void handle_init_get_proc_name(struct aos_rpc *r, uintptr_t pid, char *name){
     char buffer[512];
     if(disp_get_current_core_id() == 0){
         err = aos_rpc_call(get_pm_rpc(),AOS_RPC_GET_PROC_NAME,pid,buffer);
-        debug_printf("String received : %s\n",buffer);
+        // debug_printf("String received : %s\n",buffer);
 
         strcpy(name,buffer);
-        debug_printf("Got here!\n");
         if(err_is_fail(err)){
             DEBUG_ERR(err,"Failed to forward process registering to process manager in bsp init\n");
         }
@@ -264,8 +263,8 @@ void handle_init_get_proc_name(struct aos_rpc *r, uintptr_t pid, char *name){
 
 
 void handle_init_get_proc_list(struct aos_rpc *r, uintptr_t *pid_count, char *list){
-    debug_printf("Handled init get proc list %d, %s\n");
-    debug_printf("pid count : %lx, list: %lx\n",pid_count,list);
+    // debug_printf("Handled init get proc list %d, %s\n");
+    // debug_printf("pid count : %lx, list: %lx\n",pid_count,list);
     errval_t err;
     char buffer[2048]; //TODO: 
     if(disp_get_current_core_id() == 0){
@@ -305,25 +304,8 @@ void handle_init_get_core_id(struct aos_rpc *r, uintptr_t pid, uintptr_t * core_
 void handle_all_binding_request(struct aos_rpc *r, uintptr_t pid, uintptr_t core_id,uintptr_t client_core,struct capref client_cap,struct capref * server_cap){
 
     errval_t err; 
-    debug_printf("Forwarding binding request to pid: %d\n",pid);
+    // debug_printf("Forwarding binding request to pid: %d\n",pid);
     
-
-    // if(r -> backend == AOS_RPC_UMP){
-    //     struct capref forged;
-    //     err = slot_alloc(&forged);
-    //     if(err_is_fail(err)){
-    //         DEBUG_ERR(err,"Failed to forge cap in forwarding of cap\n");
-    //     }
-
-    //     err = frame_forge(forged, get_phys_addr(client_cap),get_phys_size(client_cap),1);
-
-    //     if(err_is_fail(err)){
-    //         DEBUG_ERR(err,"Failed to forge frame cap in forwarding in init!\n");
-    //     }
-    //     cap_copy(client_cap,forged);
-    //     debug_printf("Forged cap\n!");
-    // }    
-
     
     if(pid == disp_get_domain_id()){
         // init channel 
@@ -331,7 +313,7 @@ void handle_all_binding_request(struct aos_rpc *r, uintptr_t pid, uintptr_t core
             //init ump 
         }
         else {
-            debug_printf("Handling binding request\n");
+            // debug_printf("Handling binding request\n");
             struct lmp_endpoint * lmp_ep;
             struct capref self_ep_cap = (struct capref) {
                 .cnode = cnode_task,

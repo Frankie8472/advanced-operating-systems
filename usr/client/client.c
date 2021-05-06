@@ -16,7 +16,7 @@ int main(int argc, char *argv[])
     // stack_overflow();
 
     errval_t err;
-    debug_printf("Client\n");
+    // debug_printf("Client\n");
 
 
   

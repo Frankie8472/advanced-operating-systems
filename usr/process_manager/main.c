@@ -97,14 +97,14 @@ static void print_process_list(void){
 
 
 static void handle_register_process(struct aos_rpc *rpc,uintptr_t core_id,const char* name,uintptr_t * pid){
-    debug_printf("Handling process registering! nam: %s\n", name);
+    // debug_printf("Handling process registering! nam: %s\n", name);
     
     errval_t err = add_process(core_id,name,(domainid_t *) pid);
     if(err_is_fail(err)){
         DEBUG_ERR(err,"Failed to add process to process list\n");
     }
     // *pid = new_pid;
-    debug_printf("Finished!\n");
+    // debug_printf("Finished!\n");
     print_process_list();
     return;
 
@@ -122,7 +122,7 @@ static void handle_get_proc_name(struct aos_rpc *rpc,uintptr_t pid, char *name){
                 // debug_printf("copying %c\n",curr -> name[i]);
                 name[i] = curr -> name[i];
             }
-            debug_printf("Sending back pname of %s\n",name);
+            // debug_printf("Sending back pname of %s\n",name);
             return;
         }
     }
@@ -132,7 +132,7 @@ static void handle_get_proc_name(struct aos_rpc *rpc,uintptr_t pid, char *name){
 
 
 static void handle_get_proc_list(struct aos_rpc *rpc, uintptr_t *size,char * pids){
-    debug_printf("Handle get list of processes\n");
+    // debug_printf("Handle get list of processes\n");
     *size = pl.size;
     char buffer[12]; 
     size_t index = 0;
@@ -163,7 +163,7 @@ static void handle_get_proc_core(struct aos_rpc* rpc, uintptr_t pid,uintptr_t *c
     for(struct process* curr = pl.head; curr!= NULL; curr = curr ->  next){
         if(curr -> pid == pid){
             *core = curr -> core_id;
-            debug_printf("Sending back core %d\n",*core);
+            // debug_printf("Sending back core %d\n",*core);
             return;
         }
     }
