@@ -28,7 +28,6 @@ static void push_word_ump(struct ump_chan *uc, struct ump_msg *um, int *word_ind
 static void send_remaining_ump(struct ump_chan *uc, struct ump_msg *um, int *word_ind);
 static errval_t aos_rpc_unmarshall_ump_simple_aarch64(struct aos_rpc *rpc, void *handler, struct aos_rpc_function_binding *binding, struct ump_msg *msg);
 static errval_t aos_rpc_call_lmp(struct aos_rpc *rpc, enum aos_rpc_msg_type msg_type, va_list args);
-
 static void push_word_lmp(struct lmp_chan *lc, uintptr_t *lm, struct capref *cap, int *word_ind, uintptr_t word);
 static uintptr_t pull_word_ump(struct ump_chan *uc, struct ump_msg *um, int *word_ind);
 static void push_cap_lmp(struct lmp_chan *lc, uintptr_t *lm, struct capref *cap, int *word_ind, struct capref to_push);
@@ -904,18 +903,22 @@ void aos_rpc_on_lmp_message(void *arg)
 
     struct aos_rpc_function_binding *binding = &rpc->bindings[msgtype];
 
-
     err = aos_rpc_unmarshall_lmp_aarch64(rpc, handler, binding, &msg, recieved_cap);
-
+    if (err_is_fail(err)) {
+        DEBUG_ERR(err, "error unmarshaling lmp message\n");
+    }
 //on_success:
     //debug_printf("reregister\n");
     err = lmp_chan_register_recv(channel, get_default_waitset(), MKCLOSURE(&aos_rpc_on_lmp_message, arg));
+    if (err_is_fail(err)) {
+        DEBUG_ERR(err, "error lmp_chan_register_recv\n");
+    }
     return;
 
     errval_t err2;
-    on_error:
+on_error:
     err2 = lmp_chan_register_recv(channel, get_default_waitset(), MKCLOSURE(&aos_rpc_on_lmp_message, arg));
-    DEBUG_ERR(err, "error handling message\n");
+    DEBUG_ERR(err2, "error handling message\n");
     return;
 }
 
@@ -1076,30 +1079,31 @@ static errval_t aos_rpc_unmarshall_retval_aarch64(struct aos_rpc *rpc, void **re
                                                       struct lmp_recv_msg *msg, struct capref cap)
 {
     struct lmp_chan *lc = &rpc->channel.lmp;
+
     int msg_ind = 1;
     for (int i = 0; i < binding->n_rets; i++) {
         switch (binding->rets[i]) {
-        case AOS_RPC_WORD: {
-            *((uintptr_t *) retptrs[i]) = pull_word_lmp(lc, msg, &cap, &msg_ind);
-        }
-            break;
-
-        case AOS_RPC_CAPABILITY: {
-            *((struct capref *) retptrs[i]) = pull_cap_lmp(lc, msg, &cap, &msg_ind);
-        }
-            break;
-
-        case AOS_RPC_VARSTR: {
-            size_t length = pull_word_lmp(lc, msg, &cap, &msg_ind);
-            char *str = (char *) retptrs[i];
-            for (size_t j = 0; j < length; j += sizeof(uintptr_t)) {
-                uintptr_t word = pull_word_lmp(lc, msg, &cap, &msg_ind);
-                memcpy(str + j, &word, sizeof word);
+            case AOS_RPC_WORD: {
+                *((uintptr_t *) retptrs[i]) = pull_word_lmp(lc, msg, &cap, &msg_ind);
             }
-        }
             break;
 
-        default:
+            case AOS_RPC_CAPABILITY: {
+                *((struct capref *) retptrs[i]) = pull_cap_lmp(lc, msg, &cap, &msg_ind);
+            }
+            break;
+
+            case AOS_RPC_VARSTR: {
+                size_t length = pull_word_lmp(lc, msg, &cap, &msg_ind);
+                char *str = (char *) retptrs[i];
+                for (size_t j = 0; j < length; j += sizeof(uintptr_t)) {
+                    uintptr_t word = pull_word_lmp(lc, msg, &cap, &msg_ind);
+                    memcpy(str + j, &word, sizeof word);
+                }
+            }
+            break;
+
+            default:
             debug_printf("unknown return type in unmarshalling\n");
             break;
         }
