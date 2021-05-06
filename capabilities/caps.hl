@@ -167,6 +167,14 @@ cap EndPointLMP from Dispatcher {
     **/
 };
 
+cap EndPointIPI from Dispatcher {
+    /* IDC endpoint for ipi notification across cores */
+
+    "struct capability" notifier;  /* LMP endpoint that is bound to this endpoint */
+    coreid listener_core;          /* core on which listening dispatcher resides */
+    uint32 channel_id;             /* channel for ipi notification */
+};
+
 /** Then, we go back to routine **/
 
 cap Frame from RAM from_self inherit Memory;
@@ -327,10 +335,10 @@ cap IO {
 };
 
 /* IPI notify caps */
-cap Notify_IPI {
+/*cap Notify_IPI {
     eq coreid coreid;
     eq uint16 chanid;
-};
+};*/
 
 /* ID capability, system-wide unique */
 cap ID {

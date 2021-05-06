@@ -19,6 +19,7 @@
 #include <aos/caddr.h>
 #include <aos/kernel_cap_invocations.h>
 #include <aos/lmp_endpoints.h>
+#include <aos/ipi_endpoints.h>
 #include <aos/aos_rpc.h>
 #include <stdio.h>
 
@@ -808,6 +809,17 @@ errval_t endpoint_create(size_t buflen, struct capref *retcap,
     }
 
     return lmp_endpoint_create_in_slot(buflen, *retcap, retep);
+}
+
+
+errval_t ipi_endpoint_create(struct capref *retcap)
+{
+    errval_t err = slot_alloc(retcap);
+    if (err_is_fail(err)) {
+        return err_push(err, LIB_ERR_SLOT_ALLOC);
+    }
+
+    return cap_retype(*retcap, cap_dispatcher, 0, ObjType_EndPointIPI, 0, 1);
 }
 
 /**

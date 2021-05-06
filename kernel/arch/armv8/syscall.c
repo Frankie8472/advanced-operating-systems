@@ -888,14 +888,44 @@ static struct sysret handle_endpoint_connect(struct capability *cap,
     struct registers_aarch64_syscall_args* sa = &context->syscall_args;
 
     capaddr_t endpoint = sa->arg2;
-    uint32_t channel = sa->arg4;
+    //capaddr_t endpoint_bits = sa->arg3;
+    capaddr_t ipi_endpoint_cap = sa->arg4;
+    capaddr_t ipi_endpoint_cap_bits = sa->arg5;
+
+    struct capability *ipi_cap;
+    errval_t err = caps_lookup_cap(&dcb_current->cspace.cap, ipi_endpoint_cap, ipi_endpoint_cap_bits,
+                          &ipi_cap, CAPRIGHTS_READ_WRITE);
+    if(err_is_fail(err)) {
+        printk(LOG_NOTE, "error looking up cap\n");
+    }
+    if (ipi_cap->type != ObjType_EndPointIPI) {
+        return SYSRET(SYS_ERR_DEST_TYPE_INVALID); // todo err code
+    }
+
+    uint32_t channel = ipi_cap->u.endpointipi.channel_id;
+
     printk(LOG_DEBUG, "In handle_endpoint_connect, registering channel %d\n", channel);
-    errval_t err = ipi_register_notification(endpoint, channel);
+
+    err = ipi_register_notification(endpoint, channel);
     if(err_is_fail(err)) {
         printk(LOG_NOTE, "error registering\n");
     }
 
-    return SYSRET(err);
+    ipi_cap->u.endpointipi.notifier = cap;
+
+    return SYSRET(SYS_ERR_OK);
+}
+
+static struct sysret handle_endpoint_ipi_notify(struct capability *cap,
+        arch_registers_state_t* context, int argc)
+{
+    __unused struct registers_aarch64_syscall_args* sa = &context->syscall_args;
+
+    hwid_t core_id = cap->u.endpointipi.listener_core;
+    uint32_t channel_id = cap->u.endpointipi.channel_id;
+    printk(LOG_DEBUG, "In handle_endpoint_connect, registering channel %d\n", channel_id);
+
+    return ipi_raise_notify(core_id, channel_id);
 }
 
 static struct sysret handle_idcap_identify(struct capability *cap,
@@ -978,7 +1008,11 @@ static invocation_t invocations[ObjType_Num][CAP_MAX_CMD] = {
         [DispatcherCmd_DumpCapabilities] = dispatcher_dump_capabilities
     },
     [ObjType_EndPointLMP] = {
-        [EndPointCmd_Connect]       = handle_endpoint_connect,
+        [EndPointLMPCmd_Register]     = handle_endpoint_connect,
+    },
+    [ObjType_EndPointIPI] = {
+        //[EndPointIPICmd_Register]     = handle_endpoint_ipi_register,
+        [EndPointIPICmd_Notify]       = handle_endpoint_ipi_notify,
     },
     [ObjType_KernelControlBlock] = {
         [KCBCmd_Identify] = handle_kcb_identify

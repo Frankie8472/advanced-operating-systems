@@ -530,7 +530,12 @@ enum dispatcher_cmd {
 };
 
 enum endpoint_cmd {
-    EndPointCmd_Connect,            ///< Connect endpoint to a ipi channel
+    EndPointLMPCmd_Register,            ///< Connect endpoint to a ipi channel
+};
+
+enum endpoint_ipi_cmd {
+    EndPointIPICmd_Register,          ///< register endpoint to listen for ipi interrupts
+    EndPointIPICmd_Notify,            ///< notify endpoint
 };
 
 /**

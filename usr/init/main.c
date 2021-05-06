@@ -109,6 +109,7 @@ __attribute__((unused)) static errval_t init_memory_server(domainid_t *mem_pid){
 }
 
 
+__unused
 static void hey(void* arg) {
     debug_printf("we were pinged!\n");
     struct lmp_recv_buf msg;
@@ -119,14 +120,30 @@ static void hey(void* arg) {
 
 static errval_t init_foreign_core(void){
 
-    struct lmp_endpoint *ep;
     struct capref epcap;
-    endpoint_create(64, &epcap, &ep);
-    debug_printf("created endpoint\n");
+    slot_alloc(&epcap);
 
-    invoke_ipi_register(epcap, 4);
+    struct capability ipi_ep = {
+        .type = ObjType_EndPointIPI,
+        .rights = CAPRIGHTS_READ_WRITE,
+        .u.endpointipi = {
+            .channel_id = 1,
+            .notifier = (void*) 0xffff000008000000,
+            .listener_core = 0
+        }
+    };
 
-    lmp_endpoint_register(ep, get_default_waitset(), MKCLOSURE(hey, ep));
+    invoke_monitor_create_cap((uint64_t *)&ipi_ep,
+                                     get_cnode_addr(epcap),
+                                     get_cnode_level(epcap),
+                                     epcap.slot, 1);
+
+    invoke_ipi_notify(epcap);
+    debug_printf("notifying\n");
+    invoke_ipi_notify(epcap);
+    //invoke_ipi_register(epcap, 4);
+
+    //lmp_endpoint_register(ep, get_default_waitset(), MKCLOSURE(hey, ep));
 
     return SYS_ERR_OK;
 
@@ -239,6 +256,19 @@ static int bsp_main(int argc, char *argv[])
         DEBUG_ERR(err,"Failed to init terminal state\n");
     }
 
+    struct capref lmp_ep;
+    struct lmp_endpoint *le;
+
+    struct capref ump_ep;
+
+    endpoint_create(64, &lmp_ep, &le);
+    ipi_endpoint_create(&ump_ep);
+    invoke_ipi_register(lmp_ep, ump_ep);
+
+
+    lmp_endpoint_register(le, get_default_waitset(), MKCLOSURE(hey, le));
+
+
 /*
     domainid_t mem_pid;
     err = init_memory_server(&mem_pid);
@@ -254,7 +284,7 @@ static int bsp_main(int argc, char *argv[])
     spawn_new_core(my_core_id + 1);
     //spawn_new_core(my_core_id + 2);
 
-    for (int i = 0; i < 100000000; i++) {
+    /*for (int i = 0; i < 100000000; i++) {
         __asm volatile("mov x7, x7\n");
     }
     for (int i = 0; i < 100000000; i++) {
@@ -267,7 +297,7 @@ static int bsp_main(int argc, char *argv[])
         for (int j = 0; j < 100000000; j++) {
             __asm volatile("mov x7, x7\n");
         }
-    }
+    }*/
 
     // char buffer[512];
     // err = aos_rpc_call(get_pm_rpc(),AOS_RPC_GET_PROC_NAME,0,buffer);

@@ -278,11 +278,17 @@ static inline errval_t invoke_vnode_identify(struct capref vnode,
 }
 
 
-static inline errval_t invoke_ipi_register(struct capref ep, uint32_t channel_id)
+static inline errval_t invoke_ipi_register(struct capref ep, struct capref ipi_ep)
 {
-    return cap_invoke4(ep, EndPointCmd_Connect,
+    return cap_invoke5(ep, EndPointLMPCmd_Register,
                        get_cap_addr(ep), get_cap_level(ep),
-                       channel_id).error;
+                       get_cap_addr(ipi_ep), get_cap_level(ipi_ep)).error;
+}
+
+
+static inline errval_t invoke_ipi_notify(struct capref ipi_ep)
+{
+    return cap_invoke1(ipi_ep, EndPointIPICmd_Notify).error;
 }
 
 

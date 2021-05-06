@@ -105,6 +105,7 @@ void ipi_handle_notify(void)
                 printk(LOG_ERR, "Received IPI Notify interrupt for channel %d but no handler set!\n", val);
             }
             else {
+                printk(LOG_NOTE, "lmp_deliver\n");
                 lmp_deliver_notification(&endpoints[val].cap);
             }
 
@@ -160,4 +161,13 @@ void ipi_notify_init(void)
     // Publish the address of the notify page in the global kernel state
     genpaddr_t *notify = get_global_notify_ptrs();
     notify[my_arch_id] = local_phys_to_gen_phys(mem_to_local_phys((lvaddr_t)my_notify_page));
+}
+
+
+uint32_t ipi_alloc_channel(void)
+{
+    static uint32_t counter = 1;
+
+    // TODO: implement useful channel management
+    return counter++;
 }

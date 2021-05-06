@@ -16,5 +16,7 @@ void ipi_handle_notify(void);
 struct sysret ipi_raise_notify(coreid_t coreid, uintptr_t chanid);
 void ipi_notify_init(void);
 
+uint32_t ipi_alloc_channel(void);
+
 
 #endif
