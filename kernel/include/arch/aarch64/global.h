@@ -36,6 +36,7 @@ struct global {
 
 extern struct global *global;
 
+
 // XXX: check this
 #define GLOBAL_VBASE	0x21000
 

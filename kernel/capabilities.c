@@ -22,6 +22,7 @@
 #include <offsets.h>
 #include <capabilities.h>
 #include <cap_predicates.h>
+#include <ipi_notify.h>
 #include <distcaps.h>
 #include <dispatch.h>
 #include <kcb.h>
@@ -274,6 +275,9 @@ ObjType_Mapping:
         return snprintf(buf, len, "EndPoint cap (disp %p offset 0x%" PRIxLVADDR ")",
                         cap->u.endpointlmp.listener, cap->u.endpointlmp.epoffset);
 
+    case ObjType_EndPointIPI:
+        return snprintf(buf, len, "EndPointIPI cap (core: %"PRIuHWID", channel_id: %"PRIu32")",
+                        cap->u.endpointipi.listener_core, cap->u.endpointipi.channel_id);
     case ObjType_IO:
         return snprintf(buf, len, "IO cap (0x%hx-0x%hx)",
                         cap->u.io.start, cap->u.io.end);
@@ -479,8 +483,9 @@ static size_t caps_max_numobjs(enum objtype type, gensize_t srcsize, gensize_t o
     case ObjType_IRQSrc:
     case ObjType_IO:
     case ObjType_EndPointLMP:
+    case ObjType_EndPointIPI:
     case ObjType_ID:
-    case ObjType_Notify_IPI:
+//    case ObjType_Notify_IPI:
     case ObjType_PerfMon:
     case ObjType_IPI:
     case ObjType_ProcessManager:
@@ -1182,7 +1187,8 @@ static errval_t caps_create(enum objtype type, lpaddr_t lpaddr, gensize_t size,
     case ObjType_IRQTable:
     case ObjType_IRQDest:
     case ObjType_EndPointLMP:
-    case ObjType_Notify_IPI:
+    case ObjType_EndPointIPI:
+//    case ObjType_Notify_IPI:
     case ObjType_PerfMon:
     case ObjType_ProcessManager:
     case ObjType_DeviceID :
@@ -1691,13 +1697,14 @@ errval_t caps_retype(enum objtype type, gensize_t objsize, size_t count,
     assert(src_cap->type == ObjType_PhysAddr ||
            src_cap->type == ObjType_RAM ||
            src_cap->type == ObjType_Dispatcher ||
+           src_cap->type == ObjType_EndPointLMP ||
            src_cap->type == ObjType_Frame ||
            src_cap->type == ObjType_DevFrame ||
            src_cap->type == ObjType_IRQSrc ||
            src_cap->type == ObjType_ProcessManager ||
            src_cap->type == ObjType_DeviceIDManager);
 
-    if (src_cap->type != ObjType_Dispatcher && src_cap->type != ObjType_IRQSrc) {
+    if (src_cap->type != ObjType_Dispatcher && src_cap->type != ObjType_IRQSrc && src_cap->type != ObjType_EndPointLMP) {
         base = get_address(src_cap);
         size = get_size(src_cap);
     }
@@ -1882,6 +1889,22 @@ errval_t caps_retype(enum objtype type, gensize_t objsize, size_t count,
         dest_cap->u.endpointlmp.listener = src_cap->u.dispatcher.dcb;
     }
 
+    if (type == ObjType_EndPointIPI) {
+        assert(src_cap->type == ObjType_EndPointLMP);
+        assert(count == 1);
+        struct capability *dest_cap = &dest_cte->cap;
+        dest_cap->u.endpointipi.listener_core = my_core_id;
+        dest_cap->u.endpointipi.notifier = src_cap;
+
+        uint32_t chan_id = ipi_alloc_channel();
+        dest_cap->u.endpointipi.channel_id = chan_id;
+        err = ipi_register_notification_cte(src_cte, chan_id);
+        if (err_is_fail(err)) {
+            printk(LOG_ERR, "Error registering endpoint to ipi events\n");
+            return err;
+        }
+    }
+
     // XXX: Treat full object retypes to same type as copies as calling
     // is_copy(dst, src) will return true for such retypes.
     if (count == 1 && objsize == get_size(src_cap) && type == src_cap->type) {
@@ -2041,6 +2064,11 @@ errval_t caps_copy_to_cte(struct cte *dest_cte, struct cte *src_cte, bool mint,
         dest_cap->u.endpointlmp.epoffset = param1;
         dest_cap->u.endpointlmp.epbuflen = buflen;
         dest_cap->u.endpointlmp.iftype = iftype;
+        break;
+    case ObjType_EndPointIPI:
+        assert(param1 == 0);
+        assert(param2 == 0);
+        // we can't really set anything (yet?)
         break;
 
     case ObjType_EndPointUMP:

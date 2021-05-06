@@ -201,7 +201,7 @@ int debug_print_cap(char *buf, size_t len, struct capability *cap)
     }
 
     case ObjType_EndPointUMP:
-        return snprintf(buf, len, "EndPoint UMP cap (0x%" PRIxGENPADDR ":%"
+            return snprintf(buf, len, "EndPoint UMP cap (0x%" PRIxGENPADDR ":%"
                                    PRIuGENSIZE "), if=%" PRIu32,
                         cap->u.endpointump.base, cap->u.endpointump.bytes,
                         cap->u.endpointump.iftype);
@@ -322,6 +322,10 @@ int debug_print_cap(char *buf, size_t len, struct capability *cap)
     case ObjType_EndPointLMP:
         return snprintf(buf, len, "EndPoint cap (disp %p offset 0x%" PRIxLVADDR ")",
                         cap->u.endpointlmp.listener, cap->u.endpointlmp.epoffset);
+
+    case ObjType_EndPointIPI:
+            return snprintf(buf, len, "IPI EndPoint cap (notifier %p, channel_id=%"PRIu32")",
+                        cap->u.endpointipi.notifier, cap->u.endpointipi.channel_id);
 
 
 ObjType_Mapping:

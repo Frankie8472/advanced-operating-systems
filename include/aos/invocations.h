@@ -278,6 +278,15 @@ static inline errval_t invoke_vnode_identify(struct capref vnode,
 }
 
 /**
+ * \brief ping a remote endpoint connected to an ipi endpoint
+ */
+static inline errval_t invoke_ipi_notify(struct capref ipi_ep)
+{
+    return cap_invoke1(ipi_ep, EndPointIPICmd_Notify).error;
+}
+
+
+/**
  * \brief Cleans all dirty bits in a page table.
  */
 static inline errval_t invoke_clean_dirty_bits(struct capref vnode, size_t* how_many)

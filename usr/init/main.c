@@ -48,8 +48,7 @@
 
 coreid_t my_core_id;
 
-
-
+__unused
 static errval_t init_process_manager(void){
     errval_t err;
     struct waitset *default_ws = get_default_waitset();
@@ -122,10 +121,44 @@ __attribute__((unused)) static errval_t init_memory_server(domainid_t *mem_pid){
 }
 
 
-
+__unused
+static void hey(void* arg) {
+    debug_printf("we were pinged!\n");
+    struct lmp_recv_buf msg;
+    lmp_endpoint_recv(arg, &msg, NULL);
+    lmp_endpoint_register(arg, get_default_waitset(), MKCLOSURE(hey, arg));
+}
 
 
 static errval_t init_foreign_core(void){
+
+    /*struct capref epcap;
+    slot_alloc(&epcap);
+
+    struct capability ipi_ep = {
+        .type = ObjType_EndPointIPI,
+        .rights = CAPRIGHTS_READ_WRITE,
+        .u.endpointipi = {
+            .channel_id = 1,
+            .notifier = (void*) 0xffff000008000000,
+            .listener_core = 0
+        }
+    };
+
+    invoke_monitor_create_cap((uint64_t *)&ipi_ep,
+                                     get_cnode_addr(epcap),
+                                     get_cnode_level(epcap),
+                                     epcap.slot, 0);
+
+    debug_printf("notifying\n");
+    invoke_ipi_notify(epcap);
+    //invoke_ipi_register(epcap, 4);
+
+    //lmp_endpoint_register(ep, get_default_waitset(), MKCLOSURE(hey, ep));
+
+    return SYS_ERR_OK;*/
+
+
     errval_t err;
     set_pm_online();
 
@@ -241,29 +274,34 @@ static int bsp_main(int argc, char *argv[])
         DEBUG_ERR(err,"Failed to init terminal state\n");
     }
 
-
-    domainid_t mem_pid;
-    err = init_memory_server(&mem_pid);
+    err = init_process_manager();
     if(err_is_fail(err)){
-        DEBUG_ERR(err,"Failed to init memory server\n");
+        DEBUG_ERR(err,"Failed to init terminal state\n");
     }
 
-    err  = init_process_manager();
-    if(err_is_fail(err)){
-        DEBUG_ERR(err,"Failed to init process manager!\n");
-    }
 
-    if (err_is_fail(err)) {
-        DEBUG_ERR(err, "spawn loading failed");
-    }
-    
+    struct capref lmp_ep;
+    struct lmp_endpoint *le;
+
+    struct capref ump_ep;
+
+    endpoint_create(64, &lmp_ep, &le);
+    err = ipi_endpoint_create(lmp_ep, &ump_ep);
+
+    lmp_endpoint_register(le, get_default_waitset(), MKCLOSURE(hey, le));
+
+    invoke_ipi_notify(ump_ep);
+
 
     spawn_new_domain("server", NULL);
     spawn_new_domain("client",NULL);
     spawn_new_core(my_core_id + 1);
-    spawn_new_core(my_core_id + 2);
-    spawn_new_core(my_core_id + 3);
+    //spawn_new_core(my_core_id + 2);
+    //spawn_new_core(my_core_id + 3);
 
+    // 
+    
+    //run_init_tests(my_core_id);
 
     
 
@@ -320,7 +358,6 @@ static int bsp_main(int argc, char *argv[])
             DEBUG_ERR(err, "in event_dispatch");
             abort();
         }
-
     }
 
     return EXIT_SUCCESS;

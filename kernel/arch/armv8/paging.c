@@ -485,7 +485,7 @@ caps_map_block_l2(struct capability* dest,
 {
     // check offset within frame
     if ((offset + LARGE_PAGE_SIZE > get_size(src)) ||
-        ((offset % LARGE_PAGE_SIZE) != 0)) {
+        (((get_address(src) + offset) % LARGE_PAGE_SIZE) != 0)) {
         return SYS_ERR_FRAME_OFFSET_INVALID;
     }
 
@@ -562,7 +562,7 @@ caps_map_l2(struct capability* dest,
         return SYS_ERR_VM_MAP_SIZE;
     }
 
-    if (src->type == ObjType_Frame) {
+    if (src->type == ObjType_Frame || src->type == ObjType_DevFrame) {
         // if src is a frame, we need to map a superpage
         return caps_map_block_l2(dest, slot, src, kpi_paging_flags, offset, pte_count, mapping_cte);
     }

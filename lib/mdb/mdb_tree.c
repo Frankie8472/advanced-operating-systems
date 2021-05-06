@@ -191,6 +191,11 @@ static void print_cte(struct cte *cte, char *indent_buff)
                      cap->u.endpointlmp.listener,cap->u.endpointlmp.epoffset,
                      cap->u.endpointlmp.epbuflen, cap->u.endpointlmp.iftype);
             break;
+        case ObjType_EndPointIPI:
+            snprintf(extra, 255,
+                     "[channel_id=%"PRIu32"]",
+                     cap->u.endpointipi.channel_id);
+            break;
         case ObjType_EndPointUMP:
             snprintf(extra, 255,
                      "[base=%" PRIxLPADDR ",if=%"PRIu32"]",

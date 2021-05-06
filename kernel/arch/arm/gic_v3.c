@@ -104,7 +104,7 @@ void gic_raise_softirq(coreid_t cpuid, uint8_t irq)
 {
     assert(irq <= 15);
     armv8_ICC_SGI1R_EL1_t reg = 0;
-    reg = armv8_ICC_SGI1R_EL1_INTID_insert(reg, 1);
+    reg = armv8_ICC_SGI1R_EL1_INTID_insert(reg, irq);
     // TODO: make that work for cpuids > 15
     reg = armv8_ICC_SGI1R_EL1_TargetList_insert(reg, 1<<cpuid);
     reg = armv8_ICC_SGI1R_EL1_Aff3_insert(reg, 0);

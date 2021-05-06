@@ -28,6 +28,7 @@
 #include <arch/armv8/startup_arch.h>
 #include <efi.h>
 #include <sysreg.h>
+#include <ipi_notify.h>
 #include <arch/armv8/kernel_multiboot2.h>
 #include <arch/armv8/paging_kernel_arch.h>
 #include <arch/arm/platform.h>
@@ -191,6 +192,11 @@ arch_init(struct armv8_core_data *core_data) {
 
     MSG("Enabling timers\n");
     platform_timer_init(config_timeslice);
+
+    MSG("Enabling ipi notify\n");
+
+    ipi_notify_init();
+    platform_enable_interrupt(aarch64_sgi_poll_ump, 1, 0, 0);
 
     MSG("Setting coreboot spawn handler\n");
     coreboot_set_spawn_handler(CPU_ARM8, platform_boot_core);

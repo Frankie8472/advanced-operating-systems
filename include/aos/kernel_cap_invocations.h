@@ -33,6 +33,15 @@ invoke_monitor_spawn_core(hwid_t core_id, enum cpu_type cpu_type,
                        entry, context, psci_use_hvc).error;
 }
 
+
+static inline errval_t
+invoke_monitor_send_ping(hwid_t core_id, uint32_t channel_id)
+{
+    DEBUG_INVOCATION("%s: called from %p\n", __FUNCTION__,
+            __builtin_return_address(0));
+    return cap_invoke3(cap_ipi, IPICmd_Send_Ping, core_id, channel_id).error;
+}
+
 static inline errval_t
 invoke_monitor_create_cap(uint64_t *raw, capaddr_t caddr, int level,
         capaddr_t slot, coreid_t owner)

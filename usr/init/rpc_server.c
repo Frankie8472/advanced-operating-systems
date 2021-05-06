@@ -215,6 +215,9 @@ void handle_init_process_register(struct aos_rpc *r,uintptr_t core_id,const char
     errval_t err;
     if(disp_get_current_core_id() == 0){
         debug_printf("Handling proces register in bsp_init\n");
+        if (!get_pm_online()) {
+            debug_printf("pm not yet online, we will now probably fail\n");
+        }
         err = aos_rpc_call(get_pm_rpc(),AOS_RPC_REGISTER_PROCESS,core_id,name,pid);
         if(err_is_fail(err)){
             DEBUG_ERR(err,"Failed to forward process registering to process manager in bsp init\n");
@@ -268,6 +271,12 @@ void handle_init_get_proc_list(struct aos_rpc *r, uintptr_t *pid_count, char *li
     errval_t err;
     char buffer[2048]; //TODO: 
     if(disp_get_current_core_id() == 0){
+        if (!get_pm_online()) {
+            *pid_count = 0;
+            *list = 0;
+            return;
+        }
+
         err = aos_rpc_call(get_pm_rpc(),AOS_RPC_GET_PROC_LIST,pid_count,&buffer);        
         if(err_is_fail(err)){
             DEBUG_ERR(err,"Failed to forward process registering to process manager in bsp init\n");
