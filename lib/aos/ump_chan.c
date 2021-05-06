@@ -100,6 +100,10 @@ bool ump_chan_send(struct ump_chan *chan, struct ump_msg *send)
 
     chan->send_buf_index++;
     chan->send_buf_index %= chan->send_pane_size / chan->msg_size;
+
+    if (chan->is_pinged) {
+        invoke_ipi_notify(chan->ipi_ep);
+    }
     return true;
 }
 
@@ -161,6 +165,15 @@ errval_t ump_chan_register_recv(struct ump_chan *chan, struct waitset *ws, struc
     return err;
 }
 
+
+errval_t ump_chan_register_pinged_recv(struct ump_chan *chan, struct waitset *ws, struct event_closure closure)
+{
+    errval_t err;
+
+    err = lmp_endpoint_register(chan->lmp_ep, ws, closure);
+
+    return err;
+}
 
 
 

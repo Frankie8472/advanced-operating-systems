@@ -438,6 +438,8 @@ void register_core_channel_handlers(struct aos_rpc *rpc)
     aos_rpc_register_handler(rpc, AOS_RPC_GET_PROC_CORE,&handle_init_get_core_id);
     aos_rpc_register_handler(rpc,AOS_RPC_BINDING_REQUEST,&handle_all_binding_request );
 
+    void handle_roundtrip(struct aos_rpc *r) { return; }
+    aos_rpc_register_handler(rpc, AOS_RPC_ROUNDTRIP, &handle_roundtrip);
 }
 
 

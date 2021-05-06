@@ -130,7 +130,31 @@ static void hey(void* arg) {
 }
 
 
+__unused
+static struct capref forge_ipi_cap_default(void) {
+    struct capref epcap;
+    slot_alloc(&epcap);
+
+    struct capability ipi_ep = {
+        .type = ObjType_EndPointIPI,
+        .rights = CAPRIGHTS_READ_WRITE,
+        .u.endpointipi = {
+            .channel_id = 1,
+            .notifier = (void*) 0xffff000008000000,
+            .listener_core = !disp_get_core_id()
+        }
+    };
+
+    invoke_monitor_create_cap((uint64_t *)&ipi_ep,
+                                     get_cnode_addr(epcap),
+                                     get_cnode_level(epcap),
+                                     epcap.slot, my_core_id);
+    return epcap;
+}
+
 static errval_t init_foreign_core(void){
+
+    
 
     /*struct capref epcap;
     slot_alloc(&epcap);
@@ -236,9 +260,9 @@ static errval_t init_foreign_core(void){
 
     
     // disp_set_domain_id(disp_get_current_core_id() << 10);
-    domainid_t my_pid;
-    err = aos_rpc_call(get_core_channel(0),AOS_RPC_REGISTER_PROCESS,disp_get_current_core_id(),"init",&my_pid);
-    disp_set_domain_id(my_pid);
+    //domainid_t my_pid;
+    //err = aos_rpc_call(get_core_channel(0),AOS_RPC_REGISTER_PROCESS,disp_get_current_core_id(),"init",&my_pid);
+    //disp_set_domain_id(my_pid);
     if(err_is_fail(err)){
         DEBUG_ERR(err,"Failed to register new init to pm\n");
     }
@@ -285,6 +309,25 @@ static int bsp_main(int argc, char *argv[])
     }
 
 
+
+    /*struct lmp_endpoint *le;
+
+    struct capref ipi_ep;
+    struct capref lmp_ep;
+
+    endpoint_create(64, &lmp_ep, &le);
+    err = ipi_endpoint_create(lmp_ep, &ipi_ep);
+
+    lmp_endpoint_register(le, get_default_waitset(), MKCLOSURE(hey, le));*/
+
+
+    spawn_new_core(my_core_id + 1);
+
+    //struct aos_rpc *core1 = get_core_channel(1);
+
+
+
+
     /*struct capref lmp_ep;
     struct lmp_endpoint *le;
 
@@ -298,13 +341,13 @@ static int bsp_main(int argc, char *argv[])
     invoke_ipi_notify(ump_ep);*/
 
 
-    spawn_new_domain("server", NULL);
+    /*spawn_new_domain("server", NULL);
     for (int i = 0; i < 20; i++) {
         spawn_new_domain("client",NULL);
         for (int j = 0; j < 10; j++) {
             err = event_dispatch(get_default_waitset());
         }
-    }
+    }*/
 
     //spawn_new_domain("client",NULL);
     //spawn_new_domain("client",NULL);
@@ -405,11 +448,41 @@ static int app_main(int argc, char *argv[])
     
     // run_init_tests(my_core_id);
 
-    spawn_new_domain("client",NULL);
+    //spawn_new_domain("client",NULL);
 
     grading_setup_app_init(bi);
 
     grading_test_early();
+
+    struct aos_rpc *core0 = get_core_channel(0);
+    debug_printf("calling!\n");
+    aos_rpc_call(core0, AOS_RPC_SEND_NUMBER, 12345);
+    debug_printf("called!\n");
+
+    systime_t time_sum = 0;
+    size_t n_tries = 1000;
+    for (int i = 0; i < n_tries; i++) {
+        systime_t before = systime_now();
+        aos_rpc_call(core0, AOS_RPC_ROUNDTRIP);
+        systime_t after = systime_now();
+        time_sum += after - before;
+    }
+
+    debug_printf("average RTT: %ld ns\n", systime_to_ns(time_sum / n_tries));
+
+    /*struct lmp_endpoint *le;
+
+    struct capref ipi_ep;
+    struct capref lmp_ep;
+
+    endpoint_create(64, &lmp_ep, &le);
+    err = ipi_endpoint_create(lmp_ep, &ipi_ep);
+
+
+    struct capref pinger = forge_ipi_cap_default();
+
+    invoke_ipi_notify(pinger);*/
+
 
     grading_test_late();
 

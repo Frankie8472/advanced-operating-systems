@@ -234,7 +234,27 @@ static errval_t setup_buf_page(struct aos_rpc *rpc, enum aos_rpc_msg_type msg_ty
 
 
 /* ===================== UMP Processing ===================== */
+__unused
+static struct capref forge_ipi_cap_default(void) {
+    struct capref epcap;
+    slot_alloc(&epcap);
 
+    struct capability ipi_ep = {
+        .type = ObjType_EndPointIPI,
+        .rights = CAPRIGHTS_READ_WRITE,
+        .u.endpointipi = {
+            .channel_id = 1,
+            .notifier = (void*) 0xffff000008000000,
+            .listener_core = !disp_get_core_id()
+        }
+    };
+
+    invoke_monitor_create_cap((uint64_t *)&ipi_ep,
+                                     get_cnode_addr(epcap),
+                                     get_cnode_level(epcap),
+                                     epcap.slot, disp_get_core_id());
+    return epcap;
+}
 /**
  * \brief Initialize an aos_rpc struct running on UMP backend with default settings
  * Shared page is splittet 1:1 and ump message size is UMP_MSG_SIZE_DEFAULT todo
@@ -266,7 +286,24 @@ errval_t aos_rpc_init_ump_default(struct aos_rpc *rpc, lvaddr_t shared_page, siz
     err = ump_chan_init(&rpc->channel.ump, send_pane, half_page_size, recv_pane, half_page_size);
     ON_ERR_RETURN(err);
 
-    ump_chan_register_recv(&rpc->channel.ump, get_default_waitset(), MKCLOSURE(&aos_rpc_on_ump_message, rpc));
+    if(1) { // use pinging?
+        rpc->channel.ump.is_pinged = true;
+        rpc->channel.ump.ipi_ep = forge_ipi_cap_default();
+
+        struct lmp_endpoint *le;
+
+        struct capref ipi_ep;
+        struct capref lmp_ep;
+
+        endpoint_create(64, &lmp_ep, &le);
+        err = ipi_endpoint_create(lmp_ep, &ipi_ep);
+
+        rpc->channel.ump.lmp_ep = le;
+        ump_chan_register_recv(&rpc->channel.ump, get_default_waitset(), MKCLOSURE(&aos_rpc_on_ump_message, rpc));
+    }
+    else {
+        ump_chan_register_recv(&rpc->channel.ump, get_default_waitset(), MKCLOSURE(&aos_rpc_on_ump_message, rpc));
+    }
     //err = ump_chan_register_polling(ump_chan_get_default_poller(), &rpc->channel.ump, &aos_rpc_on_ump_message, rpc);
     ON_ERR_RETURN(err);
 
@@ -441,7 +478,7 @@ void aos_rpc_on_ump_message(void *arg)
 
     bool received = ump_chan_poll_once(&rpc->channel.ump, msg);
     if (!received) {
-        debug_printf("aos_rpc_on_ump_message called but no message available\n");
+        //debug_printf("aos_rpc_on_ump_message called but no message available\n");
         ump_chan_register_recv(&rpc->channel.ump, get_default_waitset(), MKCLOSURE(&aos_rpc_on_ump_message, rpc));
         return;
     }

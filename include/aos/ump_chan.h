@@ -5,6 +5,8 @@
 #include <errors/errno.h>
 #include <assert.h>
 #include <aos/waitset.h>
+#include <aos/lmp_chan_arch.h>
+#include <aos/lmp_chan.h>
 
 #define UMP_MSG_SIZE 64 // TODO: set to cache line size
 #define UMP_MSG_N_WORDS 7
@@ -42,6 +44,10 @@ struct ump_chan
     size_t send_buf_index;
     
     struct waitset_chanstate waitset_state;
+
+    bool is_pinged;         /// < whether this channel is operating in pinged or polled mode
+    struct capref ipi_ep;   /// < ipi endpoint capability that we need to invoke when we send a message
+    struct lmp_endpoint *lmp_ep;   /// < ipi endpoint capability that we need to invoke when we send a message
 };
 
 errval_t ump_chan_init_size(struct ump_chan *chan, size_t msg_size,
@@ -64,6 +70,8 @@ bool ump_chan_can_receive(struct ump_chan *chan);
 bool ump_chan_poll_once(struct ump_chan *chan, struct ump_msg *recv);
 
 errval_t ump_chan_register_recv(struct ump_chan *chan, struct waitset *ws, struct event_closure closure);
+
+errval_t ump_chan_register_pinged_recv(struct ump_chan *chan, struct waitset *ws, struct event_closure closure);
 
 
 
