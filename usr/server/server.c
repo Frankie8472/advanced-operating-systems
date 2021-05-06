@@ -4,6 +4,7 @@
 #include <aos/aos_rpc.h>
 #include <aos/waitset.h>
 
+
 int main(int argc, char *argv[])
 {
     
@@ -13,6 +14,7 @@ int main(int argc, char *argv[])
 
     errval_t err;
     debug_printf("Server\n");
+    
     
 
 

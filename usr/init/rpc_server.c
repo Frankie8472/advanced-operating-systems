@@ -4,13 +4,20 @@
 
 #include <aos/aos.h>
 #include <aos/coreboot.h>
+
+
 #include <spawn/spawn.h>
+
 #include <spawn/process_manager.h>
 #include <mm/mm.h>
 #include "rpc_server.h"
 #include "spawn_server.h"
 #include "mem_alloc.h"
-#include "test.h"
+
+#include "../../lib/aos/include/init.h"
+
+
+
 
 
 #include <aos/dispatch.h>
@@ -188,19 +195,19 @@ void handle_foreign_spawn(struct aos_rpc *origin_rpc, const char *name, uintptr_
 }
 
 
-/**
- * \brief handler function for send number rpc call
- */
-void handle_send_number(struct aos_rpc *r, uintptr_t number) {
-    debug_printf("recieved number: %ld\n", number);
-}
+// /**
+//  * \brief handler function for send number rpc call
+//  */
+// void handle_send_number(struct aos_rpc *r, uintptr_t number) {
+//     debug_printf("recieved number: %ld\n", number);
+// }
 
-/**
- * \brief handler function for send string rpc call
- */
-void handle_send_string(struct aos_rpc *r, const char *string) {
-    debug_printf("recieved string: %s\n", string);
-}
+// /**
+//  * \brief handler function for send string rpc call
+//  */
+// void handle_send_string(struct aos_rpc *r, const char *string) {
+//     debug_printf("recieved string: %s\n", string);
+// }
 
 
 
@@ -260,21 +267,21 @@ void handle_init_get_proc_list(struct aos_rpc *r, uintptr_t *pid_count, char *li
     debug_printf("Handled init get proc list %d, %s\n");
     debug_printf("pid count : %lx, list: %lx\n",pid_count,list);
     errval_t err;
-    // char buffer[2048]; //TODO: 
+    char buffer[2048]; //TODO: 
     if(disp_get_current_core_id() == 0){
-        err = aos_rpc_call(get_pm_rpc(),AOS_RPC_GET_PROC_LIST,pid_count,list);        
+        err = aos_rpc_call(get_pm_rpc(),AOS_RPC_GET_PROC_LIST,pid_count,&buffer);        
         if(err_is_fail(err)){
             DEBUG_ERR(err,"Failed to forward process registering to process manager in bsp init\n");
         }
     }else if (disp_get_core_id() != 0){
-         err = aos_rpc_call(get_core_channel(0),AOS_RPC_GET_PROC_LIST,pid_count,list);
+         err = aos_rpc_call(get_core_channel(0),AOS_RPC_GET_PROC_LIST,pid_count,&buffer);
         
         if(err_is_fail(err)){
             DEBUG_ERR(err,"Failed to forward process registering to process manager in app init\n");
         }
         
     }
-    // strcpy(name,buffer);
+    strcpy(list,buffer);
 }
 
 
@@ -295,10 +302,29 @@ void handle_init_get_core_id(struct aos_rpc *r, uintptr_t pid, uintptr_t * core_
 }
 
 
-void handle_all_binding_request(struct aos_rpc *r, uintptr_t pid, uintptr_t core_id,struct capref client_cap,struct capref * server_cap){
-
+void handle_all_binding_request(struct aos_rpc *r, uintptr_t pid, uintptr_t core_id,uintptr_t client_core,struct capref client_cap,struct capref * server_cap){
 
     errval_t err; 
+    debug_printf("Forwarding binding request to pid: %d\n",pid);
+    
+
+    // if(r -> backend == AOS_RPC_UMP){
+    //     struct capref forged;
+    //     err = slot_alloc(&forged);
+    //     if(err_is_fail(err)){
+    //         DEBUG_ERR(err,"Failed to forge cap in forwarding of cap\n");
+    //     }
+
+    //     err = frame_forge(forged, get_phys_addr(client_cap),get_phys_size(client_cap),1);
+
+    //     if(err_is_fail(err)){
+    //         DEBUG_ERR(err,"Failed to forge frame cap in forwarding in init!\n");
+    //     }
+    //     cap_copy(client_cap,forged);
+    //     debug_printf("Forged cap\n!");
+    // }    
+
+    
     if(pid == disp_get_domain_id()){
         // init channel 
         if(core_id !=  disp_get_current_core_id()){
@@ -335,24 +361,25 @@ void handle_all_binding_request(struct aos_rpc *r, uintptr_t pid, uintptr_t core
         if(core_id == disp_get_current_core_id()){ // this means we are on init process of same core as client
             struct aos_rpc* target_server_rpc = get_rpc_from_spawn_info(pid);
             assert(target_server_rpc && "Failed to find the target server rpc in handle binding request\n");
-            err = aos_rpc_call(target_server_rpc,AOS_RPC_BINDING_REQUEST,pid, core_id, client_cap,server_cap);
+            err = aos_rpc_call(target_server_rpc,AOS_RPC_BINDING_REQUEST,pid, core_id,client_core, client_cap,server_cap);
             if(err_is_fail(err)){
                 DEBUG_ERR(err, "Failed to send from init to target server rpc!\n");
             }
 
         }else if(get_init_domain() && core_id == 0){//forward to init on core core_id
-            err = aos_rpc_call(get_core_channel(0), AOS_RPC_BINDING_REQUEST,pid,core_id,client_cap,server_cap);
+            err = aos_rpc_call(get_core_channel(core_id), AOS_RPC_BINDING_REQUEST,pid,core_id,client_core,client_cap,server_cap);
             if(err_is_fail(err)){
                 DEBUG_ERR(err,"FAiled to forward from core 0 to core %d in handle binding request",core_id);
             }
         }
         else{ // this means we are on init and need to forward to init on cor 0
             assert(get_init_domain() && "Shouldnt get here, something wrong in the binding request rpc");
-            err = aos_rpc_call(get_core_channel(0), AOS_RPC_BINDING_REQUEST,pid,core_id,client_cap,server_cap);
+            err = aos_rpc_call(get_core_channel(0), AOS_RPC_BINDING_REQUEST,pid,core_id,client_core,client_cap,server_cap);
             if(err_is_fail(err)){
                 DEBUG_ERR(err,"Failed to forward from init to init on core 0\n");
             }
         }
+        *server_cap  = client_cap; //NOTE: this is fucking stupid
     }
 }
 
@@ -405,45 +432,6 @@ void register_core_channel_handlers(struct aos_rpc *rpc)
     aos_rpc_register_handler(rpc, AOS_RPC_GET_PROC_CORE,&handle_init_get_core_id);
     aos_rpc_register_handler(rpc,AOS_RPC_BINDING_REQUEST,&handle_all_binding_request );
 
-}
-
-
-
-__attribute__((unused)) static void spawn_memeater(void)
-{
-    struct spawninfo *memeater_si = spawn_create_spawninfo();
-
-domainid_t *memeater_pid = &memeater_si->pid;
-
-    struct aos_rpc *rpc = &memeater_si->rpc;
-    aos_rpc_init(rpc);
-    initialize_rpc_handlers(rpc);
-    aos_rpc_init_lmp(rpc, memeater_si->cap_ep, NULL_CAP, memeater_si->lmp_ep);
-
-    errval_t err = spawn_load_by_name("memeater", memeater_si, memeater_pid);
-    if (err_is_fail(err)) {
-        DEBUG_ERR(err, "spawn loading failed");
-    }
-}
-
-
-__attribute__((unused)) static void spawn_page(void){
-    /*errval_t err;
-    debug_printf("Spawning hello\n");
-    struct spawninfo *hello_si = spawn_create_spawninfo();
-    domainid_t *hello_pid = &hello_si->pid;
-    err = spawn_load_by_name("hello", hello_si, hello_pid);
-    if (err_is_fail(err)) {
-        DEBUG_ERR(err, "spawn loading failed");
-    }
-
-    struct aos_rpc *rpc = &hello_si->rpc;
-    aos_rpc_init_lmp(rpc, hello_si->cap_ep, NULL_CAP, hello_si->lmp_ep);
-    err = lmp_chan_alloc_recv_slot(&rpc->channel.lmp);
-    ON_ERR_NO_RETURN(err);
-
-    err = initialize_rpc_handlers(hello_si);
-    ON_ERR_NO_RETURN(err);*/
 }
 
 

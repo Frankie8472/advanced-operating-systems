@@ -258,10 +258,13 @@ static int bsp_main(int argc, char *argv[])
     }
     
 
-    spawn_new_domain("server", NULL);
-    spawn_new_domain("client",NULL);
-    
+    // spawn_new_domain("server", NULL);
+    // spawn_new_core(my_core_id + 3);
+    // spawn_new_core(my_core_id + 2);
+    // spawn_new_core(my_core_id + 3);
 
+
+    
 
     // char * name;
     // err = aos_rpc_process_get_name(get_pm_rpc(),0,&name);
@@ -274,9 +277,6 @@ static int bsp_main(int argc, char *argv[])
 
     // spawn_new_domain("memeater", NULL);
 
-    spawn_new_core(my_core_id + 1);
-    // spawn_new_core(my_core_id + 2);
-    // spawn_new_core(my_core_id + 3);
 
 
     // domainid_t* pids;
@@ -291,7 +291,7 @@ static int bsp_main(int argc, char *argv[])
     //     debug_printf("%d\n",pids[i]);
     // }
     
-    //run_init_tests(my_core_id);
+    run_init_tests(my_core_id);
 
 
     
@@ -319,6 +319,7 @@ static int bsp_main(int argc, char *argv[])
             DEBUG_ERR(err, "in event_dispatch");
             abort();
         }
+
     }
 
     return EXIT_SUCCESS;
@@ -349,27 +350,10 @@ static int app_main(int argc, char *argv[])
         DEBUG_ERR(err,"Failed to initialize ram and bootinfo for new core core\n");
     }
     
-    run_init_tests(my_core_id);
-    // err = spawn_new_domain("memeater",NULL);
-    // err = spawn_new_domain("memeater",NULL);
-    // err = spawn_new_domain("memeater",NULL);
-    // err = spawn_new_domain("memeater",NULL);
-    // err = spawn_new_domain("memeater",NULL);
-    // err = spawn_new_domain("memeater",NULL);
-    // err = spawn_new_domain("memeater",NULL);
-    // err = spawn_new_domain("memeater",NULL);
-    // err = spawn_new_domain("memeater",NULL);
+    // run_init_tests(my_core_id);
 
+    spawn_new_domain("client",NULL);
 
-    err  = spawn_new_domain("hello",NULL);
-    // err  = spawn_new_domain("hello",NULL);
-    // err  = spawn_new_domain("hello",NULL);
-    // err  = spawn_new_domain("hello",NULL);
-    // err  = spawn_new_domain("hello",NULL);
-    // err  = spawn_new_domain("hello",NULL);
-    // err  = spawn_new_domain("hello",NULL);
-    // err  = spawn_new_domain("hello",NULL);
-    // err  = spawn_new_domain("hello",NULL);
     grading_setup_app_init(bi);
 
     grading_test_early();

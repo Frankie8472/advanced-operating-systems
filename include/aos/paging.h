@@ -149,6 +149,7 @@ static inline errval_t paging_map_frame_complete(struct paging_state *st, void *
     if(err_is_fail(err)){
         return err;
     }
+    
     return paging_map_frame_attr(st, buf, id.bytes, frame,
             VREGION_FLAGS_READ_WRITE, arg1, arg2);
 }

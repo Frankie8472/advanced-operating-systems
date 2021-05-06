@@ -21,4 +21,10 @@ void barrelfish_libc_glue_init(void);
 //
 
 
+void handle_all_binding_request_on_process(struct aos_rpc *r, uintptr_t pid, uintptr_t core_id,uintptr_t client_core ,struct capref client_cap,struct capref * server_cap);
+
+
+void handle_send_number(struct aos_rpc *r, uintptr_t number);
+void handle_send_string(struct aos_rpc *r, const char *string);
+void initialize_general_purpose_handler(struct aos_rpc* rpc);
 #endif

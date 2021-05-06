@@ -589,6 +589,8 @@ errval_t paging_map_frame_attr(struct paging_state *st, void **buf, size_t bytes
     // - Call paging_alloc to get a free virtual address region of the requested size
     // - Map the user provided frame at the free virtual address
     errval_t err;
+
+
     // err = paging_alloc(st, buf, bytes, 1);
     size_t ret_size;
     PAGING_LOCK(st);

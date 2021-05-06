@@ -217,6 +217,8 @@ errval_t barrelfish_init_onthread(struct spawn_domain_params *params)
     if(err_is_fail(err)){
         DEBUG_ERR(err,"Failed to initialize handlers!");
     }
+
+    initialize_general_purpose_handler(&init_rpc);
     set_init_rpc(&init_rpc);
 
 
@@ -318,4 +320,82 @@ void barrelfish_init_disabled(dispatcher_handle_t handle, bool init_dom_arg)
 }
 
 
+void handle_all_binding_request_on_process(struct aos_rpc *r, uintptr_t pid, uintptr_t core_id,uintptr_t client_core ,struct capref client_cap,struct capref * server_cap){
+    debug_printf("Handling server binding request!\n");
+    errval_t err;
+    struct capref self_ep_cap = (struct capref) {
+        .cnode = cnode_task,
+        .slot = TASKCN_SLOT_SELFEP
+    };
+    static struct aos_rpc rpc;
+    if(client_core == disp_get_current_core_id()){//lmp channel
+        struct lmp_endpoint * lmp_ep;
 
+
+        err = endpoint_create(256,&self_ep_cap,&lmp_ep);
+        if(err_is_fail(err)){
+            DEBUG_ERR(err,"Failed to create ep in memory server\n");
+        }
+
+            // ON_ERR_RETURN(err,LIB_ERR_ENDPOINT_CREATE);
+        
+        err = aos_rpc_init(&rpc);
+        if(err_is_fail(err)){
+            DEBUG_ERR(err,"Failed to init rpc in memory server\n");
+        }
+
+        err = aos_rpc_init_lmp(&rpc,self_ep_cap,client_cap,lmp_ep);
+        if(err_is_fail(err)){
+            DEBUG_ERR(err,"Failed to register waitset on rpc\n");
+        }
+
+
+        
+        *server_cap = self_ep_cap;
+    }else {
+
+    
+        // char buf[512];
+        // debug_print_capref(buf,512,client_cap);
+        // debug_printf("%s\n",buf);
+        // debug_cap_identify(client_cap,)
+
+        // debug_printf("Cap : %lx\n",get_phys_addr(client_cap));
+        char *urpc_data = NULL;
+        err = paging_map_frame_complete(get_current_paging_state(), (void **) &urpc_data, client_cap, NULL, NULL);
+        
+        if(err_is_fail(err)){
+            DEBUG_ERR(err,"Failed to map urpc frame for ump channel into virtual address space\n");
+        }
+
+        err =  aos_rpc_init_ump_default(&rpc,(lvaddr_t) urpc_data, BASE_PAGE_SIZE,false);//take second half as creating process
+
+        if(err_is_fail(err)){
+            DEBUG_ERR(err,"Failed to init_ump_default\n");
+        } 
+        *server_cap = client_cap; //NOTE: this is fucking stupid
+    }
+    initialize_general_purpose_handler(&rpc);
+    debug_printf("Channel established on requestee!\n");
+}
+
+/**
+ * \brief handler function for send number rpc call
+ */
+void handle_send_number(struct aos_rpc *r, uintptr_t number) {
+    debug_printf("recieved number: %ld\n", number);
+}
+
+/**
+ * \brief handler function for send string rpc call
+ */
+void handle_send_string(struct aos_rpc *r, const char *string) {
+    debug_printf("recieved string: %s\n", string);
+}
+
+
+void initialize_general_purpose_handler(struct aos_rpc* rpc){
+    aos_rpc_register_handler(rpc,AOS_RPC_BINDING_REQUEST,&handle_all_binding_request_on_process);
+    aos_rpc_register_handler(rpc, AOS_RPC_SEND_NUMBER, &handle_send_number);
+    aos_rpc_register_handler(rpc, AOS_RPC_SEND_STRING, &handle_send_string);
+}

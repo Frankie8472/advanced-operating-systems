@@ -246,6 +246,7 @@ int benchmark_ump_strings(void) {
         "but  they  also  had a secret, and their greatest fear was that somebody would"
         " discover  it.  They  didn’t  think  they  could  bear  it  if  anyone  found  "
         "out  about  the  Potters.  Mrs  Potter  was  Mrs  Dursley’s";
+
     char *msg_str = malloc(1024 * sizeof(char));
     memset(msg_str, 0, 1024 * sizeof(char));
 
