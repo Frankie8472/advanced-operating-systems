@@ -28,7 +28,6 @@
 
 #include "threads_priv.h"
 #include "init.h"
-
 // added
 #include <aos/aos_rpc.h>
 
@@ -214,6 +213,10 @@ errval_t barrelfish_init_onthread(struct spawn_domain_params *params)
         abort();
         }
 
+    // err = initialize_rpc_handlers(&init_rpc);
+    if(err_is_fail(err)){
+        DEBUG_ERR(err,"Failed to initialize handlers!");
+    }
     set_init_rpc(&init_rpc);
 
 

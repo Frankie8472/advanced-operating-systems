@@ -41,6 +41,6 @@ void handle_init_get_proc_name(struct aos_rpc *r, uintptr_t pid, char *name);
 void handle_init_get_proc_list(struct aos_rpc *r, uintptr_t *pid_count, char *list);
 
 void handle_init_get_core_id(struct aos_rpc *r, uintptr_t pid, uintptr_t * core_id);
-
+void handle_all_binding_request(struct aos_rpc *r, uintptr_t pid, uintptr_t core_id,struct capref client_cap,struct capref * server_cap);
 
 #endif // INIT_RPC_SERVER_H_

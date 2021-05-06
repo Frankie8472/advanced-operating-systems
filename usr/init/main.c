@@ -258,6 +258,9 @@ static int bsp_main(int argc, char *argv[])
     }
     
 
+    spawn_new_domain("server", NULL);
+    spawn_new_domain("client",NULL);
+    
 
 
     // char * name;
@@ -271,7 +274,7 @@ static int bsp_main(int argc, char *argv[])
 
     // spawn_new_domain("memeater", NULL);
 
-    spawn_new_core(my_core_id + 1);
+    // spawn_new_core(my_core_id + 1);
     // spawn_new_core(my_core_id + 2);
     // spawn_new_core(my_core_id + 3);
 
@@ -298,7 +301,7 @@ static int bsp_main(int argc, char *argv[])
 
     // TODO: Spawn system processes, boot second core etc. here
     
-    
+
 
 
 
@@ -359,6 +362,14 @@ static int app_main(int argc, char *argv[])
 
 
     err  = spawn_new_domain("hello",NULL);
+    // err  = spawn_new_domain("hello",NULL);
+    // err  = spawn_new_domain("hello",NULL);
+    // err  = spawn_new_domain("hello",NULL);
+    // err  = spawn_new_domain("hello",NULL);
+    // err  = spawn_new_domain("hello",NULL);
+    // err  = spawn_new_domain("hello",NULL);
+    // err  = spawn_new_domain("hello",NULL);
+    // err  = spawn_new_domain("hello",NULL);
     grading_setup_app_init(bi);
 
     grading_test_early();

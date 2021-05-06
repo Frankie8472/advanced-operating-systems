@@ -11,4 +11,6 @@ module /armv8/sbin/memeater
 module /armv8/sbin/performance_tester
 module /armv8/sbin/process_manager
 module /armv8/sbin/memory_server
+module /armv8/sbin/client
+module /armv8/sbin/server
 # newlines are important here

@@ -95,6 +95,8 @@ errval_t aos_rpc_init(struct aos_rpc *rpc)
 
     aos_rpc_initialize_binding(rpc, AOS_RPC_GET_PROC_CORE,1,1, AOS_RPC_WORD,AOS_RPC_WORD);
 
+    aos_rpc_initialize_binding(rpc, AOS_RPC_BINDING_REQUEST,3,1,AOS_RPC_WORD,AOS_RPC_WORD,AOS_RPC_CAPABILITY,AOS_RPC_CAPABILITY);
+
     //memory server bindings
     aos_rpc_initialize_binding(rpc,AOS_RPC_MEM_SERVER_REQ,1,1,AOS_RPC_CAPABILITY,AOS_RPC_CAPABILITY);
 
@@ -274,7 +276,7 @@ errval_t aos_rpc_process_get_all_pids(struct aos_rpc *rpc, domainid_t **pids,
                              size_t *pid_count) {
     errval_t err;
     char buffer[1024];
-    err = aos_rpc_call(get_pm_rpc(),AOS_RPC_GET_PROC_LIST,pid_count,buffer);
+    err = aos_rpc_call(rpc,AOS_RPC_GET_PROC_LIST,pid_count,buffer);
     if(err_is_fail(err)){
         DEBUG_ERR(err,"Failed aos_rpc call in get all pids\n");
     }
@@ -1424,4 +1426,44 @@ errval_t aos_rpc_request_foreign_ram(struct aos_rpc *rpc, size_t size, struct ca
     err = aos_rpc_call(rpc,AOS_RPC_REQUEST_RAM, size, 1, ret_cap,ret_size);
     ON_ERR_RETURN(err);
     return err;
+}
+
+
+errval_t aos_rpc_new_binding(domainid_t pid, coreid_t core_id, struct aos_rpc* ret_rpc){
+    
+    // struct aos_rpc rpc;
+    // if(get_init_domain()){
+    //     rpc = get_core_channel
+    // }
+    errval_t err;
+    struct capref self_ep_cap = (struct capref) {
+      .cnode = cnode_task,
+      .slot = TASKCN_SLOT_SELFEP
+    };
+    debug_printf("Trying to establish connection with process %d on core %d ...\n",pid,core_id);
+    struct aos_rpc *rpc = aos_rpc_get_init_channel();
+
+    if(core_id == disp_get_current_core_id()){ //lmp channel
+
+        struct lmp_endpoint *ep;
+        err = endpoint_create(256, &self_ep_cap, &ep);
+        ON_ERR_PUSH_RETURN(err, LIB_ERR_ENDPOINT_CREATE);
+        err = aos_rpc_init(ret_rpc);
+        ON_ERR_RETURN(err);
+
+        err = aos_rpc_init_lmp(ret_rpc, self_ep_cap, NULL_CAP, ep);
+        ON_ERR_RETURN(err);
+
+        struct capref remote_cap;
+
+        err = aos_rpc_call(rpc,AOS_RPC_BINDING_REQUEST,pid,core_id,self_ep_cap,&remote_cap);
+        ret_rpc -> channel.lmp.remote_cap = remote_cap;
+
+        // *ret_rpc = new_rpc;
+        debug_printf("Channel with %d on %d established!\n",pid,core_id);
+    }else{ //ump channel
+
+    }
+
+    return SYS_ERR_OK;
 }

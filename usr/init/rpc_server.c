@@ -258,7 +258,7 @@ void handle_init_get_proc_name(struct aos_rpc *r, uintptr_t pid, char *name){
 
 void handle_init_get_proc_list(struct aos_rpc *r, uintptr_t *pid_count, char *list){
     debug_printf("Handled init get proc list %d, %s\n");
-
+    debug_printf("pid count : %lx, list: %lx\n",pid_count,list);
     errval_t err;
     // char buffer[2048]; //TODO: 
     if(disp_get_current_core_id() == 0){
@@ -294,6 +294,68 @@ void handle_init_get_core_id(struct aos_rpc *r, uintptr_t pid, uintptr_t * core_
     }
 }
 
+
+void handle_all_binding_request(struct aos_rpc *r, uintptr_t pid, uintptr_t core_id,struct capref client_cap,struct capref * server_cap){
+
+
+    errval_t err; 
+    if(pid == disp_get_domain_id()){
+        // init channel 
+        if(core_id !=  disp_get_current_core_id()){
+            //init ump 
+        }
+        else {
+            debug_printf("Handling binding request\n");
+            struct lmp_endpoint * lmp_ep;
+            struct capref self_ep_cap = (struct capref) {
+                .cnode = cnode_task,
+                .slot = TASKCN_SLOT_SELFEP
+            };
+
+            err = endpoint_create(256,&self_ep_cap,&lmp_ep);
+            if(err_is_fail(err)){
+                DEBUG_ERR(err,"Failed to create ep in binding request\n");
+            }
+
+            static struct aos_rpc rpc;
+            err = aos_rpc_init(&rpc);
+            if(err_is_fail(err)){
+                DEBUG_ERR(err,"Failed to init rpc in binding request \n");
+            }
+
+            err = aos_rpc_init_lmp(&rpc,self_ep_cap,client_cap,lmp_ep);
+            if(err_is_fail(err)){
+                DEBUG_ERR(err,"Failed to register waitset on rpc\n");
+            }
+
+            *server_cap = self_ep_cap;
+        }
+
+    }else {
+        if(core_id == disp_get_current_core_id()){ // this means we are on init process of same core as client
+            struct aos_rpc* target_server_rpc = get_rpc_from_spawn_info(pid);
+            assert(target_server_rpc && "Failed to find the target server rpc in handle binding request\n");
+            err = aos_rpc_call(target_server_rpc,AOS_RPC_BINDING_REQUEST,pid, core_id, client_cap,server_cap);
+            if(err_is_fail(err)){
+                DEBUG_ERR(err, "Failed to send from init to target server rpc!\n");
+            }
+
+        }else if(get_init_domain() && core_id == 0){//forward to init on core core_id
+            err = aos_rpc_call(get_core_channel(0), AOS_RPC_BINDING_REQUEST,pid,core_id,client_cap,server_cap);
+            if(err_is_fail(err)){
+                DEBUG_ERR(err,"FAiled to forward from core 0 to core %d in handle binding request",core_id);
+            }
+        }
+        else{ // this means we are on init and need to forward to init on cor 0
+            assert(get_init_domain() && "Shouldnt get here, something wrong in the binding request rpc");
+            err = aos_rpc_call(get_core_channel(0), AOS_RPC_BINDING_REQUEST,pid,core_id,client_cap,server_cap);
+            if(err_is_fail(err)){
+                DEBUG_ERR(err,"Failed to forward from init to init on core 0\n");
+            }
+        }
+    }
+}
+
 /**
  * \brief initialize all handlers for rpc calls
  * 
@@ -324,6 +386,7 @@ errval_t initialize_rpc_handlers(struct aos_rpc *rpc)
     aos_rpc_register_handler(rpc,AOS_RPC_GET_PROC_NAME,&handle_init_get_proc_name);
     aos_rpc_register_handler(rpc,AOS_RPC_GET_PROC_LIST,&handle_init_get_proc_list);
     aos_rpc_register_handler(rpc, AOS_RPC_GET_PROC_CORE,&handle_init_get_core_id);
+    aos_rpc_register_handler(rpc,AOS_RPC_BINDING_REQUEST,&handle_all_binding_request);
     return SYS_ERR_OK;
 }
 
@@ -339,6 +402,8 @@ void register_core_channel_handlers(struct aos_rpc *rpc)
     aos_rpc_register_handler(rpc,AOS_RPC_GET_PROC_NAME,&handle_init_get_proc_name);
     aos_rpc_register_handler(rpc,AOS_RPC_GET_PROC_LIST,&handle_init_get_proc_list);
     aos_rpc_register_handler(rpc, AOS_RPC_GET_PROC_CORE,&handle_init_get_core_id);
+    aos_rpc_register_handler(rpc,AOS_RPC_BINDING_REQUEST,&handle_all_binding_request );
+
 }
 
 

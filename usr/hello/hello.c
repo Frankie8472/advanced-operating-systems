@@ -63,5 +63,21 @@ int main(int argc, char *argv[])
     debug_printf("Received name for pid %d: %s\n",0,buffer);
 
 
+
+
+    debug_printf("Trying to get process list:\n");
+    domainid_t* pids;
+    size_t pid_count;
+    err = aos_rpc_process_get_all_pids(init_rpc,&pids,&pid_count);
+    if(err_is_fail(err)){
+        DEBUG_ERR(err,"Failed to get all pids\n");
+    }
+
+    for(int i = 0; i < pid_count; ++i){
+        debug_printf("%d\n",pids[i]);
+    }
+    
+
+
     return EXIT_SUCCESS;
 }
