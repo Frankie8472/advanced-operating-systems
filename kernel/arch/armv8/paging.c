@@ -485,7 +485,7 @@ caps_map_block_l2(struct capability* dest,
 {
     // check offset within frame
     if ((offset + LARGE_PAGE_SIZE > get_size(src)) ||
-        ((offset % LARGE_PAGE_SIZE) != 0)) {
+        (((get_address(src) + offset) % LARGE_PAGE_SIZE) != 0)) {
         return SYS_ERR_FRAME_OFFSET_INVALID;
     }
 

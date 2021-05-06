@@ -821,11 +821,13 @@ errval_t paging_map_fixed_attr(struct paging_state *st, lvaddr_t vaddr,
     // perform multiple mappings in order to map whole frame
     for (size_t i = 0; i < bytes / BASE_PAGE_SIZE; i++) {
 
-        // start address of page to map
-        lvaddr_t page_start_addr = vaddr + i * BASE_PAGE_SIZE;
-        genpaddr_t page_start_paddr = paddr + i * BASE_PAGE_SIZE;
+        size_t offset = i * BASE_PAGE_SIZE;
 
-        size_t size_left = exact_bytes - i * BASE_PAGE_SIZE;
+        // start address of page to map
+        lvaddr_t page_start_addr = vaddr + offset;
+        genpaddr_t page_start_paddr = paddr + offset;
+
+        size_t size_left = exact_bytes - offset;
 
         // check if we can map a superpage
         bool map_large_page = (page_start_addr % LARGE_PAGE_SIZE) == 0 &&
@@ -854,13 +856,12 @@ errval_t paging_map_fixed_attr(struct paging_state *st, lvaddr_t vaddr,
             DEBUG_ERR(err, "couldn't alloc slot\n");
         }
 
-        //debug_printf("mapping at: %lx\n", page_start_addr);
         err = vnode_map (
             table->pt_cap,
             frame,
             pt_index,
             flags,
-            i * BASE_PAGE_SIZE,
+            offset,
             1,
             mapping
         );
