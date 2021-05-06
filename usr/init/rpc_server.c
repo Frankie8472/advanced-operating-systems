@@ -318,8 +318,10 @@ void handle_all_binding_request(struct aos_rpc *r, uintptr_t pid, uintptr_t core
     
     if(pid == disp_get_domain_id()){
         // init channel 
+        assert(NULL && "shoudnt get here");
+
         if(core_id !=  disp_get_current_core_id()){
-            //init ump 
+            //init ump
         }
         else {
             // debug_printf("Handling binding request\n");
@@ -345,17 +347,23 @@ void handle_all_binding_request(struct aos_rpc *r, uintptr_t pid, uintptr_t core
                 DEBUG_ERR(err,"Failed to register waitset on rpc\n");
             }
 
+            assert(NULL && "shoudnt get here");
             *server_cap = self_ep_cap;
         }
 
     }else {
-        if(core_id == disp_get_current_core_id()){ // this means we are on init process of same core as client
+        if(core_id == disp_get_current_core_id()){ // this means we are on init process of same core as server
             struct aos_rpc* target_server_rpc = get_rpc_from_spawn_info(pid);
             assert(target_server_rpc && "Failed to find the target server rpc in handle binding request\n");
             err = aos_rpc_call(target_server_rpc,AOS_RPC_BINDING_REQUEST,pid, core_id,client_core, client_cap,server_cap);
             if(err_is_fail(err)){
                 DEBUG_ERR(err, "Failed to send from init to target server rpc!\n");
             }
+
+            // char buf[512];
+            // debug_print_cap_at_capref(buf,512,*server_cap);
+            // debug_printf("Cap her in init %s\n",buf);
+
 
         }else if(get_init_domain() && core_id == 0){//forward to init on core core_id
             err = aos_rpc_call(get_core_channel(core_id), AOS_RPC_BINDING_REQUEST,pid,core_id,client_core,client_cap,server_cap);
@@ -370,6 +378,13 @@ void handle_all_binding_request(struct aos_rpc *r, uintptr_t pid, uintptr_t core
                 DEBUG_ERR(err,"Failed to forward from init to init on core 0\n");
             }
         }
+
+
+       
+       
+    }
+
+     if(client_core != core_id){
         *server_cap  = client_cap; //NOTE: this is fucking stupid
     }
 }

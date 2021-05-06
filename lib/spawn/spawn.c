@@ -498,10 +498,8 @@ errval_t register_process_to_process_manager(char* binary_name,domainid_t* pid){
         err = aos_rpc_call(pm_rpc,AOS_RPC_REGISTER_PROCESS,core_id,binary_name,pid);
         ON_ERR_RETURN(err);
     }else{
-
         assert(get_core_channel(0) && "UMP channel to core 0 is not present!");
         err = aos_rpc_call(get_core_channel(0),AOS_RPC_REGISTER_PROCESS,core_id,binary_name,pid);
-        debug_printf("Register process to pm NYI for core != \n");
     }
     return SYS_ERR_OK;
 }

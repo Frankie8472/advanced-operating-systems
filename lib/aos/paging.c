@@ -867,14 +867,6 @@ errval_t paging_map_fixed_attr(struct paging_state *st, lvaddr_t vaddr,
             1,
             mapping
         );
-        if (map_large_page) {
-            if (err_is_fail(err)) {
-                debug_printf("error mapping large page\n");
-            }
-            else {
-                debug_printf("success mapping large page\n");
-            }
-        }
         ON_ERR_RETURN(err);
         //debug_printf("mapped at: %lx\n", page_start_addr);
 

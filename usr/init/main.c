@@ -274,13 +274,18 @@ static int bsp_main(int argc, char *argv[])
         DEBUG_ERR(err,"Failed to init terminal state\n");
     }
 
+    //err = init_memory_server();
+    //if(err_is_fail(err)){
+    //    DEBUG_ERR(err,"Failed to init memory state\n");
+    //}
+
     err = init_process_manager();
     if(err_is_fail(err)){
         DEBUG_ERR(err,"Failed to init terminal state\n");
     }
 
 
-    struct capref lmp_ep;
+    /*struct capref lmp_ep;
     struct lmp_endpoint *le;
 
     struct capref ump_ep;
@@ -290,12 +295,22 @@ static int bsp_main(int argc, char *argv[])
 
     lmp_endpoint_register(le, get_default_waitset(), MKCLOSURE(hey, le));
 
-    invoke_ipi_notify(ump_ep);
+    invoke_ipi_notify(ump_ep);*/
 
 
     spawn_new_domain("server", NULL);
-    spawn_new_domain("client",NULL);
-    spawn_new_core(my_core_id + 1);
+    for (int i = 0; i < 20; i++) {
+        spawn_new_domain("client",NULL);
+        for (int j = 0; j < 10; j++) {
+            err = event_dispatch(get_default_waitset());
+        }
+    }
+
+    //spawn_new_domain("client",NULL);
+    //spawn_new_domain("client",NULL);
+    // spawn_new_domain("client",NULL);
+    // spawn_new_domain("client",NULL);
+    //spawn_new_core(my_core_id + 1);
     //spawn_new_core(my_core_id + 2);
     //spawn_new_core(my_core_id + 3);
 

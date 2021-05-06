@@ -5,6 +5,8 @@
 #include <aos/waitset.h>
 
 
+// extern struct aos_rpc fresh_connection;
+
 int main(int argc, char *argv[])
 {
     
@@ -15,6 +17,8 @@ int main(int argc, char *argv[])
     errval_t err;
     debug_printf("Server\n");
     
+
+    // malloc(sizeof(struct aos_rpc));
     
 
 

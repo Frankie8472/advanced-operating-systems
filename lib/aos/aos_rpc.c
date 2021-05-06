@@ -833,20 +833,22 @@ static errval_t aos_rpc_call_lmp(struct aos_rpc *rpc, enum aos_rpc_msg_type msg_
         }
     }
 
+    // debug_printf("THis domain: %d is calling call with type %d\n",disp_get_domain_id(),msg_type );
+
     send_remaining_lmp(lc, words, &send_cap, &word_ind);
 
     for (int i = 0; i < n_rets; i++) {
         retptrs[ret_ind++] = va_arg(args, void*);
     }
 
-    //debug_printf("waiting for response\n");
+    // debug_printf("waiting for response\n");
     while(!lmp_chan_can_recv(&rpc->channel.lmp)) {
         // yield to dispatcher we are communicating with
-        //debug_printf("waiting for response\n");
+        // debug_printf("waiting for response\n");
         thread_yield_dispatcher(rpc->channel.lmp.remote_cap);
     }
 
-    //debug_printf("getting response\n");
+    // debug_printf("getting response\n");
 
     struct lmp_recv_msg msg = LMP_RECV_MSG_INIT;
     struct capref recieved_cap = NULL_CAP;
@@ -861,6 +863,8 @@ static errval_t aos_rpc_call_lmp(struct aos_rpc *rpc, enum aos_rpc_msg_type msg_
 
     err = aos_rpc_unmarshall_retval_aarch64(rpc, retptrs, binding, &msg, recieved_cap);
     ON_ERR_RETURN(err);
+
+    // debug_printf("got here")
     return SYS_ERR_OK;
 }
 
@@ -1093,6 +1097,7 @@ static void send_remaining_lmp(struct lmp_chan *lc, uintptr_t *lm, struct capref
 static errval_t aos_rpc_unmarshall_retval_aarch64(struct aos_rpc *rpc, void **retptrs, struct aos_rpc_function_binding *binding,
                                                       struct lmp_recv_msg *msg, struct capref cap)
 {
+
     struct lmp_chan *lc = &rpc->channel.lmp;
 
     int msg_ind = 1;
@@ -1123,6 +1128,8 @@ static errval_t aos_rpc_unmarshall_retval_aarch64(struct aos_rpc *rpc, void **re
             break;
         }
     }
+
+    // debug_printf("Got here\n");
     return SYS_ERR_OK;
 }
 /**
@@ -1131,8 +1138,8 @@ static errval_t aos_rpc_unmarshall_retval_aarch64(struct aos_rpc *rpc, void **re
 static errval_t aos_rpc_unmarshall_lmp_aarch64(struct aos_rpc *rpc, void *handler, struct aos_rpc_function_binding *binding,
                                                struct lmp_recv_msg *msg, struct capref cap)
 {
-    //debug_printf("words: %ld %ld %ld %ld\n", msg->words[0], msg->words[1], msg->words[2], msg->words[3]);
-
+    // debug_printf("words: %ld %ld %ld %ld\n", msg->words[0], msg->words[1], msg->words[2], msg->words[3]);
+    // debug_printf("binding n_args = %d\n",binding->n_args);
     struct lmp_chan *lc = &rpc->channel.lmp;
     
     typedef uintptr_t ui;
@@ -1147,8 +1154,11 @@ static errval_t aos_rpc_unmarshall_lmp_aarch64(struct aos_rpc *rpc, void *handle
     int a_pos = 0;
     int word_ind = 1;
     int ret_pos = 0;
+
+    
     for (int i = 0; i < binding->n_args; i++) {
         switch (binding->args[i]) {
+            
             case AOS_RPC_WORD: {
                 arg[a_pos++] = pull_word_lmp(lc, msg, &cap, &word_ind);
             }
@@ -1168,7 +1178,7 @@ static errval_t aos_rpc_unmarshall_lmp_aarch64(struct aos_rpc *rpc, void *handle
 
             case AOS_RPC_VARSTR: {
                 size_t length = pull_word_lmp(lc, msg, &cap, &word_ind);
-                debug_printf("reading str arg %ld\n", length);
+                // debug_printf("reading str arg %ld\n", length);
                 assert(length < sizeof argstring);
                 for (size_t j = 0; j < length; j += sizeof(uintptr_t)) {
                     uintptr_t piece = pull_word_lmp(lc, msg, &cap, &word_ind);
@@ -1179,7 +1189,7 @@ static errval_t aos_rpc_unmarshall_lmp_aarch64(struct aos_rpc *rpc, void *handle
             break;
 
             default:
-            debug_printf("unknown argument\n");
+            debug_printf("unknown argument: %d \n", binding->args[i]);
             break;
         }
         if (a_pos >= 7) {
@@ -1482,10 +1492,14 @@ errval_t aos_rpc_new_binding(domainid_t pid, coreid_t core_id, struct aos_rpc* r
         struct capref remote_cap;
 
         err = aos_rpc_call(aos_rpc_get_process_channel(),AOS_RPC_BINDING_REQUEST,pid,core_id,disp_get_current_core_id(),self_ep_cap,&remote_cap);
-        ret_rpc -> channel.lmp.remote_cap = remote_cap;
 
+
+        // char buf[512];
+        // debug_print_cap_at_capref(buf,512,remote_cap);
+        // debug_printf("Cap here %s\n",buf);
+        ret_rpc -> channel.lmp.remote_cap = remote_cap;
         // *ret_rpc = new_rpc;
-        debug_printf("Channel with %d on %d established!\n",pid,core_id);
+        // debug_printf("Channel with %d on %d established!\n",pid,core_id);
     }else{ //ump channel
 
 
@@ -1519,8 +1533,8 @@ errval_t aos_rpc_new_binding(domainid_t pid, coreid_t core_id, struct aos_rpc* r
         // NULLPTR_CHECK(ret_rpc, LIB_ERR_MALLOC_FAIL);
 
         
-        // err = aos_rpc_init(ret_rpc);
-        // ON_ERR_RETURN(err);
+        err = aos_rpc_init(ret_rpc);
+        ON_ERR_RETURN(err);
         // ON_ERR_PUSH_RETURN(err, LIB_ERR_RPC_INIT);
 
         err =  aos_rpc_init_ump_default(ret_rpc,(lvaddr_t) urpc_data, BASE_PAGE_SIZE,true);//take first half as creating process
@@ -1579,7 +1593,7 @@ errval_t aos_rpc_new_binding_by_name(char * name, struct aos_rpc * new_rpc){
             // debug_printf("pid: %d, core_id : %d\n",pid,core_id);
             err = aos_rpc_new_binding(pid,core_id,new_rpc);
             ON_ERR_RETURN(err);
-            // debug_printf("init new binding!\n");
+            debug_printf("channel established on client!\n");
             return SYS_ERR_OK;
         }
     }

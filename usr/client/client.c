@@ -47,16 +47,28 @@ int main(int argc, char *argv[])
     //     DEBUG_ERR(err,"Failed to init binding iwth server rpc\n");
     // }
 
-    // err = aos_rpc_send_number(&server_rpc,100);
-    // if(err_is_fail(err)){
-    //     DEBUG_ERR(err,"Failed to send number from client to server\n");
-    // }
+
+    debug_printf("sending number: %d\n",disp_get_domain_id());
+    err = aos_rpc_call(&server_rpc, AOS_RPC_SEND_NUMBER,disp_get_domain_id());
+    // err = aos_rpc_send_number(&server_rpc,disp_get_domain_id());
+    if(err_is_fail(err)){
+        DEBUG_ERR(err,"Failed to send number from client to server\n");
+    }
 
 
+    err = aos_rpc_init(&server_rpc);
+    
 
-    debug_printf("Message handler loop\n");
+
     struct waitset *default_ws = get_default_waitset();
     while (true) {
+        // debug_printf("sending number: %d\n",disp_get_domain_id());
+        // err = aos_rpc_send_number(&server_rpc,disp_get_domain_id());
+        // if(err_is_fail(err)){
+        //     DEBUG_ERR(err,"Failed to send number from client to server\n");
+        // }
+
+
         err = event_dispatch(default_ws);
         if (err_is_fail(err)) {
             DEBUG_ERR(err, "in event_dispatch");

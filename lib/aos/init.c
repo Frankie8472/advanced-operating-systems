@@ -34,6 +34,11 @@
 /// Are we the init domain (and thus need to take some special paths)?
 static bool init_domain;
 
+
+static size_t count = 0;
+static struct aos_rpc rpcs[100];
+
+
 extern size_t (*_libc_terminal_read_func)(char *, size_t);
 extern size_t (*_libc_terminal_write_func)(const char *, size_t);
 extern void (*_libc_exit_func)(int);
@@ -249,39 +254,39 @@ errval_t barrelfish_init_onthread(struct spawn_domain_params *params)
 
     set_init_rpc(&init_rpc);
 
-    debug_printf("Is memory server online: %d?\n",get_mem_online());
-    if(get_mem_online()){
-        debug_printf("Trying to establish connection to memory server..\n");
+    // debug_printf("Is memory server online: %d?\n",get_mem_online());
+    // if(get_mem_online()){
+    //     debug_printf("Trying to establish connection to memory server..\n");
 
 
-        struct lmp_endpoint *ep;
-        err = endpoint_create(256, &self_ep_cap, &ep);
-        ON_ERR_PUSH_RETURN(err, LIB_ERR_ENDPOINT_CREATE);
+    //     struct lmp_endpoint *ep;
+    //     err = endpoint_create(256, &self_ep_cap, &ep);
+    //     ON_ERR_PUSH_RETURN(err, LIB_ERR_ENDPOINT_CREATE);
 
-        static struct aos_rpc mem_rpc;
+    //     static struct aos_rpc mem_rpc;
 
-        //     struct capref mem_cap;
-        //     err = aos_rpc_call(&init_rpc,AOS_RPC_MEM_SERVER_REQ,self_ep_cap,&mem_cap);
-        //     ON_ERR_RETURN(err);
-        //     mem_rpc.channel.lmp.remote_cap = mem_cap;
-        //     set_mem_rpc(&mem_rpc);
-        //     debug_printf("Channel with memory server established\n");
+    //     //     struct capref mem_cap;
+    //     //     err = aos_rpc_call(&init_rpc,AOS_RPC_MEM_SERVER_REQ,self_ep_cap,&mem_cap);
+    //     //     ON_ERR_RETURN(err);
+    //     //     mem_rpc.channel.lmp.remote_cap = mem_cap;
+    //     //     set_mem_rpc(&mem_rpc);
+    //     //     debug_printf("Channel with memory server established\n");
 
-        // }
-        err = aos_rpc_init(&mem_rpc);
-        ON_ERR_RETURN(err);
+    //     // }
+    //     err = aos_rpc_init(&mem_rpc);
+    //     ON_ERR_RETURN(err);
 
-        err = aos_rpc_init_lmp(&mem_rpc, self_ep_cap, NULL_CAP, ep);
-        ON_ERR_RETURN(err);
+    //     err = aos_rpc_init_lmp(&mem_rpc, self_ep_cap, NULL_CAP, ep);
+    //     ON_ERR_RETURN(err);
 
 
-        struct capref mem_cap;
-        err = aos_rpc_call(&init_rpc, AOS_RPC_MEM_SERVER_REQ, self_ep_cap,&mem_cap);
-        ON_ERR_RETURN(err);
-        mem_rpc.channel.lmp.remote_cap = mem_cap;
-        set_mem_rpc(&mem_rpc);
-        debug_printf("Channel with memory server established\n");
-    }
+    //     struct capref mem_cap;
+    //     err = aos_rpc_call(&init_rpc, AOS_RPC_MEM_SERVER_REQ, self_ep_cap,&mem_cap);
+    //     ON_ERR_RETURN(err);
+    //     mem_rpc.channel.lmp.remote_cap = mem_cap;
+    //     set_mem_rpc(&mem_rpc);
+    //     debug_printf("Channel with memory server established\n");
+    // }
 
 
     
@@ -321,62 +326,63 @@ void barrelfish_init_disabled(dispatcher_handle_t handle, bool init_dom_arg)
 
 
 void handle_all_binding_request_on_process(struct aos_rpc *r, uintptr_t pid, uintptr_t core_id,uintptr_t client_core ,struct capref client_cap,struct capref * server_cap){
-    debug_printf("Handling server binding request!\n");
     errval_t err;
     struct capref self_ep_cap = (struct capref) {
         .cnode = cnode_task,
         .slot = TASKCN_SLOT_SELFEP
     };
-    static struct aos_rpc rpc;
+
+
+
+   
+    // debug_printf("got here!\n");
+    // struct aos_rpc* rpc = (struct aos_rpc*) malloc(sizeof(struct aos_rpc));
+    
+
+    // static struct aos_rpc new_rpc;
+    struct aos_rpc * rpc = &(rpcs[count++]);
+    initialize_general_purpose_handler(rpc);
     if(client_core == disp_get_current_core_id()){//lmp channel
+
+
         struct lmp_endpoint * lmp_ep;
-
-
         err = endpoint_create(256,&self_ep_cap,&lmp_ep);
         if(err_is_fail(err)){
             DEBUG_ERR(err,"Failed to create ep in memory server\n");
         }
-
-            // ON_ERR_RETURN(err,LIB_ERR_ENDPOINT_CREATE);
-        
-        err = aos_rpc_init(&rpc);
-        if(err_is_fail(err)){
-            DEBUG_ERR(err,"Failed to init rpc in memory server\n");
-        }
-
-        err = aos_rpc_init_lmp(&rpc,self_ep_cap,client_cap,lmp_ep);
+        err = aos_rpc_init_lmp(rpc,self_ep_cap,client_cap,lmp_ep);
         if(err_is_fail(err)){
             DEBUG_ERR(err,"Failed to register waitset on rpc\n");
         }
 
-
-        
+        // char buf[512];
+        // debug_print_cap_at_capref(buf,512,self_ep_cap);
+        // debug_printf("Cap her %s\n",buf);
         *server_cap = self_ep_cap;
+        // debug_print_cap_at_capref(buf,512,*server_cap);
+        // debug_printf("Here server cap her %s\n",buf);
     }else {
 
-    
-        // char buf[512];
-        // debug_print_capref(buf,512,client_cap);
-        // debug_printf("%s\n",buf);
-        // debug_cap_identify(client_cap,)
-
-        // debug_printf("Cap : %lx\n",get_phys_addr(client_cap));
         char *urpc_data = NULL;
         err = paging_map_frame_complete(get_current_paging_state(), (void **) &urpc_data, client_cap, NULL, NULL);
-        
         if(err_is_fail(err)){
             DEBUG_ERR(err,"Failed to map urpc frame for ump channel into virtual address space\n");
         }
-
-        err =  aos_rpc_init_ump_default(&rpc,(lvaddr_t) urpc_data, BASE_PAGE_SIZE,false);//take second half as creating process
-
+        err =  aos_rpc_init_ump_default(rpc,(lvaddr_t) urpc_data, BASE_PAGE_SIZE,false);//take second half as creating process
         if(err_is_fail(err)){
             DEBUG_ERR(err,"Failed to init_ump_default\n");
         } 
         *server_cap = client_cap; //NOTE: this is fucking stupid
     }
-    initialize_general_purpose_handler(&rpc);
-    debug_printf("Channel established on requestee!\n");
+
+
+
+    err = aos_rpc_init(rpc);
+    if(err_is_fail(err)){
+        DEBUG_ERR(err,"Failed to init rpc\n");
+    }
+    
+    debug_printf("Channel established on server!\n");
 }
 
 /**
