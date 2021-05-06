@@ -40,6 +40,7 @@ let
                "monitor.c",
                "paging_generic.c",
                "printf.c",
+               "ipi_notify.c",
                "startup.c",
                "stdlib.c",
                "string.c",
@@ -289,7 +290,8 @@ in cpudrivers [
         "arch/armv8/timers.c",
         "arch/arm/debug.c",
         "arch/arm/gic_v3.c",
-        "arch/arm/irq.c"
+        "arch/arm/irq.c",
+        "arch/arm/ipi.c"
     ],
     mackerelDevices = [
         "arm",

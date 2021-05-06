@@ -529,6 +529,10 @@ enum dispatcher_cmd {
     DispatcherCmd_Vmclear,          ///< Make VMCS current and active
 };
 
+enum endpoint_cmd {
+    EndPointCmd_Connect,            ///< Connect endpoint to a ipi channel
+};
+
 /**
  * Kernel control block commands.
  */
@@ -628,6 +632,7 @@ enum id_cmd {
 enum ipi_cmd {
     IPICmd_Send_Start,     ///< Send Startup IPI to a destination core
     IPICmd_Send_Init,      ///< Send Init IPI to a destination core
+    IPICmd_Send_Ping,   ///< Send a ump poll request to a destination core
 };
 
 /**

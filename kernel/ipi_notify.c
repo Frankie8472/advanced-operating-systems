@@ -13,13 +13,21 @@
  */
 
 #include <kernel.h>
+#include <ipi_notify.h>
+#include <arch/arm/ipi.h>
+
 #include <dispatch.h>
 #include <capabilities.h>
-#include <arch/x86/ipi_notify.h>
-#include <arch/x86/global.h>
-#include <arch/x86/apic.h>
 #include <barrelfish_kpi/syscalls.h>
 #include <barrelfish_kpi/paging_arch.h>
+
+
+// I took this file from the official barrelfish repo (https://github.com/BarrelfishOS/barrelfish)
+// It was originally located under kernel/arch/x86/ipi_notify.c, but as it barely contains
+// too architecture-specific code I moved it to kernel/ipi_notify.c
+
+// TODO: These arrays in this file use a lot of memory... Maybe try to make them a little more compact
+
 
 // Max number of notification IDs that fit into message passing buffers
 #define MAX_CHANIDS             65535
@@ -73,14 +81,17 @@ errval_t ipi_register_notification(capaddr_t ep, int chanid)
     }
 }
 
+
 void ipi_handle_notify(void)
 {
     uint64_t val = 0;
 
+    genpaddr_t *notify = get_global_notify_ptrs();
+
     for(coreid_t srccore = 0; srccore < MAX_COREID; srccore++) {
         volatile uint64_t *fifo = (void *)&my_notify_page[NOTIFY_FIFO_BYTES * srccore];
 
-        if (global->notify[my_arch_id] == 0) {
+        if (notify[my_arch_id] == 0) {
             panic("NO PCN for core %d!", my_arch_id);
         }
 
@@ -90,8 +101,12 @@ void ipi_handle_notify(void)
         while (fifo[slot] != 0) {
             val = fifo[slot];
 
-            assert(endpoints[val].cap.type != ObjType_Null);
-            lmp_deliver_notification(&endpoints[val].cap);
+            if (endpoints[val].cap.type == ObjType_Null) {
+                printk(LOG_ERR, "Received IPI Notify interrupt for channel %d but no handler set!\n", val);
+            }
+            else {
+                lmp_deliver_notification(&endpoints[val].cap);
+            }
 
             fifo[slot] = 0; // ACK
             notifytail[srccore]++;
@@ -103,11 +118,14 @@ void ipi_handle_notify(void)
     if(val != 0) {
         dispatch(endpoints[val].cap.u.endpointlmp.listener);
     }
+
+    printk(LOG_ERR, "Received IPI Notify interrupt for channel %d but no handler set!\n", val);
 }
 
 struct sysret ipi_raise_notify(coreid_t coreid, uintptr_t chanid)
 {
-    char *notify_page = (char *)local_phys_to_mem(global->notify[coreid]);
+    genpaddr_t *notify = get_global_notify_ptrs();
+    char *notify_page = (char *)local_phys_to_mem(notify[coreid]);
 
     if (notify_page == NULL || coreid >= MAX_COREID) {
         printf("UMPNOTIFY ERROR!\n");
@@ -128,14 +146,18 @@ struct sysret ipi_raise_notify(coreid_t coreid, uintptr_t chanid)
     notifyhead[coreid]++;
 
     // Send IPI to dest kernel
-    apic_send_std_ipi(coreid, xapic_none, APIC_INTER_CORE_VECTOR);
+    //apic_send_std_ipi(coreid, xapic_none, APIC_INTER_CORE_VECTOR);
+    platform_send_ipi_notify(coreid);
 
     return SYSRET(SYS_ERR_OK);
 }
 
+
 void ipi_notify_init(void)
 {
-    my_arch_id = apic_get_id();
+    my_arch_id = my_core_id;
+
     // Publish the address of the notify page in the global kernel state
-    global->notify[my_arch_id] = local_phys_to_gen_phys(mem_to_local_phys((lvaddr_t)my_notify_page));
+    genpaddr_t *notify = get_global_notify_ptrs();
+    notify[my_arch_id] = local_phys_to_gen_phys(mem_to_local_phys((lvaddr_t)my_notify_page));
 }

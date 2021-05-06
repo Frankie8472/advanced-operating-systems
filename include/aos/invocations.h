@@ -277,6 +277,15 @@ static inline errval_t invoke_vnode_identify(struct capref vnode,
     return err;
 }
 
+
+static inline errval_t invoke_ipi_register(struct capref ep, uint32_t channel_id)
+{
+    return cap_invoke4(ep, EndPointCmd_Connect,
+                       get_cap_addr(ep), get_cap_level(ep),
+                       channel_id).error;
+}
+
+
 /**
  * \brief Cleans all dirty bits in a page table.
  */

@@ -807,12 +807,14 @@ errval_t paging_spt_find(struct paging_state *st, int level, lvaddr_t vaddr, boo
  * \brief like paging_map_fixed_attr, but you can specify an offset into the frame at which to map
  */
 errval_t paging_map_fixed_attr(struct paging_state *st, lvaddr_t vaddr,
-                               struct capref frame, size_t bytes, int flags)
+                               struct capref frame, size_t exact_bytes, int flags)
 {
     assert(st != NULL);
 
     // only able to map whole pages, round up to next page boundary
-    bytes = ROUND_UP(bytes, BASE_PAGE_SIZE);
+    size_t bytes = ROUND_UP(exact_bytes, BASE_PAGE_SIZE);
+    
+    genpaddr_t paddr = get_phys_addr(frame);
 
     errval_t err;
 
@@ -821,11 +823,14 @@ errval_t paging_map_fixed_attr(struct paging_state *st, lvaddr_t vaddr,
 
         // start address of page to map
         lvaddr_t page_start_addr = vaddr + i * BASE_PAGE_SIZE;
+        genpaddr_t page_start_paddr = paddr + i * BASE_PAGE_SIZE;
 
-        size_t size_left = bytes - i * BASE_PAGE_SIZE;
+        size_t size_left = exact_bytes - i * BASE_PAGE_SIZE;
 
         // check if we can map a superpage
-        bool map_large_page = (page_start_addr % LARGE_PAGE_SIZE) == 0 && size_left >= LARGE_PAGE_SIZE;
+        bool map_large_page = (page_start_addr % LARGE_PAGE_SIZE) == 0 &&
+                              (page_start_paddr % LARGE_PAGE_SIZE) == 0 &&
+                              size_left >= LARGE_PAGE_SIZE;
 
         int page_level = map_large_page ? 2 : 3;
 
@@ -859,6 +864,14 @@ errval_t paging_map_fixed_attr(struct paging_state *st, lvaddr_t vaddr,
             1,
             mapping
         );
+        if (map_large_page) {
+            if (err_is_fail(err)) {
+                debug_printf("error mapping large page\n");
+            }
+            else {
+                debug_printf("success mapping large page\n");
+            }
+        }
         ON_ERR_RETURN(err);
         //debug_printf("mapped at: %lx\n", page_start_addr);
 

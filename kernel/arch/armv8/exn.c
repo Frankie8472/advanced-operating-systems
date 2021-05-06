@@ -19,6 +19,8 @@
 #include <stdio.h>
 #include <wakeup.h>
 #include <irq.h>
+#include <ipi_notify.h>
+#include <arch/arm/ipi.h>
 #include <arch/arm/arm.h>
 #include <arch/arm/gic.h>
 #include <arch/arm/platform.h>
@@ -221,6 +223,11 @@ void nosave_handle_irq(void)
         systime_set_timer(kernel_timeslice);
 #endif
         wakeup_check(systime_now());
+        dispatch(schedule());
+    } else if(platform_is_ipi_notify_interrupt(irq)) {
+        platform_acknowledge_irq(irq);
+        ipi_handle_notify();
+        // no receiver found -- just continue
         dispatch(schedule());
     } else {
         platform_acknowledge_irq(irq);

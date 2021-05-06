@@ -18,6 +18,7 @@
 
 #include <arm_hal.h>
 #include <irq.h>
+#include <ipi_notify.h>
 
 #include <paging_kernel_arch.h>
 #include <dispatch.h>
@@ -32,6 +33,7 @@
 #include <arch/arm/gic.h>
 #include <arch/arm/platform.h>
 #include <arch/arm/syscall_arm.h>
+#include <arch/armv8/exceptions.h>
 #include <serial.h>
 
 // helper macros  for invocation handler definitions
@@ -746,6 +748,22 @@ monitor_spawn_core(
 }
 
 static struct sysret
+monitor_ping_channel(
+    struct capability *kernel_cap,
+    arch_registers_state_t* context,
+    int argc)
+{
+    struct registers_aarch64_syscall_args* sa = &context->syscall_args;
+
+    hwid_t core_id         = sa->arg2;
+    uint32_t channel_id    = sa->arg3;
+
+    //gic_raise_softirq(core_id, irq);
+    ipi_raise_notify(core_id, channel_id);
+    return SYSRET(SYS_ERR_OK);
+}
+
+static struct sysret
 monitor_identify_cap(
     struct capability *kernel_cap,
     arch_registers_state_t* context,
@@ -863,6 +881,23 @@ static struct sysret dispatcher_dump_capabilities(struct capability *cap,
     return SYSRET(err);
 }
 
+
+static struct sysret handle_endpoint_connect(struct capability *cap,
+        arch_registers_state_t* context, int argc)
+{
+    struct registers_aarch64_syscall_args* sa = &context->syscall_args;
+
+    capaddr_t endpoint = sa->arg2;
+    uint32_t channel = sa->arg4;
+    printk(LOG_DEBUG, "In handle_endpoint_connect, registering channel %d\n", channel);
+    errval_t err = ipi_register_notification(endpoint, channel);
+    if(err_is_fail(err)) {
+        printk(LOG_NOTE, "error registering\n");
+    }
+
+    return SYSRET(err);
+}
+
 static struct sysret handle_idcap_identify(struct capability *cap,
                                            arch_registers_state_t *context,
                                            int argc)
@@ -941,6 +976,9 @@ static invocation_t invocations[ObjType_Num][CAP_MAX_CMD] = {
         [DispatcherCmd_PerfMon]     = handle_dispatcher_perfmon,
         [DispatcherCmd_DumpPTables]  = dispatcher_dump_ptables,
         [DispatcherCmd_DumpCapabilities] = dispatcher_dump_capabilities
+    },
+    [ObjType_EndPointLMP] = {
+        [EndPointCmd_Connect]       = handle_endpoint_connect,
     },
     [ObjType_KernelControlBlock] = {
         [KCBCmd_Identify] = handle_kcb_identify
@@ -1053,6 +1091,7 @@ static invocation_t invocations[ObjType_Num][CAP_MAX_CMD] = {
     },
     [ObjType_IPI] = {
         [IPICmd_Send_Start]  = monitor_spawn_core,
+        [IPICmd_Send_Ping]  = monitor_ping_channel,
     },
     [ObjType_ID] = {
         [IDCmd_Identify] = handle_idcap_identify

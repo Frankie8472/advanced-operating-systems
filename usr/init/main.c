@@ -48,6 +48,7 @@
 
 coreid_t my_core_id;
 
+__unused
 static errval_t init_process_manager(void){
     errval_t err;
     struct waitset *default_ws = get_default_waitset();
@@ -108,10 +109,27 @@ __attribute__((unused)) static errval_t init_memory_server(domainid_t *mem_pid){
 }
 
 
-
+static void hey(void* arg) {
+    debug_printf("we were pinged!\n");
+    struct lmp_recv_buf msg;
+    lmp_endpoint_recv(arg, &msg, NULL);
+    lmp_endpoint_register(arg, get_default_waitset(), MKCLOSURE(hey, arg));
+}
 
 
 static errval_t init_foreign_core(void){
+
+    struct lmp_endpoint *ep;
+    struct capref epcap;
+    endpoint_create(64, &epcap, &ep);
+    debug_printf("created endpoint\n");
+
+    lmp_endpoint_register(ep, get_default_waitset(), MKCLOSURE(hey, ep));
+    invoke_ipi_register(epcap, 4);
+
+    return SYS_ERR_OK;
+
+
     errval_t err;
     uint64_t *urpc_init = (uint64_t*) MON_URPC_VBASE;
         debug_printf("Bootinfo base: %lx, bootinfo size: %lx\n",urpc_init[0],urpc_init[1]);
@@ -220,7 +238,7 @@ static int bsp_main(int argc, char *argv[])
         DEBUG_ERR(err,"Failed to init terminal state\n");
     }
 
-
+/*
     domainid_t mem_pid;
     err = init_memory_server(&mem_pid);
     if(err_is_fail(err)){
@@ -230,15 +248,26 @@ static int bsp_main(int argc, char *argv[])
     err  = init_process_manager();
     if(err_is_fail(err)){
         DEBUG_ERR(err,"Failed to init process manager!\n");
+    }*/
+
+    spawn_new_core(my_core_id + 1);
+    //spawn_new_core(my_core_id + 2);
+
+    for (int i = 0; i < 100000000; i++) {
+        __asm volatile("mov x7, x7\n");
+    }
+    for (int i = 0; i < 100000000; i++) {
+        __asm volatile("mov x7, x7\n");
     }
 
-    domainid_t pid;
-    err = spawn_new_domain("memeater",&pid);
-
-    if (err_is_fail(err)) {
-        DEBUG_ERR(err, "spawn loading failed");
+    for (int i = 0; i < 10; i++) {
+        debug_printf("pinging core 1 on channel 4\n");
+        invoke_monitor_send_ping(1, 4);
+        for (int j = 0; j < 100000000; j++) {
+            __asm volatile("mov x7, x7\n");
+        }
     }
-    
+
     // char buffer[512];
     // err = aos_rpc_call(get_pm_rpc(),AOS_RPC_GET_PROC_NAME,0,buffer);
     // if(err_is_fail(err)){
@@ -247,7 +276,7 @@ static int bsp_main(int argc, char *argv[])
 
     // debug_printf("Got string %s\n",buffer);
 
-    // spawn_new_core(my_core_id + 1);
+    // 
     
     //run_init_tests(my_core_id);
 

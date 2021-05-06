@@ -112,6 +112,11 @@ enum aarch64_dsfc {
 #define ETABLE_PHYS_BASE		0x800f0000
 
 
+enum aarch64_sgi {
+    aarch64_sgi_poll_ump = 12,
+};
+
+
 /* The exception vector table. */
 extern int vectors;
 

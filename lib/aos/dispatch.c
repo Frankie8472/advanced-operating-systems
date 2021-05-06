@@ -137,6 +137,7 @@ void disp_lrpc(struct lmp_endpoint *ep, uint32_t bufpos,
                uintptr_t arg1, uintptr_t arg2, uintptr_t arg3, uintptr_t arg4,
                dispatcher_handle_t handle)
 {
+    debug_printf("disp_lrpc\n");
     struct dispatcher_shared_generic* disp =
         get_dispatcher_shared_generic(handle);
 

@@ -47,7 +47,8 @@
         "ostream": "cpp",
         "sstream": "cpp",
         "thread": "cpp",
-        "tuple": "cpp"
+        "tuple": "cpp",
+        "cmath": "cpp"
     },
     "C_Cpp.default.cStandard": "c99",
 }
