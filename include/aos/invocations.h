@@ -277,15 +277,9 @@ static inline errval_t invoke_vnode_identify(struct capref vnode,
     return err;
 }
 
-
-static inline errval_t invoke_ipi_register(struct capref ep, struct capref ipi_ep)
-{
-    return cap_invoke5(ep, EndPointLMPCmd_Register,
-                       get_cap_addr(ep), get_cap_level(ep),
-                       get_cap_addr(ipi_ep), get_cap_level(ipi_ep)).error;
-}
-
-
+/**
+ * \brief ping a remote endpoint connected to an ipi endpoint
+ */
 static inline errval_t invoke_ipi_notify(struct capref ipi_ep)
 {
     return cap_invoke1(ipi_ep, EndPointIPICmd_Notify).error;

@@ -136,9 +136,8 @@ static errval_t init_foreign_core(void){
     invoke_monitor_create_cap((uint64_t *)&ipi_ep,
                                      get_cnode_addr(epcap),
                                      get_cnode_level(epcap),
-                                     epcap.slot, 1);
+                                     epcap.slot, 0);
 
-    invoke_ipi_notify(epcap);
     debug_printf("notifying\n");
     invoke_ipi_notify(epcap);
     //invoke_ipi_register(epcap, 4);
@@ -256,17 +255,21 @@ static int bsp_main(int argc, char *argv[])
         DEBUG_ERR(err,"Failed to init terminal state\n");
     }
 
+
     struct capref lmp_ep;
     struct lmp_endpoint *le;
 
     struct capref ump_ep;
 
     endpoint_create(64, &lmp_ep, &le);
-    ipi_endpoint_create(&ump_ep);
-    invoke_ipi_register(lmp_ep, ump_ep);
+    err = ipi_endpoint_create(lmp_ep, &ump_ep);
+    DEBUG_ERR(err, "asdfasfe\n");
+    //invoke_ipi_register(lmp_ep, ump_ep);
 
 
     lmp_endpoint_register(le, get_default_waitset(), MKCLOSURE(hey, le));
+
+    //invoke_ipi_notify(ump_ep);
 
 
 /*

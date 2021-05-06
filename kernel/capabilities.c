@@ -1697,13 +1697,14 @@ errval_t caps_retype(enum objtype type, gensize_t objsize, size_t count,
     assert(src_cap->type == ObjType_PhysAddr ||
            src_cap->type == ObjType_RAM ||
            src_cap->type == ObjType_Dispatcher ||
+           src_cap->type == ObjType_EndPointLMP ||
            src_cap->type == ObjType_Frame ||
            src_cap->type == ObjType_DevFrame ||
            src_cap->type == ObjType_IRQSrc ||
            src_cap->type == ObjType_ProcessManager ||
            src_cap->type == ObjType_DeviceIDManager);
 
-    if (src_cap->type != ObjType_Dispatcher && src_cap->type != ObjType_IRQSrc) {
+    if (src_cap->type != ObjType_Dispatcher && src_cap->type != ObjType_IRQSrc && src_cap->type != ObjType_EndPointLMP) {
         base = get_address(src_cap);
         size = get_size(src_cap);
     }
@@ -1889,11 +1890,19 @@ errval_t caps_retype(enum objtype type, gensize_t objsize, size_t count,
     }
 
     if (type == ObjType_EndPointIPI) {
-        assert(src_cap->type == ObjType_Dispatcher);
+        assert(src_cap->type == ObjType_EndPointLMP);
         assert(count == 1);
         struct capability *dest_cap = &dest_cte->cap;
         dest_cap->u.endpointipi.listener_core = my_core_id;
-        dest_cap->u.endpointipi.channel_id = ipi_alloc_channel();
+        dest_cap->u.endpointipi.notifier = src_cap;
+
+        uint32_t chan_id = ipi_alloc_channel();
+        dest_cap->u.endpointipi.channel_id = chan_id;
+        err = ipi_register_notification_cte(src_cte, chan_id);
+        if (err_is_fail(err)) {
+            printk(LOG_ERR, "Error registering endpoint to ipi events\n");
+            return err;
+        }
     }
 
     // XXX: Treat full object retypes to same type as copies as calling

@@ -10,7 +10,10 @@
 #ifndef IPI_NOTIFY_H
 #define IPI_NOTIFY_H
 
+#include <capabilities.h>
+
 errval_t ipi_register_notification(capaddr_t ep, int chanid);
+errval_t ipi_register_notification_cte(struct cte *ep, int chanid);
 
 void ipi_handle_notify(void);
 struct sysret ipi_raise_notify(coreid_t coreid, uintptr_t chanid);

@@ -54,10 +54,17 @@ errval_t ipi_register_notification(capaddr_t ep, int chanid)
 
     err = caps_lookup_slot(&dcb_current->cspace.cap, ep,
                            2, &recv, CAPRIGHTS_WRITE);
+
     if (err_is_fail(err)) {
         return err_push(err, SYS_ERR_IRQ_LOOKUP);
     }
 
+    return ipi_register_notification_cte(recv, chanid);
+}
+
+
+errval_t ipi_register_notification_cte(struct cte *recv, int chanid)
+{
     assert(recv != NULL);
 
     // Return w/error if cap is not an endpoint
@@ -105,7 +112,6 @@ void ipi_handle_notify(void)
                 printk(LOG_ERR, "Received IPI Notify interrupt for channel %d but no handler set!\n", val);
             }
             else {
-                printk(LOG_NOTE, "lmp_deliver\n");
                 lmp_deliver_notification(&endpoints[val].cap);
             }
 

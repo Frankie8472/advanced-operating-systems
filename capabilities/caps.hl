@@ -167,7 +167,7 @@ cap EndPointLMP from Dispatcher {
     **/
 };
 
-cap EndPointIPI from Dispatcher {
+cap EndPointIPI from EndPointLMP {
     /* IDC endpoint for ipi notification across cores */
 
     "struct capability" notifier;  /* LMP endpoint that is bound to this endpoint */

@@ -529,10 +529,6 @@ enum dispatcher_cmd {
     DispatcherCmd_Vmclear,          ///< Make VMCS current and active
 };
 
-enum endpoint_cmd {
-    EndPointLMPCmd_Register,            ///< Connect endpoint to a ipi channel
-};
-
 enum endpoint_ipi_cmd {
     EndPointIPICmd_Register,          ///< register endpoint to listen for ipi interrupts
     EndPointIPICmd_Notify,            ///< notify endpoint

@@ -811,15 +811,21 @@ errval_t endpoint_create(size_t buflen, struct capref *retcap,
     return lmp_endpoint_create_in_slot(buflen, *retcap, retep);
 }
 
-
-errval_t ipi_endpoint_create(struct capref *retcap)
+/**
+ * \brief Create an ipi endpoint from an lmp endpoint
+ * 
+ * This is basically just a retype to a capability of type EndPointIPI.
+ * The ipi endpoint can then be invoked using `invoke_ipi_notify` on which the
+ * lmp endpoint will receive a ping message. This mechanism works across cores.
+ */
+errval_t ipi_endpoint_create(struct capref lmp_ep, struct capref *ret_ipi_ep)
 {
-    errval_t err = slot_alloc(retcap);
+    errval_t err = slot_alloc(ret_ipi_ep);
     if (err_is_fail(err)) {
         return err_push(err, LIB_ERR_SLOT_ALLOC);
     }
 
-    return cap_retype(*retcap, cap_dispatcher, 0, ObjType_EndPointIPI, 0, 1);
+    return cap_retype(*ret_ipi_ep, lmp_ep, 0, ObjType_EndPointIPI, 0, 1);
 }
 
 /**
