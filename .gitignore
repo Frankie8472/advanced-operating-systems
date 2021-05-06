@@ -20,7 +20,7 @@ sftp-config.json
 .sync-config.cson
 
 /.metadata/
-/.vscode/
+/.vscode/*
 /toolchain/
 *.pyc
 
