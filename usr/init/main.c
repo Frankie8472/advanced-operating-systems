@@ -124,8 +124,9 @@ static errval_t init_foreign_core(void){
     endpoint_create(64, &epcap, &ep);
     debug_printf("created endpoint\n");
 
-    lmp_endpoint_register(ep, get_default_waitset(), MKCLOSURE(hey, ep));
     invoke_ipi_register(epcap, 4);
+
+    lmp_endpoint_register(ep, get_default_waitset(), MKCLOSURE(hey, ep));
 
     return SYS_ERR_OK;
 
