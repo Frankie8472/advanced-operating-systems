@@ -153,30 +153,8 @@ errval_t ump_chan_register_recv(struct ump_chan *chan, struct waitset *ws, struc
     errval_t err;
 
     dispatcher_handle_t handle = disp_disable();
-    struct dispatcher_generic *dp = get_dispatcher_generic(handle);
 
-    /*if (ump_chan_can_receive(chan)) { // trigger immediately
-        err = waitset_chan_trigger_closure_disabled(ws, &chan->waitset_state,
-                                                    closure, handle);
-    }*/
-    
-    {
-        err = waitset_chan_register_disabled(ws, &chan->waitset_state, closure);
-        if (err_is_ok(err)) {
-            /* enqueue on poll list */
-            struct waitset_chanstate *cs = &chan->waitset_state;
-            if (dp->polled_channels == NULL) {
-                cs->polled_prev = cs;
-                cs->polled_next = cs;
-            } else {
-                cs->polled_next = dp->polled_channels;
-                cs->polled_prev = cs->polled_next->polled_prev;
-                cs->polled_next->polled_prev = cs;
-                cs->polled_prev->polled_next = cs;
-            }
-            dp->polled_channels = cs;
-        }
-    }
+    err = waitset_chan_register_polled_disabled(ws, &chan->waitset_state, closure, handle);
 
     disp_enable(handle);
 
