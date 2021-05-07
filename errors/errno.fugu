@@ -353,6 +353,8 @@ errors libaos LIB_ERR_ {
     failure UMP_BUFSIZE_INVALID "Size of UMP buffer is invalid (must be multiple of message size)",
     failure UMP_BUFADDR_INVALID "Address of UMP buffer is invalid (must be cache-aligned)",
     failure UMP_FRAME_OVERFLOW  "Provided frame is too small for requested UMP channel sizes",
+    failure UMP_SWITCH_NO_WAITSET "UMP channel is not registered in any waitset, cannot switch",
+    failure UMP_REGISTER_PINGED_EP "Error registering ep for pinged mode",
     failure LMP_ENDPOINT_REGISTER "Failure in lmp_endpoint_register()",
     failure CHAN_REGISTER_SEND  "Failure in *_chan_register_send()",
     failure CHAN_DEREGISTER_SEND "Failure in *_chan_deregister_send()",

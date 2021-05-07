@@ -389,6 +389,14 @@ void handle_all_binding_request(struct aos_rpc *r, uintptr_t pid, uintptr_t core
     }
 }
 
+static void handle_switch_to_pinged(struct aos_rpc *rpc, struct capref ipi)
+{
+    assert(rpc->backend == AOS_RPC_UMP);
+    debug_printf("switching remote to pinged\n");
+    ump_chan_switch_remote_pinged(&rpc->channel.ump, ipi);
+    debug_printf("switched remote to pinged, returning\n");
+}
+
 /**
  * \brief initialize all handlers for rpc calls
  * 
@@ -437,6 +445,9 @@ void register_core_channel_handlers(struct aos_rpc *rpc)
     aos_rpc_register_handler(rpc,AOS_RPC_GET_PROC_LIST,&handle_init_get_proc_list);
     aos_rpc_register_handler(rpc, AOS_RPC_GET_PROC_CORE,&handle_init_get_core_id);
     aos_rpc_register_handler(rpc,AOS_RPC_BINDING_REQUEST,&handle_all_binding_request );
+
+
+    aos_rpc_register_handler(rpc, AOS_RPC_SWITCH_TO_PINGED, &handle_switch_to_pinged);
 
     void handle_roundtrip(struct aos_rpc *r) { return; }
     aos_rpc_register_handler(rpc, AOS_RPC_ROUNDTRIP, &handle_roundtrip);

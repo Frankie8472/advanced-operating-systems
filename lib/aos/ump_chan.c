@@ -6,7 +6,7 @@
 #include "waitset_chan_priv.h"
 
 /**
- * \brief Like ump_chan_init, just with (maybe) a different msg_size than UMP_MSG_SIZE
+ * \brief Like ump_chan_init_default, just with (maybe) a different msg_size than UMP_MSG_SIZE
  * NOTE: make sure both involved processes initialize the channel with the same size!
  * otherwise, things gonna get weird af (meaning: not usable)
  */
@@ -31,7 +31,7 @@ errval_t ump_chan_init_size(struct ump_chan *chan, size_t msg_size,
 }
 
 /**
- * \brief Like ump_chan_init, just with (maybe) a different number of uint64_t per message
+ * \brief Like ump_chan_init_default, just with (maybe) a different number of uint64_t per message
  * than 7
  */
 errval_t ump_chan_init_len(struct ump_chan *chan, int len,
@@ -52,7 +52,7 @@ errval_t ump_chan_init_len(struct ump_chan *chan, int len,
  * \param send_buf, send_buf_size Location and size of the channel's send-buffer
  * \param recv_buf, recv_buf_size Location and size of the channel's receive-buffer
  */
-errval_t ump_chan_init(struct ump_chan *chan,
+errval_t ump_chan_init_default(struct ump_chan *chan,
                        void *send_buf, size_t send_buf_size,
                        void *recv_buf, size_t recv_buf_size)
 {
@@ -101,7 +101,7 @@ bool ump_chan_send(struct ump_chan *chan, struct ump_msg *send)
     chan->send_buf_index++;
     chan->send_buf_index %= chan->send_pane_size / chan->msg_size;
 
-    if (chan->is_pinged) {
+    if (chan->remote_is_pinged) {
         invoke_ipi_notify(chan->ipi_ep);
     }
     return true;
@@ -152,10 +152,55 @@ bool ump_chan_poll_once(struct ump_chan *chan, struct ump_msg *recv)
 }
 
 
-errval_t ump_chan_register_recv(struct ump_chan *chan, struct waitset *ws, struct event_closure closure)
+errval_t ump_chan_switch_local_pinged(struct ump_chan *chan, struct lmp_endpoint *ep)
 {
+    assert(!chan->local_is_pinged);
     errval_t err;
 
+    struct waitset *ws = chan->waitset_state.waitset;
+    struct event_closure closure = chan->waitset_state.closure;
+
+    if (ws == NULL) {
+        return LIB_ERR_UMP_SWITCH_NO_WAITSET;
+    }
+
+    dispatcher_handle_t handle = disp_disable();
+    err = waitset_chan_deregister_disabled(&chan->waitset_state, handle);
+    disp_enable(handle);
+
+
+    err = lmp_endpoint_register(ep, ws, closure);
+    ON_ERR_PUSH_RETURN(err, LIB_ERR_UMP_REGISTER_PINGED_EP);
+
+    chan->local_is_pinged = true;
+    // chan->waitset_state will now be overwritten
+    chan->lmp_ep = ep;
+
+    return SYS_ERR_OK;
+}
+
+
+errval_t ump_chan_switch_remote_pinged(struct ump_chan *chan, struct capref ipi_endpoint)
+{
+    chan->remote_is_pinged = true;
+    chan->ipi_ep = ipi_endpoint;
+
+    return SYS_ERR_OK;
+}
+
+errval_t ump_chan_register_recv(struct ump_chan *chan, struct waitset *ws, struct event_closure closure)
+{
+    if (chan->local_is_pinged) {
+        return ump_chan_register_pinged_recv(chan, ws, closure);
+    }
+    else {
+        return ump_chan_register_polled_recv(chan, ws, closure);
+    }
+}
+
+errval_t ump_chan_register_polled_recv(struct ump_chan *chan, struct waitset *ws, struct event_closure closure)
+{
+    errval_t err;
     dispatcher_handle_t handle = disp_disable();
 
     err = waitset_chan_register_polled_disabled(ws, &chan->waitset_state, closure, handle);
