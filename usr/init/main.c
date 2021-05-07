@@ -198,7 +198,7 @@ static errval_t init_foreign_core(void){
         .slot = 0,
     };
 
-    err = frame_forge(bootinfo_cap, urpc_init[0], urpc_init[1], 0);
+    err = frame_forge(bootinfo_cap, urpc_init[0], urpc_init[1], disp_get_current_core_id());
     ON_ERR_RETURN(err);
     
     err = paging_map_frame_complete(get_current_paging_state(),(void **) &bi,bootinfo_cap,NULL,NULL);
@@ -239,7 +239,7 @@ static errval_t init_foreign_core(void){
     };
     err = cnode_create_raw(mc, NULL, ObjType_L2CNode, L2_CNODE_SLOTS, NULL);
     
-    err = frame_forge(cap_mmstrings, urpc_init[4], urpc_init[5], 0);
+    err = frame_forge(cap_mmstrings, urpc_init[4], urpc_init[5], disp_get_current_core_id());
     ON_ERR_RETURN(err);
     
     for(int i = 0; i < bi -> regions_length;++i) {
@@ -322,6 +322,19 @@ static int bsp_main(int argc, char *argv[])
 
 
     spawn_new_core(my_core_id + 1);
+
+    struct lmp_endpoint *le;
+
+    struct capref lmp_ep;
+    struct capref ipi_ep;
+    //struct capref remote_ipi = forge_ipi_cap_default();
+
+    endpoint_create(64, &lmp_ep, &le);
+    err = ipi_endpoint_create(lmp_ep, &ipi_ep);
+
+
+    //ump_chan_switch_local_pinged(&get_core_channel(1)->channel.ump, le);
+    //ump_chan_switch_remote_pinged(&get_core_channel(1)->channel.ump, remote_ipi);
 
     //struct aos_rpc *core1 = get_core_channel(1);
 
@@ -455,12 +468,40 @@ static int app_main(int argc, char *argv[])
     grading_test_early();
 
     struct aos_rpc *core0 = get_core_channel(0);
+
+
+
+    struct lmp_endpoint *le;
+
+    struct capref lmp_ep;
+    struct capref ipi_ep;
+    //struct capref remote_ipi = forge_ipi_cap_default();
+
+    endpoint_create(64, &lmp_ep, &le);
+    err = ipi_endpoint_create(lmp_ep, &ipi_ep);
+
+    //ump_chan_switch_local_pinged(&get_core_channel(0)->channel.ump, le);
+    //ump_chan_switch_remote_pinged(&get_core_channel(0)->channel.ump, remote_ipi);
+
     debug_printf("calling!\n");
     aos_rpc_call(core0, AOS_RPC_SEND_NUMBER, 12345);
     debug_printf("called!\n");
 
     systime_t time_sum = 0;
     size_t n_tries = 1000;
+    for (int i = 0; i < n_tries; i++) {
+        systime_t before = systime_now();
+        aos_rpc_call(core0, AOS_RPC_ROUNDTRIP);
+        systime_t after = systime_now();
+        time_sum += after - before;
+    }
+
+    debug_printf("average RTT: %ld ns\n", systime_to_ns(time_sum / n_tries));
+
+    ump_chan_switch_local_pinged(&get_core_channel(0)->channel.ump, le);
+    aos_rpc_call(core0, AOS_RPC_SWITCH_TO_PINGED, ipi_ep);
+
+    time_sum = 0;
     for (int i = 0; i < n_tries; i++) {
         systime_t before = systime_now();
         aos_rpc_call(core0, AOS_RPC_ROUNDTRIP);
