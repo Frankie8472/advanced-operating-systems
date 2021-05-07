@@ -308,98 +308,10 @@ static int bsp_main(int argc, char *argv[])
         DEBUG_ERR(err,"Failed to init terminal state\n");
     }
 
+    spawn_new_core(1);
+    //spawn_new_core();
+    spawn_new_domain("server", NULL);
 
-
-    /*struct lmp_endpoint *le;
-
-    struct capref ipi_ep;
-    struct capref lmp_ep;
-
-    endpoint_create(64, &lmp_ep, &le);
-    err = ipi_endpoint_create(lmp_ep, &ipi_ep);
-
-    lmp_endpoint_register(le, get_default_waitset(), MKCLOSURE(hey, le));*/
-
-
-    spawn_new_core(my_core_id + 1);
-
-    struct lmp_endpoint *le;
-
-    struct capref lmp_ep;
-    struct capref ipi_ep;
-    //struct capref remote_ipi = forge_ipi_cap_default();
-
-    endpoint_create(64, &lmp_ep, &le);
-    err = ipi_endpoint_create(lmp_ep, &ipi_ep);
-
-
-    //ump_chan_switch_local_pinged(&get_core_channel(1)->channel.ump, le);
-    //ump_chan_switch_remote_pinged(&get_core_channel(1)->channel.ump, remote_ipi);
-
-    //struct aos_rpc *core1 = get_core_channel(1);
-
-
-
-
-    /*struct capref lmp_ep;
-    struct lmp_endpoint *le;
-
-    struct capref ump_ep;
-
-    endpoint_create(64, &lmp_ep, &le);
-    err = ipi_endpoint_create(lmp_ep, &ump_ep);
-
-    lmp_endpoint_register(le, get_default_waitset(), MKCLOSURE(hey, le));
-
-    invoke_ipi_notify(ump_ep);*/
-
-
-    /*spawn_new_domain("server", NULL);
-    for (int i = 0; i < 20; i++) {
-        spawn_new_domain("client",NULL);
-        for (int j = 0; j < 10; j++) {
-            err = event_dispatch(get_default_waitset());
-        }
-    }*/
-
-    //spawn_new_domain("client",NULL);
-    //spawn_new_domain("client",NULL);
-    // spawn_new_domain("client",NULL);
-    // spawn_new_domain("client",NULL);
-    //spawn_new_core(my_core_id + 1);
-    //spawn_new_core(my_core_id + 2);
-    //spawn_new_core(my_core_id + 3);
-
-    // 
-    
-    //run_init_tests(my_core_id);
-
-    
-
-    // char * name;
-    // err = aos_rpc_process_get_name(get_pm_rpc(),0,&name);
-    // if(err_is_fail(err)){
-    //     DEBUG_ERR(err,"Failed to resolve pid name\n");
-    // }
-
-    // debug_printf("Received name for pid %d: %s\n",0,name);
-
-
-    // spawn_new_domain("memeater", NULL);
-
-
-
-    // domainid_t* pids;
-    // size_t pid_count;
-    // err = aos_rpc_process_get_all_pids(get_pm_rpc(),&pids,&pid_count);
-    // if(err_is_fail(err)){
-    //     DEBUG_ERR(err,"Failed to get all pids\n");
-    // }
-
-
-    // for(int i = 0; i < pid_count; ++i){
-    //     debug_printf("%d\n",pids[i]);
-    // }
     
     run_init_tests(my_core_id);
 
@@ -461,69 +373,12 @@ static int app_main(int argc, char *argv[])
     
     // run_init_tests(my_core_id);
 
-    //spawn_new_domain("client",NULL);
+    spawn_new_domain("server", NULL);
+    spawn_new_domain("client", NULL);
 
     grading_setup_app_init(bi);
 
     grading_test_early();
-
-    struct aos_rpc *core0 = get_core_channel(0);
-
-
-
-    struct lmp_endpoint *le;
-
-    struct capref lmp_ep;
-    struct capref ipi_ep;
-    //struct capref remote_ipi = forge_ipi_cap_default();
-
-    endpoint_create(64, &lmp_ep, &le);
-    err = ipi_endpoint_create(lmp_ep, &ipi_ep);
-
-    //ump_chan_switch_local_pinged(&get_core_channel(0)->channel.ump, le);
-    //ump_chan_switch_remote_pinged(&get_core_channel(0)->channel.ump, remote_ipi);
-
-    debug_printf("calling!\n");
-    aos_rpc_call(core0, AOS_RPC_SEND_NUMBER, 12345);
-    debug_printf("called!\n");
-
-    systime_t time_sum = 0;
-    size_t n_tries = 1000;
-    for (int i = 0; i < n_tries; i++) {
-        systime_t before = systime_now();
-        aos_rpc_call(core0, AOS_RPC_ROUNDTRIP);
-        systime_t after = systime_now();
-        time_sum += after - before;
-    }
-
-    debug_printf("average RTT: %ld ns\n", systime_to_ns(time_sum / n_tries));
-
-    ump_chan_switch_local_pinged(&get_core_channel(0)->channel.ump, le);
-    aos_rpc_call(core0, AOS_RPC_SWITCH_TO_PINGED, ipi_ep);
-
-    time_sum = 0;
-    for (int i = 0; i < n_tries; i++) {
-        systime_t before = systime_now();
-        aos_rpc_call(core0, AOS_RPC_ROUNDTRIP);
-        systime_t after = systime_now();
-        time_sum += after - before;
-    }
-
-    debug_printf("average RTT: %ld ns\n", systime_to_ns(time_sum / n_tries));
-
-    /*struct lmp_endpoint *le;
-
-    struct capref ipi_ep;
-    struct capref lmp_ep;
-
-    endpoint_create(64, &lmp_ep, &le);
-    err = ipi_endpoint_create(lmp_ep, &ipi_ep);
-
-
-    struct capref pinger = forge_ipi_cap_default();
-
-    invoke_ipi_notify(pinger);*/
-
 
     grading_test_late();
 

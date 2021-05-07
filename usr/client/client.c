@@ -5,6 +5,7 @@
 #include <aos/waitset.h>
 
 
+#define CALCULATE_REQUEST 1
 
 
 
@@ -40,7 +41,13 @@ int main(int argc, char *argv[])
 
     struct aos_rpc server_rpc;
     do {
-        err = aos_rpc_new_binding_by_name("server",&server_rpc);
+        err = aos_rpc_new_binding_by_name("server", &server_rpc);
+        aos_rpc_initialize_binding(&server_rpc, CALCULATE_REQUEST, 1, 1, AOS_RPC_WORD, AOS_RPC_WORD);
+    }while(err_is_fail(err));
+
+    do {
+        err = aos_rpc_new_binding_by_name("server", &server_rpc2);
+        aos_rpc_initialize_binding(&server_rpc2, CALCULATE_REQUEST, 1, 1, AOS_RPC_WORD, AOS_RPC_WORD);
     }while(err_is_fail(err));
     
     // if(err_is_fail(err)){
@@ -48,8 +55,14 @@ int main(int argc, char *argv[])
     // }
 
 
-    debug_printf("sending number: %d\n",disp_get_domain_id());
-    err = aos_rpc_call(&server_rpc, AOS_RPC_SEND_NUMBER,disp_get_domain_id());
+
+    uint64_t number = 1000000;
+    uint64_t num_primes = 0;
+    debug_printf("calculating #primes until: %d\n", number);
+    err = aos_rpc_call(&server_rpc, CALCULATE_REQUEST, number, &num_primes);
+
+    debug_printf("#primes: %ld\n", num_primes);
+
     // err = aos_rpc_send_number(&server_rpc,disp_get_domain_id());
     if(err_is_fail(err)){
         DEBUG_ERR(err,"Failed to send number from client to server\n");
