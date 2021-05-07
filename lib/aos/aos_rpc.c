@@ -476,9 +476,15 @@ void aos_rpc_on_ump_message(void *arg)
     DECLARE_MESSAGE(rpc->channel.ump, msg);
     msg->flag = 0;
 
+    if (rpc->channel.ump.is_pinged) {
+        struct lmp_recv_buf masg;
+        lmp_endpoint_recv(rpc->channel.ump.lmp_ep, &masg, NULL);
+    }
+
+
     bool received = ump_chan_poll_once(&rpc->channel.ump, msg);
     if (!received) {
-        //debug_printf("aos_rpc_on_ump_message called but no message available\n");
+        debug_printf("aos_rpc_on_ump_message called but no message available\n");
         ump_chan_register_recv(&rpc->channel.ump, get_default_waitset(), MKCLOSURE(&aos_rpc_on_ump_message, rpc));
         return;
     }
