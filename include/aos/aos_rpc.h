@@ -69,14 +69,21 @@ typedef enum aos_rpc_msg_type {
 enum aos_rpc_argument_type {
     AOS_RPC_NO_TYPE = 0,
     AOS_RPC_WORD,
-    AOS_RPC_SHORTSTR, ///< four word string (32 chars) (currently only over ump)
-    AOS_RPC_STR, ///< longer string (currently only over lmp)
+    AOS_RPC_SHORTSTR, ///< four word string (32 chars) (not implemented)
+    AOS_RPC_STR, ///< longer string in shared page (not implemented)
     AOS_RPC_VARSTR,
-    AOS_RPC_BYTES,
+    AOS_RPC_VARBYTES,
     AOS_RPC_CAPABILITY
 };
 
+
 #define AOS_RPC_SHORTSTR_LENGTH 32
+
+struct aos_rpc_varbytes
+{
+    uintptr_t length;
+    char *bytes;
+};
 
 
 /**
