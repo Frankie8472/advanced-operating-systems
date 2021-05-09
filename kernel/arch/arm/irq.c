@@ -60,7 +60,7 @@ errval_t irq_table_set(unsigned int nidt, capaddr_t endpoint)
         return SYS_ERR_IRQ_NO_LISTENER;
     }
 
-    if (nidt < NDISPATCH && platform_is_ipi_notify_interrupt(nidt)) {
+    if (nidt < NDISPATCH && !platform_is_ipi_notify_interrupt(nidt)) {
         // check that we don't overwrite someone else's handler
         if (irq_dispatch[nidt].cap.type != ObjType_Null) {
             printf("kernel: replacing handler for IRQ %d\n", nidt);
