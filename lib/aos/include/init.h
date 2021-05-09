@@ -15,6 +15,8 @@
 #ifndef LIBBARRELFISH_INIT_H
 #define LIBBARRELFISH_INIT_H
 
+#include <aos/aos_rpc.h>
+
 struct spawn_domain_params;
 errval_t barrelfish_init_onthread(struct spawn_domain_params *params);
 void barrelfish_libc_glue_init(void);
@@ -26,5 +28,6 @@ void handle_all_binding_request_on_process(struct aos_rpc *r, uintptr_t pid, uin
 
 void handle_send_number(struct aos_rpc *r, uintptr_t number);
 void handle_send_string(struct aos_rpc *r, const char *string);
+void handle_send_varbytes(struct aos_rpc *r, struct aos_rpc_varbytes bytes);
 void initialize_general_purpose_handler(struct aos_rpc* rpc);
 #endif

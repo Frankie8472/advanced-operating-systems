@@ -399,9 +399,18 @@ void handle_send_string(struct aos_rpc *r, const char *string) {
     debug_printf("recieved string: %s\n", string);
 }
 
+void handle_send_varbytes(struct aos_rpc *r, struct aos_rpc_varbytes bytes) {
+    debug_printf("recieved bytes (len: %ld): ", bytes.length);
+    for (int i = 0; i < bytes.length; i++) {
+        debug_printf("%d, ", bytes.bytes[i]);
+    }
+    debug_printf("\n");
+}
+
 
 void initialize_general_purpose_handler(struct aos_rpc* rpc){
     aos_rpc_register_handler(rpc,AOS_RPC_BINDING_REQUEST,&handle_all_binding_request_on_process);
     aos_rpc_register_handler(rpc, AOS_RPC_SEND_NUMBER, &handle_send_number);
     aos_rpc_register_handler(rpc, AOS_RPC_SEND_STRING, &handle_send_string);
+    aos_rpc_register_handler(rpc, AOS_RPC_SEND_VARBYTES, &handle_send_varbytes);
 }

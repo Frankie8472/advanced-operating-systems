@@ -52,6 +52,7 @@ errval_t aos_rpc_init(struct aos_rpc *rpc)
     // bind further functions
     aos_rpc_initialize_binding(rpc, AOS_RPC_SEND_NUMBER, 1, 0, AOS_RPC_WORD);
     aos_rpc_initialize_binding(rpc, AOS_RPC_SEND_STRING, 1, 0, AOS_RPC_VARSTR);
+    aos_rpc_initialize_binding(rpc, AOS_RPC_SEND_VARBYTES, 1, 0, AOS_RPC_VARBYTES);
     aos_rpc_initialize_binding(rpc, AOS_RPC_REQUEST_RAM, 2, 2, AOS_RPC_WORD, AOS_RPC_WORD, AOS_RPC_CAPABILITY, AOS_RPC_WORD);
 
     aos_rpc_initialize_binding(rpc, AOS_RPC_SETUP_PAGE, 3, 0, AOS_RPC_WORD, AOS_RPC_WORD, AOS_RPC_CAPABILITY);
@@ -233,7 +234,7 @@ static errval_t setup_buf_page(struct aos_rpc *rpc, enum aos_rpc_msg_type msg_ty
 }
 
 
-/* ===================== UMP Processing ===================== */
+/* ===================== UMP ===================== */
 
 /**
  * \brief Initialize an aos_rpc struct running on UMP backend with default settings
@@ -463,7 +464,7 @@ void aos_rpc_on_ump_message(void *arg)
 
     bool received = ump_chan_poll_once(&rpc->channel.ump, msg);
     if (!received) {
-        debug_printf("aos_rpc_on_ump_message called but no message available\n");
+        //debug_printf("aos_rpc_on_ump_message called but no message available\n");
         ump_chan_register_recv(&rpc->channel.ump, get_default_waitset(), MKCLOSURE(&aos_rpc_on_ump_message, rpc));
         return;
     }
@@ -584,13 +585,19 @@ static errval_t aos_rpc_unmarshall_ump_simple_aarch64(struct aos_rpc *rpc, void 
     struct capref retcap;
     char argstring[4096]; // very dangerous
     char retstring[4096]; // very dangerous
+
+    char abytes[4096]; // very dangerous
+    char rbytes[4096]; // very dangerous
+    struct aos_rpc_varbytes argbytes = { .length = sizeof abytes, .bytes = abytes };
+    struct aos_rpc_varbytes retbytes = { .length = sizeof rbytes, .bytes = rbytes };
+
     for (int i = 0; i < binding->n_args; i++) {
 
         switch(binding->args[i]) {
         case AOS_RPC_WORD: {
             arg[a_pos++] = pull_word_ump(uc, msg, &word_ind);
         }
-            break;
+        break;
         case AOS_RPC_CAPABILITY: {
             uintptr_t words[3];
             words[0] = pull_word_ump(uc, msg, &word_ind);
@@ -619,20 +626,29 @@ static errval_t aos_rpc_unmarshall_ump_simple_aarch64(struct aos_rpc *rpc, void 
             arg[a_pos++] = (forged.cnode.croot) | (((ui) forged.cnode.cnode) << 32);
             arg[a_pos++] = (forged.cnode.level) | (((ui) forged.slot) << 32);
         }
-            break;
+        break;
         case AOS_RPC_VARSTR: {
             uintptr_t length = pull_word_ump(uc, msg, &word_ind);
-            debug_printf("here on arg %d, length: %ld\n", i, length);
             assert(length < sizeof argstring);
             for (size_t j = 0; j < length; j += sizeof(uintptr_t)) {
                 uintptr_t piece = pull_word_ump(uc, msg, &word_ind);
-                debug_printf("piece: %ld\n", piece);
-                memcpy(argstring + j, &piece, sizeof(uintptr_t));
+                memcpy(argstring + j, &piece, min(sizeof(uintptr_t), length - j));
             }
-            debug_printf("argstring: %s\n", argstring);
             arg[a_pos++] = (ui) &argstring;
         }
-            break;
+        break;
+        case AOS_RPC_VARBYTES: {
+            uintptr_t length = pull_word_ump(uc, msg, &word_ind);
+            assert(length < sizeof abytes);
+            argbytes.length = length;
+            for (size_t j = 0; j < length; j += sizeof(uintptr_t)) {
+                uintptr_t piece = pull_word_ump(uc, msg, &word_ind);
+                memcpy(argbytes.bytes + j, &piece, min(sizeof(uintptr_t), length - j));
+            }
+            memcpy(&arg[a_pos], &argbytes, sizeof argbytes);
+            a_pos += sizeof argbytes / sizeof(uintptr_t);
+        }
+        break;
         default:
             debug_printf("only integer and shortstr arguments supported at the moment\n");
             return LIB_ERR_NOT_IMPLEMENTED;
@@ -647,26 +663,30 @@ static errval_t aos_rpc_unmarshall_ump_simple_aarch64(struct aos_rpc *rpc, void 
         case AOS_RPC_WORD: {
             arg[a_pos++] = (ui) &ret[ret_pos++];
         }
-            break;
+        break;
         case AOS_RPC_SHORTSTR: {
             arg[a_pos++] = (ui) &ret[ret_pos];
             ret_pos += 4;
         }
-            break;
+        break;
         case AOS_RPC_CAPABILITY: {
             if (retcap_used) return LIB_ERR_NOT_IMPLEMENTED; // error, sending multiple caps nyi
             arg[a_pos++] = (ui) &retcap;
             retcap_used = true;
         }
-            break;
+        break;
         case AOS_RPC_STR: {
             arg[a_pos++] = (ui) &retstring; // todo replace with scratch space
         }
-            break;
+        break;
         case AOS_RPC_VARSTR: {
             arg[a_pos++] = (ui) &retstring; // todo replace with scratch space
         }
-            break;
+        break;
+        case AOS_RPC_VARBYTES: {
+            arg[a_pos++] = (ui) &retbytes; // todo replace with scratch space
+        }
+        break;
 
         default:
             debug_printf("unhandled ret arg\n");
@@ -693,7 +713,7 @@ static errval_t aos_rpc_unmarshall_ump_simple_aarch64(struct aos_rpc *rpc, void 
             uintptr_t word = ret[ret_pos++];
             push_word_ump(uc, response, &buf_pos, word);
         }
-            break;
+        break;
 
         case AOS_RPC_CAPABILITY: {
             struct capability cap;
@@ -705,7 +725,7 @@ static errval_t aos_rpc_unmarshall_ump_simple_aarch64(struct aos_rpc *rpc, void 
             push_word_ump(uc, response, &buf_pos, words[1]);
             push_word_ump(uc, response, &buf_pos, words[2]);
         }
-            break;
+        break;
 
         case AOS_RPC_VARSTR: {
             uintptr_t length = strlen(retstring);
@@ -713,11 +733,23 @@ static errval_t aos_rpc_unmarshall_ump_simple_aarch64(struct aos_rpc *rpc, void 
 
             for (int j = 0; j < length; j += sizeof(uintptr_t)) {
                 uintptr_t word;
-                memcpy(&word, retstring + j, sizeof(uintptr_t));
+                memcpy(&word, retstring + j, min(sizeof(uintptr_t), length - j));
                 push_word_ump(uc, response, &buf_pos, word);
             }
         }
-            break;
+        break;
+
+        case AOS_RPC_VARBYTES: {
+            uintptr_t length = retbytes.length;
+            push_word_ump(uc, response, &buf_pos, length);
+
+            for (int j = 0; j < length; j += sizeof(uintptr_t)) {
+                uintptr_t word;
+                memcpy(&word, retbytes.bytes + j, min(sizeof(uintptr_t), length - j));
+                push_word_ump(uc, response, &buf_pos, word);
+            }
+        }
+        break;
 
         default:
             debug_printf("unhandled ret arg\n");
@@ -731,7 +763,7 @@ static errval_t aos_rpc_unmarshall_ump_simple_aarch64(struct aos_rpc *rpc, void 
 }
 
 
-/* ===================== LMP Processing ===================== */
+/* ===================== LMP ===================== */
 
 /**
  * \brief Initialize an RPC LMP backend. Set enpoints of both ends and create endpoint.
@@ -943,6 +975,7 @@ void aos_rpc_on_lmp_message(void *arg)
     if (msgtype & AOS_RPC_RETURN_BIT) {
         msgtype &= ~AOS_RPC_RETURN_BIT;
         is_response = true;
+        debug_printf("no handler for 0x%lx\n", msgtype);
         err = LIB_ERR_RPC_NO_HANDLER_SET;
         goto on_error;
     }
@@ -971,7 +1004,7 @@ void aos_rpc_on_lmp_message(void *arg)
     errval_t err2;
 on_error:
     err2 = lmp_chan_register_recv(channel, get_default_waitset(), MKCLOSURE(&aos_rpc_on_lmp_message, arg));
-    DEBUG_ERR(err2, "error handling message\n");
+    DEBUG_ERR(err, "error handling message\n");
     return;
 }
 
@@ -1237,13 +1270,14 @@ static errval_t aos_rpc_unmarshall_lmp_aarch64(struct aos_rpc *rpc, void *handle
         break;
         case AOS_RPC_VARBYTES: {
             size_t length = pull_word_lmp(lc, msg, &cap, &word_ind);
-            assert(length < sizeof argbytes.length);
+            assert(length < sizeof abytes);
+            argbytes.length = length;
             for (size_t j = 0; j < length; j += sizeof(uintptr_t)) {
                 uintptr_t piece = pull_word_lmp(lc, msg, &cap, &word_ind);
                 memcpy(argbytes.bytes + j, &piece, sizeof(uintptr_t));
             }
             memcpy(&arg[a_pos], &argbytes, sizeof argbytes);
-            a_pos += sizeof argbytes;
+            a_pos += sizeof argbytes / sizeof(uintptr_t);
         }
         break;
 

@@ -48,8 +48,18 @@ int main(int argc, char *argv[])
     // }
 
 
-    debug_printf("sending number: %d\n",disp_get_domain_id());
-    err = aos_rpc_call(&server_rpc, AOS_RPC_SEND_NUMBER,disp_get_domain_id());
+    debug_printf("sending bytes: %d\n", disp_get_domain_id());
+    char arr[128];
+    struct aos_rpc_varbytes bytes = {
+        .bytes = arr,
+        .length = sizeof arr
+    };
+
+    for (int i = 0; i < bytes.length; i++) {
+        bytes.bytes[i] = i;
+    }
+
+    err = aos_rpc_call(&server_rpc, AOS_RPC_SEND_VARBYTES, bytes);
     // err = aos_rpc_send_number(&server_rpc,disp_get_domain_id());
     if(err_is_fail(err)){
         DEBUG_ERR(err,"Failed to send number from client to server\n");
