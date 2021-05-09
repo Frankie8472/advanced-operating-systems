@@ -1,0 +1,12 @@
+
+
+
+
+[ build application 
+  { 
+    target = "lpuart_terminal",
+    cFiles = [ "main.c" ],
+    addLibraries = [ "aos", "lpuart", "gic_dist" ],
+    architectures = allArchitectures
+  }
+]

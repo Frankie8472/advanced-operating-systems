@@ -298,13 +298,13 @@ static int bsp_main(int argc, char *argv[])
     invoke_ipi_notify(ump_ep);*/
 
 
-    spawn_new_domain("server", NULL);
-    for (int i = 0; i < 20; i++) {
+    spawn_new_domain("lpuart_terminal", NULL);
+    /*for (int i = 0; i < 20; i++) {
         spawn_new_domain("client",NULL);
         for (int j = 0; j < 10; j++) {
             err = event_dispatch(get_default_waitset());
         }
-    }
+    }*/
 
     //spawn_new_domain("client",NULL);
     //spawn_new_domain("client",NULL);

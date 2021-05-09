@@ -15,6 +15,7 @@
 #include <spawn/argv.h>
 #include <spawn/process_manager.h>
 #include <string.h>
+#include <maps/imx8x_map.h>
 
 extern struct bootinfo *bi;
 extern coreid_t my_core_id;
@@ -174,6 +175,18 @@ errval_t spawn_load_argv(int argc, const char *const argv[], struct spawninfo *s
         .cnode = taskcn,
         .slot = TASKCN_SLOT_INITEP
     };
+    struct capref dev_frame = (struct capref) {
+        .cnode = cnode_task,
+        .slot = TASKCN_SLOT_DEV
+    };
+    struct capref child_dev_frame = (struct capref) {
+        .cnode = taskcn,
+        .slot = TASKCN_SLOT_DEV
+    };
+    struct capref child_dev_frame2 = (struct capref) {
+        .cnode = taskcn,
+        .slot = TASKCN_SLOT_BOOTINFO
+    };
 
     err = dispatcher_create(child_dispatcher);
     ON_ERR_PUSH_RETURN(err, SPAWN_ERR_CREATE_DISPATCHER);
@@ -194,6 +207,25 @@ errval_t spawn_load_argv(int argc, const char *const argv[], struct spawninfo *s
 
     err = cap_copy(init_ep_cap, si->cap_ep);
     ON_ERR_PUSH_RETURN(err, LIB_ERR_CAP_COPY_FAIL);
+
+    if (strncmp(si->binary_name, "lpuart_terminal", 32) == 0) {
+        size_t source_addr = get_phys_addr(dev_frame);
+        err = cap_retype(child_dev_frame, dev_frame, IMX8X_UART3_BASE - source_addr, ObjType_DevFrame, IMX8X_UART_SIZE, 1);
+        DEBUG_ERR(err, "oh no\n");
+        ON_ERR_PUSH_RETURN(err, LIB_ERR_CAP_RETYPE);
+
+        source_addr = get_phys_addr(dev_frame);
+        err = cap_retype(child_dev_frame2, dev_frame, IMX8X_GIC_DIST_BASE - source_addr, ObjType_DevFrame, IMX8X_GIC_DIST_SIZE, 1);
+        DEBUG_ERR(err, "oh no\n");
+        ON_ERR_PUSH_RETURN(err, LIB_ERR_CAP_RETYPE);
+
+
+        struct capref irq = (struct capref) {
+            .cnode = taskcn,
+            .slot = TASKCN_SLOT_IRQ
+        };
+        cap_copy(irq, cap_irq);
+    }
 
     // ===========================================
     // create l0 vnode and initialize paging state
