@@ -34,9 +34,6 @@ enum aos_rpc_backend {
 
 /**
  * \brief different functions to call for rpc
- *
- * \warning current implementation only supports up to \link AOS_RPC_MAX_MSG_TYPES
- *          different functions.
  */
 typedef enum aos_rpc_msg_type {
     AOS_RPC_INITIATE = 0,
@@ -60,7 +57,10 @@ typedef enum aos_rpc_msg_type {
     AOS_RPC_BINDING_REQUEST,
     AOS_RPC_MEM_SERVER_REQ,
     AOS_RPC_ROUNDTRIP, ///< rpc call that does nothing, for benchmarking
-    AOS_RPC_MAX_MSG_TYPES, // needs to be last
+    AOS_RPC_GET_STDIN_EP,
+    AOS_RPC_SET_STDOUT_EP,
+    AOS_RPC_DEFAULT_MSG_TYPES, // needs to be last
+    AOS_RPC_MSG_TYPES_START,
 } msg_type_t;
 
 
@@ -113,10 +113,10 @@ struct aos_rpc {
     } channel;
 
     size_t n_bindings;
-    struct aos_rpc_function_binding bindings[AOS_RPC_MAX_MSG_TYPES];
+    struct aos_rpc_function_binding bindings[AOS_RPC_DEFAULT_MSG_TYPES];
 
     // TODO: make solution dynamic to allow arbitrarily many rpc functions
-    void *handlers[AOS_RPC_MAX_MSG_TYPES];
+    void *handlers[AOS_RPC_DEFAULT_MSG_TYPES];
     // TODO(M3): Add state
     // This is only for init rpcs
 };

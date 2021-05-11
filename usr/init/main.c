@@ -299,6 +299,24 @@ static int bsp_main(int argc, char *argv[])
 
 
     spawn_lpuart_driver("lpuart_terminal");
+
+    domainid_t pid;
+    spawn_new_domain("josh", &pid);
+
+
+
+    
+    struct aos_rpc *josh_rpc = get_rpc_from_spawn_info(pid);
+    struct aos_rpc *lpuart_rpc = get_rpc_from_spawn_info(pid - 1);
+    struct capref josh_in;
+    debug_printf("getting josh in\n");
+    aos_rpc_call(josh_rpc, AOS_RPC_GET_STDIN_EP, &josh_in);
+
+    
+    debug_printf("got josh in\n");
+    aos_rpc_call(lpuart_rpc, AOS_RPC_SET_STDOUT_EP, josh_in);
+
+
     /*for (int i = 0; i < 20; i++) {
         spawn_new_domain("client",NULL);
         for (int j = 0; j < 10; j++) {

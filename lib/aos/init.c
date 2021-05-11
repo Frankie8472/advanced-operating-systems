@@ -38,6 +38,8 @@ static bool init_domain;
 static size_t count = 0;
 static struct aos_rpc rpcs[100];
 
+struct aos_rpc stdin_rpc;
+struct aos_rpc stdout_rpc;
 
 extern size_t (*_libc_terminal_read_func)(char *, size_t);
 extern size_t (*_libc_terminal_write_func)(const char *, size_t);
@@ -85,29 +87,60 @@ static size_t syscall_terminal_read(char * buf,size_t len)
     return 1;
 }
 
+
+char stdin_buffer[1024];
+volatile int stdin_buffer_pos = 0;
+static void handle_stdin_data(struct aos_rpc *rpc, struct aos_rpc_varbytes bytes)
+{
+    memcpy(stdin_buffer + stdin_buffer_pos, bytes.bytes, bytes.length);
+    stdin_buffer_pos += bytes.length;
+}
+
 __attribute__((__used__))
 static size_t aos_terminal_write(const char * buf,size_t len)
 {
   // debug_printf("Terminal write: in aos_terminal_write\n");
-    struct aos_rpc * rpc = get_init_rpc();
+    /*struct aos_rpc * rpc = get_init_rpc();
         if(len) {
             for(size_t i = 0;i < len;++i) {
                 aos_rpc_serial_putchar(rpc,buf[i]);
             }
         }
+    return len;*/
+    struct aos_rpc_varbytes bytes = {
+        .bytes = (char *)buf,
+        .length = len
+    };
+    debug_printf("aos_terminal_write\n");
+    aos_rpc_call(&stdout_rpc, AOS_RPC_SEND_VARBYTES, bytes);
+
     return len;
 }
 
+volatile int stdin_read_buffer_pos = 0;
 __attribute__((__used__))
 static size_t aos_terminal_read(char* buf,size_t len){
     //debug_printf("Got to aos_terminal_read\n");
-    struct aos_rpc * rpc = get_init_rpc();
+    /*struct aos_rpc * rpc = get_init_rpc();
     errval_t err;
     err = aos_rpc_serial_getchar(rpc, buf);
     if(err_is_fail(err)){
       DEBUG_ERR(err,"Failed get char in aos_terminal_read\n");
+    }*/
+    while(stdin_buffer_pos <= stdin_read_buffer_pos) {
+        errval_t err = event_dispatch(get_default_waitset());
+        if (err_is_fail(err)) {
+            DEBUG_ERR(err, "in event_dispatch");
+            abort();
+        }
     }
-    return 1;
+    if (stdin_buffer_pos > stdin_read_buffer_pos) {
+        size_t bytes = min(len, stdin_buffer_pos - stdin_read_buffer_pos);
+        memcpy(buf, stdin_buffer + stdin_read_buffer_pos, bytes);
+        stdin_read_buffer_pos += bytes;
+        return bytes;
+    }
+    return 0;
 }
 
 /**
@@ -225,6 +258,11 @@ errval_t barrelfish_init_onthread(struct spawn_domain_params *params)
 
     initialize_general_purpose_handler(&init_rpc);
     set_init_rpc(&init_rpc);
+
+    struct capref in_epcap;
+    struct lmp_endpoint *in_ep;
+    endpoint_create(LMP_RECV_LENGTH * 8, &in_epcap, &in_ep);
+    aos_rpc_init_lmp(&stdin_rpc, in_epcap, NULL_CAP, in_ep);
 
 
     // debug_printf("Is memory server online: %d?\n",get_mem_online());
@@ -407,10 +445,29 @@ void handle_send_varbytes(struct aos_rpc *r, struct aos_rpc_varbytes bytes) {
     debug_printf("\n");
 }
 
+static
+void handle_get_stdin_ep(struct aos_rpc *r, struct capref *ret) {
+    debug_printf("returning local cap!\n");
+    *ret = stdin_rpc.channel.lmp.local_cap;
+}
+
+static
+void handle_set_stdout_ep(struct aos_rpc *r, struct capref ep) {
+    debug_printf("setting remote cap!\n");
+
+    struct lmp_endpoint *lmp_ep;
+    struct capref ep_cap;
+    endpoint_create(LMP_RECV_LENGTH, &ep_cap, &lmp_ep);
+    aos_rpc_init_lmp(&stdout_rpc, ep_cap, ep, lmp_ep); // TODO: delete old ep
+    aos_rpc_register_handler(&stdout_rpc, AOS_RPC_SEND_VARBYTES, handle_stdin_data);
+}
+
 
 void initialize_general_purpose_handler(struct aos_rpc* rpc){
     aos_rpc_register_handler(rpc,AOS_RPC_BINDING_REQUEST,&handle_all_binding_request_on_process);
     aos_rpc_register_handler(rpc, AOS_RPC_SEND_NUMBER, &handle_send_number);
     aos_rpc_register_handler(rpc, AOS_RPC_SEND_STRING, &handle_send_string);
     aos_rpc_register_handler(rpc, AOS_RPC_SEND_VARBYTES, &handle_send_varbytes);
+    aos_rpc_register_handler(rpc, AOS_RPC_GET_STDIN_EP, &handle_get_stdin_ep);
+    aos_rpc_register_handler(rpc, AOS_RPC_SET_STDOUT_EP, &handle_set_stdout_ep);
 }

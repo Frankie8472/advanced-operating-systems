@@ -1,0 +1,18 @@
+
+
+
+
+[ build application 
+    {
+        target = "josh",
+        cFiles = [ "main.c" ],
+        addIncludes = [ "/lib" ],
+        addLibraries = [ "aos" ],
+      
+        -- addCFlags = [
+        --     "-Wno-redundant-decls",
+        --     "-Wno-strict-prototypes"
+        -- ],
+        architectures = allArchitectures
+    }
+]

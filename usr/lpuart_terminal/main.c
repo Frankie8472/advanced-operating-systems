@@ -1,4 +1,5 @@
 #include <aos/aos.h>
+#include <aos/aos_rpc.h>
 #include <aos/inthandler.h>
 #include <drivers/lpuart.h>
 #include <drivers/gic_dist.h>
@@ -33,7 +34,7 @@ static errval_t initialize_driver(void)
     return SYS_ERR_OK;
 }
 
-
+extern struct aos_rpc stdout_rpc;
 static void handler(void *arg) {
     char to_get;
     errval_t err;
@@ -43,6 +44,11 @@ static void handler(void *arg) {
             break;
         }
         debug_printf("enterrupt %d '%c'\n", to_get, to_get);
+        struct aos_rpc_varbytes bytes = {
+            .bytes = &to_get,
+            .length = 1
+        };
+        aos_rpc_call(&stdout_rpc, AOS_RPC_SEND_VARBYTES, bytes);
     }
 }
 
@@ -76,9 +82,10 @@ static errval_t setup_interrupts(void)
     ON_ERR_RETURN(err);
 
     err = inthandler_setup(irq_ep, get_default_waitset(), MKCLOSURE(handler, NULL));
-    DEBUG_ERR(err, "aa?\n");
+    ON_ERR_RETURN(err);
+
     err = gic_dist_enable_interrupt(gic_driver_state, IMX8X_UART3_INT, 1 << disp_get_core_id(), 5);
-    //ON_ERR_RETURN(err);
+    ON_ERR_RETURN(err);
 
     return SYS_ERR_OK;
 }

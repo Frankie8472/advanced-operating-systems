@@ -66,6 +66,9 @@ errval_t aos_rpc_init(struct aos_rpc *rpc)
 
     aos_rpc_initialize_binding(rpc, AOS_RPC_ROUNDTRIP, 0, 0);
 
+    aos_rpc_initialize_binding(rpc, AOS_RPC_GET_STDIN_EP, 0, 1, AOS_RPC_CAPABILITY);
+    aos_rpc_initialize_binding(rpc, AOS_RPC_SET_STDOUT_EP, 1, 0, AOS_RPC_CAPABILITY);
+
     // process manager bindings
     aos_rpc_initialize_binding(rpc, AOS_RPC_SERVICE_ON, 1, 0, AOS_RPC_WORD);
     aos_rpc_initialize_binding(rpc, AOS_RPC_REGISTER_PROCESS, 2, 1, AOS_RPC_WORD, AOS_RPC_VARSTR,AOS_RPC_WORD);
@@ -907,7 +910,7 @@ static errval_t aos_rpc_call_lmp(struct aos_rpc *rpc, enum aos_rpc_msg_type msg_
         retptrs[ret_ind++] = va_arg(args, void*);
     }
 
-    // debug_printf("waiting for response\n");
+    debug_printf("waiting for response\n");
     while(!lmp_chan_can_recv(&rpc->channel.lmp)) {
         // yield to dispatcher we are communicating with
         // debug_printf("waiting for response\n");
