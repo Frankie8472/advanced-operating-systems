@@ -71,7 +71,9 @@ errval_t init_core_channel(coreid_t coreid, lvaddr_t urpc_frame)
     NULLPTR_CHECK(rpc, LIB_ERR_MALLOC_FAIL);
 
     errval_t err;
-    err = aos_rpc_init(rpc);
+
+    err = SYS_ERR_OK;
+    //err = aos_rpc_init(rpc); TODO (RPC): set intercore interface
     ON_ERR_PUSH_RETURN(err, LIB_ERR_RPC_INIT);
     aos_rpc_init_ump_default(rpc, urpc_frame, BASE_PAGE_SIZE, coreid < disp_get_core_id());
     ON_ERR_PUSH_RETURN(err, LIB_ERR_RPC_INIT);
@@ -182,8 +184,8 @@ void handle_foreign_spawn(struct aos_rpc *origin_rpc, const char *name, uintptr_
     struct spawninfo *si = spawn_create_spawninfo();
 
     struct aos_rpc *rpc = &si->rpc;
-    aos_rpc_init(rpc);
-    initialize_rpc_handlers(rpc);
+    //aos_rpc_init(rpc); // TODO (RPC): set interface
+    //initialize_rpc_handlers(rpc);
 
     domainid_t *pid = &si->pid;
     spawn_load_by_name((char*) name, si, pid);
@@ -337,7 +339,7 @@ void handle_all_binding_request(struct aos_rpc *r, uintptr_t pid, uintptr_t core
             }
 
             static struct aos_rpc rpc;
-            err = aos_rpc_init(&rpc);
+            //err = aos_rpc_init(&rpc); TODO (RPC): set interface
             if(err_is_fail(err)){
                 DEBUG_ERR(err,"Failed to init rpc in binding request \n");
             }

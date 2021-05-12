@@ -22,8 +22,9 @@
                         "spawn_server.c",
                         "test.c"
                       ],
+                      addIncludes = [ "/usr/process_manager" ],
                       addLinkFlags = [ "-e _start_init"], -- this is only needed for init
-                      addLibraries = [ "aos", "mm", "getopt", "elf", "spawn",
+                      addLibraries = [ "aos", "mm", "getopt", "elf", "spawn", "process_manager_interface",
                         "grading"],
                       architectures = allArchitectures
                     }

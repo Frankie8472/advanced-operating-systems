@@ -6,6 +6,7 @@
 
 
 #include <aos/cache.h>
+#include <aos/default_interfaces.h>
 #include <aos/coreboot.h>
 
 
@@ -67,15 +68,31 @@ errval_t spawn_new_core(coreid_t core)
     return SYS_ERR_OK;
 }
 
+static void handle_get_ram(struct aos_rpc *rpc, size_t size, size_t alignment, struct capref *ramcap, size_t *retsize) {
+    ram_alloc_aligned(ramcap, size, alignment);
+    *retsize = size;
+}
+
 errval_t spawn_new_domain(const char *mod_name, domainid_t *new_pid)
 {
     struct spawninfo *si = spawn_create_spawninfo();
 
     domainid_t *pid = &si->pid;
     struct aos_rpc *rpc = &si->rpc;
-    aos_rpc_init(rpc);
-    initialize_rpc_handlers(rpc);
+
+    aos_rpc_set_interface(rpc, get_init_interface(), INIT_IFACE_N_FUNCTIONS, malloc(INIT_IFACE_N_FUNCTIONS * sizeof(void *)));
+    initialize_initiate_handler(rpc);
+    aos_rpc_register_handler(rpc, INIT_IFACE_GET_RAM, handle_get_ram);
+
+    //initialize_rpc_handlers(rpc);
     spawn_load_by_name((char*) mod_name, si, pid);
+
+    char buf[128];
+    debug_print_cap_at_capref(buf, 128, si->rpc.channel.lmp.remote_cap);
+    debug_printf("child ep: %s", buf);
+    //
+    //initialize_initiate_handler(rpc);
+
     if (new_pid != NULL) {
         *new_pid = *pid;
     }

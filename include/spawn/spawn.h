@@ -36,7 +36,7 @@ struct spawninfo {
 
     struct paging_state ps;
     struct capref dispatcher;
-    struct capref cap_ep;
+    struct capref cap_ep, child_ep;
     struct lmp_endpoint *lmp_ep;
     struct aos_rpc rpc;
 

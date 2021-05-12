@@ -28,6 +28,7 @@
                              "coreset.c",
                              "coreboot.c",
                              "debug.c",
+                             "default_interfaces.c",
                              "deferred.c",
                              "dispatch.c",
                              "domain.c",

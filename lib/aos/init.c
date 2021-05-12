@@ -17,6 +17,7 @@
 #include <stdio.h>
 
 #include <aos/aos.h>
+#include <aos/default_interfaces.h>
 #include <aos/dispatch.h>
 #include <aos/curdispatcher_arch.h>
 #include <aos/dispatcher_arch.h>
@@ -189,6 +190,7 @@ errval_t barrelfish_init_onthread(struct spawn_domain_params *params)
     ON_ERR_RETURN(err);
 
     static struct aos_rpc init_rpc;
+    static void *init_rpc_handlers[INIT_IFACE_N_FUNCTIONS];
     struct capref self_ep_cap = (struct capref) {
       .cnode = cnode_task,
       .slot = TASKCN_SLOT_SELFEP
@@ -199,19 +201,22 @@ errval_t barrelfish_init_onthread(struct spawn_domain_params *params)
       .slot = TASKCN_SLOT_INITEP
     };
 
-    err = aos_rpc_init(&init_rpc);
+
+    err = aos_rpc_set_interface(&init_rpc, get_init_interface(), INIT_IFACE_N_FUNCTIONS, init_rpc_handlers);
+
+    //err = aos_rpc_init(&init_rpc);
     ON_ERR_RETURN(err);
 
-    err = aos_rpc_init_lmp(&init_rpc, self_ep_cap, init_ep_cap, NULL);
-    ON_ERR_RETURN(err);
+    //err = aos_rpc_init_lmp(&init_rpc, self_ep_cap, init_ep_cap, NULL);
+    //ON_ERR_RETURN(err);
 
     // we are not in init and do already have a remote cap
     // we need to initiate a connection so init gets our endpoint capability
     debug_printf("Trying to establish channel with init (or memory server with client):\n");
 
     
-    err = aos_rpc_init(&init_rpc);
-    ON_ERR_RETURN(err);
+    //err = aos_rpc_init(&init_rpc);
+    //ON_ERR_RETURN(err);
     err = aos_rpc_init_lmp(&init_rpc, self_ep_cap, init_ep_cap, NULL);
     if (err_is_fail(err) && err_pop(err) == LIB_ERR_RPC_INITIATE) {
         DEBUG_ERR(err, "Error establishing connection with init! aborting!");
@@ -223,7 +228,7 @@ errval_t barrelfish_init_onthread(struct spawn_domain_params *params)
         DEBUG_ERR(err,"Failed to initialize handlers!");
     }
 
-    initialize_general_purpose_handler(&init_rpc);
+    //initialize_general_purpose_handler(&init_rpc);
     set_init_rpc(&init_rpc);
 
 
@@ -251,8 +256,6 @@ errval_t barrelfish_init_onthread(struct spawn_domain_params *params)
         DEBUG_ERR(err, "Error establishing connection with init! aborting!");
         abort();
     }
-
-    set_init_rpc(&init_rpc);
 
     // debug_printf("Is memory server online: %d?\n",get_mem_online());
     // if(get_mem_online()){
@@ -377,7 +380,7 @@ void handle_all_binding_request_on_process(struct aos_rpc *r, uintptr_t pid, uin
 
 
 
-    err = aos_rpc_init(rpc);
+    //err = aos_rpc_init(rpc); // TODO (RPC): set interface
     if(err_is_fail(err)){
         DEBUG_ERR(err,"Failed to init rpc\n");
     }
