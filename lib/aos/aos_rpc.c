@@ -94,17 +94,25 @@ errval_t aos_rpc_set_interface(struct aos_rpc *rpc, struct aos_rpc_interface *in
 /**
  * \brief Initialize an RPC struct over LMP. 
  *
- * \param self_ep local endpoint capability
+ * \param self_ep local endpoint capability or `NULL_CAP` if no enndpoint is supplied
  * \param end_ep remote endpoint capability
  * \param lmp_ep `lmp_endpoint` struct, will be created if `NULL` is supplied
  */
-errval_t aos_rpc_init_lmp(struct aos_rpc* rpc, struct capref self_ep, struct capref end_ep, struct lmp_endpoint *lmp_ep) {
+errval_t aos_rpc_init_lmp(struct aos_rpc* rpc, struct capref self_ep, struct capref end_ep, struct lmp_endpoint *lmp_ep, struct waitset *waitset) {
     errval_t err;
 
     rpc->backend = AOS_RPC_LMP;
 
+    rpc->lmp_server_mode = false;
+
+    if (waitset) {
+        rpc->waitset = waitset;
+    }
+    else {
+        rpc->waitset = get_default_waitset();
+    }
+
     lmp_chan_init(&rpc->channel.lmp);
-    rpc->channel.lmp.local_cap = self_ep;
     rpc->channel.lmp.remote_cap = end_ep;
 
     const size_t default_buflen = 256;
@@ -119,7 +127,7 @@ errval_t aos_rpc_init_lmp(struct aos_rpc* rpc, struct capref self_ep, struct cap
     err = lmp_chan_alloc_recv_slot(&rpc->channel.lmp);
     ON_ERR_PUSH_RETURN(err, LIB_ERR_LMP_ALLOC_RECV_SLOT);
 
-    err = lmp_chan_register_recv(&rpc->channel.lmp, get_default_waitset(), MKCLOSURE(&aos_rpc_on_lmp_message, rpc));
+    err = lmp_chan_register_recv(&rpc->channel.lmp, rpc->waitset, MKCLOSURE(&aos_rpc_on_lmp_message, rpc));
     ON_ERR_PUSH_RETURN(err, LIB_ERR_LMP_ENDPOINT_REGISTER);
 
     return SYS_ERR_OK;
@@ -138,6 +146,8 @@ errval_t aos_rpc_init_ump_default(struct aos_rpc *rpc, lvaddr_t shared_page, siz
     errval_t err;
 
     rpc->backend = AOS_RPC_UMP;
+
+    rpc->waitset = get_default_waitset();
 
     size_t half_page_size = shared_page_size / 2;
 
@@ -158,7 +168,7 @@ errval_t aos_rpc_init_ump_default(struct aos_rpc *rpc, lvaddr_t shared_page, siz
     err = ump_chan_init(&rpc->channel.ump, send_pane, half_page_size, recv_pane, half_page_size);
     ON_ERR_RETURN(err);
 
-    err = ump_chan_register_recv(&rpc->channel.ump, get_default_waitset(), MKCLOSURE(&aos_rpc_on_ump_message, rpc));
+    err = ump_chan_register_recv(&rpc->channel.ump, rpc->waitset, MKCLOSURE(&aos_rpc_on_ump_message, rpc));
     //err = ump_chan_register_polling(ump_chan_get_default_poller(), &rpc->channel.ump, &aos_rpc_on_ump_message, rpc);
     ON_ERR_RETURN(err);
 
@@ -497,7 +507,7 @@ void aos_rpc_on_ump_message(void *arg)
     bool received = ump_chan_poll_once(&rpc->channel.ump, msg);
     if (!received) {
         //debug_printf("aos_rpc_on_ump_message called but no message available\n");
-        ump_chan_register_recv(&rpc->channel.ump, get_default_waitset(), MKCLOSURE(&aos_rpc_on_ump_message, rpc));
+        ump_chan_register_recv(&rpc->channel.ump, rpc->waitset, MKCLOSURE(&aos_rpc_on_ump_message, rpc));
         return;
     }
 
@@ -506,7 +516,7 @@ void aos_rpc_on_ump_message(void *arg)
     void *handler = rpc->handlers[msgtype];
     if (handler == NULL) {
         debug_printf("no handler for %d\n", msgtype);
-        ump_chan_register_recv(&rpc->channel.ump, get_default_waitset(), MKCLOSURE(&aos_rpc_on_ump_message, rpc));
+        ump_chan_register_recv(&rpc->channel.ump, rpc->waitset, MKCLOSURE(&aos_rpc_on_ump_message, rpc));
         return;
     }
 
@@ -517,7 +527,7 @@ void aos_rpc_on_ump_message(void *arg)
         DEBUG_ERR(err, "error in unmarshall\n");
     }
 
-    ump_chan_register_recv(&rpc->channel.ump, get_default_waitset(), MKCLOSURE(&aos_rpc_on_ump_message, rpc));
+    ump_chan_register_recv(&rpc->channel.ump, rpc->waitset, MKCLOSURE(&aos_rpc_on_ump_message, rpc));
 
     // in case of simple binding
     /*if (binding->calling_simple) {
@@ -833,6 +843,11 @@ static errval_t aos_rpc_call_lmp(struct aos_rpc *rpc, enum aos_rpc_msg_type msg_
     struct capref send_cap = NULL_CAP;
     size_t buf_page_offset = 0;
 
+
+    if (rpc->lmp_server_mode) {
+        send_cap = rpc->channel.lmp.local_cap;
+    }
+
     words[0] = msg_type;
     int word_ind = 1;
     int ret_ind = 0;
@@ -908,14 +923,14 @@ static errval_t aos_rpc_call_lmp(struct aos_rpc *rpc, enum aos_rpc_msg_type msg_
         retptrs[ret_ind++] = va_arg(args, void*);
     }
 
-    // debug_printf("waiting for response\n");
+    //debug_printf("waiting for response\n");
     while(!lmp_chan_can_recv(&rpc->channel.lmp)) {
         // yield to dispatcher we are communicating with
-        // debug_printf("waiting for response\n");
+        //debug_printf("waiting for response\n");
         thread_yield_dispatcher(rpc->channel.lmp.remote_cap);
     }
 
-    // debug_printf("getting response\n");
+    //debug_printf("getting response\n");
 
     struct lmp_recv_msg msg = LMP_RECV_MSG_INIT;
     struct capref recieved_cap = NULL_CAP;
@@ -954,10 +969,11 @@ void aos_rpc_on_lmp_message(void *arg)
     err = lmp_chan_recv(channel, &msg, &recieved_cap);
     if (err_is_fail(err) && lmp_err_is_transient(err)) {
         debug_printf("transient error\n");
-        err = lmp_chan_register_recv(channel, get_default_waitset(), MKCLOSURE(&aos_rpc_on_lmp_message, arg));
+        err = lmp_chan_register_recv(channel, rpc->waitset ? : get_default_waitset(), MKCLOSURE(&aos_rpc_on_lmp_message, arg));
+        return;
     }
     else if (err == LIB_ERR_NO_LMP_MSG) {
-        err = lmp_chan_register_recv(channel, get_default_waitset(), MKCLOSURE(&aos_rpc_on_lmp_message, arg));
+        err = lmp_chan_register_recv(channel, rpc->waitset ? : get_default_waitset(), MKCLOSURE(&aos_rpc_on_lmp_message, arg));
         return;
     }
     else if (err_is_fail(err)) {
@@ -967,6 +983,7 @@ void aos_rpc_on_lmp_message(void *arg)
     }
 
     if (!capref_is_null(recieved_cap)) {
+        //debug_printf("reslotting\n");
         lmp_chan_alloc_recv_slot(channel);
     }
 
@@ -993,21 +1010,56 @@ void aos_rpc_on_lmp_message(void *arg)
 
     struct aos_rpc_function_binding *binding = &rpc->interface->bindings[msgtype];
 
+
+    if (rpc->lmp_server_mode) {
+        struct capability epcap;
+        invoke_cap_identify(recieved_cap, &epcap);
+        if (epcap.type != ObjType_EndPointLMP) {
+            debug_printf("non-endpoint-type cap received\n");
+        }
+        else {
+            if (!capref_is_null(rpc->channel.lmp.remote_cap)) {
+                cap_destroy(rpc->channel.lmp.remote_cap);
+            }
+            rpc->channel.lmp.remote_cap = recieved_cap;
+            //char buf[128];
+            //debug_print_capref(buf, 128, rpc->channel.lmp.remote_cap);
+            //debug_printf("setting epcap to %s\n", buf);
+            recieved_cap = NULL_CAP;
+        }
+    }
+    else {
+        debug_printf("not setting epcap\n");
+    }
+
     err = aos_rpc_unmarshall_lmp_aarch64(rpc, handler, binding, &msg, recieved_cap);
     if (err_is_fail(err)) {
         DEBUG_ERR(err, "error unmarshaling lmp message\n");
     }
+
 //on_success:
     //debug_printf("reregister\n");
-    err = lmp_chan_register_recv(channel, get_default_waitset(), MKCLOSURE(&aos_rpc_on_lmp_message, arg));
+    err = lmp_chan_register_recv(channel, rpc->waitset ? : get_default_waitset(), MKCLOSURE(&aos_rpc_on_lmp_message, arg));
     if (err_is_fail(err)) {
         DEBUG_ERR(err, "error lmp_chan_register_recv\n");
     }
+
+    /*struct capability recv_cap;
+    err = invoke_cap_identify(rpc->channel.lmp.endpoint->recv_slot, &recv_cap);
+    if (!err_is_fail(err)) {
+        err = lmp_chan_alloc_recv_slot(&rpc->channel.lmp);
+        DEBUG_ERR(err, "allocating recv slot\n");
+        char buf[128];
+        debug_print_cap_at_capref(buf, 128, rpc->channel.lmp.endpoint->recv_slot);
+        debug_printf("recvcap is %s\n", buf);
+    }*/
+
+
     return;
 
     errval_t err2;
 on_error:
-    err2 = lmp_chan_register_recv(channel, get_default_waitset(), MKCLOSURE(&aos_rpc_on_lmp_message, arg));
+    err2 = lmp_chan_register_recv(channel, rpc->waitset ? : get_default_waitset(), MKCLOSURE(&aos_rpc_on_lmp_message, arg));
     DEBUG_ERR(err, "error handling message\n");
     return;
 }
@@ -1143,11 +1195,18 @@ static void send_remaining_lmp(struct lmp_chan *lc, uintptr_t *lm, struct capref
             //char buf[128];
             //debug_print_cap_at_capref(buf, 128, *cap);
             //debug_printf("sending: %ld %ld %ld %ld, %s\n", lm[0], lm[1], lm[2], lm[3], buf);
+            //debug_print_cap_at_capref(buf, 128, lc->remote_cap);
+            //debug_printf("to: %s\n", buf);
             errval_t err = lmp_chan_send(lc, LMP_SEND_FLAGS_DEFAULT, *cap, 4,
                                          lm[0], lm[1], lm[2], lm[3]);
             if (err_is_fail(err) && !lmp_err_is_transient(err)) {
                 DEBUG_ERR(err, "what is this?\n");
                 break;
+            }
+            else if (err_is_fail(err)) {
+                //err_print_calltrace(err);
+                //DEBUG_ERR(err, "interesting\n");
+                thread_yield_dispatcher(lc->remote_cap);
             }
             sent = err == SYS_ERR_OK;
         } while (!sent);
@@ -1394,7 +1453,7 @@ struct aos_rpc *aos_rpc_get_memory_channel(void)
     //TODO: Return channel to talk to memory server process (or whoever
     //implements memory server functionality)
     //debug_printf("aos_rpc_get_memory_channel NYI\n");
-    return get_init_rpc();
+    return get_mm_rpc();
 }
 
 struct aos_rpc *aos_rpc_get_process_channel(void)
@@ -1559,9 +1618,7 @@ errval_t aos_rpc_process_get_all_pids(struct aos_rpc *rpc, domainid_t **pids, si
 errval_t aos_rpc_get_ram_cap(struct aos_rpc *rpc, size_t bytes, size_t alignment, struct capref *ret_cap, size_t *ret_bytes) {
     size_t _rs = 0;
 
-    return aos_rpc_call(rpc, INIT_IFACE_GET_RAM, bytes, alignment, ret_cap, ret_bytes ? : &_rs);
-    debug_printf("here: ");
-    HERE;
+    return aos_rpc_call(rpc, MM_IFACE_GET_RAM, bytes, alignment, ret_cap, ret_bytes ? : &_rs);
 }
 
 /**
@@ -1606,7 +1663,7 @@ errval_t aos_rpc_new_binding(domainid_t pid, coreid_t core_id, struct aos_rpc* r
 
         // initialize_general_purpose_handler(ret_rpc);
 
-        err = aos_rpc_init_lmp(ret_rpc, self_ep_cap, NULL_CAP, ep);
+        err = aos_rpc_init_lmp(ret_rpc, self_ep_cap, NULL_CAP, ep, NULL);
         ON_ERR_RETURN(err);
 
         struct capref remote_cap;

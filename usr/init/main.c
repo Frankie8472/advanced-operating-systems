@@ -277,6 +277,11 @@ static int bsp_main(int argc, char *argv[])
         DEBUG_ERR(err, "/>/> Error: Initialize_ram_alloc");
     }
 
+    err = start_memory_server_thread();
+    if (err_is_fail(err)) {
+        DEBUG_ERR(err, "/>/> Error: starting memory thread");
+    }
+
     err = init_terminal_state();
     if(err_is_fail(err)){
         DEBUG_ERR(err,"Failed to init terminal state\n");
@@ -306,12 +311,9 @@ static int bsp_main(int argc, char *argv[])
     invoke_ipi_notify(ump_ep);*/
 
 
-    spawn_new_domain("server", NULL);
+    spawn_new_domain("server", NULL, NULL_CAP);
     for (int i = 0; i < 1; i++) {
-        spawn_new_domain("client",NULL);
-        for (int j = 0; j < 10; j++) {
-            err = event_dispatch(get_default_waitset());
-        }
+        spawn_new_domain("client", NULL, NULL_CAP);
     }
 
     //spawn_new_domain("client",NULL);
@@ -413,7 +415,7 @@ static int app_main(int argc, char *argv[])
     
     // run_init_tests(my_core_id);
 
-    spawn_new_domain("client",NULL);
+    spawn_new_domain("client", NULL, NULL_CAP);
 
     grading_setup_app_init(bi);
 

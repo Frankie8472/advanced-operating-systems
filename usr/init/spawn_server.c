@@ -73,7 +73,7 @@ static void handle_get_ram(struct aos_rpc *rpc, size_t size, size_t alignment, s
     *retsize = size;
 }
 
-errval_t spawn_new_domain(const char *mod_name, domainid_t *new_pid)
+errval_t spawn_new_domain(const char *mod_name, domainid_t *new_pid, struct capref spawner_ep_cap)
 {
     struct spawninfo *si = spawn_create_spawninfo();
 
@@ -84,12 +84,19 @@ errval_t spawn_new_domain(const char *mod_name, domainid_t *new_pid)
     initialize_initiate_handler(rpc);
     aos_rpc_register_handler(rpc, INIT_IFACE_GET_RAM, handle_get_ram);
 
+    if (capref_is_null(spawner_ep_cap)) {
+        struct lmp_endpoint *spawner_ep;
+        endpoint_create(LMP_RECV_LENGTH, &spawner_ep_cap, &spawner_ep);
+    }
+
+    si->spawner_ep_cap = spawner_ep_cap;
+
     //initialize_rpc_handlers(rpc);
     spawn_load_by_name((char*) mod_name, si, pid);
 
-    char buf[128];
+    /*char buf[128];
     debug_print_cap_at_capref(buf, 128, si->rpc.channel.lmp.remote_cap);
-    debug_printf("child ep: %s", buf);
+    debug_printf("child ep: %s", buf);*/
     //
     //initialize_initiate_handler(rpc);
 

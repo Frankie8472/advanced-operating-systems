@@ -232,6 +232,27 @@ struct aos_rpc *get_init_rpc(void)
 }
 
 
+/**
+ * \brief Set the init rpc channel on the domain state
+ */
+void set_mm_rpc(struct aos_rpc *mmrpc)
+{
+    dispatcher_handle_t handle = curdispatcher();
+    struct dispatcher_generic* disp = get_dispatcher_generic(handle);
+    disp->core_state.c.mm_rpc = mmrpc;
+}
+
+/**
+ * \brief Returns the RPC channel to the memory server 
+ */
+struct aos_rpc *get_mm_rpc(void)
+{
+    dispatcher_handle_t handle = curdispatcher();
+    struct dispatcher_generic* disp = get_dispatcher_generic(handle);
+    return disp->core_state.c.mm_rpc;
+}
+
+
 void set_pm_online(void){
     dispatcher_handle_t handle = curdispatcher();
     struct dispatcher_generic* disp = get_dispatcher_generic(handle);

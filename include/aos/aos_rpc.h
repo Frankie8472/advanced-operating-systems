@@ -116,6 +116,13 @@ struct aos_rpc_interface
 struct aos_rpc {
     enum aos_rpc_backend backend;
 
+    ///
+    /// \brief sends with each call also the endpoint capability to which
+    ///        it should return the call to.
+    /// \note  This is dangerous when used with multi-msg calls, as message receiving might interleave
+    ///
+    bool lmp_server_mode;
+
     union backend_channel {
         struct lmp_chan lmp;
         struct ump_chan ump;
@@ -123,13 +130,15 @@ struct aos_rpc {
 
     struct aos_rpc_interface *interface;
 
+    struct waitset *waitset;
+
     size_t n_handlers;
     void **handlers;
 };
 
 errval_t aos_rpc_set_interface(struct aos_rpc *rpc, struct aos_rpc_interface *interface, size_t n_handlers, void **handlers);
 
-errval_t aos_rpc_init_lmp(struct aos_rpc *rpc, struct capref self_ep, struct capref end_ep, struct lmp_endpoint *lmp_ep);
+errval_t aos_rpc_init_lmp(struct aos_rpc *rpc, struct capref self_ep, struct capref end_ep, struct lmp_endpoint *lmp_ep, struct waitset *waitset);
 errval_t aos_rpc_init_ump_default(struct aos_rpc *rpc, lvaddr_t shared_page, size_t shared_page_size, bool first_half);
 
 errval_t aos_rpc_initialize_binding(struct aos_rpc_interface *interface, const char *name, int msg_type,

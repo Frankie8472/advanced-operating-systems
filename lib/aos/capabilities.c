@@ -92,6 +92,12 @@ struct capref cap_selfep = {
     .slot = TASKCN_SLOT_SELFEP
 };
 
+/// Capability for endpoint to memory server
+struct capref cap_mmep = {
+    .cnode = TASK_CNODE_INIT,
+    .slot = TASKCN_SLOT_MEMORYEP
+};
+
 /// Capability for dispatcher
 struct capref cap_dispatcher = {
     .cnode = TASK_CNODE_INIT,

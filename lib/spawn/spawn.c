@@ -154,6 +154,10 @@ errval_t spawn_load_argv(int argc, const char *const argv[], struct spawninfo *s
         .cnode = taskcn,
         .slot = TASKCN_SLOT_SELFEP
     };
+    struct capref child_stdout_cap = (struct capref) {
+        .cnode = taskcn,
+        .slot = TASKCN_SLOT_STDOUT_EP
+    };
     struct capref child_dispatcher = (struct capref) {
         .cnode = taskcn,
         .slot = TASKCN_SLOT_DISPATCHER
@@ -174,6 +178,14 @@ errval_t spawn_load_argv(int argc, const char *const argv[], struct spawninfo *s
         .cnode = taskcn,
         .slot = TASKCN_SLOT_INITEP
     };
+    struct capref mm_ep_cap = (struct capref) {
+        .cnode = taskcn,
+        .slot = TASKCN_SLOT_MEMORYEP
+    };
+    struct capref spawner_ep_cap = (struct capref) {
+        .cnode = taskcn,
+        .slot = TASKCN_SLOT_SPAWNER_EP
+    };
 
     err = dispatcher_create(child_dispatcher);
     ON_ERR_PUSH_RETURN(err, SPAWN_ERR_CREATE_DISPATCHER);
@@ -189,11 +201,25 @@ errval_t spawn_load_argv(int argc, const char *const argv[], struct spawninfo *s
 
     // setup the channel from the init side
 
-    err = endpoint_create(256, &si->cap_ep, &si->lmp_ep);
+    err = endpoint_create(LMP_RECV_LENGTH, &si->cap_ep, &si->lmp_ep);
     ON_ERR_PUSH_RETURN(err, LIB_ERR_ENDPOINT_CREATE);
 
     err = cap_copy(init_ep_cap, si->cap_ep);
     ON_ERR_PUSH_RETURN(err, LIB_ERR_CAP_COPY_FAIL);
+
+    err = endpoint_create(LMP_RECV_LENGTH, &si->child_stdout_cap, &si->child_stdout);
+    ON_ERR_PUSH_RETURN(err, LIB_ERR_ENDPOINT_CREATE);
+
+    err = cap_copy(child_stdout_cap, si->child_stdout_cap);
+    ON_ERR_PUSH_RETURN(err, LIB_ERR_CAP_COPY_FAIL);
+
+    err = cap_copy(mm_ep_cap, cap_mmep);
+    ON_ERR_PUSH_RETURN(err, LIB_ERR_CAP_COPY_FAIL);
+
+    if (!capref_is_null(si->spawner_ep_cap)) {
+        err = cap_copy(spawner_ep_cap, si->spawner_ep_cap);
+        ON_ERR_PUSH_RETURN(err, LIB_ERR_CAP_COPY_FAIL);
+    }
 
     // ===========================================
     // create l0 vnode and initialize paging state
@@ -310,7 +336,7 @@ errval_t spawn_load_argv(int argc, const char *const argv[], struct spawninfo *s
     err = cap_copy(si->dispatcher, child_dispatcher);
     ON_ERR_PUSH_RETURN(err, SPAWN_ERR_COPY_KERNEL_CAP);
 
-    aos_rpc_init_lmp(&si->rpc, cap_selfep, NULL_CAP, si->lmp_ep);
+    aos_rpc_init_lmp(&si->rpc, cap_selfep, NULL_CAP, si->lmp_ep, NULL);
 
 
     err = register_process_to_process_manager((char*)name, pid);

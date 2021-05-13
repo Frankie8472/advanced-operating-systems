@@ -3,6 +3,8 @@
 #include <stdlib.h>
 
 #include <aos/aos.h>
+#include <aos/default_interfaces.h>
+#include <aos/waitset.h>
 #include <aos/coreboot.h>
 
 
@@ -57,6 +59,44 @@ errval_t init_terminal_state(void)
     return SYS_ERR_OK;
 }
 
+static struct waitset mm_waitset;
+
+static int memory_server_func(void *arg)
+{
+    errval_t err;
+    debug_printf("memory server thread started\n");
+    while (true) {
+        debug_printf("waiting in thread waitset\n");
+        err = event_dispatch(&mm_waitset);
+        if (err_is_fail(err)) {
+            DEBUG_ERR(err, "in event_dispatch");
+            abort();
+        }
+    }
+    return SYS_ERR_OK;
+}
+
+errval_t start_memory_server_thread(void)
+{
+    static struct aos_rpc memory_server;
+    static void *handlers[MM_IFACE_N_FUNCTIONS];
+
+    aos_rpc_set_interface(&memory_server, get_memory_server_interface(), MM_IFACE_N_FUNCTIONS, handlers);
+
+    struct lmp_endpoint *mm_ep;
+    lmp_endpoint_create_in_slot(LMP_RECV_LENGTH * 2, cap_mmep, &mm_ep);
+
+    waitset_init(&mm_waitset);
+
+    aos_rpc_init_lmp(&memory_server, cap_mmep, NULL_CAP, mm_ep, &mm_waitset);
+    aos_rpc_register_handler(&memory_server, MM_IFACE_GET_RAM, handle_request_ram);
+
+    memory_server.lmp_server_mode = true;
+
+    thread_create(memory_server_func, NULL);
+
+    return SYS_ERR_OK;
+}
 
 
 /**
@@ -108,6 +148,7 @@ void handle_getchar(struct aos_rpc *r, uintptr_t *c) {
  * \brief handler function for ram alloc rpc call
  */
 void handle_request_ram(struct aos_rpc *r, uintptr_t size, uintptr_t alignment, struct capref *cap, uintptr_t *ret_size) {
+    debug_printf("handle_request_ram\n");
     errval_t err = ram_alloc_aligned(cap, size, alignment);
     if (err_is_fail(err)) {
         DEBUG_ERR(err, "Error in remote ram allocation!\n");
@@ -129,7 +170,7 @@ void handle_spawn(struct aos_rpc *old_rpc, const char *name, uintptr_t core_id, 
     uintptr_t current_core_id = disp_get_core_id();
     if(core_id == current_core_id) {
         domainid_t pid;
-        errval_t err = spawn_new_domain(name, &pid);
+        errval_t err = spawn_new_domain(name, &pid, NULL_CAP);
         if (err_is_fail(err)) {
             DEBUG_ERR(err, "Failed to spawn new domain\n");
         }
@@ -261,7 +302,6 @@ void handle_init_get_proc_name(struct aos_rpc *r, uintptr_t pid, char *name){
         if(err_is_fail(err)){
             DEBUG_ERR(err,"Failed to forward process registering to process manager in app init\n");
         }
-        
     }
     strcpy(name,buffer);
 }
@@ -344,7 +384,7 @@ void handle_all_binding_request(struct aos_rpc *r, uintptr_t pid, uintptr_t core
                 DEBUG_ERR(err,"Failed to init rpc in binding request \n");
             }
 
-            err = aos_rpc_init_lmp(&rpc,self_ep_cap,client_cap,lmp_ep);
+            err = aos_rpc_init_lmp(&rpc, self_ep_cap, client_cap, lmp_ep, NULL);
             if(err_is_fail(err)){
                 DEBUG_ERR(err,"Failed to register waitset on rpc\n");
             }

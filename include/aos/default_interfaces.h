@@ -6,12 +6,12 @@
 struct aos_rpc_interface *get_init_interface(void);
 struct aos_rpc_interface *get_dispatcher_interface(void);
 struct aos_rpc_interface *get_write_interface(void);
+struct aos_rpc_interface *get_memory_server_interface(void);
 
 void initialize_initiate_handler(struct aos_rpc *rpc);
 
 enum {
-    INIT_IFACE_INITIATE,
-    INIT_IFACE_GET_RAM,
+    INIT_IFACE_GET_RAM = AOS_RPC_MSG_TYPE_START,
     INIT_IFACE_SPAWN,
     INIT_IFACE_GET_PROCESS_LIST,
 
@@ -20,7 +20,8 @@ enum {
 
 
 enum {
-    DISP_IFACE_BINDING_REQUEST,
+    DISP_IFACE_BINDING,
+    DISP_IFACE_REBIND,
     DISP_IFACE_SET_STDOUT,
     DISP_IFACE_GET_STDIN,
 
@@ -31,6 +32,12 @@ enum {
 enum {
     WRITE_IFACE_WRITE_VARBYTES,
     WRITE_IFACE_N_FUNCTIONS, // <- count -- must be last
+};
+
+
+enum {
+    MM_IFACE_GET_RAM = AOS_RPC_MSG_TYPE_START,
+    MM_IFACE_N_FUNCTIONS, // <- count -- must be last
 };
 
 
