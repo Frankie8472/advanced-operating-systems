@@ -42,10 +42,15 @@ static errval_t aos_rpc_unmarshall_lmp_aarch64(struct aos_rpc *rpc, void *handle
 /**
  * \brief Initializes the RPC channel bindings and sets the default RPC channel bindings.
  */
-errval_t aos_rpc_init(struct aos_rpc *rpc)
+errval_t aos_rpc_set_interface(struct aos_rpc *rpc, struct aos_rpc_interface *interface, size_t n_handlers, void **handlers)
 {
-    memset(rpc->bindings, 0, sizeof rpc->bindings);
+    rpc->interface = interface;
+    rpc->n_handlers = n_handlers;
+    rpc->handlers = handlers;
 
+    return SYS_ERR_OK;
+
+    /*
     // initiate function binding (to send our endpoint to init)
     aos_rpc_initialize_binding(rpc, AOS_RPC_INITIATE, 1, 0, AOS_RPC_CAPABILITY);
 
@@ -66,6 +71,9 @@ errval_t aos_rpc_init(struct aos_rpc *rpc)
 
     aos_rpc_initialize_binding(rpc, AOS_RPC_ROUNDTRIP, 0, 0);
 
+    aos_rpc_initialize_binding(rpc, AOS_RPC_GET_STDIN_EP, 0, 1, AOS_RPC_CAPABILITY);
+    aos_rpc_initialize_binding(rpc, AOS_RPC_SET_STDOUT_EP, 1, 0, AOS_RPC_CAPABILITY);
+
     // process manager bindings
     aos_rpc_initialize_binding(rpc, AOS_RPC_SERVICE_ON, 1, 0, AOS_RPC_WORD);
     aos_rpc_initialize_binding(rpc, AOS_RPC_REGISTER_PROCESS, 2, 1, AOS_RPC_WORD, AOS_RPC_VARSTR,AOS_RPC_WORD);
@@ -82,6 +90,91 @@ errval_t aos_rpc_init(struct aos_rpc *rpc)
 
 
     //aos_rpc_initialize_binding(rpc, AOS_RPC_REGISTER_PROCESS, 3, 0, AOS_RPC_WORD, AOS_RPC_WORD, AOS_RPC_VARSTR);
+    return SYS_ERR_OK;*/
+}
+
+
+/**
+ * \brief Initialize an RPC struct over LMP. 
+ *
+ * \param self_ep local endpoint capability or `NULL_CAP` if no enndpoint is supplied
+ * \param end_ep remote endpoint capability
+ * \param lmp_ep `lmp_endpoint` struct, will be created if `NULL` is supplied
+ */
+errval_t aos_rpc_init_lmp(struct aos_rpc* rpc, struct capref self_ep, struct capref end_ep, struct lmp_endpoint *lmp_ep, struct waitset *waitset) {
+    errval_t err;
+
+    rpc->backend = AOS_RPC_LMP;
+
+    rpc->lmp_server_mode = false;
+
+    if (waitset) {
+        rpc->waitset = waitset;
+    }
+    else {
+        rpc->waitset = get_default_waitset();
+    }
+
+    lmp_chan_init(&rpc->channel.lmp);
+    rpc->channel.lmp.remote_cap = end_ep;
+
+    const size_t default_buflen = 256;
+    if (lmp_ep == NULL) {
+        err = endpoint_create(default_buflen, &rpc->channel.lmp.local_cap, &lmp_ep);
+        ON_ERR_PUSH_RETURN(err, LIB_ERR_ENDPOINT_CREATE);
+    }
+
+    rpc->channel.lmp.buflen_words = default_buflen;
+    rpc->channel.lmp.endpoint = lmp_ep;
+
+    err = lmp_chan_alloc_recv_slot(&rpc->channel.lmp);
+    ON_ERR_PUSH_RETURN(err, LIB_ERR_LMP_ALLOC_RECV_SLOT);
+
+    err = lmp_chan_register_recv(&rpc->channel.lmp, rpc->waitset, MKCLOSURE(&aos_rpc_on_lmp_message, rpc));
+    ON_ERR_PUSH_RETURN(err, LIB_ERR_LMP_ENDPOINT_REGISTER);
+
+    return SYS_ERR_OK;
+}
+
+
+/**
+ * \brief Initialize an aos_rpc struct running on UMP backend with default settings
+ * Shared page is splitted 1:1 and ump message size is UMP_MSG_SIZE_DEFAULT todo
+ *
+ * \param first_half Boolean for choosing which part of the shared page is used for sending
+ *                   (needs to be inverted on the other end)
+ */
+errval_t aos_rpc_init_ump_default(struct aos_rpc *rpc, lvaddr_t shared_page, size_t shared_page_size, bool first_half)
+{
+    errval_t err;
+
+    rpc->backend = AOS_RPC_UMP;
+
+    rpc->waitset = get_default_waitset();
+
+    size_t half_page_size = shared_page_size / 2;
+
+    assert(half_page_size % UMP_MSG_SIZE == 0);
+    assert(half_page_size + half_page_size == shared_page_size);
+
+    void *send_pane = (void *) shared_page;
+    void *recv_pane = (void *) shared_page + half_page_size;
+
+    if (first_half) {
+        // swap panes on one end of the connection
+        void *t;
+        t = send_pane;
+        send_pane = recv_pane;
+        recv_pane = t;
+    }
+
+    err = ump_chan_init(&rpc->channel.ump, send_pane, half_page_size, recv_pane, half_page_size);
+    ON_ERR_RETURN(err);
+
+    err = ump_chan_register_recv(&rpc->channel.ump, rpc->waitset, MKCLOSURE(&aos_rpc_on_ump_message, rpc));
+    //err = ump_chan_register_polling(ump_chan_get_default_poller(), &rpc->channel.ump, &aos_rpc_on_ump_message, rpc);
+    ON_ERR_RETURN(err);
+
     return SYS_ERR_OK;
 }
 
@@ -101,42 +194,26 @@ errval_t aos_rpc_init(struct aos_rpc *rpc)
 *            first the \link n_args types of the arguments, then the \link n_rets types
 *            of the return types.
 */
-errval_t aos_rpc_initialize_binding(struct aos_rpc *rpc, enum aos_rpc_msg_type msg_type, int n_args, int n_rets, ...)
+errval_t aos_rpc_initialize_binding(struct aos_rpc_interface *interface, const char *name, int msg_type, int n_args, int n_rets, ...)
 {
-    struct aos_rpc_function_binding *fb = &rpc->bindings[msg_type];
+    assert(msg_type < interface->n_bindings);
+
+    struct aos_rpc_function_binding *fb = &interface->bindings[msg_type];
     va_list args;
     fb->n_args = n_args;
     fb->n_rets = n_rets;
-    fb->port = msg_type;
+    fb->msg_type = msg_type;
 
-    int wordargs = 0;
-    int capargs = 0;
-
-    int wordrets = 0;
-    int caprets = 0;
+    strncpy(fb->binding_name, name, sizeof fb->binding_name);
 
     va_start(args, n_rets);
     for (int i = 0; i < n_args; i++) {
         fb->args[i] = va_arg(args, int); // read enum values promoted to int
-        if (fb->args[i] == AOS_RPC_WORD) wordargs++;
-        if (fb->args[i] == AOS_RPC_STR) wordargs++;
-        if (fb->args[i] == AOS_RPC_CAPABILITY) capargs++;
     }
     for (int i = 0; i < n_rets; i++) {
         fb->rets[i] = va_arg(args, int); // read enum values promoted to int
-        if (fb->args[i] == AOS_RPC_WORD) wordrets++;
-        if (fb->args[i] == AOS_RPC_STR) wordrets++;
-        if (fb->args[i] == AOS_RPC_CAPABILITY) caprets++;
     }
     va_end(args);
-
-    fb->calling_simple = wordargs <= 3 && capargs <= 1;
-    fb->returning_simple = wordrets <= 3 && caprets <= 1;
-
-    if (!fb->calling_simple || !fb->returning_simple) {
-        debug_printf("advanced rpc marshalling not yet implemented\n");
-        return LIB_ERR_NOT_IMPLEMENTED;
-    }
 
     return SYS_ERR_OK;
 }
@@ -158,6 +235,7 @@ errval_t aos_rpc_initialize_binding(struct aos_rpc *rpc, enum aos_rpc_msg_type m
  */
 errval_t aos_rpc_register_handler(struct aos_rpc *rpc, enum aos_rpc_msg_type msg_type, void* handler)
 {
+    assert(msg_type < rpc->n_handlers);
     rpc->handlers[msg_type] = handler;
     return SYS_ERR_OK;
 }
@@ -200,13 +278,16 @@ errval_t aos_rpc_call(struct aos_rpc *rpc, enum aos_rpc_msg_type msg_type, ...)
  * \brief Handler for mapping a newly sent frame into the own virtual address space.
  * Is called for setting up a shared page between to endpoints.
  */
+__unused
 static void aos_rpc_setup_page_handler(struct aos_rpc* rpc, uintptr_t msg_type, uintptr_t frame_size, struct capref frame)
 {
-    debug_printf("aos_rpc_setup_page_handler\n");
+    HERE;
+    debug_printf("NYI!\n");
+    /*debug_printf("aos_rpc_setup_page_handler\n");
     errval_t err = paging_map_frame(get_current_paging_state(), &rpc->bindings[msg_type].buf_page_remote, frame_size, frame, NULL, NULL);
     if (err_is_fail(err)) {
         DEBUG_ERR(err, "setting up communication page\n");
-    }
+    }*/
 }
 
 /**
@@ -215,7 +296,8 @@ static void aos_rpc_setup_page_handler(struct aos_rpc* rpc, uintptr_t msg_type, 
  */
 static errval_t setup_buf_page(struct aos_rpc *rpc, enum aos_rpc_msg_type msg_type, uintptr_t buf_size)
 {
-    struct capref frame;
+    return LIB_ERR_NOT_IMPLEMENTED;
+    /*struct capref frame;
     errval_t err;
 
     // create frame to share
@@ -230,49 +312,12 @@ static errval_t setup_buf_page(struct aos_rpc *rpc, enum aos_rpc_msg_type msg_ty
     err = aos_rpc_call(rpc, AOS_RPC_SETUP_PAGE, msg_type, buf_size, frame);
     ON_ERR_PUSH_RETURN(err, LIB_ERR_RPC_SETUP_PAGE); // TODO: New error code
 
-    return SYS_ERR_OK;
+    return SYS_ERR_OK;*/
 }
 
 
 /* ===================== UMP ===================== */
 
-/**
- * \brief Initialize an aos_rpc struct running on UMP backend with default settings
- * Shared page is splittet 1:1 and ump message size is UMP_MSG_SIZE_DEFAULT todo
- *
- * \param first_half Boolean for choosing which part of the shared page is used for the caller
- */
-errval_t aos_rpc_init_ump_default(struct aos_rpc *rpc, lvaddr_t shared_page, size_t shared_page_size, bool first_half)
-{
-    errval_t err;
-
-    rpc->backend = AOS_RPC_UMP;
-
-    size_t half_page_size = shared_page_size / 2;
-
-    assert(half_page_size % UMP_MSG_SIZE == 0);
-    assert(half_page_size + half_page_size == shared_page_size);
-
-    void *send_pane = (void *) shared_page;
-    void *recv_pane = (void *) shared_page + half_page_size;
-
-    if (first_half) {
-        // swap panes on one end of the connection
-        void *t;
-        t = send_pane;
-        send_pane = recv_pane;
-        recv_pane = t;
-    }
-
-    err = ump_chan_init(&rpc->channel.ump, send_pane, half_page_size, recv_pane, half_page_size);
-    ON_ERR_RETURN(err);
-
-    ump_chan_register_recv(&rpc->channel.ump, get_default_waitset(), MKCLOSURE(&aos_rpc_on_ump_message, rpc));
-    //err = ump_chan_register_polling(ump_chan_get_default_poller(), &rpc->channel.ump, &aos_rpc_on_ump_message, rpc);
-    ON_ERR_RETURN(err);
-
-    return SYS_ERR_OK;
-}
 
 /**
  * \brief Abstract function call for every message to be sent to another
@@ -285,12 +330,12 @@ errval_t aos_rpc_init_ump_default(struct aos_rpc *rpc, lvaddr_t shared_page, siz
  */
 static errval_t aos_rpc_call_ump(struct aos_rpc *rpc, enum aos_rpc_msg_type msg_type, va_list args)
 {   
-
-
     assert(rpc);
     assert(rpc->backend == AOS_RPC_UMP);
+    assert(rpc->interface);
 
-    struct aos_rpc_function_binding *binding = &rpc->bindings[msg_type];
+
+    struct aos_rpc_function_binding *binding = &rpc->interface->bindings[msg_type];
     size_t n_args = binding->n_args;
     size_t n_rets = binding->n_rets;
     void* retptrs[4];
@@ -465,7 +510,7 @@ void aos_rpc_on_ump_message(void *arg)
     bool received = ump_chan_poll_once(&rpc->channel.ump, msg);
     if (!received) {
         //debug_printf("aos_rpc_on_ump_message called but no message available\n");
-        ump_chan_register_recv(&rpc->channel.ump, get_default_waitset(), MKCLOSURE(&aos_rpc_on_ump_message, rpc));
+        ump_chan_register_recv(&rpc->channel.ump, rpc->waitset, MKCLOSURE(&aos_rpc_on_ump_message, rpc));
         return;
     }
 
@@ -474,18 +519,18 @@ void aos_rpc_on_ump_message(void *arg)
     void *handler = rpc->handlers[msgtype];
     if (handler == NULL) {
         debug_printf("no handler for %d\n", msgtype);
-        ump_chan_register_recv(&rpc->channel.ump, get_default_waitset(), MKCLOSURE(&aos_rpc_on_ump_message, rpc));
+        ump_chan_register_recv(&rpc->channel.ump, rpc->waitset, MKCLOSURE(&aos_rpc_on_ump_message, rpc));
         return;
     }
 
-    struct aos_rpc_function_binding *binding = &rpc->bindings[msgtype];
+    struct aos_rpc_function_binding *binding = &rpc->interface->bindings[msgtype];
 
     err = aos_rpc_unmarshall_ump_simple_aarch64(rpc, handler, binding, msg);
     if (err_is_fail(err)) {
         DEBUG_ERR(err, "error in unmarshall\n");
     }
 
-    ump_chan_register_recv(&rpc->channel.ump, get_default_waitset(), MKCLOSURE(&aos_rpc_on_ump_message, rpc));
+    ump_chan_register_recv(&rpc->channel.ump, rpc->waitset, MKCLOSURE(&aos_rpc_on_ump_message, rpc));
 
     // in case of simple binding
     /*if (binding->calling_simple) {
@@ -703,7 +748,7 @@ static errval_t aos_rpc_unmarshall_ump_simple_aarch64(struct aos_rpc *rpc, void 
     // send response
     DECLARE_MESSAGE(rpc->channel.ump, response);
     response->flag = 0;
-    response->data[0] = binding->port | AOS_RPC_RETURN_BIT;
+    response->data[0] = binding->msg_type | AOS_RPC_RETURN_BIT;
 
     int buf_pos = 1;
     ret_pos = 0;
@@ -765,39 +810,7 @@ static errval_t aos_rpc_unmarshall_ump_simple_aarch64(struct aos_rpc *rpc, void 
 
 /* ===================== LMP ===================== */
 
-/**
- * \brief Initialize an RPC LMP backend. Set enpoints of both ends and create endpoint.
- *
- * \param self_ep Capref to endpoint to read from
- * \param end_ep Capref to endpoint to write to
- * \param lmp_ep Return parameter, address to empty lmp_endpoint struct
- */
-errval_t aos_rpc_init_lmp(struct aos_rpc* rpc, struct capref self_ep, struct capref end_ep, struct lmp_endpoint *lmp_ep) {
-    errval_t err;
-    debug_printf("aos_rpc_init\n");
 
-    rpc->backend = AOS_RPC_LMP;
-
-    lmp_chan_init(&rpc->channel.lmp);
-    rpc->channel.lmp.local_cap = self_ep;
-    rpc->channel.lmp.remote_cap = end_ep;
-
-    if (lmp_ep == NULL) {
-        err = endpoint_create(256, &rpc->channel.lmp.local_cap, &lmp_ep);
-        ON_ERR_PUSH_RETURN(err, LIB_ERR_ENDPOINT_CREATE);
-    }
-
-    rpc->channel.lmp.buflen_words = 256;
-    rpc->channel.lmp.endpoint = lmp_ep;
-
-    err = lmp_chan_alloc_recv_slot(&rpc->channel.lmp);
-    ON_ERR_PUSH_RETURN(err, LIB_ERR_LMP_ALLOC_RECV_SLOT);
-
-    err = lmp_chan_register_recv(&rpc->channel.lmp, get_default_waitset(), MKCLOSURE(&aos_rpc_on_lmp_message, rpc));
-    ON_ERR_PUSH_RETURN(err, LIB_ERR_LMP_ENDPOINT_REGISTER);
-
-    return err;
-}
 
 /**
  * \brief Abstract function call for every message to be sent to another
@@ -814,16 +827,17 @@ static errval_t aos_rpc_call_lmp(struct aos_rpc *rpc, enum aos_rpc_msg_type msg_
 
 
 
-    // debug_printf("THis domain: %d is calling call with type %d\n",disp_get_domain_id(),msg_type );
+    //debug_printf("THis domain: %d is calling call with type %d\n",disp_get_domain_id(),msg_type );
 
     assert(rpc);
     assert(rpc->backend == AOS_RPC_LMP);
+    assert(rpc->interface);
 
     errval_t err;
 
     struct lmp_chan *lc = &rpc->channel.lmp;
 
-    struct aos_rpc_function_binding *binding = &rpc->bindings[msg_type];
+    struct aos_rpc_function_binding *binding = &rpc->interface->bindings[msg_type];
     size_t n_args = binding->n_args;
     size_t n_rets = binding->n_rets;
     void* retptrs[8];
@@ -831,6 +845,11 @@ static errval_t aos_rpc_call_lmp(struct aos_rpc *rpc, enum aos_rpc_msg_type msg_
     uintptr_t words[LMP_MSG_LENGTH];
     struct capref send_cap = NULL_CAP;
     size_t buf_page_offset = 0;
+
+
+    if (rpc->lmp_server_mode) {
+        send_cap = rpc->channel.lmp.local_cap;
+    }
 
     words[0] = msg_type;
     int word_ind = 1;
@@ -907,14 +926,14 @@ static errval_t aos_rpc_call_lmp(struct aos_rpc *rpc, enum aos_rpc_msg_type msg_
         retptrs[ret_ind++] = va_arg(args, void*);
     }
 
-    // debug_printf("waiting for response\n");
+    //debug_printf("waiting for response\n");
     while(!lmp_chan_can_recv(&rpc->channel.lmp)) {
         // yield to dispatcher we are communicating with
-        // debug_printf("waiting for response\n");
+        //debug_printf("waiting for response\n");
         thread_yield_dispatcher(rpc->channel.lmp.remote_cap);
     }
 
-    // debug_printf("getting response\n");
+    //debug_printf("getting response\n");
 
     struct lmp_recv_msg msg = LMP_RECV_MSG_INIT;
     struct capref recieved_cap = NULL_CAP;
@@ -953,10 +972,11 @@ void aos_rpc_on_lmp_message(void *arg)
     err = lmp_chan_recv(channel, &msg, &recieved_cap);
     if (err_is_fail(err) && lmp_err_is_transient(err)) {
         debug_printf("transient error\n");
-        err = lmp_chan_register_recv(channel, get_default_waitset(), MKCLOSURE(&aos_rpc_on_lmp_message, arg));
+        err = lmp_chan_register_recv(channel, rpc->waitset ? : get_default_waitset(), MKCLOSURE(&aos_rpc_on_lmp_message, arg));
+        return;
     }
     else if (err == LIB_ERR_NO_LMP_MSG) {
-        err = lmp_chan_register_recv(channel, get_default_waitset(), MKCLOSURE(&aos_rpc_on_lmp_message, arg));
+        err = lmp_chan_register_recv(channel, rpc->waitset ? : get_default_waitset(), MKCLOSURE(&aos_rpc_on_lmp_message, arg));
         return;
     }
     else if (err_is_fail(err)) {
@@ -966,6 +986,7 @@ void aos_rpc_on_lmp_message(void *arg)
     }
 
     if (!capref_is_null(recieved_cap)) {
+        //debug_printf("reslotting\n");
         lmp_chan_alloc_recv_slot(channel);
     }
 
@@ -980,30 +1001,65 @@ void aos_rpc_on_lmp_message(void *arg)
         goto on_error;
     }
 
-    void *handler = rpc->handlers[msgtype];
-    if (handler == NULL) {
+    if (!rpc->handlers || !rpc->handlers[msgtype] || msgtype > rpc->n_handlers) {
         debug_printf("no handler for %lu\n", msgtype);
+        if (rpc->interface->n_bindings > msgtype) {
+            debug_printf("for function %s\n", rpc->interface->bindings[msgtype].binding_name);
+        }
         err = LIB_ERR_RPC_NO_HANDLER_SET;
         goto on_error;
     }
+    void *handler = rpc->handlers[msgtype];
 
-    struct aos_rpc_function_binding *binding = &rpc->bindings[msgtype];
+    struct aos_rpc_function_binding *binding = &rpc->interface->bindings[msgtype];
+
+
+    if (rpc->lmp_server_mode) {
+        struct capability epcap;
+        invoke_cap_identify(recieved_cap, &epcap);
+        if (epcap.type != ObjType_EndPointLMP) {
+            debug_printf("non-endpoint-type cap received\n");
+        }
+        else {
+            if (!capref_is_null(rpc->channel.lmp.remote_cap)) {
+                cap_destroy(rpc->channel.lmp.remote_cap);
+            }
+            rpc->channel.lmp.remote_cap = recieved_cap;
+            //char buf[128];
+            //debug_print_capref(buf, 128, rpc->channel.lmp.remote_cap);
+            //debug_printf("setting epcap to %s\n", buf);
+            recieved_cap = NULL_CAP;
+        }
+    }
 
     err = aos_rpc_unmarshall_lmp_aarch64(rpc, handler, binding, &msg, recieved_cap);
     if (err_is_fail(err)) {
         DEBUG_ERR(err, "error unmarshaling lmp message\n");
     }
+
 //on_success:
     //debug_printf("reregister\n");
-    err = lmp_chan_register_recv(channel, get_default_waitset(), MKCLOSURE(&aos_rpc_on_lmp_message, arg));
+    err = lmp_chan_register_recv(channel, rpc->waitset ? : get_default_waitset(), MKCLOSURE(&aos_rpc_on_lmp_message, arg));
     if (err_is_fail(err)) {
         DEBUG_ERR(err, "error lmp_chan_register_recv\n");
     }
+
+    /*struct capability recv_cap;
+    err = invoke_cap_identify(rpc->channel.lmp.endpoint->recv_slot, &recv_cap);
+    if (!err_is_fail(err)) {
+        err = lmp_chan_alloc_recv_slot(&rpc->channel.lmp);
+        DEBUG_ERR(err, "allocating recv slot\n");
+        char buf[128];
+        debug_print_cap_at_capref(buf, 128, rpc->channel.lmp.endpoint->recv_slot);
+        debug_printf("recvcap is %s\n", buf);
+    }*/
+
+
     return;
 
     errval_t err2;
 on_error:
-    err2 = lmp_chan_register_recv(channel, get_default_waitset(), MKCLOSURE(&aos_rpc_on_lmp_message, arg));
+    err2 = lmp_chan_register_recv(channel, rpc->waitset ? : get_default_waitset(), MKCLOSURE(&aos_rpc_on_lmp_message, arg));
     DEBUG_ERR(err, "error handling message\n");
     return;
 }
@@ -1136,13 +1192,21 @@ static void send_remaining_lmp(struct lmp_chan *lc, uintptr_t *lm, struct capref
     if (*word_ind > 0 || !capref_is_null(*cap)) {
         bool sent = false;
         do {
-            char buf[128];
-            debug_print_cap_at_capref(buf, 128, *cap);
+            //char buf[128];
+            //debug_print_cap_at_capref(buf, 128, *cap);
             //debug_printf("sending: %ld %ld %ld %ld, %s\n", lm[0], lm[1], lm[2], lm[3], buf);
+            //debug_print_cap_at_capref(buf, 128, lc->remote_cap);
+            //debug_printf("to: %s\n", buf);
             errval_t err = lmp_chan_send(lc, LMP_SEND_FLAGS_DEFAULT, *cap, 4,
                                          lm[0], lm[1], lm[2], lm[3]);
-            if (err_is_fail(err)) {
+            if (err_is_fail(err) && !lmp_err_is_transient(err)) {
                 DEBUG_ERR(err, "what is this?\n");
+                break;
+            }
+            else if (err_is_fail(err)) {
+                //err_print_calltrace(err);
+                //DEBUG_ERR(err, "interesting\n");
+                thread_yield_dispatcher(lc->remote_cap);
             }
             sent = err == SYS_ERR_OK;
         } while (!sent);
@@ -1322,10 +1386,11 @@ static errval_t aos_rpc_unmarshall_lmp_aarch64(struct aos_rpc *rpc, void *handle
         }
     }
 
+    debug_printf("calling handler %d with %d retargs: %s\n", binding->msg_type, binding->n_rets, binding->binding_name);
     h7(rpc, arg[0], arg[1], arg[2], arg[3], arg[4], arg[5], arg[6]);
-    
+
     uintptr_t response[LMP_MSG_LENGTH];
-    response[0] = binding->port | AOS_RPC_RETURN_BIT;
+    response[0] = binding->msg_type | AOS_RPC_RETURN_BIT;
     struct capref response_cap = NULL_CAP;
     int buf_pos = 1;
     ret_pos = 0;
@@ -1389,7 +1454,7 @@ struct aos_rpc *aos_rpc_get_memory_channel(void)
     //TODO: Return channel to talk to memory server process (or whoever
     //implements memory server functionality)
     //debug_printf("aos_rpc_get_memory_channel NYI\n");
-    return get_init_rpc();
+    return get_mm_rpc();
 }
 
 struct aos_rpc *aos_rpc_get_process_channel(void)
@@ -1545,6 +1610,8 @@ errval_t aos_rpc_process_get_all_pids(struct aos_rpc *rpc, domainid_t **pids, si
     return SYS_ERR_OK;
 }
 
+#include <aos/default_interfaces.h>
+
 /**
  * \brief Request a RAM capability with >= request_bits of size over the given
  * channel.
@@ -1552,9 +1619,7 @@ errval_t aos_rpc_process_get_all_pids(struct aos_rpc *rpc, domainid_t **pids, si
 errval_t aos_rpc_get_ram_cap(struct aos_rpc *rpc, size_t bytes, size_t alignment, struct capref *ret_cap, size_t *ret_bytes) {
     size_t _rs = 0;
 
-    return aos_rpc_call(rpc, AOS_RPC_REQUEST_RAM, bytes, alignment, ret_cap, ret_bytes ? : &_rs);
-    debug_printf("here: ");
-    HERE;
+    return aos_rpc_call(rpc, MM_IFACE_GET_RAM, bytes, alignment, ret_cap, ret_bytes ? : &_rs);
 }
 
 /**
@@ -1591,12 +1656,15 @@ errval_t aos_rpc_new_binding(domainid_t pid, coreid_t core_id, struct aos_rpc* r
         struct lmp_endpoint *ep;
         err = endpoint_create(256, &self_ep_cap, &ep);
         ON_ERR_PUSH_RETURN(err, LIB_ERR_ENDPOINT_CREATE);
-        err = aos_rpc_init(ret_rpc);
-        ON_ERR_RETURN(err);
+
+        //err = aos_rpc_init(ret_rpc);
+        //ON_ERR_RETURN(err);
+
+        // TODO (RPC): init interface
 
         // initialize_general_purpose_handler(ret_rpc);
 
-        err = aos_rpc_init_lmp(ret_rpc, self_ep_cap, NULL_CAP, ep);
+        err = aos_rpc_init_lmp(ret_rpc, self_ep_cap, NULL_CAP, ep, NULL);
         ON_ERR_RETURN(err);
 
         struct capref remote_cap;
@@ -1636,15 +1704,16 @@ errval_t aos_rpc_new_binding(domainid_t pid, coreid_t core_id, struct aos_rpc* r
 
 
 
-        err = aos_rpc_init(ret_rpc);
-        ON_ERR_RETURN(err);
+        // TODO (RPC): init interface
+        //err = aos_rpc_init(ret_rpc);
+        //ON_ERR_RETURN(err);
         
         // struct aos_rpc *rpc = malloc(sizeof(struct aos_rpc));
         // NULLPTR_CHECK(ret_rpc, LIB_ERR_MALLOC_FAIL);
 
         
-        err = aos_rpc_init(ret_rpc);
-        ON_ERR_RETURN(err);
+        //err = aos_rpc_init(ret_rpc);
+        //ON_ERR_RETURN(err);
         // ON_ERR_PUSH_RETURN(err, LIB_ERR_RPC_INIT);
 
         err =  aos_rpc_init_ump_default(ret_rpc,(lvaddr_t) urpc_data, BASE_PAGE_SIZE,true);//take first half as creating process

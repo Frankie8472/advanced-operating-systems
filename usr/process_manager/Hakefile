@@ -13,4 +13,8 @@
   		              cFiles = [ "main.c" ],
                       architectures = allArchitectures
                     }
+, build library { target = "process_manager_interface",
+  		              cFiles = [ "process_manager_interface.c" ],
+                      architectures = allArchitectures
+                    }
 ]

@@ -1,4 +1,5 @@
 #include <aos/aos.h>
+#include <aos/aos_rpc.h>
 #include <aos/inthandler.h>
 #include <drivers/lpuart.h>
 #include <drivers/gic_dist.h>
@@ -33,11 +34,22 @@ static errval_t initialize_driver(void)
     return SYS_ERR_OK;
 }
 
-
+extern struct aos_rpc stdout_rpc;
 static void handler(void *arg) {
     char to_get;
-    lpuart_getchar(lpuart_driver_state, &to_get);
-    debug_printf("enterrupt '%c'\n", to_get);
+    errval_t err;
+    while(true) {
+        err = lpuart_getchar(lpuart_driver_state, &to_get);
+        if (err_is_fail(err)) {
+            break;
+        }
+        debug_printf("enterrupt %d '%c'\n", to_get, to_get);
+        struct aos_rpc_varbytes bytes = {
+            .bytes = &to_get,
+            .length = 1
+        };
+        aos_rpc_call(&stdout_rpc, AOS_RPC_SEND_VARBYTES, bytes);
+    }
 }
 
 
@@ -70,9 +82,10 @@ static errval_t setup_interrupts(void)
     ON_ERR_RETURN(err);
 
     err = inthandler_setup(irq_ep, get_default_waitset(), MKCLOSURE(handler, NULL));
-    DEBUG_ERR(err, "aa?\n");
+    ON_ERR_RETURN(err);
+
     err = gic_dist_enable_interrupt(gic_driver_state, IMX8X_UART3_INT, 1 << disp_get_core_id(), 5);
-    //ON_ERR_RETURN(err);
+    ON_ERR_RETURN(err);
 
     return SYS_ERR_OK;
 }
@@ -82,28 +95,17 @@ int main(int argc, char **argv)
 {
     errval_t err;
 
-
     err = initialize_driver();
     if (err_is_fail(err)) {
         debug_printf("Fatal Error, could not initialize LPUART driver\n");
         abort();
     }
 
-    setup_interrupts();
-
-    lpuart_putchar(lpuart_driver_state, 'z');
-
-    char to_get;
-    do {
-        err = lpuart_getchar(lpuart_driver_state, &to_get);
-    } while (err_is_fail(err));
-
-
-    lpuart_putchar(lpuart_driver_state, to_get);
-    lpuart_putchar(lpuart_driver_state, to_get);
-    lpuart_putchar(lpuart_driver_state, to_get);
-    lpuart_putchar(lpuart_driver_state, to_get);
-    lpuart_putchar(lpuart_driver_state, to_get);
+    err = setup_interrupts();
+        if (err_is_fail(err)) {
+        debug_printf("Fatal Error, could not setup interrupts\n");
+        abort();
+    }
 
     while (true) {
         err = event_dispatch(get_default_waitset());

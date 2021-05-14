@@ -17,6 +17,8 @@
 #include <stdio.h>
 
 #include <aos/aos.h>
+#include <aos/default_interfaces.h>
+#include <aos/dispatcher_rpc.h>
 #include <aos/dispatch.h>
 #include <aos/curdispatcher_arch.h>
 #include <aos/dispatcher_arch.h>
@@ -37,6 +39,9 @@ static bool init_domain;
 
 static size_t count = 0;
 static struct aos_rpc rpcs[100];
+
+struct aos_rpc stdin_rpc;
+struct aos_rpc stdout_rpc;
 
 
 extern size_t (*_libc_terminal_read_func)(char *, size_t);
@@ -85,29 +90,60 @@ static size_t syscall_terminal_read(char * buf,size_t len)
     return 1;
 }
 
+
+char stdin_buffer[1024];
+volatile int stdin_buffer_pos = 0;
+static void handle_stdin_data(struct aos_rpc *rpc, struct aos_rpc_varbytes bytes)
+{
+    memcpy(stdin_buffer + stdin_buffer_pos, bytes.bytes, bytes.length);
+    stdin_buffer_pos += bytes.length;
+}
+
 __attribute__((__used__))
 static size_t aos_terminal_write(const char * buf,size_t len)
 {
   // debug_printf("Terminal write: in aos_terminal_write\n");
-    struct aos_rpc * rpc = get_init_rpc();
+    /*struct aos_rpc * rpc = get_init_rpc();
         if(len) {
             for(size_t i = 0;i < len;++i) {
                 aos_rpc_serial_putchar(rpc,buf[i]);
             }
         }
+    return len;*/
+    struct aos_rpc_varbytes bytes = {
+        .bytes = (char *)buf,
+        .length = len
+    };
+    debug_printf("aos_terminal_write\n");
+    aos_rpc_call(&stdout_rpc, AOS_RPC_SEND_VARBYTES, bytes);
+
     return len;
 }
 
+volatile int stdin_read_buffer_pos = 0;
 __attribute__((__used__))
 static size_t aos_terminal_read(char* buf,size_t len){
     //debug_printf("Got to aos_terminal_read\n");
-    struct aos_rpc * rpc = get_init_rpc();
+    /*struct aos_rpc * rpc = get_init_rpc();
     errval_t err;
     err = aos_rpc_serial_getchar(rpc, buf);
     if(err_is_fail(err)){
       DEBUG_ERR(err,"Failed get char in aos_terminal_read\n");
+    }*/
+    while(stdin_buffer_pos <= stdin_read_buffer_pos) {
+        errval_t err = event_dispatch(get_default_waitset());
+        if (err_is_fail(err)) {
+            DEBUG_ERR(err, "in event_dispatch");
+            abort();
+        }
     }
-    return 1;
+    if (stdin_buffer_pos > stdin_read_buffer_pos) {
+        size_t bytes = min(len, stdin_buffer_pos - stdin_read_buffer_pos);
+        memcpy(buf, stdin_buffer + stdin_read_buffer_pos, bytes);
+        stdin_read_buffer_pos += bytes;
+        return bytes;
+    }
+    return 0;
 }
 
 /**
@@ -118,7 +154,7 @@ void barrelfish_libc_glue_init(void)
     // XXX: FIXME: Check whether we can use the proper kernel serial, and what we need for that
     // TODO: change these to use the user-space serial driver if possible
     // TODO: set these functions
-    if (init_domain) {
+    if (init_domain || true) {
         _libc_terminal_read_func = syscall_terminal_read;
         _libc_terminal_write_func = syscall_terminal_write;
         _libc_exit_func = libc_exit;
@@ -137,6 +173,7 @@ void barrelfish_libc_glue_init(void)
     static char buf[BUFSIZ];
     setvbuf(stdout, buf, _IOLBF, sizeof(buf));
 }
+
 
 
 /** \brief Initialise libbarrelfish.
@@ -188,43 +225,26 @@ errval_t barrelfish_init_onthread(struct spawn_domain_params *params)
     err = ram_alloc_set(NULL);
     ON_ERR_RETURN(err);
 
-    static struct aos_rpc init_rpc;
-    struct capref self_ep_cap = (struct capref) {
-      .cnode = cnode_task,
-      .slot = TASKCN_SLOT_SELFEP
-    };
+    init_dispatcher_rpcs();
+    debug_printf("init_dispatcher_rpcs returned\n");
 
-    struct capref init_ep_cap = (struct capref) {
-      .cnode = cnode_task,
-      .slot = TASKCN_SLOT_INITEP
-    };
 
-    err = aos_rpc_init(&init_rpc);
-    ON_ERR_RETURN(err);
+    //err = aos_rpc_init(&init_rpc);
+    //ON_ERR_RETURN(err);
 
-    err = aos_rpc_init_lmp(&init_rpc, self_ep_cap, init_ep_cap, NULL);
-    ON_ERR_RETURN(err);
+    //err = aos_rpc_init_lmp(&init_rpc, self_ep_cap, init_ep_cap, NULL);
+    //ON_ERR_RETURN(err);
 
     // we are not in init and do already have a remote cap
     // we need to initiate a connection so init gets our endpoint capability
-    debug_printf("Trying to establish channel with init (or memory server with client):\n");
 
-    
-    err = aos_rpc_init(&init_rpc);
-    ON_ERR_RETURN(err);
-    err = aos_rpc_init_lmp(&init_rpc, self_ep_cap, init_ep_cap, NULL);
-    if (err_is_fail(err) && err_pop(err) == LIB_ERR_RPC_INITIATE) {
-        DEBUG_ERR(err, "Error establishing connection with init! aborting!");
-        abort();
-        }
+    //err = aos_rpc_init(&init_rpc);
+    //ON_ERR_RETURN(err);
 
-    // err = initialize_rpc_handlers(&init_rpc);
-    if(err_is_fail(err)){
-        DEBUG_ERR(err,"Failed to initialize handlers!");
-    }
-
-    initialize_general_purpose_handler(&init_rpc);
-    set_init_rpc(&init_rpc);
+    //struct capref in_epcap;
+    //struct lmp_endpoint *in_ep;
+    //endpoint_create(LMP_RECV_LENGTH * 8, &in_epcap, &in_ep);
+    //aos_rpc_init_lmp(&stdin_rpc, in_epcap, NULL_CAP, in_ep);
 
 
     // debug_printf("Is memory server online: %d?\n",get_mem_online());
@@ -239,20 +259,10 @@ errval_t barrelfish_init_onthread(struct spawn_domain_params *params)
 
     //     err = aos_rpc_init(&mem_rpc);
     //     ON_ERR_RETURN(err);
-            
 
     // call initiate function with our endpoint cap as argument in order
     // to make it known to init
-    err = aos_rpc_call(&init_rpc, AOS_RPC_INITIATE, init_rpc.channel.lmp.local_cap);
-    if (!err_is_fail(err)) {
-        debug_printf("init channel established!\n");
-    }
-    else {
-        DEBUG_ERR(err, "Error establishing connection with init! aborting!");
-        abort();
-    }
 
-    set_init_rpc(&init_rpc);
 
     // debug_printf("Is memory server online: %d?\n",get_mem_online());
     // if(get_mem_online()){
@@ -350,7 +360,7 @@ void handle_all_binding_request_on_process(struct aos_rpc *r, uintptr_t pid, uin
         if(err_is_fail(err)){
             DEBUG_ERR(err,"Failed to create ep in memory server\n");
         }
-        err = aos_rpc_init_lmp(rpc,self_ep_cap,client_cap,lmp_ep);
+        err = aos_rpc_init_lmp(rpc,self_ep_cap,client_cap,lmp_ep, NULL);
         if(err_is_fail(err)){
             DEBUG_ERR(err,"Failed to register waitset on rpc\n");
         }
@@ -377,7 +387,7 @@ void handle_all_binding_request_on_process(struct aos_rpc *r, uintptr_t pid, uin
 
 
 
-    err = aos_rpc_init(rpc);
+    //err = aos_rpc_init(rpc); // TODO (RPC): set interface
     if(err_is_fail(err)){
         DEBUG_ERR(err,"Failed to init rpc\n");
     }
@@ -407,10 +417,29 @@ void handle_send_varbytes(struct aos_rpc *r, struct aos_rpc_varbytes bytes) {
     debug_printf("\n");
 }
 
+static
+void handle_get_stdin_ep(struct aos_rpc *r, struct capref *ret) {
+    debug_printf("returning local cap!\n");
+    *ret = stdin_rpc.channel.lmp.local_cap;
+}
+
+static
+void handle_set_stdout_ep(struct aos_rpc *r, struct capref ep) {
+    debug_printf("setting remote cap!\n");
+
+    struct lmp_endpoint *lmp_ep;
+    struct capref ep_cap;
+    endpoint_create(LMP_RECV_LENGTH, &ep_cap, &lmp_ep);
+    aos_rpc_init_lmp(&stdout_rpc, ep_cap, ep, lmp_ep, get_default_waitset()); // TODO: delete old ep
+    aos_rpc_register_handler(&stdout_rpc, AOS_RPC_SEND_VARBYTES, handle_stdin_data);
+}
+
 
 void initialize_general_purpose_handler(struct aos_rpc* rpc){
     aos_rpc_register_handler(rpc,AOS_RPC_BINDING_REQUEST,&handle_all_binding_request_on_process);
     aos_rpc_register_handler(rpc, AOS_RPC_SEND_NUMBER, &handle_send_number);
     aos_rpc_register_handler(rpc, AOS_RPC_SEND_STRING, &handle_send_string);
     aos_rpc_register_handler(rpc, AOS_RPC_SEND_VARBYTES, &handle_send_varbytes);
+    aos_rpc_register_handler(rpc, AOS_RPC_GET_STDIN_EP, &handle_get_stdin_ep);
+    aos_rpc_register_handler(rpc, AOS_RPC_SET_STDOUT_EP, &handle_set_stdout_ep);
 }

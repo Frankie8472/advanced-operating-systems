@@ -42,6 +42,8 @@ void set_init_chan(struct aos_chan *initchan);
 struct aos_chan *get_init_chan(void);
 void set_init_rpc(struct aos_rpc *initrpc);
 struct aos_rpc *get_init_rpc(void);
+void set_mm_rpc(struct aos_rpc *initrpc);
+struct aos_rpc *get_mm_rpc(void);
 struct morecore_state *get_morecore_state(void);
 struct paging_state *get_current_paging_state(void);
 void set_current_paging_state(struct paging_state *st);

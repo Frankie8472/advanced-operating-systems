@@ -15,7 +15,6 @@
 #include <spawn/argv.h>
 #include <spawn/process_manager.h>
 #include <string.h>
-#include <maps/imx8x_map.h>
 
 extern struct bootinfo *bi;
 extern coreid_t my_core_id;
@@ -100,35 +99,10 @@ errval_t setup_c_space(struct capref cnode_l1,
     return SYS_ERR_OK;
 }
 
-/**
- * TODO(M2): Implement this function.
- * \brief Spawn a new dispatcher called 'argv[0]' with 'argc' arguments.
- *
- * This function spawns a new dispatcher running the ELF binary called
- * 'argv[0]' with 'argc' - 1 additional arguments. It fills out 'si'
- * and 'pid'.
- *
- * \param argc The number of command line arguments. Must be > 0.
- * \param argv An array storing 'argc' command line arguments.
- * \param si A pointer to the spawninfo struct representing
- * the child. It will be filled out by this function. Must not be NULL.
- * \param pid A pointer to a domainid_t variable that will be
- * assigned to by this function. Must not be NULL.
- * \return Either SYS_ERR_OK if no error occured or an error
- * indicating what went wrong otherwise.
- */
-errval_t spawn_load_argv(int argc, const char *const argv[], struct spawninfo *si,
-                domainid_t *pid) {
-    // TODO: Implement me
-    // - Initialize the spawn_info struct
-    // - Get the module from the multiboot image
-    //   and map it (take a look at multiboot.c)
-    // - Setup the child's cspace
-    // - Setup the child's vspace
-    // - Load the ELF binary
-    // - Setup the dispatcher
-    // - Setup the environment
-    // - Make the new dispatcher runnable
+
+errval_t spawn_setup_dispatcher(int argc, const char *const argv[], struct spawninfo *si,
+                domainid_t *pid)
+{
     errval_t err;
     const char* name = argv[0];
     DEBUG_PRINTF("Spawning process: %s\n", name);
@@ -137,6 +111,8 @@ errval_t spawn_load_argv(int argc, const char *const argv[], struct spawninfo *s
     struct cnoderef child_ref;
     err = cnode_create_l1(&cnode_child_l1, &child_ref);
     ON_ERR_PUSH_RETURN(err, SPAWN_ERR_CREATE_ROOTCN);
+
+    si->rootcn = cnode_child_l1;
 
     //DEBUG_PRINTF("cnode_child_l1 slot is: %d\n", cnode_child_l1.slot);
 
@@ -154,6 +130,10 @@ errval_t spawn_load_argv(int argc, const char *const argv[], struct spawninfo *s
     struct capref child_ep_cap = (struct capref) {
         .cnode = taskcn,
         .slot = TASKCN_SLOT_SELFEP
+    };
+    struct capref child_stdout_cap = (struct capref) {
+        .cnode = taskcn,
+        .slot = TASKCN_SLOT_STDOUT_EP
     };
     struct capref child_dispatcher = (struct capref) {
         .cnode = taskcn,
@@ -175,17 +155,13 @@ errval_t spawn_load_argv(int argc, const char *const argv[], struct spawninfo *s
         .cnode = taskcn,
         .slot = TASKCN_SLOT_INITEP
     };
-    struct capref dev_frame = (struct capref) {
-        .cnode = cnode_task,
-        .slot = TASKCN_SLOT_DEV
-    };
-    struct capref child_dev_frame = (struct capref) {
+    struct capref mm_ep_cap = (struct capref) {
         .cnode = taskcn,
-        .slot = TASKCN_SLOT_DEV
+        .slot = TASKCN_SLOT_MEMORYEP
     };
-    struct capref child_dev_frame2 = (struct capref) {
+    struct capref spawner_ep_cap = (struct capref) {
         .cnode = taskcn,
-        .slot = TASKCN_SLOT_BOOTINFO
+        .slot = TASKCN_SLOT_SPAWNER_EP
     };
 
     err = dispatcher_create(child_dispatcher);
@@ -202,43 +178,45 @@ errval_t spawn_load_argv(int argc, const char *const argv[], struct spawninfo *s
 
     // setup the channel from the init side
 
-    err = endpoint_create(256, &si->cap_ep, &si->lmp_ep);
+    err = endpoint_create(LMP_RECV_LENGTH, &si->cap_ep, &si->lmp_ep);
     ON_ERR_PUSH_RETURN(err, LIB_ERR_ENDPOINT_CREATE);
 
     err = cap_copy(init_ep_cap, si->cap_ep);
     ON_ERR_PUSH_RETURN(err, LIB_ERR_CAP_COPY_FAIL);
 
-    if (strncmp(si->binary_name, "lpuart_terminal", 32) == 0) {
-        size_t source_addr = get_phys_addr(dev_frame);
-        err = cap_retype(child_dev_frame, dev_frame, IMX8X_UART3_BASE - source_addr, ObjType_DevFrame, IMX8X_UART_SIZE, 1);
-        DEBUG_ERR(err, "oh no\n");
-        ON_ERR_PUSH_RETURN(err, LIB_ERR_CAP_RETYPE);
+    err = endpoint_create(LMP_RECV_LENGTH, &si->child_stdout_cap, &si->child_stdout);
+    ON_ERR_PUSH_RETURN(err, LIB_ERR_ENDPOINT_CREATE);
 
-        source_addr = get_phys_addr(dev_frame);
-        err = cap_retype(child_dev_frame2, dev_frame, IMX8X_GIC_DIST_BASE - source_addr, ObjType_DevFrame, IMX8X_GIC_DIST_SIZE, 1);
-        DEBUG_ERR(err, "oh no\n");
-        ON_ERR_PUSH_RETURN(err, LIB_ERR_CAP_RETYPE);
+    err = cap_copy(child_stdout_cap, si->child_stdout_cap);
+    ON_ERR_PUSH_RETURN(err, LIB_ERR_CAP_COPY_FAIL);
 
+    err = cap_copy(mm_ep_cap, cap_mmep);
+    ON_ERR_PUSH_RETURN(err, LIB_ERR_CAP_COPY_FAIL);
 
-        struct capref irq = (struct capref) {
-            .cnode = taskcn,
-            .slot = TASKCN_SLOT_IRQ
-        };
-        cap_copy(irq, cap_irq);
-    } else if (strncmp(si->binary_name, "enet", 32) == 0) {
-        // TODO
-        debug_printf("special enet stuff\n");
-        size_t source_addr = get_phys_addr(dev_frame);
-        err = cap_retype(child_dev_frame, dev_frame, IMX8X_ENET_BASE - source_addr, ObjType_DevFrame, IMX8X_ENET_SIZE, 1);
-        DEBUG_ERR(err, "oh no\n");
-        ON_ERR_PUSH_RETURN(err, LIB_ERR_CAP_RETYPE);
+/* <<<<<<< HEAD */
+    /*     struct capref irq = (struct capref) { */
+    /*         .cnode = taskcn, */
+    /*         .slot = TASKCN_SLOT_IRQ */
+    /*     }; */
+    /*     cap_copy(irq, cap_irq); */
+    /* } else if (strncmp(si->binary_name, "enet", 32) == 0) { */
+    /*     // TODO */
+    /*     debug_printf("special enet stuff\n"); */
+    /*     size_t source_addr = get_phys_addr(dev_frame); */
+    /*     err = cap_retype(child_dev_frame, dev_frame, IMX8X_ENET_BASE - source_addr, ObjType_DevFrame, IMX8X_ENET_SIZE, 1); */
+    /*     DEBUG_ERR(err, "oh no\n"); */
+    /*     ON_ERR_PUSH_RETURN(err, LIB_ERR_CAP_RETYPE); */
 
-        struct capref irq = (struct capref) {
-            .cnode = taskcn,
-            .slot = TASKCN_SLOT_IRQ
-        };
-        cap_copy(irq, cap_irq);
-        debug_printf("DONE\n");
+    /*     struct capref irq = (struct capref) { */
+    /*         .cnode = taskcn, */
+    /*         .slot = TASKCN_SLOT_IRQ */
+    /*     }; */
+    /*     cap_copy(irq, cap_irq); */
+    /*     debug_printf("DONE\n"); */
+/* ======= */
+    if (!capref_is_null(si->spawner_ep_cap)) {
+        err = cap_copy(spawner_ep_cap, si->spawner_ep_cap);
+        ON_ERR_PUSH_RETURN(err, LIB_ERR_CAP_COPY_FAIL);
     }
 
     // ===========================================
@@ -356,20 +334,12 @@ errval_t spawn_load_argv(int argc, const char *const argv[], struct spawninfo *s
     err = cap_copy(si->dispatcher, child_dispatcher);
     ON_ERR_PUSH_RETURN(err, SPAWN_ERR_COPY_KERNEL_CAP);
 
-    aos_rpc_init_lmp(&si->rpc, cap_selfep, NULL_CAP, si->lmp_ep);
+    aos_rpc_init_lmp(&si->rpc, cap_selfep, NULL_CAP, si->lmp_ep, NULL);
 
 
     err = register_process_to_process_manager((char*)name, pid);
     ON_ERR_RETURN(err);
     disp_gen->domain_id = *pid;
-
-
-    err = invoke_dispatcher(si->dispatcher, cap_dispatcher, cnode_child_l1, child_l0_vnodecap, child_dispframe, true);
-    ON_ERR_RETURN(err);
-
-
-
-
 
     if(get_mem_online()){
         disp_gen -> core_state.c.mem_online = true;
@@ -377,7 +347,78 @@ errval_t spawn_load_argv(int argc, const char *const argv[], struct spawninfo *s
     if(get_pm_online()){
         disp_gen -> core_state.c.pm_online = true;
     }
+
+    si->dispatcher_cap = cap_dispatcher;
+    si->dispframe_cap = child_dispframe;
+
     //dump_dispatcher(disp);
+    return SYS_ERR_OK;
+}
+
+
+errval_t spawn_invoke_dispatcher(struct spawninfo *si)
+{
+    struct cnoderef child_pagecn = {
+        .croot = get_cap_addr(si->rootcn),
+        .cnode = ROOTCN_SLOT_ADDR(ROOTCN_SLOT_PAGECN),
+        .level = CNODE_TYPE_OTHER
+    };
+    struct capref vnode_l0 = (struct capref) {
+        .cnode = child_pagecn,
+        .slot = 0
+    };
+
+    return invoke_dispatcher(
+        si->dispatcher,
+        si->dispatcher_cap,
+        si->rootcn,
+        vnode_l0,
+        si->dispframe_cap,
+        true
+    );
+}
+
+
+/**
+ * TODO(M2): Implement this function.
+ * \brief Spawn a new dispatcher called 'argv[0]' with 'argc' arguments.
+ *
+ * This function spawns a new dispatcher running the ELF binary called
+ * 'argv[0]' with 'argc' - 1 additional arguments. It fills out 'si'
+ * and 'pid'.
+ *
+ * \param argc The number of command line arguments. Must be > 0.
+ * \param argv An array storing 'argc' command line arguments.
+ * \param si A pointer to the spawninfo struct representing
+ * the child. It will be filled out by this function. Must not be NULL.
+ * \param pid A pointer to a domainid_t variable that will be
+ * assigned to by this function. Must not be NULL.
+ * \return Either SYS_ERR_OK if no error occured or an error
+ * indicating what went wrong otherwise.
+ */
+errval_t spawn_load_argv(int argc, const char *const argv[], struct spawninfo *si,
+                domainid_t *pid) {
+    // TODO: Implement me
+    // - Initialize the spawn_info struct
+    // - Get the module from the multiboot image
+    //   and map it (take a look at multiboot.c)
+    // - Setup the child's cspace
+    // - Setup the child's vspace
+    // - Load the ELF binary
+    // - Setup the dispatcher
+    // - Setup the environment
+    // - Make the new dispatcher runnable
+
+    errval_t err;
+
+    err = spawn_setup_dispatcher(argc, argv, si, pid);
+    ON_ERR_RETURN(err);
+
+    debug_printf("%s set up!\n", si->binary_name);
+
+    err = spawn_invoke_dispatcher(si);
+    ON_ERR_RETURN(err);
+
     return SYS_ERR_OK;
 }
 
@@ -455,6 +496,52 @@ static void strip_extra_spaces(char* str) {
   str[x] = '\0';
 }
 
+errval_t spawn_load_by_name_setup(char *binary_name, struct spawninfo *si)
+{
+    errval_t err = SYS_ERR_OK;
+
+    //TODO: is bi correctly initialized by the init/usr/main.c
+    struct mem_region* mem_region = multiboot_find_module(bi, binary_name);
+
+    if (mem_region == NULL) {
+        return SPAWN_ERR_MAP_MODULE;
+    }
+    
+    //this mem_region should be of type module
+    assert(mem_region->mr_type == RegionType_Module);
+    struct capability cap;
+    struct capref child_frame = {
+        .cnode = cnode_module,
+        .slot = mem_region->mrmod_slot
+    };
+
+    ON_ERR_RETURN(err);
+
+    size_t mapping_size = get_size(&cap);
+    char* elf_address;
+    
+    err = paging_map_frame_attr(get_current_paging_state(), (void **) &elf_address,
+                          mapping_size, child_frame, VREGION_FLAGS_READ_WRITE, NULL, NULL);
+    ON_ERR_RETURN(err);
+
+    si->mapped_elf = (lvaddr_t) elf_address;
+    si->mapped_elf_size = (size_t) mem_region->mrmod_size;
+
+    char *args_string = (char *)  multiboot_module_opts(mem_region);
+    char copy[strlen(args_string)];
+    strcpy(copy,args_string);
+    strip_extra_spaces(copy);
+
+    int argc = get_argc(copy);
+    char  const *argv[argc];
+    create_argv(copy, (char **) argv);
+
+    // set binary name to full name
+    si->binary_name = binary_name;
+
+    return SYS_ERR_OK;
+}
+
 /**
  * TODO(M2): Implement this function.
  * \brief Spawn a new dispatcher executing 'binary_name'
@@ -525,7 +612,7 @@ errval_t spawn_load_by_name(char *binary_name, struct spawninfo *si,
     // set binary name to full name
     si->binary_name = binary_name;
 
-    return spawn_load_argv(argc,argv , si, pid);
+    return spawn_load_argv(argc, argv, si, pid);
 }
 
 
