@@ -299,6 +299,8 @@ static int bsp_main(int argc, char *argv[])
 
 
     spawn_new_domain("lpuart_terminal", NULL);
+    debug_printf("let's start enet\n");
+    /* spawn_new_domain("enet", NULL); */
     /*for (int i = 0; i < 20; i++) {
         spawn_new_domain("client",NULL);
         for (int j = 0; j < 10; j++) {

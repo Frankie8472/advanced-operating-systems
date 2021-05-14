@@ -571,6 +571,20 @@ int main(int argc, char *argv[]) {
                                     calloc(1, sizeof(struct enet_driver_state));    
     assert(st != NULL);
 
+    struct capref devframe = {
+        .cnode = cnode_task,
+        .slot = TASKCN_SLOT_DEV
+    };
+
+    void *device_frame;
+
+    err = paging_map_frame_attr(get_current_paging_state(), &device_frame,
+                                get_phys_size(devframe), devframe,
+                                DEVFRAME_ATTRIBUTES, NULL, NULL);
+    debug_printf("do we have an error?\n");
+
+    ON_ERR_RETURN(err);
+
     /* TODO Net Project: get the capability to the register region
      * and then map it so it is accessible. 
      * TODO set st->d_vaddr to the memory mapped register region */

@@ -225,6 +225,20 @@ errval_t spawn_load_argv(int argc, const char *const argv[], struct spawninfo *s
             .slot = TASKCN_SLOT_IRQ
         };
         cap_copy(irq, cap_irq);
+    } else if (strncmp(si->binary_name, "enet", 32) == 0) {
+        // TODO
+        debug_printf("special enet stuff\n");
+        size_t source_addr = get_phys_addr(dev_frame);
+        err = cap_retype(child_dev_frame, dev_frame, IMX8X_ENET_BASE - source_addr, ObjType_DevFrame, IMX8X_ENET_SIZE, 1);
+        DEBUG_ERR(err, "oh no\n");
+        ON_ERR_PUSH_RETURN(err, LIB_ERR_CAP_RETYPE);
+
+        struct capref irq = (struct capref) {
+            .cnode = taskcn,
+            .slot = TASKCN_SLOT_IRQ
+        };
+        cap_copy(irq, cap_irq);
+        debug_printf("DONE\n");
     }
 
     // ===========================================
