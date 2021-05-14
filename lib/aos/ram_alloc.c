@@ -20,7 +20,6 @@
 static errval_t ram_alloc_remote(struct capref *ret, size_t size, size_t alignment)
 {
     //TODO(M3): Implement me!
-    debug_printf("ram_alloc_remote\n");
     return aos_rpc_get_ram_cap(aos_rpc_get_memory_channel(), size, alignment, ret, NULL);
     //return LIB_ERR_NOT_IMPLEMENTED;
 }

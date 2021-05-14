@@ -66,10 +66,10 @@ static int memory_server_func(void *arg)
     errval_t err;
     debug_printf("memory server thread started\n");
     while (true) {
-        debug_printf("waiting in thread waitset\n");
+        //debug_printf("waiting in thread waitset\n");
         err = event_dispatch(&mm_waitset);
         if (err_is_fail(err)) {
-            DEBUG_ERR(err, "in event_dispatch");
+            DEBUG_ERR(err, "in event_dispatch of memory thread");
             abort();
         }
     }
@@ -148,7 +148,7 @@ void handle_getchar(struct aos_rpc *r, uintptr_t *c) {
  * \brief handler function for ram alloc rpc call
  */
 void handle_request_ram(struct aos_rpc *r, uintptr_t size, uintptr_t alignment, struct capref *cap, uintptr_t *ret_size) {
-    debug_printf("handle_request_ram\n");
+    //debug_printf("handle_request_ram\n");
     errval_t err = ram_alloc_aligned(cap, size, alignment);
     if (err_is_fail(err)) {
         DEBUG_ERR(err, "Error in remote ram allocation!\n");

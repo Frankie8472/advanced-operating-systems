@@ -1028,9 +1028,6 @@ void aos_rpc_on_lmp_message(void *arg)
             recieved_cap = NULL_CAP;
         }
     }
-    else {
-        debug_printf("not setting epcap\n");
-    }
 
     err = aos_rpc_unmarshall_lmp_aarch64(rpc, handler, binding, &msg, recieved_cap);
     if (err_is_fail(err)) {
