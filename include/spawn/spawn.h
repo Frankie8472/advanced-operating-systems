@@ -35,6 +35,7 @@ struct spawninfo {
     struct capref dispframe_cap;
     // cap to put into the new domain's cspace in the
     // slot for the spawner_ep
+    struct lmp_endpoint *spawner_ep;
     struct capref spawner_ep_cap;
 
     lvaddr_t mapped_elf;

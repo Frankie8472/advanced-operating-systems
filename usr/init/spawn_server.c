@@ -75,8 +75,9 @@ static void handle_get_ram(struct aos_rpc *rpc, size_t size, size_t alignment, s
     *retsize = size;
 }
 
-errval_t spawn_new_domain(const char *mod_name, domainid_t *new_pid, struct capref spawner_ep_cap, struct spawninfo **ret_si)
+errval_t spawn_new_domain(const char *mod_name, domainid_t *new_pid, struct capref child_stdout_cap, struct spawninfo **ret_si)
 {
+    errval_t err;
     struct spawninfo *si = spawn_create_spawninfo();
 
     domainid_t *pid = &si->pid;
@@ -86,13 +87,31 @@ errval_t spawn_new_domain(const char *mod_name, domainid_t *new_pid, struct capr
     initialize_initiate_handler(rpc);
     aos_rpc_register_handler(rpc, INIT_IFACE_GET_RAM, handle_get_ram);
 
-    if (capref_is_null(spawner_ep_cap)) {
-        struct lmp_endpoint *spawner_ep;
-        endpoint_create(LMP_RECV_LENGTH, &spawner_ep_cap, &spawner_ep);
+
+    struct aos_rpc *disp_rpc = &si->disp_rpc;
+
+    if (capref_is_null(child_stdout_cap)) {
+        err = endpoint_create(LMP_RECV_LENGTH, &child_stdout_cap, &si->spawner_ep);
+        DEBUG_ERR(err, "works?\n");
+        aos_rpc_init_lmp(disp_rpc, child_stdout_cap, NULL_CAP, si->spawner_ep, NULL);
     }
 
-    si->spawner_ep_cap = spawner_ep_cap;
+    void pront(struct aos_rpc *r, struct aos_rpc_varbytes bytes) {
+        debug_printf("pronting\n");
+        for (int i = 0; i < bytes.length; i++) {
+            printf("%c", bytes.bytes[i]);
+        }
+        printf("\n");
+    }
+    aos_rpc_set_interface(disp_rpc, get_write_interface(), DISP_IFACE_N_FUNCTIONS, malloc(DISP_IFACE_N_FUNCTIONS * sizeof(void *)));
+    aos_rpc_register_handler(disp_rpc, WRITE_IFACE_WRITE_VARBYTES, pront);
 
+
+    si->child_stdout_cap = child_stdout_cap;
+
+    char buf[128];
+    debug_print_cap_at_capref(buf, 128, si->child_stdout_cap);
+    debug_printf("created stdout ep: %s\n", buf);
 
     //initialize_rpc_handlers(rpc);
     spawn_load_by_name((char*) mod_name, si, pid);
@@ -106,7 +125,7 @@ errval_t spawn_new_domain(const char *mod_name, domainid_t *new_pid, struct capr
     if (new_pid != NULL) {
         *new_pid = *pid;
     }
-    errval_t err = lmp_chan_register_recv(&rpc->channel.lmp, get_default_waitset(), MKCLOSURE(&aos_rpc_on_lmp_message, &rpc));
+    err = lmp_chan_register_recv(&rpc->channel.lmp, get_default_waitset(), MKCLOSURE(&aos_rpc_on_lmp_message, &rpc));
     if (err_is_fail(err) && err == LIB_ERR_CHAN_ALREADY_REGISTERED) {
         // not too bad, already registered
     }
@@ -136,10 +155,10 @@ errval_t spawn_lpuart_driver(const char *mod_name)
     endpoint_create(LMP_RECV_LENGTH, &spawner_ep_cap, &spawner_ep);
 
     spawn_load_by_name((char*) mod_name, si, pid);
-    err = lmp_chan_register_recv(&rpc->channel.lmp, get_default_waitset(), MKCLOSURE(&aos_rpc_on_lmp_message, &rpc));
+    /*err = lmp_chan_register_recv(&rpc->channel.lmp, get_default_waitset(), MKCLOSURE(&aos_rpc_on_lmp_message, &rpc));
     if (err_is_fail(err) && err == LIB_ERR_CHAN_ALREADY_REGISTERED) {
         // not too bad, already registered
-    }
+    }*/
 
     struct cnoderef child_taskcn = {
         .croot = get_cap_addr(si->rootcn),

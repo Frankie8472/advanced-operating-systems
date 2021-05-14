@@ -114,8 +114,12 @@ static size_t aos_terminal_write(const char * buf,size_t len)
         .bytes = (char *)buf,
         .length = len
     };
-    debug_printf("aos_terminal_write\n");
-    aos_rpc_call(&stdout_rpc, AOS_RPC_SEND_VARBYTES, bytes);
+
+    char bof[128];
+    debug_print_cap_at_capref(bof, 128, stdout_rpc.channel.lmp.remote_cap);
+
+    debug_printf("aos_terminal_write to %s\n", bof);
+    aos_rpc_call(&stdout_rpc, WRITE_IFACE_WRITE_VARBYTES, bytes);
 
     return len;
 }
@@ -154,7 +158,7 @@ void barrelfish_libc_glue_init(void)
     // XXX: FIXME: Check whether we can use the proper kernel serial, and what we need for that
     // TODO: change these to use the user-space serial driver if possible
     // TODO: set these functions
-    if (init_domain || true) {
+    if (init_domain) {
         _libc_terminal_read_func = syscall_terminal_read;
         _libc_terminal_write_func = syscall_terminal_write;
         _libc_exit_func = libc_exit;

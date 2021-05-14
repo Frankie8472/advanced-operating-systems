@@ -1278,8 +1278,8 @@ static errval_t aos_rpc_unmarshall_retval_aarch64(struct aos_rpc *rpc, void **re
 static errval_t aos_rpc_unmarshall_lmp_aarch64(struct aos_rpc *rpc, void *handler, struct aos_rpc_function_binding *binding,
                                                struct lmp_recv_msg *msg, struct capref cap)
 {
-    // debug_printf("words: %ld %ld %ld %ld\n", msg->words[0], msg->words[1], msg->words[2], msg->words[3]);
-    // debug_printf("binding n_args = %d\n",binding->n_args);
+    //debug_printf("words: %ld %ld %ld %ld\n", msg->words[0], msg->words[1], msg->words[2], msg->words[3]);
+    //debug_printf("rpc = %p\n", rpc);
     struct lmp_chan *lc = &rpc->channel.lmp;
     
     typedef uintptr_t ui;
@@ -1386,7 +1386,7 @@ static errval_t aos_rpc_unmarshall_lmp_aarch64(struct aos_rpc *rpc, void *handle
         }
     }
 
-    debug_printf("calling handler %d with %d retargs: %s\n", binding->msg_type, binding->n_rets, binding->binding_name);
+    //debug_printf("calling handler %d with %d retargs: %s\n", binding->msg_type, binding->n_rets, binding->binding_name);
     h7(rpc, arg[0], arg[1], arg[2], arg[3], arg[4], arg[5], arg[6]);
 
     uintptr_t response[LMP_MSG_LENGTH];

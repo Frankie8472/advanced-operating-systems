@@ -48,11 +48,6 @@ errval_t init_dispatcher_rpcs(void)
 {
     errval_t err;
 
-    struct capref self_ep_cap = {
-        .cnode = cnode_task,
-        .slot = TASKCN_SLOT_SELFEP
-    };
-
     struct capref init_ep_cap = {
         .cnode = cnode_task,
         .slot = TASKCN_SLOT_INITEP
@@ -67,7 +62,7 @@ errval_t init_dispatcher_rpcs(void)
         .cnode = cnode_task,
         .slot = TASKCN_SLOT_SPAWNER_EP
     };
-
+    __unused
     struct capref stdout_ep_cap = {
         .cnode = cnode_task,
         .slot = TASKCN_SLOT_STDOUT_EP
@@ -77,10 +72,12 @@ errval_t init_dispatcher_rpcs(void)
     ON_ERR_RETURN(err);
     err = aos_rpc_set_interface(&mm_rpc, get_memory_server_interface(), 0, NULL);
     ON_ERR_RETURN(err);
+    err = aos_rpc_set_interface(&dispatcher_rpc, get_dispatcher_interface(), DISP_IFACE_N_FUNCTIONS, dispatcher_rpc_handlers);
+    ON_ERR_RETURN(err);
 
     // Establishing channel with init
     debug_printf("Trying to establish channel with init (or memory server with client):\n");
-    err = aos_rpc_init_lmp(&init_rpc, self_ep_cap, init_ep_cap, NULL, NULL);
+    err = aos_rpc_init_lmp(&init_rpc, NULL_CAP, init_ep_cap, NULL, NULL);
     if (err_is_fail(err)) {
         DEBUG_ERR(err, "Error establishing connection with init! aborting!");
         abort();
@@ -112,14 +109,14 @@ errval_t init_dispatcher_rpcs(void)
 
     endpoint_create(LMP_RECV_LENGTH, &epcap, &stdout_endpoint);
     err = aos_rpc_init_lmp(&stdout_rpc, epcap, stdout_ep_cap, stdout_endpoint, NULL);
+    err = aos_rpc_set_interface(&stdout_rpc, get_write_interface(), 0, NULL);
 
 
     struct capref stdin_epcap;
     struct lmp_endpoint *stdin_endpoint;
 
     endpoint_create(LMP_RECV_LENGTH * 8, &stdin_epcap, &stdin_endpoint);
-    err = aos_rpc_init_lmp(&stdout_rpc, stdin_epcap, NULL_CAP, stdin_endpoint, NULL);
-    err = aos_rpc_set_interface(&stdout_rpc, get_write_interface(), 0, NULL);
+    //err = aos_rpc_init_lmp(&stdout_rpc, stdin_epcap, NULL_CAP, stdin_endpoint, NULL);
 
 
 
@@ -130,20 +127,22 @@ errval_t init_dispatcher_rpcs(void)
         abort();
     }
 
-    err = aos_rpc_set_interface(&dispatcher_rpc, get_dispatcher_interface(), DISP_IFACE_N_FUNCTIONS, dispatcher_rpc_handlers);
-    ON_ERR_RETURN(err);
-
     initialize_dispatcher_handlers(&dispatcher_rpc);
+
+    debug_printf("dispatcher iface: %p\n", dispatcher_rpc);
 
 
     //err = aos_rpc_call(&dispatcher_rpc, DISP_IFACE_BINDING, dispatcher_rpc.channel.lmp.local_cap,
     //                   stdin_epcap, &stdout_rpc.channel.lmp.remote_cap);
-    struct capability rem_cap;
+    /*struct capability rem_cap;
     invoke_cap_identify(dispatcher_rpc.channel.lmp.remote_cap, &rem_cap);
     if (rem_cap.type == ObjType_EndPointLMP) {
         debug_printf("initiating!\n");
         err = aos_rpc_call(&dispatcher_rpc, AOS_RPC_INITIATE, dispatcher_rpc.channel.lmp.local_cap);
     }
+    else {
+        debug_printf("not calling!\n");
+    }*/
 
     return SYS_ERR_OK;
 }

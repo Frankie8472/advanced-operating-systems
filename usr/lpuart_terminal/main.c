@@ -48,7 +48,12 @@ static void handler(void *arg) {
             .bytes = &to_get,
             .length = 1
         };
-        aos_rpc_call(&stdout_rpc, AOS_RPC_SEND_VARBYTES, bytes);
+        if (!capref_is_null(stdout_rpc.channel.lmp.remote_cap)) {
+            err = aos_rpc_call(&stdout_rpc, AOS_RPC_SEND_VARBYTES, bytes);
+            if (err_is_fail(err)) {
+                debug_printf("error writing to stdout\n");
+            }
+        }
     }
 }
 
