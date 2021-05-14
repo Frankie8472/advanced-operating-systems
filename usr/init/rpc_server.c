@@ -214,7 +214,6 @@ void handle_service_on(struct aos_rpc *r, uintptr_t service){
             set_pm_online();
             break;
         case MEMORY_SERVER:
-            set_mem_online();
             break;
         default:
             debug_printf("Invalid parameter to turn on service\n");
@@ -277,13 +276,13 @@ void handle_init_process_register(struct aos_rpc *r,uintptr_t core_id,const char
 }
 
 
-void handle_mem_server_request(struct aos_rpc *r, struct capref client_cap, struct capref * server_cap){
-    errval_t err;
-    err = aos_rpc_call(get_mem_rpc(),AOS_RPC_MEM_SERVER_REQ,client_cap,server_cap);
-    if(err_is_fail(err)){
-        DEBUG_ERR(err,"Failed to relay memory server request\n");
-    }
-}
+// void handle_mem_server_request(struct aos_rpc *r, struct capref client_cap, struct capref * server_cap){
+//     errval_t err;
+//     err = aos_rpc_call(get_mem_rpc(),AOS_RPC_MEM_SERVER_REQ,client_cap,server_cap);
+//     if(err_is_fail(err)){
+//         DEBUG_ERR(err,"Failed to relay memory server request\n");
+//     }
+// }
 
 
 void handle_init_get_proc_name(struct aos_rpc *r, uintptr_t pid, char *name){

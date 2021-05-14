@@ -279,30 +279,7 @@ struct aos_rpc* get_pm_rpc(void){
 }
 
 
-void set_mem_online(void){
-    dispatcher_handle_t handle = curdispatcher();
-    struct dispatcher_generic* disp = get_dispatcher_generic(handle);
-    disp->core_state.c.mem_online = true;
-}
 
-bool get_mem_online(void){
-    dispatcher_handle_t handle = curdispatcher();
-    struct dispatcher_generic* disp = get_dispatcher_generic(handle);
-    return disp->core_state.c.mem_online;
-} 
-
-
-void set_mem_rpc(struct aos_rpc *mem_rpc){
-    dispatcher_handle_t handle = curdispatcher();
-    struct dispatcher_generic* disp = get_dispatcher_generic(handle);
-    disp->core_state.c.mem_rpc = mem_rpc;
-}
-
-struct aos_rpc* get_mem_rpc(void){
-    dispatcher_handle_t handle = curdispatcher();
-    struct dispatcher_generic* disp = get_dispatcher_generic(handle);
-    return disp->core_state.c.mem_rpc;
-}
 
 
 void set_init_domain(void){

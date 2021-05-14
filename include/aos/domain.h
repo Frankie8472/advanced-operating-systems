@@ -51,12 +51,9 @@ struct ram_alloc_state *get_ram_alloc_state(void);
 struct slot_alloc_state *get_slot_alloc_state(void);
 
 void set_pm_online(void);
-void set_mem_online(void);
 bool get_pm_online(void);
-bool get_mem_online(void);
 
-void set_mem_rpc(struct aos_rpc *mem_rpc);
-struct aos_rpc* get_mem_rpc(void);
+
 
 void set_pm_rpc(struct aos_rpc *pm_rpc);
 struct aos_rpc* get_pm_rpc(void);

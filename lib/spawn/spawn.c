@@ -351,9 +351,7 @@ errval_t spawn_load_argv(int argc, const char *const argv[], struct spawninfo *s
 
 
 
-    if(get_mem_online()){
-        disp_gen -> core_state.c.mem_online = true;
-    }
+
     if(get_pm_online()){
         disp_gen -> core_state.c.pm_online = true;
     }

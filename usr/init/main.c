@@ -102,31 +102,6 @@ static errval_t init_process_manager(void){
 }
 
 
-__attribute__((unused)) static errval_t init_memory_server(domainid_t *mem_pid){
-    errval_t err;
-    struct spawninfo *mem_si = spawn_create_spawninfo();
-    domainid_t *m_pid = &mem_si -> pid;
-    err = spawn_load_by_name("memory_server",mem_si,m_pid);
-    ON_ERR_RETURN(err);
-    struct aos_rpc *mem_rpc = &mem_si -> rpc;
-    // aos_rpc_init(mem_rpc); TODO (RPC): initialize interface
-    //initialize_rpc_handlers(mem_rpc);
-    struct waitset *default_ws = get_default_waitset();
-    debug_printf("waiting for memory server to come online ... \n");
-    while(!get_mem_online()){
-        err = event_dispatch(default_ws);
-        if (err_is_fail(err)) {
-            DEBUG_ERR(err, "in event_dispatch");
-            abort();
-        }
-    }
-    // err = spawn_new_domain("memory_server",&pid)
-    set_mem_rpc(mem_rpc);
-    debug_printf("Memory server online!\n");
-
-    *mem_pid = mem_si -> pid;
-    return SYS_ERR_OK;
-}
 
 
 __unused

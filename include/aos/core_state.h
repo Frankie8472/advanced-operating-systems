@@ -87,8 +87,6 @@ struct core_state_generic {
     bool pm_online;
     struct aos_rpc *pm_rpc;
 
-    bool mem_online;
-    struct aos_rpc *mem_rpc;
 
     bool init_domain;
 
