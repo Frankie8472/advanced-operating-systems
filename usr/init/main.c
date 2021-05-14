@@ -52,24 +52,22 @@
 coreid_t my_core_id;
 
 __unused
-static errval_t init_process_manager(void){
+static errval_t init_name_server(void){
     errval_t err;
-    struct spawninfo *pm_si = spawn_create_spawninfo();
-    domainid_t *pm_pid = &pm_si -> pid;
-    err = spawn_load_by_name("process_manager",pm_si,pm_pid);
-    *pm_pid = 0;
+    struct spawninfo *ns_si = spawn_create_spawninfo();
+    domainid_t *ns_pid = &ns_si -> pid;
+    err = spawn_load_by_name("nameserver",ns_si,ns_pid);
+    *ns_pid = 0;
     ON_ERR_RETURN(err);
 
 
-    struct aos_rpc *pm_rpc = &pm_si->rpc;
-    //static void *handlers[PM_IFACE_N_FUNCTIONS];
-    //aos_rpc_init(pm_rpc); TODO (RPC): initialize interface
-    initialize_initiate_handler(pm_rpc);
-    aos_rpc_set_interface(pm_rpc, get_pm_interface(), 0, NULL);
-    //initialize_rpc_handlers(pm_rpc);
+    struct aos_rpc *ns_rpc  = &ns_si->rpc;
 
-    debug_printf("waiting for process manager to come online...\n");
-    while(!get_pm_online()){
+    aos_rpc_set_interface(ns_rpc, get_init_interface(), INIT_IFACE_N_FUNCTIONS, malloc(INIT_IFACE_N_FUNCTIONS * sizeof(void *)));
+    initialize_rpc_handlers(ns_rpc);
+
+    debug_printf("waiting for name server to come online...\n");
+    while(!get_ns_online()){
         err = event_dispatch(get_default_waitset());
         if (err_is_fail(err)) {
             DEBUG_ERR(err, "in event_dispatch");
@@ -77,27 +75,15 @@ static errval_t init_process_manager(void){
         }
     }
 
-
-
-    debug_printf("Process manager is online!\n");
-
-    domainid_t pid;
-    err = aos_rpc_call(pm_rpc,AOS_RPC_REGISTER_PROCESS,disp_get_core_id(),"init",&pid);
+    domainid_t my_pid;
+    err = aos_rpc_call(ns_rpc,INIT_REG_INIT,disp_get_core_id(),"init",&my_pid);
     ON_ERR_RETURN(err);
-    disp_set_domain_id(pid);
-    //TODO: register memory server to PM
-    // err = aos_rpc_call(pm_rpc,AOS_RPC_REGISTER_PROCESS,*pm_pid,disp_get_core_id(),"process_manager");
-    // ON_ERR_RETURN(err);
-    set_pm_rpc(pm_rpc);
-    debug_printf("all finished!\n");
+    disp_set_domain_id(my_pid);
+    set_ns_rpc(ns_rpc);
+    
 
 
-    // char buf1[512];
-    // char buf2[512];
-    // debug_printf("=============================================================\n\n");
-    // debug_print_cap_at_capref(buf1,512,pm_rpc->channel.lmp.local_cap);
-    // debug_print_cap_at_capref(buf2, 512, pm_rpc -> channel.lmp.remote_cap);
-
+    debug_printf("Finalized \n");
     return SYS_ERR_OK;
 }
 
@@ -181,6 +167,8 @@ static errval_t init_foreign_core(void){
 
     err = start_memory_server_thread();
     ON_ERR_RETURN(err);
+
+
     // if (err_is_fail(err)) {
     //     DEBUG_ERR(err, "/>/> Error: starting memory thread");
     // }
@@ -273,6 +261,12 @@ static int bsp_main(int argc, char *argv[])
     if(err_is_fail(err)){
         DEBUG_ERR(err,"Failed to init terminal state\n");
     }
+
+    err = init_name_server();
+    if(err_is_fail(err)){
+        DEBUG_ERR(err,"Failed to start nameserver\n");
+    }
+
 
 
 

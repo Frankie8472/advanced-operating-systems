@@ -207,17 +207,21 @@ void handle_spawn(struct aos_rpc *old_rpc, const char *name, uintptr_t core_id, 
 }
 
 
+void handle_ns_on(struct aos_rpc *r){
+    set_ns_online();
+}
+
 void handle_service_on(struct aos_rpc *r, uintptr_t service){
-    debug_printf("Handle pm online\n");
-    switch(service){
-        case PROCESS_MANAGER: 
-            set_pm_online();
-            break;
-        case MEMORY_SERVER:
-            break;
-        default:
-            debug_printf("Invalid parameter to turn on service\n");
-    }
+    debug_printf("Handle nameserver online\n");
+    // switch(service){
+    //     case PROCESS_MANAGER: 
+    //         set_pm_online();
+    //         break;
+    //     case MEMORY_SERVER:
+    //         break;
+    //     default:
+    //         debug_printf("Invalid parameter to turn on service\n");
+    // }
 }
 
 void handle_foreign_spawn(struct aos_rpc *origin_rpc, const char *name, uintptr_t core_id, uintptr_t *new_pid)
@@ -276,13 +280,7 @@ void handle_init_process_register(struct aos_rpc *r,uintptr_t core_id,const char
 }
 
 
-// void handle_mem_server_request(struct aos_rpc *r, struct capref client_cap, struct capref * server_cap){
-//     errval_t err;
-//     err = aos_rpc_call(get_mem_rpc(),AOS_RPC_MEM_SERVER_REQ,client_cap,server_cap);
-//     if(err_is_fail(err)){
-//         DEBUG_ERR(err,"Failed to relay memory server request\n");
-//     }
-// }
+
 
 
 void handle_init_get_proc_name(struct aos_rpc *r, uintptr_t pid, char *name){
@@ -445,13 +443,13 @@ errval_t initialize_rpc_handlers(struct aos_rpc *rpc)
     void handle_roundtrip(struct aos_rpc *r) { return; }
     aos_rpc_register_handler(rpc, AOS_RPC_INITIATE, &handle_initiate);
     aos_rpc_register_handler(rpc, AOS_RPC_SEND_NUMBER, &handle_send_number);
-    aos_rpc_register_handler(rpc, INIT_IFACE_SPAWN, &handle_spawn);
     aos_rpc_register_handler(rpc, AOS_RPC_SEND_STRING, &handle_send_string);
     aos_rpc_register_handler(rpc, AOS_RPC_PUTCHAR, &handle_putchar);
     aos_rpc_register_handler(rpc, AOS_RPC_GETCHAR, &handle_getchar);
     aos_rpc_register_handler(rpc, AOS_RPC_ROUNDTRIP, &handle_roundtrip);
 
-
+    aos_rpc_register_handler(rpc, INIT_IFACE_SPAWN, &handle_spawn);
+    aos_rpc_register_handler(rpc, INIT_NAMESERVER_ON, &handle_ns_on);
 
     // aos_rpc_register_handler(rpc,AOS_RPC_REGISTER_PROCESS,&handle_init_process_register);
     // aos_rpc_register_handler(rpc,AOS_RPC_MEM_SERVER_REQ,&handle_mem_server_request);

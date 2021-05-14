@@ -39,6 +39,7 @@ static errval_t aos_rpc_unmarshall_lmp_aarch64(struct aos_rpc *rpc, void *handle
 
 /* ================== Global RPC Processing ================== */
 
+
 /**
  * \brief Initializes the RPC channel bindings and sets the default RPC channel bindings.
  */

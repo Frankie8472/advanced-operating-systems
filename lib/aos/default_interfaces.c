@@ -13,6 +13,10 @@ static struct aos_rpc_function_binding dispatcher_bindings[DISP_IFACE_N_FUNCTION
 static struct aos_rpc_interface memory_server_interface;
 static struct aos_rpc_function_binding memory_server_bindings[MM_IFACE_N_FUNCTIONS];
 
+
+static struct aos_rpc_interface name_server_interface;
+static struct aos_rpc_function_binding name_server_bindings[NS_IFACE_N_FUNCTIONS];
+
 static void initialize_interfaces(void)
 {
 
@@ -30,11 +34,18 @@ static void initialize_interfaces(void)
     aos_rpc_initialize_binding(&init_interface, "putchar" ,AOS_RPC_PUTCHAR, 1, 0, AOS_RPC_WORD);
     aos_rpc_initialize_binding(&init_interface, "getchar", AOS_RPC_GETCHAR, 0, 1, AOS_RPC_WORD);
     aos_rpc_initialize_binding(&init_interface, "binding_reqeust",AOS_RPC_BINDING_REQUEST,4,1,AOS_RPC_WORD,AOS_RPC_WORD,AOS_RPC_WORD,AOS_RPC_CAPABILITY,AOS_RPC_CAPABILITY);
+
     aos_rpc_initialize_binding(&init_interface, "round_trip",AOS_RPC_ROUNDTRIP, 0, 0);
+
+    aos_rpc_initialize_binding(&init_interface, "NS ON", INIT_NAMESERVER_ON, 0, 0);
 
     aos_rpc_initialize_binding(&init_interface, "spawn", INIT_IFACE_SPAWN,
                                2, 1, AOS_RPC_VARSTR, AOS_RPC_WORD, AOS_RPC_WORD);
 
+
+    aos_rpc_initialize_binding(&init_interface, "reg_prc", INIT_REG_NAMESERVER, 3, 2, AOS_RPC_WORD, AOS_RPC_VARSTR,AOS_RPC_CAPABILITY,AOS_RPC_WORD,AOS_RPC_CAPABILITY);
+
+    aos_rpc_initialize_binding(&init_interface, "init_ns_reg", INIT_REG_INIT, 2, 1, AOS_RPC_WORD, AOS_RPC_VARSTR,AOS_RPC_WORD);
 
 
 
@@ -56,7 +67,6 @@ static void initialize_interfaces(void)
 
 
 
-    // -> stub compiler 
 
 
     // ===================== Memory Server Interface =====================
@@ -68,6 +78,17 @@ static void initialize_interfaces(void)
                                1, 0, AOS_RPC_CAPABILITY);
     aos_rpc_initialize_binding(&memory_server_interface, "get_ram", MM_IFACE_GET_RAM,
                                2, 2, AOS_RPC_WORD, AOS_RPC_WORD, AOS_RPC_CAPABILITY, AOS_RPC_WORD);
+
+
+
+
+    // ===================== Name Server Interface ========================
+
+    name_server_interface.n_bindings = NS_IFACE_N_FUNCTIONS;
+    name_server_interface.bindings = name_server_bindings;
+
+
+
 
     initialized = true;
 }
@@ -99,6 +120,15 @@ struct aos_rpc_interface *get_memory_server_interface(void)
     }
 
     return &memory_server_interface;
+}
+
+struct aos_rpc_interface *get_nameserver_interface(void)
+{
+    if (!initialized) {
+        initialize_interfaces();
+    }
+
+    return &name_server_interface;
 }
 
 

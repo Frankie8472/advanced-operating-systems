@@ -59,6 +59,13 @@ void set_pm_rpc(struct aos_rpc *pm_rpc);
 struct aos_rpc* get_pm_rpc(void);
 
 
+void set_ns_rpc(struct aos_rpc *ns_rpc);
+struct aos_rpc* get_ns_rpc(void);
+
+
+void set_ns_online(void);
+bool get_ns_online(void);
+
 void set_init_domain(void);
 bool get_init_domain(void);
 

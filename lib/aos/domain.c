@@ -311,3 +311,28 @@ void set_core_channel(coreid_t core_id, struct aos_rpc * core_channel){
     struct dispatcher_generic* disp = get_dispatcher_generic(handle);
     disp -> core_state.c.core_channels[core_id] = core_channel;
 }
+
+void set_ns_online(void){
+    dispatcher_handle_t handle = curdispatcher();
+    struct dispatcher_generic* disp = get_dispatcher_generic(handle);
+    disp -> core_state.c.ns_online = true;
+}
+
+bool get_ns_online(void){
+    dispatcher_handle_t handle = curdispatcher();
+    struct dispatcher_generic* disp = get_dispatcher_generic(handle);
+    return disp -> core_state.c.ns_online;
+}
+
+
+struct aos_rpc* get_ns_rpc(void){
+    dispatcher_handle_t handle = curdispatcher();
+    struct dispatcher_generic* disp = get_dispatcher_generic(handle);
+    return disp -> core_state.c.ns_rpc;
+}
+
+void set_ns_rpc(struct aos_rpc *ns_rpc){
+    dispatcher_handle_t handle = curdispatcher();
+    struct dispatcher_generic* disp = get_dispatcher_generic(handle);
+    disp -> core_state.c.ns_rpc= ns_rpc;
+}

@@ -7,12 +7,16 @@ struct aos_rpc_interface *get_init_interface(void);
 struct aos_rpc_interface *get_dispatcher_interface(void);
 struct aos_rpc_interface *get_write_interface(void);
 struct aos_rpc_interface *get_memory_server_interface(void);
+struct aos_rpc_interface *get_nameserver_interface(void);
 
 void initialize_initiate_handler(struct aos_rpc *rpc);
 
 enum {
     INIT_IFACE_SPAWN = AOS_RPC_MSG_TYPE_START,
     //FORWARDING TODO
+    INIT_NAMESERVER_ON,
+    INIT_REG_NAMESERVER,
+    INIT_REG_INIT,
     INIT_IFACE_N_FUNCTIONS, // <- count -- must be last
 };
 
@@ -36,6 +40,15 @@ enum {
 enum {
     MM_IFACE_GET_RAM = AOS_RPC_MSG_TYPE_START,
     MM_IFACE_N_FUNCTIONS, // <- count -- must be last
+};
+
+
+enum {
+    NS_REG_SERVER = AOS_RPC_MSG_TYPE_START,
+    // NS_GET_PROC_NAME,
+    // NS_GET_PROC_CORE,
+    NS_IFACE_N_FUNCTIONS,
+
 };
 
 

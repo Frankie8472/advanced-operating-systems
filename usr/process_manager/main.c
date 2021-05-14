@@ -209,10 +209,10 @@ int main(int argc, char *argv[])
     
     struct waitset *default_ws = get_default_waitset();
 
-    err = aos_rpc_call(init_rpc,AOS_RPC_SERVICE_ON,0);
-    if(err_is_fail(err)){
-        DEBUG_ERR(err,"Failed to call AOS_RPC_SERVICE_ON\n");
-    }
+    // err = aos_rpc_call(init_rpc,AOS_RPC_SERVICE_ON,0);
+    // if(err_is_fail(err)){
+    //     DEBUG_ERR(err,"Failed to call AOS_RPC_SERVICE_ON\n");
+    // }
 
     debug_printf("Message handler loop\n");
     while (true) {

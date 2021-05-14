@@ -13,6 +13,10 @@
 [ build application 
   { 
     target = "nameserver",
-    cFiles = [ "nameserver.c" ]
+    cFiles = [ 
+      "nameserver.c",
+      "process_list.c",
+      "nameserver_handlers.c"
+    ]
   }
 ]

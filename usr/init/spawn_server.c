@@ -68,10 +68,6 @@ errval_t spawn_new_core(coreid_t core)
     return SYS_ERR_OK;
 }
 
-static void handle_get_ram(struct aos_rpc *rpc, size_t size, size_t alignment, struct capref *ramcap, size_t *retsize) {
-    ram_alloc_aligned(ramcap, size, alignment);
-    *retsize = size;
-}
 
 errval_t spawn_new_domain(const char *mod_name, domainid_t *new_pid, struct capref spawner_ep_cap)
 {
@@ -81,8 +77,7 @@ errval_t spawn_new_domain(const char *mod_name, domainid_t *new_pid, struct capr
     struct aos_rpc *rpc = &si->rpc;
 
     aos_rpc_set_interface(rpc, get_init_interface(), INIT_IFACE_N_FUNCTIONS, malloc(INIT_IFACE_N_FUNCTIONS * sizeof(void *)));
-    // initialize_initiate_handler(rpc);
-    aos_rpc_register_handler(rpc, MM_IFACE_GET_RAM, handle_get_ram);
+    initialize_rpc_handlers(rpc);
 
     if (capref_is_null(spawner_ep_cap)) {
         struct lmp_endpoint *spawner_ep;
@@ -91,7 +86,6 @@ errval_t spawn_new_domain(const char *mod_name, domainid_t *new_pid, struct capr
 
     si->spawner_ep_cap = spawner_ep_cap;
 
-    initialize_rpc_handlers(rpc);
     spawn_load_by_name((char*) mod_name, si, pid);
 
     /*char buf[128];
