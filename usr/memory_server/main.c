@@ -24,13 +24,13 @@ static void handle_mem_server_request(struct aos_rpc *r, struct capref client_ca
 
     // ON_ERR_RETURN(err,LIB_ERR_ENDPOINT_CREATE);
     static struct aos_rpc rpc;
-    err = aos_rpc_init(&rpc);
+    //err = aos_rpc_init(&rpc); TODO (RPC) set interface
     if(err_is_fail(err)){
         DEBUG_ERR(err,"Failed to init rpc in memory server\n");
     }
 
 
-    err = aos_rpc_init_lmp(&rpc,self_ep_cap,client_cap,lmp_ep);
+    err = aos_rpc_init_lmp(&rpc,self_ep_cap,client_cap,lmp_ep, NULL);
     if(err_is_fail(err)){
         DEBUG_ERR(err,"Failed to register waitset on rpc\n");
     }

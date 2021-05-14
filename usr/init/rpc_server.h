@@ -8,6 +8,8 @@
 errval_t init_terminal_state(void);
 
 
+errval_t start_memory_server_thread(void);
+
 
 enum SERVICES {
     PROCESS_MANAGER,

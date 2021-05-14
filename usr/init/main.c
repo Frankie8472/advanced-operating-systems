@@ -16,6 +16,7 @@
 #include <stdlib.h>
 
 #include <aos/aos.h>
+#include <aos/default_interfaces.h>
 #include <aos/morecore.h>
 #include <aos/paging.h>
 #include <aos/waitset.h>
@@ -42,6 +43,8 @@
 
 #include <aos/kernel_cap_invocations.h>
 
+#include <process_manager_interface.h>
+
 
 // #include <aos/curdispatcher_arch.h>
 
@@ -51,18 +54,23 @@ coreid_t my_core_id;
 __unused
 static errval_t init_process_manager(void){
     errval_t err;
-    struct waitset *default_ws = get_default_waitset();
     struct spawninfo *pm_si = spawn_create_spawninfo();
     domainid_t *pm_pid = &pm_si -> pid;
     err = spawn_load_by_name("process_manager",pm_si,pm_pid);
     *pm_pid = 0;
     ON_ERR_RETURN(err);
-    struct aos_rpc *pm_rpc = &pm_si -> rpc;
-    aos_rpc_init(pm_rpc);
-    initialize_rpc_handlers(pm_rpc);
+
+
+    struct aos_rpc *pm_rpc = &pm_si->rpc;
+    //static void *handlers[PM_IFACE_N_FUNCTIONS];
+    //aos_rpc_init(pm_rpc); TODO (RPC): initialize interface
+    initialize_initiate_handler(pm_rpc);
+    aos_rpc_set_interface(pm_rpc, get_pm_interface(), 0, NULL);
+    //initialize_rpc_handlers(pm_rpc);
+
     debug_printf("waiting for process manager to come online...\n");
     while(!get_pm_online()){
-        err = event_dispatch(default_ws);
+        err = event_dispatch(get_default_waitset());
         if (err_is_fail(err)) {
             DEBUG_ERR(err, "in event_dispatch");
             abort();
@@ -101,8 +109,8 @@ __attribute__((unused)) static errval_t init_memory_server(domainid_t *mem_pid){
     err = spawn_load_by_name("memory_server",mem_si,m_pid);
     ON_ERR_RETURN(err);
     struct aos_rpc *mem_rpc = &mem_si -> rpc;
-    aos_rpc_init(mem_rpc);
-    initialize_rpc_handlers(mem_rpc);
+    // aos_rpc_init(mem_rpc); TODO (RPC): initialize interface
+    //initialize_rpc_handlers(mem_rpc);
     struct waitset *default_ws = get_default_waitset();
     debug_printf("waiting for memory server to come online ... \n");
     while(!get_mem_online()){
@@ -269,6 +277,11 @@ static int bsp_main(int argc, char *argv[])
         DEBUG_ERR(err, "/>/> Error: Initialize_ram_alloc");
     }
 
+    err = start_memory_server_thread();
+    if (err_is_fail(err)) {
+        DEBUG_ERR(err, "/>/> Error: starting memory thread");
+    }
+
     err = init_terminal_state();
     if(err_is_fail(err)){
         DEBUG_ERR(err,"Failed to init terminal state\n");
@@ -279,10 +292,10 @@ static int bsp_main(int argc, char *argv[])
     //    DEBUG_ERR(err,"Failed to init memory state\n");
     //}
 
-    err = init_process_manager();
+    /*err = init_process_manager();
     if(err_is_fail(err)){
         DEBUG_ERR(err,"Failed to init terminal state\n");
-    }
+    }*/
 
 
     /*struct capref lmp_ep;
@@ -301,20 +314,41 @@ static int bsp_main(int argc, char *argv[])
     spawn_lpuart_driver("lpuart_terminal");
 
     domainid_t pid;
-    spawn_new_domain("josh", &pid);
+    struct spawninfo *josh_si;
+
+    struct capref jepcap;
+    struct lmp_endpoint *jep;
+    endpoint_create(LMP_RECV_LENGTH, &jepcap, &jep);
+
+    spawn_new_domain("josh", &pid, jepcap, &josh_si);
 
 
+
+    struct aos_rpc *josh_rpc = &josh_si->disp_rpc;
+
+    aos_rpc_set_interface(josh_rpc, get_dispatcher_interface(), DISP_IFACE_N_FUNCTIONS, malloc(DISP_IFACE_N_FUNCTIONS * sizeof(void *)));
+    initialize_initiate_handler(josh_rpc);
+    aos_rpc_init_lmp(josh_rpc, jepcap, NULL_CAP, jep, NULL);
 
     
-    struct aos_rpc *josh_rpc = get_rpc_from_spawn_info(pid);
     struct aos_rpc *lpuart_rpc = get_rpc_from_spawn_info(pid - 1);
-    struct capref josh_in;
+
+
+    while (capref_is_null(josh_rpc->channel.lmp.remote_cap)) {
+        err = event_dispatch(get_default_waitset());
+        if (err_is_fail(err)) {
+            DEBUG_ERR(err, "in event_dispatch");
+            abort();
+        }
+    }
     debug_printf("getting josh in\n");
-    aos_rpc_call(josh_rpc, AOS_RPC_GET_STDIN_EP, &josh_in);
+
+    struct capref josh_in;
+    aos_rpc_call(josh_rpc, DISP_IFACE_GET_STDIN, &josh_in);
 
     
     debug_printf("got josh in\n");
-    aos_rpc_call(lpuart_rpc, AOS_RPC_SET_STDOUT_EP, josh_in);
+    aos_rpc_call(lpuart_rpc, DISP_IFACE_SET_STDOUT, josh_in);
 
 
     /*for (int i = 0; i < 20; i++) {
@@ -423,7 +457,7 @@ static int app_main(int argc, char *argv[])
     
     // run_init_tests(my_core_id);
 
-    spawn_new_domain("client",NULL);
+    //spawn_new_domain("client", NULL, NULL_CAP, NULL);
 
     grading_setup_app_init(bi);
 

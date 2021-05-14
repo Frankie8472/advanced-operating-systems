@@ -33,6 +33,9 @@ struct spawninfo {
 
     struct capref dispatcher_cap;
     struct capref dispframe_cap;
+    // cap to put into the new domain's cspace in the
+    // slot for the spawner_ep
+    struct capref spawner_ep_cap;
 
     lvaddr_t mapped_elf;
     size_t mapped_elf_size;
@@ -42,9 +45,15 @@ struct spawninfo {
 
     struct paging_state ps;
     struct capref dispatcher;
-    struct capref cap_ep;
+    struct capref cap_ep, child_ep;
     struct lmp_endpoint *lmp_ep;
     struct aos_rpc rpc;
+
+
+    struct aos_rpc disp_rpc;
+
+    struct capref child_stdout_cap;
+    struct lmp_endpoint *child_stdout;
 
     // TODO(M2): Add fields you need to store state
     //           when spawning a new dispatcher,

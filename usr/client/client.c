@@ -16,7 +16,7 @@ int main(int argc, char *argv[])
     // stack_overflow();
 
     errval_t err;
-    // debug_printf("Client\n");
+    debug_printf("Client\n");
 
 
   
@@ -38,7 +38,7 @@ int main(int argc, char *argv[])
     // }    
 
 
-    struct aos_rpc server_rpc;
+    /*struct aos_rpc server_rpc;
     do {
         err = aos_rpc_new_binding_by_name("server",&server_rpc);
     }while(err_is_fail(err));
@@ -63,11 +63,10 @@ int main(int argc, char *argv[])
     // err = aos_rpc_send_number(&server_rpc,disp_get_domain_id());
     if(err_is_fail(err)){
         DEBUG_ERR(err,"Failed to send number from client to server\n");
-    }
+    }*/
 
 
-    err = aos_rpc_init(&server_rpc);
-    
+    //err = aos_rpc_init(&server_rpc);
 
 
     struct waitset *default_ws = get_default_waitset();

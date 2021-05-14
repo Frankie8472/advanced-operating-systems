@@ -17,6 +17,8 @@
 #include <stdio.h>
 
 #include <aos/aos.h>
+#include <aos/default_interfaces.h>
+#include <aos/dispatcher_rpc.h>
 #include <aos/dispatch.h>
 #include <aos/curdispatcher_arch.h>
 #include <aos/dispatcher_arch.h>
@@ -40,6 +42,7 @@ static struct aos_rpc rpcs[100];
 
 struct aos_rpc stdin_rpc;
 struct aos_rpc stdout_rpc;
+
 
 extern size_t (*_libc_terminal_read_func)(char *, size_t);
 extern size_t (*_libc_terminal_write_func)(const char *, size_t);
@@ -151,7 +154,7 @@ void barrelfish_libc_glue_init(void)
     // XXX: FIXME: Check whether we can use the proper kernel serial, and what we need for that
     // TODO: change these to use the user-space serial driver if possible
     // TODO: set these functions
-    if (init_domain) {
+    if (init_domain || true) {
         _libc_terminal_read_func = syscall_terminal_read;
         _libc_terminal_write_func = syscall_terminal_write;
         _libc_exit_func = libc_exit;
@@ -170,6 +173,7 @@ void barrelfish_libc_glue_init(void)
     static char buf[BUFSIZ];
     setvbuf(stdout, buf, _IOLBF, sizeof(buf));
 }
+
 
 
 /** \brief Initialise libbarrelfish.
@@ -221,48 +225,26 @@ errval_t barrelfish_init_onthread(struct spawn_domain_params *params)
     err = ram_alloc_set(NULL);
     ON_ERR_RETURN(err);
 
-    static struct aos_rpc init_rpc;
-    struct capref self_ep_cap = (struct capref) {
-      .cnode = cnode_task,
-      .slot = TASKCN_SLOT_SELFEP
-    };
+    init_dispatcher_rpcs();
+    debug_printf("init_dispatcher_rpcs returned\n");
 
-    struct capref init_ep_cap = (struct capref) {
-      .cnode = cnode_task,
-      .slot = TASKCN_SLOT_INITEP
-    };
 
-    err = aos_rpc_init(&init_rpc);
-    ON_ERR_RETURN(err);
+    //err = aos_rpc_init(&init_rpc);
+    //ON_ERR_RETURN(err);
 
-    err = aos_rpc_init_lmp(&init_rpc, self_ep_cap, init_ep_cap, NULL);
-    ON_ERR_RETURN(err);
+    //err = aos_rpc_init_lmp(&init_rpc, self_ep_cap, init_ep_cap, NULL);
+    //ON_ERR_RETURN(err);
 
     // we are not in init and do already have a remote cap
     // we need to initiate a connection so init gets our endpoint capability
-    debug_printf("Trying to establish channel with init (or memory server with client):\n");
 
-    
-    err = aos_rpc_init(&init_rpc);
-    ON_ERR_RETURN(err);
-    err = aos_rpc_init_lmp(&init_rpc, self_ep_cap, init_ep_cap, NULL);
-    if (err_is_fail(err) && err_pop(err) == LIB_ERR_RPC_INITIATE) {
-        DEBUG_ERR(err, "Error establishing connection with init! aborting!");
-        abort();
-        }
+    //err = aos_rpc_init(&init_rpc);
+    //ON_ERR_RETURN(err);
 
-    // err = initialize_rpc_handlers(&init_rpc);
-    if(err_is_fail(err)){
-        DEBUG_ERR(err,"Failed to initialize handlers!");
-    }
-
-    initialize_general_purpose_handler(&init_rpc);
-    set_init_rpc(&init_rpc);
-
-    struct capref in_epcap;
-    struct lmp_endpoint *in_ep;
-    endpoint_create(LMP_RECV_LENGTH * 8, &in_epcap, &in_ep);
-    aos_rpc_init_lmp(&stdin_rpc, in_epcap, NULL_CAP, in_ep);
+    //struct capref in_epcap;
+    //struct lmp_endpoint *in_ep;
+    //endpoint_create(LMP_RECV_LENGTH * 8, &in_epcap, &in_ep);
+    //aos_rpc_init_lmp(&stdin_rpc, in_epcap, NULL_CAP, in_ep);
 
 
     // debug_printf("Is memory server online: %d?\n",get_mem_online());
@@ -277,20 +259,10 @@ errval_t barrelfish_init_onthread(struct spawn_domain_params *params)
 
     //     err = aos_rpc_init(&mem_rpc);
     //     ON_ERR_RETURN(err);
-            
 
     // call initiate function with our endpoint cap as argument in order
     // to make it known to init
-    err = aos_rpc_call(&init_rpc, AOS_RPC_INITIATE, init_rpc.channel.lmp.local_cap);
-    if (!err_is_fail(err)) {
-        debug_printf("init channel established!\n");
-    }
-    else {
-        DEBUG_ERR(err, "Error establishing connection with init! aborting!");
-        abort();
-    }
 
-    set_init_rpc(&init_rpc);
 
     // debug_printf("Is memory server online: %d?\n",get_mem_online());
     // if(get_mem_online()){
@@ -388,7 +360,7 @@ void handle_all_binding_request_on_process(struct aos_rpc *r, uintptr_t pid, uin
         if(err_is_fail(err)){
             DEBUG_ERR(err,"Failed to create ep in memory server\n");
         }
-        err = aos_rpc_init_lmp(rpc,self_ep_cap,client_cap,lmp_ep);
+        err = aos_rpc_init_lmp(rpc,self_ep_cap,client_cap,lmp_ep, NULL);
         if(err_is_fail(err)){
             DEBUG_ERR(err,"Failed to register waitset on rpc\n");
         }
@@ -415,7 +387,7 @@ void handle_all_binding_request_on_process(struct aos_rpc *r, uintptr_t pid, uin
 
 
 
-    err = aos_rpc_init(rpc);
+    //err = aos_rpc_init(rpc); // TODO (RPC): set interface
     if(err_is_fail(err)){
         DEBUG_ERR(err,"Failed to init rpc\n");
     }
@@ -458,7 +430,7 @@ void handle_set_stdout_ep(struct aos_rpc *r, struct capref ep) {
     struct lmp_endpoint *lmp_ep;
     struct capref ep_cap;
     endpoint_create(LMP_RECV_LENGTH, &ep_cap, &lmp_ep);
-    aos_rpc_init_lmp(&stdout_rpc, ep_cap, ep, lmp_ep); // TODO: delete old ep
+    aos_rpc_init_lmp(&stdout_rpc, ep_cap, ep, lmp_ep, get_default_waitset()); // TODO: delete old ep
     aos_rpc_register_handler(&stdout_rpc, AOS_RPC_SEND_VARBYTES, handle_stdin_data);
 }
 

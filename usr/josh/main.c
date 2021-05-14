@@ -27,6 +27,7 @@ int main(int argc, char **argv)
         __asm volatile("mov x8, x8\n");
     }
 
+    debug_printf("reading char...");
     char c = getchar();
     debug_printf("read chan '%c'\n", c);
 

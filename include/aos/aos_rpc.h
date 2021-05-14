@@ -37,6 +37,8 @@ enum aos_rpc_backend {
  */
 typedef enum aos_rpc_msg_type {
     AOS_RPC_INITIATE = 0,
+    AOS_RPC_MSG_TYPE_START,
+
     AOS_RPC_SEND_NUMBER, //1
     AOS_RPC_SEND_STRING,
     AOS_RPC_SEND_VARBYTES,
@@ -92,40 +94,54 @@ struct aos_rpc_varbytes
  */
 struct aos_rpc_function_binding
 {
-    enum aos_rpc_msg_type           port;
+    int                             msg_type;
     uint16_t                        n_args;
     uint16_t                        n_rets;
     void                            *buf_page;
     void                            *buf_page_remote;
-    bool                            calling_simple;
-    bool                            returning_simple;
+    char                            binding_name[32];
     enum aos_rpc_argument_type      args[AOS_RPC_MAX_FUNCTION_ARGUMENTS];
     enum aos_rpc_argument_type      rets[AOS_RPC_MAX_FUNCTION_ARGUMENTS];
 };
 
+
+struct aos_rpc_interface
+{
+    size_t n_bindings;
+    struct aos_rpc_function_binding *bindings;
+};
+
+
 /* An RPC binding, which may be transported over LMP or UMP. */
 struct aos_rpc {
     enum aos_rpc_backend backend;
+
+    ///
+    /// \brief sends with each call also the endpoint capability to which
+    ///        it should return the call to.
+    /// \note  This is dangerous when used with multi-msg calls, as message receiving might interleave
+    ///
+    bool lmp_server_mode;
 
     union backend_channel {
         struct lmp_chan lmp;
         struct ump_chan ump;
     } channel;
 
-    size_t n_bindings;
-    struct aos_rpc_function_binding bindings[AOS_RPC_DEFAULT_MSG_TYPES];
+    struct aos_rpc_interface *interface;
 
-    // TODO: make solution dynamic to allow arbitrarily many rpc functions
-    void *handlers[AOS_RPC_DEFAULT_MSG_TYPES];
-    // TODO(M3): Add state
-    // This is only for init rpcs
+    struct waitset *waitset;
+
+    size_t n_handlers;
+    void **handlers;
 };
 
-errval_t aos_rpc_init(struct aos_rpc *rpc);
-errval_t aos_rpc_init_lmp(struct aos_rpc *rpc, struct capref self_ep, struct capref end_ep, struct lmp_endpoint *lmp_ep);
+errval_t aos_rpc_set_interface(struct aos_rpc *rpc, struct aos_rpc_interface *interface, size_t n_handlers, void **handlers);
+
+errval_t aos_rpc_init_lmp(struct aos_rpc *rpc, struct capref self_ep, struct capref end_ep, struct lmp_endpoint *lmp_ep, struct waitset *waitset);
 errval_t aos_rpc_init_ump_default(struct aos_rpc *rpc, lvaddr_t shared_page, size_t shared_page_size, bool first_half);
 
-errval_t aos_rpc_initialize_binding(struct aos_rpc *rpc, enum aos_rpc_msg_type msg_type,
+errval_t aos_rpc_initialize_binding(struct aos_rpc_interface *interface, const char *name, int msg_type,
                                     int n_args, int n_rets, ...);
 
 errval_t aos_rpc_call(struct aos_rpc *rpc, enum aos_rpc_msg_type binding, ...);
