@@ -192,7 +192,8 @@ errval_t aos_rpc_init_ump_default(struct aos_rpc *rpc, lvaddr_t shared_page, siz
 *            of the return types.
 */
 errval_t aos_rpc_initialize_binding(struct aos_rpc_interface *interface, const char *name, int msg_type, int n_args, int n_rets, ...)
-{
+{   
+
     assert(msg_type < interface->n_bindings);
 
     struct aos_rpc_function_binding *fb = &interface->bindings[msg_type];
@@ -250,7 +251,8 @@ errval_t aos_rpc_register_handler(struct aos_rpc *rpc, enum aos_rpc_msg_type msg
  *            AOS_RPC_CAPABILITY    becomes struct capref
  */
 errval_t aos_rpc_call(struct aos_rpc *rpc, enum aos_rpc_msg_type msg_type, ...)
-{
+{   
+
 
     va_list args;
     va_start(args, msg_type);
@@ -824,7 +826,7 @@ static errval_t aos_rpc_call_lmp(struct aos_rpc *rpc, enum aos_rpc_msg_type msg_
 
 
 
-    //debug_printf("THis domain: %d is calling call with type %d\n",disp_get_domain_id(),msg_type );
+    // debug_printf("THis domain: %d is calling call with type %d\n",disp_get_domain_id(),msg_type );
 
     assert(rpc);
     assert(rpc->backend == AOS_RPC_LMP);
@@ -833,6 +835,8 @@ static errval_t aos_rpc_call_lmp(struct aos_rpc *rpc, enum aos_rpc_msg_type msg_
     errval_t err;
 
     struct lmp_chan *lc = &rpc->channel.lmp;
+
+
 
     struct aos_rpc_function_binding *binding = &rpc->interface->bindings[msg_type];
     size_t n_args = binding->n_args;
@@ -844,6 +848,7 @@ static errval_t aos_rpc_call_lmp(struct aos_rpc *rpc, enum aos_rpc_msg_type msg_
     size_t buf_page_offset = 0;
 
 
+
     if (rpc->lmp_server_mode) {
         send_cap = rpc->channel.lmp.local_cap;
     }
@@ -851,7 +856,6 @@ static errval_t aos_rpc_call_lmp(struct aos_rpc *rpc, enum aos_rpc_msg_type msg_
     words[0] = msg_type;
     int word_ind = 1;
     int ret_ind = 0;
-
     for (int i = 0; i < n_args; i++) {
         switch(binding->args[i]) {
         case AOS_RPC_WORD: {

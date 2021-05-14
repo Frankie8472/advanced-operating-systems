@@ -182,6 +182,8 @@ static errval_t init_foreign_core(void){
         .slot = 0,
     };
 
+
+
     err = frame_forge(bootinfo_cap, urpc_init[0], urpc_init[1], 0);
     ON_ERR_RETURN(err);
     
@@ -199,6 +201,14 @@ static errval_t init_foreign_core(void){
     err = initialize_ram_alloc_foreign(core_ram);
     
     ON_ERR_RETURN(err);
+
+
+
+    err = start_memory_server_thread();
+    ON_ERR_RETURN(err);
+    // if (err_is_fail(err)) {
+    //     DEBUG_ERR(err, "/>/> Error: starting memory thread");
+    // }
 
     // const int nBenches = 100;
 
@@ -244,12 +254,14 @@ static errval_t init_foreign_core(void){
 
     
     // disp_set_domain_id(disp_get_current_core_id() << 10);
-    domainid_t my_pid;
-    err = aos_rpc_call(get_core_channel(0),AOS_RPC_REGISTER_PROCESS,disp_get_current_core_id(),"init",&my_pid);
-    disp_set_domain_id(my_pid);
-    if(err_is_fail(err)){
-        DEBUG_ERR(err,"Failed to register new init to pm\n");
-    }
+    // domainid_t my_pid;
+
+
+    // err = aos_rpc_call(get_core_channel(0),AOS_RPC_REGISTER_PROCESS,disp_get_current_core_id(),"init",&my_pid);
+    // disp_set_domain_id(my_pid);
+    // if(err_is_fail(err)){
+    //     DEBUG_ERR(err,"Failed to register new init to pm\n");
+    // }
     return SYS_ERR_OK;
 }
 
@@ -287,15 +299,6 @@ static int bsp_main(int argc, char *argv[])
         DEBUG_ERR(err,"Failed to init terminal state\n");
     }
 
-    //err = init_memory_server();
-    //if(err_is_fail(err)){
-    //    DEBUG_ERR(err,"Failed to init memory state\n");
-    //}
-
-    /*err = init_process_manager();
-    if(err_is_fail(err)){
-        DEBUG_ERR(err,"Failed to init terminal state\n");
-    }*/
 
 
     /*struct capref lmp_ep;
@@ -311,49 +314,22 @@ static int bsp_main(int argc, char *argv[])
     invoke_ipi_notify(ump_ep);*/
 
 
-    spawn_new_domain("server", NULL, NULL_CAP);
-    for (int i = 0; i < 1; i++) {
-        spawn_new_domain("client", NULL, NULL_CAP);
-    }
+    // spawn_new_domain("server", NULL, NULL_CAP);
+    // for (int i = 0; i < 1; i++) {
+    //     spawn_new_domain("client", NULL, NULL_CAP);
+    // }
 
-    //spawn_new_domain("client",NULL);
-    //spawn_new_domain("client",NULL);
-    // spawn_new_domain("client",NULL);
-    // spawn_new_domain("client",NULL);
-    //spawn_new_core(my_core_id + 1);
-    //spawn_new_core(my_core_id + 2);
-    //spawn_new_core(my_core_id + 3);
+    // spawn_new_domain("memeater",NULL,NULL_CAP);
+
+    // spawn_new_core(my_core_id + 1);
+    // spawn_new_core(my_core_id + 2);
+    // spawn_new_core(my_core_id + 3);
 
     // 
     
     //run_init_tests(my_core_id);
 
     
-
-    // char * name;
-    // err = aos_rpc_process_get_name(get_pm_rpc(),0,&name);
-    // if(err_is_fail(err)){
-    //     DEBUG_ERR(err,"Failed to resolve pid name\n");
-    // }
-
-    // debug_printf("Received name for pid %d: %s\n",0,name);
-
-
-    // spawn_new_domain("memeater", NULL);
-
-
-
-    // domainid_t* pids;
-    // size_t pid_count;
-    // err = aos_rpc_process_get_all_pids(get_pm_rpc(),&pids,&pid_count);
-    // if(err_is_fail(err)){
-    //     DEBUG_ERR(err,"Failed to get all pids\n");
-    // }
-
-
-    // for(int i = 0; i < pid_count; ++i){
-    //     debug_printf("%d\n",pids[i]);
-    // }
     
     run_init_tests(my_core_id);
 
@@ -415,7 +391,7 @@ static int app_main(int argc, char *argv[])
     
     // run_init_tests(my_core_id);
 
-    spawn_new_domain("client", NULL, NULL_CAP);
+    spawn_new_domain("memeater",NULL,NULL_CAP);
 
     grading_setup_app_init(bi);
 

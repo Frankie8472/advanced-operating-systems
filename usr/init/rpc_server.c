@@ -113,12 +113,14 @@ errval_t init_core_channel(coreid_t coreid, lvaddr_t urpc_frame)
     errval_t err;
 
     err = SYS_ERR_OK;
+    aos_rpc_set_interface(rpc,get_init_interface(),INIT_IFACE_N_FUNCTIONS,malloc(INIT_IFACE_N_FUNCTIONS * sizeof(void *)));
+    initialize_rpc_handlers(rpc);
     //err = aos_rpc_init(rpc); TODO (RPC): set intercore interface
     ON_ERR_PUSH_RETURN(err, LIB_ERR_RPC_INIT);
     aos_rpc_init_ump_default(rpc, urpc_frame, BASE_PAGE_SIZE, coreid < disp_get_core_id());
     ON_ERR_PUSH_RETURN(err, LIB_ERR_RPC_INIT);
 
-    register_core_channel_handlers(rpc);
+    // register_core_channel_handlers(rpc);
 
 
     set_core_channel(coreid,rpc);
@@ -441,27 +443,23 @@ void handle_all_binding_request(struct aos_rpc *r, uintptr_t pid, uintptr_t core
  */
 errval_t initialize_rpc_handlers(struct aos_rpc *rpc)
 {
-    aos_rpc_register_handler(rpc,AOS_RPC_SERVICE_ON,&handle_service_on);
+    void handle_roundtrip(struct aos_rpc *r) { return; }
     aos_rpc_register_handler(rpc, AOS_RPC_INITIATE, &handle_initiate);
     aos_rpc_register_handler(rpc, AOS_RPC_SEND_NUMBER, &handle_send_number);
+    aos_rpc_register_handler(rpc, INIT_IFACE_SPAWN, &handle_spawn);
     aos_rpc_register_handler(rpc, AOS_RPC_SEND_STRING, &handle_send_string);
-
-    aos_rpc_register_handler(rpc, AOS_RPC_REQUEST_RAM, &handle_request_ram);
-
-    aos_rpc_register_handler(rpc, AOS_RPC_PROC_SPAWN_REQUEST, &handle_spawn);
-
     aos_rpc_register_handler(rpc, AOS_RPC_PUTCHAR, &handle_putchar);
     aos_rpc_register_handler(rpc, AOS_RPC_GETCHAR, &handle_getchar);
-
-    void handle_roundtrip(struct aos_rpc *r) { return; }
     aos_rpc_register_handler(rpc, AOS_RPC_ROUNDTRIP, &handle_roundtrip);
-    aos_rpc_register_handler(rpc,AOS_RPC_REGISTER_PROCESS,&handle_init_process_register);
-    aos_rpc_register_handler(rpc,AOS_RPC_MEM_SERVER_REQ,&handle_mem_server_request);
 
-    aos_rpc_register_handler(rpc,AOS_RPC_GET_PROC_NAME,&handle_init_get_proc_name);
-    aos_rpc_register_handler(rpc,AOS_RPC_GET_PROC_LIST,&handle_init_get_proc_list);
-    aos_rpc_register_handler(rpc, AOS_RPC_GET_PROC_CORE,&handle_init_get_core_id);
-    aos_rpc_register_handler(rpc,AOS_RPC_BINDING_REQUEST,&handle_all_binding_request);
+
+
+    // aos_rpc_register_handler(rpc,AOS_RPC_REGISTER_PROCESS,&handle_init_process_register);
+    // aos_rpc_register_handler(rpc,AOS_RPC_MEM_SERVER_REQ,&handle_mem_server_request);
+    // aos_rpc_register_handler(rpc,AOS_RPC_GET_PROC_NAME,&handle_init_get_proc_name);
+    // aos_rpc_register_handler(rpc,AOS_RPC_GET_PROC_LIST,&handle_init_get_proc_list);
+    // aos_rpc_register_handler(rpc, AOS_RPC_GET_PROC_CORE,&handle_init_get_core_id);
+    // aos_rpc_register_handler(rpc,AOS_RPC_BINDING_REQUEST,&handle_all_binding_request);
     return SYS_ERR_OK;
 }
 

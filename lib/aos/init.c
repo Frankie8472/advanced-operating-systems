@@ -180,6 +180,7 @@ errval_t barrelfish_init_onthread(struct spawn_domain_params *params)
 
     lmp_endpoint_init();
 
+    
     // HINT: Use init_domain to check if we are the init domain.
     if (init_domain) { // init does not need a channel to itself
         err = cap_retype(cap_selfep, cap_dispatcher, 0, ObjType_EndPointLMP, 0, 1);

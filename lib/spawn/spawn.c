@@ -511,21 +511,21 @@ errval_t spawn_load_by_name(char *binary_name, struct spawninfo *si,
 
 errval_t register_process_to_process_manager(char* binary_name,domainid_t* pid){
 
-    if(!get_pm_online()){
-        debug_printf("Pm is not online!\n");
-        return SYS_ERR_OK;
-    }
+    // if(!get_pm_online()){
+    //     debug_printf("Pm is not online!\n");
+    //     return SYS_ERR_OK;
+    // }
 
-    errval_t err;
-    coreid_t core_id = disp_get_core_id();
-    if(core_id == 0){
-        struct aos_rpc* pm_rpc =  get_pm_rpc();
-        debug_printf("calling register process %s\n", binary_name);
-        err = aos_rpc_call(pm_rpc,AOS_RPC_REGISTER_PROCESS,core_id,binary_name,pid);
-        ON_ERR_RETURN(err);
-    }else{
-        assert(get_core_channel(0) && "UMP channel to core 0 is not present!");
-        err = aos_rpc_call(get_core_channel(0),AOS_RPC_REGISTER_PROCESS,core_id,binary_name,pid);
-    }
+    // errval_t err;
+    // coreid_t core_id = disp_get_core_id();
+    // if(core_id == 0){
+    //     struct aos_rpc* pm_rpc =  get_pm_rpc();
+    //     debug_printf("calling register process %s\n", binary_name);
+    //     err = aos_rpc_call(pm_rpc,AOS_RPC_REGISTER_PROCESS,core_id,binary_name,pid);
+    //     ON_ERR_RETURN(err);
+    // }else{
+    //     assert(get_core_channel(0) && "UMP channel to core 0 is not present!");
+    //     err = aos_rpc_call(get_core_channel(0),AOS_RPC_REGISTER_PROCESS,core_id,binary_name,pid);
+    // }
     return SYS_ERR_OK;
 }
