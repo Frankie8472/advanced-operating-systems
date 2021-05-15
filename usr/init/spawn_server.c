@@ -233,9 +233,6 @@ errval_t spawn_enet_driver(const char *mod_name) {
     err = cap_retype(child_dev_frame, dev_frame, IMX8X_ENET_BASE - source_addr, ObjType_DevFrame, IMX8X_ENET_SIZE, 1);
     ON_ERR_PUSH_RETURN(err, LIB_ERR_CAP_RETYPE);
 
-    source_addr = get_phys_addr(dev_frame);
-
-
     struct capref irq = (struct capref) {
         .cnode = child_taskcn,
         .slot = TASKCN_SLOT_IRQ
