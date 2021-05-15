@@ -1,0 +1,19 @@
+
+
+
+
+
+[
+    build library {
+        target = "linenoise",
+        cFiles = [ "linenoise.c" ],
+        addIncludes = [ "/include/linenoise/" ],
+        addCFlags = [
+            "-Wno-redundant-decls",
+            "-Wno-strict-prototypes",
+            "-Wno-missing-prototypes",
+            "-Wno-missing-declarations",
+            "-Wno-type-limits"
+        ]
+    }
+]
