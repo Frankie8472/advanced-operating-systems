@@ -29,6 +29,10 @@
 
 #define PHY_ID 0x2
 
+const int DEVFRAME_ATTRIBUTES = KPI_PAGING_FLAGS_READ
+    | KPI_PAGING_FLAGS_WRITE
+    | KPI_PAGING_FLAGS_NOCACHE;
+
 static errval_t enet_write_mdio(struct enet_driver_state* st, int8_t phyaddr,
                                 int8_t regaddr, int16_t data)
 {
@@ -389,8 +393,11 @@ static void enet_init_multicast_filt(struct enet_driver_state* st, bool promisc)
 
 static void enet_read_mac(struct enet_driver_state* st)
 {
+    ENET_DEBUG("===================================>MP1\n");
     uint64_t lower = enet_palr_paddr1_rdf(st->d);
+    ENET_DEBUG("===================================>MP2\n");
     uint64_t upper = enet_paur_paddr2_rdf(st->d);
+    ENET_DEBUG("===================================>MP3\n");
     // this is weird lower seems to be the upper part of the address ..
     uint64_t mac = (lower << 16) | upper;
 
@@ -567,8 +574,8 @@ int main(int argc, char *argv[]) {
     errval_t err;
 
     debug_printf("Enet driver started \n");
-    struct enet_driver_state * st = (struct enet_driver_state*) 
-                                    calloc(1, sizeof(struct enet_driver_state));    
+    struct enet_driver_state * st = (struct enet_driver_state*)
+        calloc(1, sizeof(struct enet_driver_state));
     assert(st != NULL);
 
     struct capref devframe = {
@@ -580,24 +587,30 @@ int main(int argc, char *argv[]) {
 
     err = paging_map_frame_attr(get_current_paging_state(), &device_frame,
                                 get_phys_size(devframe), devframe,
-                                KPI_PAGING_FLAGS_READ, NULL, NULL);
-    debug_printf("do we have an error?\n");
+                                DEVFRAME_ATTRIBUTES, NULL, NULL);
+    ENET_DEBUG("do we have an error?\n");
 
     ON_ERR_RETURN(err);
 
     /* TODO Net Project: get the capability to the register region
-     * and then map it so it is accessible. 
+     * and then map it so it is accessible.
      * TODO set st->d_vaddr to the memory mapped register region */
+    /* st->d_vaddr = (lvaddr_t) device_frame; */
+    st->d_vaddr = (lvaddr_t) device_frame;
     if (st->d_vaddr == 0) {
         USER_PANIC("ENET: No register region mapped \n");
     }
 
     /* Initialize Mackerel binding */
     st->d = (enet_t *) malloc(sizeof(enet_t));
+    ENET_DEBUG("malloct\n");
     enet_initialize(st->d, (void *) st->d_vaddr);
+    ENET_DEBUG("==============================> BP1\n");
 
     assert(st->d != NULL);
-    enet_read_mac(st);
+    ENET_DEBUG("==============================> BP2\n");
+    enet_read_mac(st);  // <- this line causes pagefault
+    ENET_DEBUG("==============================> BP3\n");
 
     err = enet_probe(st);
     if (err_is_fail(err)) {
