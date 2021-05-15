@@ -314,44 +314,56 @@ static int bsp_main(int argc, char *argv[])
     /* spawn_new_domain("lpuart_terminal", NULL); */
     /* debug_printf("let's start enet\n"); */
     /* /\* spawn_new_domain("enet", NULL); *\/ */
-    spawn_lpuart_driver("lpuart_terminal");
+    /* spawn_lpuart_driver("lpuart_terminal"); */
+
+    /* domainid_t pid; */
+    /* struct spawninfo *josh_si; */
+
+    /* struct capref jepcap; */
+    /* struct lmp_endpoint *jep; */
+    /* endpoint_create(LMP_RECV_LENGTH, &jepcap, &jep); */
+
+    /* spawn_new_domain("josh", &pid, jepcap, &josh_si); */
+
+
+
+    /* struct aos_rpc *josh_rpc = &josh_si->disp_rpc; */
+
+    /* aos_rpc_set_interface(josh_rpc, get_dispatcher_interface(), DISP_IFACE_N_FUNCTIONS, malloc(DISP_IFACE_N_FUNCTIONS * sizeof(void *))); */
+    /* initialize_initiate_handler(josh_rpc); */
+    /* aos_rpc_init_lmp(josh_rpc, jepcap, NULL_CAP, jep, NULL); */
+
+    
+    /* struct aos_rpc *lpuart_rpc = get_rpc_from_spawn_info(pid - 1); */
+
+
+    /* while (capref_is_null(josh_rpc->channel.lmp.remote_cap)) { */
+    /*     err = event_dispatch(get_default_waitset()); */
+    /*     if (err_is_fail(err)) { */
+    /*         DEBUG_ERR(err, "in event_dispatch"); */
+    /*         abort(); */
+    /*     } */
+    /* } */
+    /* debug_printf("getting josh in\n"); */
+
+    /* struct capref josh_in; */
+    /* aos_rpc_call(josh_rpc, DISP_IFACE_GET_STDIN, &josh_in); */
+
+    
+    /* debug_printf("got josh in\n"); */
+    /* aos_rpc_call(lpuart_rpc, DISP_IFACE_SET_STDOUT, josh_in); */
+
+    debug_printf("lets go\n");
+    spawn_enet_driver("enet");
 
     domainid_t pid;
-    struct spawninfo *josh_si;
+    struct spawninfo *enet_si;
 
-    struct capref jepcap;
-    struct lmp_endpoint *jep;
-    endpoint_create(LMP_RECV_LENGTH, &jepcap, &jep);
+    struct capref ecap;
+    struct lmp_endpoint *eep;
+    endpoint_create(LMP_RECV_LENGTH, &ecap, &eep);
 
-    spawn_new_domain("josh", &pid, jepcap, &josh_si);
-
-
-
-    struct aos_rpc *josh_rpc = &josh_si->disp_rpc;
-
-    aos_rpc_set_interface(josh_rpc, get_dispatcher_interface(), DISP_IFACE_N_FUNCTIONS, malloc(DISP_IFACE_N_FUNCTIONS * sizeof(void *)));
-    initialize_initiate_handler(josh_rpc);
-    aos_rpc_init_lmp(josh_rpc, jepcap, NULL_CAP, jep, NULL);
-
-    
-    struct aos_rpc *lpuart_rpc = get_rpc_from_spawn_info(pid - 1);
-
-
-    while (capref_is_null(josh_rpc->channel.lmp.remote_cap)) {
-        err = event_dispatch(get_default_waitset());
-        if (err_is_fail(err)) {
-            DEBUG_ERR(err, "in event_dispatch");
-            abort();
-        }
-    }
-    debug_printf("getting josh in\n");
-
-    struct capref josh_in;
-    aos_rpc_call(josh_rpc, DISP_IFACE_GET_STDIN, &josh_in);
-
-    
-    debug_printf("got josh in\n");
-    aos_rpc_call(lpuart_rpc, DISP_IFACE_SET_STDOUT, josh_in);
+    spawn_new_domain("enet", &pid, ecap, &enet_si);
 
 
     /*for (int i = 0; i < 20; i++) {
@@ -400,7 +412,7 @@ static int bsp_main(int argc, char *argv[])
     //     debug_printf("%d\n",pids[i]);
     // }
     
-    run_init_tests(my_core_id);
+    /* run_init_tests(my_core_id); */
 
 
     
