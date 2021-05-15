@@ -9,10 +9,12 @@
 #include <aos/waitset.h>
 #include <aos/nameserver.h>
 #include <aos/aos_rpc.h>
+// #include <aos/default_interfaces.h>
 
 
 #include <hashtable/hashtable.h>
 
+// static struct hashtable* = create_hashtable();
 
 struct srv_entry {
 	const char *name;
@@ -60,7 +62,15 @@ errval_t nameservice_rpc(nameservice_chan_t chan, void *message, size_t bytes,
 errval_t nameservice_register(const char *name, 
 	                              nameservice_receive_handler_t recv_handler,
 	                              void *st)
-{
+{	
+	
+
+
+
+
+
+
+
 	return LIB_ERR_NOT_IMPLEMENTED;
 }
 
@@ -104,3 +114,11 @@ errval_t nameservice_enumerate(char *query, size_t *num, char **result )
 	return LIB_ERR_NOT_IMPLEMENTED;
 }
 
+
+
+// void nameservice_reveice_handler_wrapper(struct aos_rpc * rpc,struct aos_rpc_varbytes message,struct capref tx_cap, struct aos_rpc_varbytes * response, struct capref* rx_cap){
+
+
+// 	//find correct namerver (map channel -> name)
+
+// }

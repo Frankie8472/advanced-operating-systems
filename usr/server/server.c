@@ -10,15 +10,10 @@
 int main(int argc, char *argv[])
 {
     
-    // printf("Hello, world! from userspace\n");
-    // printf("%s\n", argv[1]);
-    // stack_overflow();
 
     errval_t err;
     debug_printf("Server\n");
     
-
-
     char * name;
     aos_rpc_process_get_name(aos_rpc_get_process_channel(),0,&name);
     debug_printf("Revecived name %s\n",name);
@@ -37,7 +32,6 @@ int main(int argc, char *argv[])
     for(size_t i = 0; i < pid_count;++i){
         debug_printf("Pid %d\n",pids[i]);
     }
-
 
     debug_printf("Message handler loop\n");
     struct waitset *default_ws = get_default_waitset();

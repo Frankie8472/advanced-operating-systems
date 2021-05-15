@@ -16,7 +16,6 @@ enum {
     //FORWARDING TODO
     INIT_NAMESERVER_ON,
     INIT_REG_NAMESERVER,
-    INIT_REG_INIT,
     INIT_IFACE_N_FUNCTIONS, // <- count -- must be last
 };
 
@@ -50,6 +49,11 @@ enum {
     NS_GET_PROC_LIST,
     NS_IFACE_N_FUNCTIONS,
 
+};
+
+enum {
+    OS_IFACE_MESSAGE = AOS_RPC_MSG_TYPE_START,
+    OS_IFACE_N_FUNCTIONS,
 };
 
 

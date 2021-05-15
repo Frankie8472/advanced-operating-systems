@@ -12,7 +12,6 @@ static void *name_server_rpc_handlers[NS_IFACE_N_FUNCTIONS];
 
 void initialize_ns_handlers(struct aos_rpc * init_rpc){
     aos_rpc_register_handler(init_rpc,INIT_REG_NAMESERVER,&handle_reg_proc);
-    aos_rpc_register_handler(init_rpc,INIT_REG_INIT,&handle_reg_init);
 }
 
 void initialize_nameservice_handlers(struct aos_rpc *ns_rpc){
@@ -55,7 +54,7 @@ void handle_reg_proc(struct aos_rpc *rpc,uintptr_t core_id,const char* name,stru
         if(err_is_fail(err)){
             DEBUG_ERR(err,"Failed to map urpc frame for ump channel into virtual address space\n");
         }
-        err =  aos_rpc_init_ump_default(rpc,(lvaddr_t) urpc_data, BASE_PAGE_SIZE,false);//take second half as nameserver
+        err =  aos_rpc_init_ump_default(new_rpc,(lvaddr_t) urpc_data, BASE_PAGE_SIZE,false);//take second half as nameserver
         if(err_is_fail(err)){
             DEBUG_ERR(err,"Failed to init_ump_default\n");
         } 
@@ -67,12 +66,12 @@ void handle_reg_proc(struct aos_rpc *rpc,uintptr_t core_id,const char* name,stru
 }
 
 
-void handle_reg_init(struct aos_rpc *rpc,uintptr_t core_id,const char* name, uintptr_t * pid){
-    errval_t err = add_process(core_id,name,(domainid_t *) pid,get_init_rpc());
-    if(err_is_fail(err)){
-        DEBUG_ERR(err,"Failed to add process to process list\n");
-    }
-}
+// void handle_reg_init(struct aos_rpc *rpc,uintptr_t core_id,const char* name, uintptr_t * pid){
+//     errval_t err = add_process(core_id,name,(domainid_t *) pid,get_init_rpc());
+//     if(err_is_fail(err)){
+//         DEBUG_ERR(err,"Failed to add process to process list\n");
+//     }
+// }
 
 
 

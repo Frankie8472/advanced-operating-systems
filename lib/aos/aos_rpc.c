@@ -170,6 +170,7 @@ errval_t aos_rpc_init_ump_default(struct aos_rpc *rpc, lvaddr_t shared_page, siz
     err = ump_chan_init(&rpc->channel.ump, send_pane, half_page_size, recv_pane, half_page_size);
     ON_ERR_RETURN(err);
 
+    // debug_printf("Here!\n");
     err = ump_chan_register_recv(&rpc->channel.ump, rpc->waitset, MKCLOSURE(&aos_rpc_on_ump_message, rpc));
     //err = ump_chan_register_polling(ump_chan_get_default_poller(), &rpc->channel.ump, &aos_rpc_on_ump_message, rpc);
     ON_ERR_RETURN(err);

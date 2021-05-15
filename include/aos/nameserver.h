@@ -7,7 +7,7 @@
 #define INCLUDE_NAMESERVICE_H_
 
 #include <aos/aos.h>
-
+#include <aos/aos_rpc.h>
 typedef void* nameservice_chan_t;
 
 ///< handler which is called when a message is received over the registered channel
@@ -76,6 +76,10 @@ errval_t nameservice_lookup(const char *name, nameservice_chan_t *chan);
  * @param result	an array of entries
  */
 errval_t nameservice_enumerate(char *query, size_t *num, char **result );
+
+
+
+void nameservice_reveice_handler_wrapper(struct aos_rpc * rpc,struct aos_rpc_varbytes message,struct capref tx_cap, struct aos_rpc_varbytes * response, struct capref* rx_cap);
 
 
 #endif /* INCLUDE_AOS_AOS_NAMESERVICE_H_ */

@@ -336,3 +336,16 @@ void set_ns_rpc(struct aos_rpc *ns_rpc){
     struct dispatcher_generic* disp = get_dispatcher_generic(handle);
     disp -> core_state.c.ns_rpc= ns_rpc;
 }
+
+
+void set_ns_forw_rpc(struct aos_rpc *rpc){
+    dispatcher_handle_t handle = curdispatcher();
+    struct dispatcher_generic* disp = get_dispatcher_generic(handle);
+    disp -> core_state.c.ns_forw_rpc= rpc;
+}
+
+struct aos_rpc* get_ns_forw_rpc(void){
+    dispatcher_handle_t handle = curdispatcher();
+    struct dispatcher_generic* disp = get_dispatcher_generic(handle);
+    return disp -> core_state.c.ns_forw_rpc;
+}

@@ -179,6 +179,7 @@ errval_t init_nameserver_rpc(char * name){
 
     disp_set_domain_id(my_pid);
     err = aos_rpc_set_interface(ns_rpc,get_nameserver_interface(),0,NULL);
+    ON_ERR_RETURN(err);
     set_ns_rpc(ns_rpc);
 
     return SYS_ERR_OK;
