@@ -68,6 +68,8 @@ errval_t init_dispatcher_rpcs(void)
         .slot = TASKCN_SLOT_SPAWNER_EP
     };
 
+
+
     struct capref stdout_ep_cap = {
         .cnode = cnode_task,
         .slot = TASKCN_SLOT_STDOUT_EP
@@ -133,8 +135,49 @@ errval_t init_dispatcher_rpcs(void)
     initialize_dispatcher_handlers(&dispatcher_rpc);
 
 
+
+
     //err = aos_rpc_call(&dispatcher_rpc, DISP_IFACE_BINDING, dispatcher_rpc.channel.lmp.local_cap,
     //                   stdin_epcap, &stdout_rpc.channel.lmp.remote_cap);
+
+    return SYS_ERR_OK;
+}
+
+
+
+errval_t init_nameserver_rpc(void){
+    // struct capref name_server_ep = {
+    //     .cnode = cnode_task,
+    //     .slot = TASKCN_SLOT_NAMESERVER,
+    // }
+    errval_t err;
+    struct aos_rpc* ns_rpc = (struct aos_rpc*) malloc(sizeof(struct aos_rpc));
+
+    struct capref ns_cap;
+    err = slot_alloc(&ns_cap);
+    ON_ERR_RETURN(err);
+    if(disp_get_core_id() == 0){ //lmp
+        struct lmp_endpoint *name_server_ep;
+        err = endpoint_create(LMP_RECV_LENGTH, &ns_cap, &name_server_ep); //TODO: maybe a longer recv length is great here for getting list of all servers? however we hve alot of these so maybe not
+
+        ON_ERR_RETURN(err);
+
+        err = aos_rpc_init_lmp(ns_rpc,ns_cap,NULL_CAP,name_server_ep,get_default_waitset());
+        ON_ERR_RETURN(err);
+
+
+
+        struct capref remote_ns_cap;
+        domainid_t my_pid;
+        err = aos_rpc_call(get_init_rpc(),INIT_REG_NAMESERVER,disp_get_core_id(),"name",ns_cap,&my_pid,&remote_ns_cap);
+        ON_ERR_RETURN(err);
+        disp_set_domain_id(my_pid);
+        ns_rpc -> channel.lmp.remote_cap = remote_ns_cap;
+        set_ns_rpc(ns_rpc);
+    }
+    else { //ump
+
+    }
 
     return SYS_ERR_OK;
 }

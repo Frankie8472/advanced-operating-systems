@@ -355,6 +355,9 @@ errval_t spawn_load_argv(int argc, const char *const argv[], struct spawninfo *s
     if(get_pm_online()){
         disp_gen -> core_state.c.pm_online = true;
     }
+    if(get_ns_online()){
+        disp_gen -> core_state.c.ns_online = true;
+    }
     //dump_dispatcher(disp);
     return SYS_ERR_OK;
 }

@@ -430,6 +430,28 @@ void handle_all_binding_request(struct aos_rpc *r, uintptr_t pid, uintptr_t core
     }
 }
 
+
+
+void handle_forward_ns_reg(struct aos_rpc *rpc,uintptr_t core_id,const char* name,struct capref proc_ep_cap, uintptr_t * pid, struct capref* ns_ep_cap){
+
+    debug_printf("Forwarding ns request!\n");
+    errval_t err = aos_rpc_call(get_ns_rpc(),INIT_REG_NAMESERVER,core_id,name,proc_ep_cap,pid,ns_ep_cap);
+    if(err_is_fail(err)){
+        DEBUG_ERR(err,"Failed to forward ns reg!\n");
+    }
+
+
+}
+
+
+void handle_forward_init_reg(struct aos_rpc *rpc,uintptr_t core_id,const char* name, uintptr_t * pid){
+    debug_printf("Forwarding init reg!\n");
+    errval_t err = aos_rpc_call(get_ns_rpc(),INIT_REG_INIT,core_id,name,pid);
+    if(err_is_fail(err)){
+        DEBUG_ERR(err,"Failed to forward ns reg init!\n");
+    }
+}
+
 /**
  * \brief initialize all handlers for rpc calls
  * 
@@ -450,7 +472,8 @@ errval_t initialize_rpc_handlers(struct aos_rpc *rpc)
 
     aos_rpc_register_handler(rpc, INIT_IFACE_SPAWN, &handle_spawn);
     aos_rpc_register_handler(rpc, INIT_NAMESERVER_ON, &handle_ns_on);
-
+    aos_rpc_register_handler(rpc,INIT_REG_NAMESERVER,&handle_forward_ns_reg);
+    aos_rpc_register_handler(rpc,INIT_REG_INIT,&handle_forward_init_reg);
     // aos_rpc_register_handler(rpc,AOS_RPC_REGISTER_PROCESS,&handle_init_process_register);
     // aos_rpc_register_handler(rpc,AOS_RPC_MEM_SERVER_REQ,&handle_mem_server_request);
     // aos_rpc_register_handler(rpc,AOS_RPC_GET_PROC_NAME,&handle_init_get_proc_name);

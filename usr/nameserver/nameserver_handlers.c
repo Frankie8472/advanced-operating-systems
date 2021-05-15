@@ -28,10 +28,15 @@ void handle_reg_proc(struct aos_rpc *rpc,uintptr_t core_id,const char* name,stru
 
 
     if(core_id == disp_get_core_id()){ //create_lmp_channel
-        struct capref self_ep_cap = (struct capref) {
-        .cnode = cnode_task,
-        .slot = TASKCN_SLOT_SELFEP
-        };
+        // struct capref self_ep_cap = (struct capref) {
+        // .cnode = cnode_task,
+        // .slot = TASKCN_SLOT_SELFEP
+        // };
+        struct capref self_ep_cap;
+        err = slot_alloc(&self_ep_cap);
+        if(err_is_fail(err)){
+            DEBUG_ERR(err,"Failed slot alloc in nameserver!\n");
+        }
 
         struct lmp_endpoint * lmp_ep;
         err = endpoint_create(256,&self_ep_cap,&lmp_ep);

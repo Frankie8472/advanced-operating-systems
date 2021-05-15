@@ -50,55 +50,6 @@
 
 
 coreid_t my_core_id;
-
-__unused
-static errval_t init_name_server(void){
-    errval_t err;
-    struct spawninfo *ns_si = spawn_create_spawninfo();
-    domainid_t *ns_pid = &ns_si -> pid;
-    err = spawn_load_by_name("nameserver",ns_si,ns_pid);
-    *ns_pid = 0;
-    ON_ERR_RETURN(err);
-
-
-    struct aos_rpc *ns_rpc  = &ns_si->rpc;
-
-    aos_rpc_set_interface(ns_rpc, get_init_interface(), INIT_IFACE_N_FUNCTIONS, malloc(INIT_IFACE_N_FUNCTIONS * sizeof(void *)));
-    initialize_rpc_handlers(ns_rpc);
-
-    debug_printf("waiting for name server to come online...\n");
-    while(!get_ns_online()){
-        err = event_dispatch(get_default_waitset());
-        if (err_is_fail(err)) {
-            DEBUG_ERR(err, "in event_dispatch");
-            abort();
-        }
-    }
-
-    domainid_t my_pid;
-    err = aos_rpc_call(ns_rpc,INIT_REG_INIT,disp_get_core_id(),"init",&my_pid);
-    ON_ERR_RETURN(err);
-    disp_set_domain_id(my_pid);
-    set_ns_rpc(ns_rpc);
-    
-
-
-    debug_printf("Finalized \n");
-    return SYS_ERR_OK;
-}
-
-
-
-
-__unused
-static void hey(void* arg) {
-    debug_printf("we were pinged!\n");
-    struct lmp_recv_buf msg;
-    lmp_endpoint_recv(arg, &msg, NULL);
-    lmp_endpoint_register(arg, get_default_waitset(), MKCLOSURE(hey, arg));
-}
-
-
 static errval_t init_foreign_core(void){
 
     /*struct capref epcap;
@@ -150,10 +101,6 @@ static errval_t init_foreign_core(void){
     
     err = paging_map_frame_complete(get_current_paging_state(),(void **) &bi,bootinfo_cap,NULL,NULL);
     ON_ERR_RETURN(err);
-    // if(err_is_fail(err)){
-    //     DEBUG_ERR(err,"Failed to map bootinfo struct");
-    // }
-
     assert(bi && "Boot info in appmain is NULL");
 
 
@@ -168,27 +115,6 @@ static errval_t init_foreign_core(void){
     err = start_memory_server_thread();
     ON_ERR_RETURN(err);
 
-
-    // if (err_is_fail(err)) {
-    //     DEBUG_ERR(err, "/>/> Error: starting memory thread");
-    // }
-
-    // const int nBenches = 100;
-
-    // for (int i = 0; i < 3; i++) {
-    //     uint64_t before = systime_now();
-    //     for (int j = 0; j < nBenches; j++) {
-    //         struct capref thrown_away;
-    //         err  = ram_alloc(&thrown_away, BASE_PAGE_SIZE);
-    //         // debug_printf("Allocated ram!\n");
-    //         if(err_is_fail(err)){
-    //             DEBUG_ERR(err,"Failed to allocate ram in benchmarkmm\n");
-    //         }
-    //     }
-    //     uint64_t end = systime_now();
-
-    //     debug_printf("measurement %d took: %ld\n", i, systime_to_ns(end - before));
-    // }
 
     struct capref mc = {
         .cnode = cnode_root,
@@ -214,18 +140,63 @@ static errval_t init_foreign_core(void){
     }
 
     init_core_channel(0, (lvaddr_t) urpc_init);
-
-    
-    // disp_set_domain_id(disp_get_current_core_id() << 10);
-    // domainid_t my_pid;
-
-
-    // err = aos_rpc_call(get_core_channel(0),AOS_RPC_REGISTER_PROCESS,disp_get_current_core_id(),"init",&my_pid);
-    // disp_set_domain_id(my_pid);
-    // if(err_is_fail(err)){
-    //     DEBUG_ERR(err,"Failed to register new init to pm\n");
-    // }
+    set_ns_rpc(get_core_channel(0));
+    set_ns_online();
+    domainid_t my_pid;
+    err = aos_rpc_call(get_core_channel(0),INIT_REG_INIT,disp_get_core_id(),"init",&my_pid);
+    ON_ERR_RETURN(err);
+    disp_set_domain_id(my_pid);
     return SYS_ERR_OK;
+}
+
+
+
+
+
+static errval_t init_name_server(void){
+    errval_t err;
+    struct spawninfo *ns_si = spawn_create_spawninfo();
+    domainid_t *ns_pid = &ns_si -> pid;
+    err = spawn_load_by_name("nameserver",ns_si,ns_pid);
+    *ns_pid = 0;
+    ON_ERR_RETURN(err);
+
+
+    struct aos_rpc *ns_rpc  = &ns_si->rpc;
+
+    aos_rpc_set_interface(ns_rpc, get_init_interface(), INIT_IFACE_N_FUNCTIONS, malloc(INIT_IFACE_N_FUNCTIONS * sizeof(void *)));
+    initialize_rpc_handlers(ns_rpc);
+
+    debug_printf("waiting for name server to come online...\n");
+    while(!get_ns_online()){
+        err = event_dispatch(get_default_waitset());
+        if (err_is_fail(err)) {
+            DEBUG_ERR(err, "in event_dispatch");
+            abort();
+        }
+    }
+
+    domainid_t my_pid;
+    err = aos_rpc_call(ns_rpc,INIT_REG_INIT,disp_get_core_id(),"init",&my_pid);
+    ON_ERR_RETURN(err);
+    disp_set_domain_id(my_pid);
+    set_ns_rpc(ns_rpc);
+    
+
+
+    debug_printf("Finalized \n");
+    return SYS_ERR_OK;
+}
+
+
+
+
+__unused
+static void hey(void* arg) {
+    debug_printf("we were pinged!\n");
+    struct lmp_recv_buf msg;
+    lmp_endpoint_recv(arg, &msg, NULL);
+    lmp_endpoint_register(arg, get_default_waitset(), MKCLOSURE(hey, arg));
 }
 
 
@@ -283,7 +254,7 @@ static int bsp_main(int argc, char *argv[])
     invoke_ipi_notify(ump_ep);*/
 
 
-    // spawn_new_domain("server", NULL, NULL_CAP);
+    spawn_new_domain("server", NULL, NULL_CAP);
     // for (int i = 0; i < 1; i++) {
     //     spawn_new_domain("client", NULL, NULL_CAP);
     // }
@@ -407,3 +378,7 @@ int main(int argc, char *argv[])
     else
         return app_main(argc, argv);
 }
+
+
+
+

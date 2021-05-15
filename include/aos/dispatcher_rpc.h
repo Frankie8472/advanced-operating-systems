@@ -8,6 +8,6 @@ extern struct aos_rpc stdout_rpc;
 extern struct aos_rpc dispatcher_rpc;
 
 errval_t init_dispatcher_rpcs(void);
-
+errval_t init_nameserver_rpc(void);
 
 #endif // LIB_AOS_DISPATCHER_RPC_H

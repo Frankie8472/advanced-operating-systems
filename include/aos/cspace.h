@@ -27,6 +27,7 @@
 #define TASKCN_SLOT_MEMORYEP    (TASKCN_SLOTS_USER+2)   ///< lrpc endpoint to memory server
 #define TASKCN_SLOT_SPAWNER_EP  (TASKCN_SLOTS_USER+3)   ///< spawner endpoint
 #define TASKCN_SLOT_STDOUT_EP   (TASKCN_SLOTS_USER+4)   ///< stdout endpoint
+// #define TASKCN_SLOT_NAMESERVER (TASKCN_SLOTS_USER+5)    ///< nameserver endpoint
 #define TASKCN_SLOTS_FREE       (TASKCN_SLOTS_USER+5)   ///< first free slot in taskcn
 
 // taskcn appears at the beginning of cspace, so the cptrs match the slot numbers

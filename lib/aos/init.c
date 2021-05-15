@@ -193,8 +193,14 @@ errval_t barrelfish_init_onthread(struct spawn_domain_params *params)
     err = ram_alloc_set(NULL);
     ON_ERR_RETURN(err);
 
-    init_dispatcher_rpcs();
+    err = init_dispatcher_rpcs();
+    ON_ERR_RETURN(err);
     debug_printf("init_dispatcher_rpcs returned\n");
+    if(get_ns_online()){
+        err = init_nameserver_rpc();
+        ON_ERR_RETURN(err);
+    }
+
 
 
     
@@ -231,6 +237,14 @@ void barrelfish_init_disabled(dispatcher_handle_t handle, bool init_dom_arg)
     disp_init_disabled(handle);
     thread_init_disabled(handle, init_dom_arg);
 }
+
+
+
+
+
+
+
+
 
 
 void handle_all_binding_request_on_process(struct aos_rpc *r, uintptr_t pid, uintptr_t core_id,uintptr_t client_core ,struct capref client_cap,struct capref * server_cap){
