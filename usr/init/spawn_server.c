@@ -181,3 +181,68 @@ errval_t spawn_lpuart_driver(const char *mod_name)
 
     return SYS_ERR_OK;
 }
+
+errval_t spawn_enet_driver(const char *mod_name) {
+    errval_t err;
+    struct spawninfo *si = spawn_create_spawninfo();
+
+    domainid_t *pid = &si->pid;
+    struct aos_rpc *rpc = &si->rpc;
+    
+
+    aos_rpc_set_interface(rpc, get_dispatcher_interface(), DISP_IFACE_N_FUNCTIONS, malloc(DISP_IFACE_N_FUNCTIONS * sizeof(void *)));
+    initialize_initiate_handler(rpc);
+    aos_rpc_register_handler(rpc, INIT_IFACE_GET_RAM, handle_get_ram);
+    
+    struct lmp_endpoint *spawner_ep;
+    struct capref spawner_ep_cap;
+    endpoint_create(LMP_RECV_LENGTH, &spawner_ep_cap, &spawner_ep);
+
+    err = spawn_load_by_name((char*) mod_name, si, pid);
+    if (err_is_fail(err)) {
+        DEBUG_ERR(err, "fuck no\n");
+        return err;
+    }
+
+    err = lmp_chan_register_recv(&rpc->channel.lmp, get_default_waitset(), MKCLOSURE(&aos_rpc_on_lmp_message, &rpc));
+    if (err_is_fail(err) && err == LIB_ERR_CHAN_ALREADY_REGISTERED) {
+        // not too bad, already registered
+    }
+
+    struct cnoderef child_taskcn = {
+        .croot = get_cap_addr(si->rootcn),
+        .cnode = ROOTCN_SLOT_ADDR(ROOTCN_SLOT_TASKCN),
+        .level = CNODE_TYPE_OTHER
+    };
+
+    struct capref dev_frame = (struct capref) {
+        .cnode = cnode_task,
+        .slot = TASKCN_SLOT_DEV
+    };
+    struct capref child_dev_frame = (struct capref) {
+        .cnode = child_taskcn,
+        .slot = TASKCN_SLOT_DEV
+    };
+    /* struct capref child_dev_frame2 = (struct capref) { */
+    /*     .cnode = child_taskcn, */
+    /*     .slot = TASKCN_SLOT_BOOTINFO */
+    /* }; */
+
+    // write capabilities to access the enet driver into the child 
+    size_t source_addr = get_phys_addr(dev_frame);
+    err = cap_retype(child_dev_frame, dev_frame, IMX8X_ENET_BASE - source_addr, ObjType_DevFrame, IMX8X_ENET_SIZE, 1);
+    ON_ERR_PUSH_RETURN(err, LIB_ERR_CAP_RETYPE);
+
+    source_addr = get_phys_addr(dev_frame);
+
+
+    struct capref irq = (struct capref) {
+        .cnode = child_taskcn,
+        .slot = TASKCN_SLOT_IRQ
+    };
+    err = cap_copy(irq, cap_irq);
+    ON_ERR_PUSH_RETURN(err, LIB_ERR_CAP_COPY);
+
+
+    return SYS_ERR_OK;
+}
