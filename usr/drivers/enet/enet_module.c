@@ -580,7 +580,7 @@ int main(int argc, char *argv[]) {
 
     err = paging_map_frame_attr(get_current_paging_state(), &device_frame,
                                 get_phys_size(devframe), devframe,
-                                DEVFRAME_ATTRIBUTES, NULL, NULL);
+                                KPI_PAGING_FLAGS_READ, NULL, NULL);
     debug_printf("do we have an error?\n");
 
     ON_ERR_RETURN(err);
@@ -588,8 +588,8 @@ int main(int argc, char *argv[]) {
     /* TODO Net Project: get the capability to the register region
      * and then map it so it is accessible. 
      * TODO set st->d_vaddr to the memory mapped register region */
-    if (st->d_vaddr == NULL) {
-        USER_PANIC("ENET: No register region mapped \N");
+    if (st->d_vaddr == 0) {
+        USER_PANIC("ENET: No register region mapped \n");
     }
 
     /* Initialize Mackerel binding */
