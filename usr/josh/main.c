@@ -1,6 +1,8 @@
 #include <aos/aos_rpc.h>
 #include <aos/dispatcher_rpc.h>
 
+#include <linenoise/linenoise.h>
+
 #include <stdio.h>
 
 
@@ -40,6 +42,7 @@ int main(int argc, char **argv)
     printf("Welcome to JameOS Shell\n");
 
     print_prompt();
+    linenoise("hello!");
 
     lmp_chan_register_recv(&stdin_chan.channel.lmp, get_default_waitset(), MKCLOSURE(on_input, &stdin_chan));
 

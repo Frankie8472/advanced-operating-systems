@@ -7,7 +7,7 @@
         target = "josh",
         cFiles = [ "main.c" ],
         addIncludes = [ "/lib" ],
-        addLibraries = [ "aos" ],
+        addLibraries = [ "aos", "linenoise" ],
       
         -- addCFlags = [
         --     "-Wno-redundant-decls",
