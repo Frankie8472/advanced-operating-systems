@@ -115,6 +115,7 @@ static errval_t init_foreign_core(void){
     err = start_memory_server_thread();
     ON_ERR_RETURN(err);
 
+    set_ns_online();
 
     struct capref mc = {
         .cnode = cnode_root,
@@ -141,9 +142,8 @@ static errval_t init_foreign_core(void){
 
     init_core_channel(0, (lvaddr_t) urpc_init);
     set_ns_forw_rpc(get_core_channel(0));
-    set_ns_online();
+    
 
-    domainid_t my_pid;
     struct aos_rpc* ns_rpc = (struct aos_rpc*) malloc(sizeof(struct aos_rpc));
     struct capref ns_cap;
     err = slot_alloc(&ns_cap);
@@ -156,12 +156,26 @@ static errval_t init_foreign_core(void){
     ON_ERR_RETURN(err);
     err =  aos_rpc_init_ump_default(ns_rpc,(lvaddr_t) urpc_data, BASE_PAGE_SIZE,true);//take first half as ns takes second half
     ON_ERR_RETURN(err);
+    domainid_t my_pid = urpc_init[6]; 
+
     struct capref dummy_cap; // not useed
-    err = aos_rpc_call(get_ns_forw_rpc(),INIT_REG_NAMESERVER,disp_get_core_id(),"init",ns_cap,&my_pid,&dummy_cap);
+    err = aos_rpc_call(get_ns_forw_rpc(),INIT_REG_NAMESERVER,disp_get_core_id(),"init",ns_cap,my_pid,&dummy_cap);
     ON_ERR_RETURN(err);
-    disp_set_domain_id(my_pid);
     err = aos_rpc_set_interface(ns_rpc,get_nameserver_interface(),0,NULL);
     ON_ERR_RETURN(err);
+    disp_set_domain_id(my_pid);
+    set_ns_rpc(ns_rpc);
+
+
+    // while(!get_ns_online()){
+    //     err = event_dispatch(get_default_waitset());
+    //     if (err_is_fail(err)) {
+    //         DEBUG_ERR(err, "in event_dispatch");
+    //         abort();
+    //     }
+    // }
+    
+    set_ns_online();
     return SYS_ERR_OK;
 }
 
@@ -194,7 +208,7 @@ static errval_t init_name_server(void){
 
     // init
 
-    domainid_t my_pid;
+    domainid_t my_pid = 1;
     struct aos_rpc* ns_rpc = (struct aos_rpc*) malloc(sizeof(struct aos_rpc));
     struct capref ns_cap;
     err = slot_alloc(&ns_cap);
@@ -204,7 +218,7 @@ static errval_t init_name_server(void){
     err = aos_rpc_init_lmp(ns_rpc,ns_cap,NULL_CAP,name_server_ep,get_default_waitset());
     ON_ERR_RETURN(err);
     struct capref remote_ns_cap;
-    err = aos_rpc_call(rpc,INIT_REG_NAMESERVER,disp_get_core_id(),"init",ns_cap,&my_pid,&remote_ns_cap);
+    err = aos_rpc_call(rpc,INIT_REG_NAMESERVER,disp_get_core_id(),"init",ns_cap,my_pid,&remote_ns_cap);
     ON_ERR_RETURN(err);
     ns_rpc -> channel.lmp.remote_cap = remote_ns_cap;
     err = aos_rpc_set_interface(ns_rpc,get_nameserver_interface(),0,NULL);
@@ -213,8 +227,6 @@ static errval_t init_name_server(void){
     set_ns_rpc(ns_rpc);
     set_ns_forw_rpc(rpc);
 
-
-    debug_printf("Finalized \n");
     return SYS_ERR_OK;
 }
 
@@ -284,7 +296,7 @@ static int bsp_main(int argc, char *argv[])
     invoke_ipi_notify(ump_ep);*/
 
 
-    // spawn_new_domain("server", NULL, NULL_CAP);
+    spawn_new_domain("server", NULL, NULL_CAP);
     // spawn_new_domain("client",NULL,NULL_CAP);
     // for (int i = 0; i < 1; i++) {
     //     spawn_new_domain("client", NULL, NULL_CAP);

@@ -28,7 +28,7 @@ char* strcopy(const char* str);
 
 
 
-errval_t add_process(coreid_t core_id,const char* name,domainid_t *pid,struct aos_rpc* rpc );
+errval_t add_process(coreid_t core_id,const char* name,domainid_t pid,struct aos_rpc* rpc );
 void print_process_list(void);
 
 #endif 

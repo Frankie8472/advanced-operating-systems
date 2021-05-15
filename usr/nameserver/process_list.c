@@ -5,13 +5,13 @@
 
 
 
-errval_t add_process(coreid_t core_id,const char* name,domainid_t *pid,struct aos_rpc* rpc ){
+errval_t add_process(coreid_t core_id,const char* name,domainid_t pid,struct aos_rpc* rpc ){
     
 
     struct process * p = (struct process * ) malloc(sizeof(struct process));
-    *pid = process++;
+    // *pid = process++;
     p -> next = NULL,
-    p -> pid = *pid;
+    p -> pid = pid;
     p -> core_id = core_id;
     p -> name = strcopy(name);
     p -> rpc  = rpc;

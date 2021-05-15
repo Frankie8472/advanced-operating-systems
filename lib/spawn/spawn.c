@@ -15,6 +15,7 @@
 #include <spawn/argv.h>
 #include <spawn/process_manager.h>
 #include <string.h>
+#include <aos/default_interfaces.h>
 
 extern struct bootinfo *bi;
 extern coreid_t my_core_id;
@@ -339,15 +340,30 @@ errval_t spawn_load_argv(int argc, const char *const argv[], struct spawninfo *s
     aos_rpc_init_lmp(&si->rpc, cap_selfep, NULL_CAP, si->lmp_ep, NULL);
 
 
+
+
+
+
+
+    if(get_ns_online()){
+        err = aos_rpc_call(get_ns_rpc(),NS_GET_PID,pid);
+        ON_ERR_RETURN(err);
+
+        disp_gen->domain_id = *pid;
+        si -> pid = *pid;
+    }else{
+        disp_gen-> domain_id = 0;
+        si -> pid = 0;
+        *pid = 0;
+    }
+
     err = register_process_to_process_manager((char*)name, pid);
     ON_ERR_RETURN(err);
-    disp_gen->domain_id = *pid;
+
 
 
     err = invoke_dispatcher(si->dispatcher, cap_dispatcher, cnode_child_l1, child_l0_vnodecap, child_dispframe, true);
     ON_ERR_RETURN(err);
-
-
 
 
 
@@ -358,7 +374,6 @@ errval_t spawn_load_argv(int argc, const char *const argv[], struct spawninfo *s
     if(get_ns_online()){
         disp_gen -> core_state.c.ns_online = true;
     }
-    //dump_dispatcher(disp);
     return SYS_ERR_OK;
 }
 

@@ -23,8 +23,9 @@ int main(int argc, char *argv[])
     pl.tail = NULL;
     pl.size = 0;
 
-    domainid_t my_pid;
-    err = add_process(0,"nameserver",&my_pid,NULL);
+    // domainid_t my_pid;
+    
+    err = add_process(0,"nameserver",process++,NULL);
     if(err_is_fail(err)){
         DEBUG_ERR(err,"Failed to add ns to process list!\n");
     }

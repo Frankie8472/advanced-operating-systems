@@ -14,7 +14,7 @@
 
 #include <hashtable/hashtable.h>
 
-// static struct hashtable* = create_hashtable();
+// static struct hashtable* server_table = create_hashtable();
 
 struct srv_entry {
 	const char *name;
@@ -116,9 +116,11 @@ errval_t nameservice_enumerate(char *query, size_t *num, char **result )
 
 
 
-// void nameservice_reveice_handler_wrapper(struct aos_rpc * rpc,struct aos_rpc_varbytes message,struct capref tx_cap, struct aos_rpc_varbytes * response, struct capref* rx_cap){
+void nameservice_reveice_handler_wrapper(struct aos_rpc * rpc,struct aos_rpc_varbytes message,struct capref tx_cap, struct aos_rpc_varbytes * response, struct capref* rx_cap){
 
+	
 
-// 	//find correct namerver (map channel -> name)
+	// ht_get_capability()
+	//find correct namerver (map channel -> name)
 
-// }
+}

@@ -18,15 +18,17 @@ void initialize_nameservice_handlers(struct aos_rpc *ns_rpc){
     aos_rpc_register_handler(ns_rpc,NS_GET_PROC_NAME,&handle_get_proc_name);
     aos_rpc_register_handler(ns_rpc,NS_GET_PROC_CORE,&handle_get_proc_core);
     aos_rpc_register_handler(ns_rpc,NS_GET_PROC_LIST,&handle_get_proc_list);
+    aos_rpc_register_handler(ns_rpc,NS_GET_PID,&handle_pid_request);
+
 }
 
 
-void handle_reg_proc(struct aos_rpc *rpc,uintptr_t core_id,const char* name,struct capref proc_ep_cap, uintptr_t * pid, struct capref* ns_ep_cap){
+void handle_reg_proc(struct aos_rpc *rpc,uintptr_t core_id,const char* name,struct capref proc_ep_cap, uintptr_t pid, struct capref* ns_ep_cap){
 
     
     errval_t err;
     struct aos_rpc* new_rpc = (struct aos_rpc*) malloc(sizeof(struct aos_rpc));
-    err = add_process(core_id,name,(domainid_t *)pid,new_rpc);
+    err = add_process(core_id,name,(domainid_t )pid,new_rpc);
     if(err_is_fail(err)){
         DEBUG_ERR(err,"Failed to add process to process list\n");
     }
@@ -130,4 +132,9 @@ void handle_get_proc_list(struct aos_rpc *rpc, uintptr_t *size,char * pids){
 
     pids[index] = '\0';
     // debug_printf("%s\n",pids);
+}
+
+
+void handle_pid_request(struct aos_rpc *rpc,uintptr_t* pid){
+    *pid = process++;
 }

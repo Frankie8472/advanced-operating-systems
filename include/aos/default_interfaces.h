@@ -47,6 +47,7 @@ enum {
     NS_GET_PROC_NAME,
     NS_GET_PROC_CORE,
     NS_GET_PROC_LIST,
+    NS_GET_PID,
     NS_IFACE_N_FUNCTIONS,
 
 };

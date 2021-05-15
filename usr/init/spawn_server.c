@@ -53,6 +53,9 @@ errval_t spawn_new_core(coreid_t core)
     urpc_init[3] = get_phys_size(core_ram);
     urpc_init[4] = get_phys_addr(cap_mmstrings);
     urpc_init[5] = get_phys_size(cap_mmstrings);
+    
+    err = aos_rpc_call(get_ns_rpc(),NS_GET_PID,&urpc_init[6]);
+    ON_ERR_RETURN(err);
 
     cpu_dcache_wbinv_range((vm_offset_t) urpc_data, BASE_PAGE_SIZE);
 

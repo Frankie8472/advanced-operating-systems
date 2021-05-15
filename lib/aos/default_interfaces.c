@@ -46,7 +46,8 @@ static void initialize_interfaces(void)
                                2, 1, AOS_RPC_VARSTR, AOS_RPC_WORD, AOS_RPC_WORD);
 
 
-    aos_rpc_initialize_binding(&init_interface, "reg_prc", INIT_REG_NAMESERVER, 3, 2, AOS_RPC_WORD, AOS_RPC_VARSTR,AOS_RPC_CAPABILITY,AOS_RPC_WORD,AOS_RPC_CAPABILITY);
+    aos_rpc_initialize_binding(&init_interface, "reg_prc", INIT_REG_NAMESERVER, 4, 1, AOS_RPC_WORD, AOS_RPC_VARSTR,AOS_RPC_CAPABILITY,AOS_RPC_WORD,AOS_RPC_CAPABILITY);
+
 
 
 
@@ -96,6 +97,8 @@ static void initialize_interfaces(void)
     aos_rpc_initialize_binding(&name_server_interface,"get_proc_name",NS_GET_PROC_NAME,1,1,AOS_RPC_WORD,AOS_RPC_VARSTR);
     aos_rpc_initialize_binding(&name_server_interface,"get_proc_core",NS_GET_PROC_CORE,1,1,AOS_RPC_WORD,AOS_RPC_WORD);
     aos_rpc_initialize_binding(&name_server_interface,"get_proc_list",NS_GET_PROC_LIST,0,2,AOS_RPC_WORD,AOS_RPC_VARSTR);
+    aos_rpc_initialize_binding(&name_server_interface,"get_pid",NS_GET_PID,0,1,AOS_RPC_WORD);
+
 
 
 

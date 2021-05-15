@@ -151,7 +151,8 @@ errval_t init_nameserver_rpc(char * name){
     struct capref ns_cap;
     err = slot_alloc(&ns_cap);
     ON_ERR_RETURN(err);
-    domainid_t my_pid;
+    domainid_t my_pid = disp_get_domain_id();
+    // domainid_t my_pid;
     if(disp_get_core_id() == 0){ //lmp
         struct lmp_endpoint *name_server_ep;
         err = endpoint_create(LMP_RECV_LENGTH, &ns_cap, &name_server_ep); //TODO: maybe a longer recv length is great here for getting list of all servers? however we hve alot of these so maybe not
@@ -159,7 +160,7 @@ errval_t init_nameserver_rpc(char * name){
         err = aos_rpc_init_lmp(ns_rpc,ns_cap,NULL_CAP,name_server_ep,get_default_waitset());
         ON_ERR_RETURN(err);
         struct capref remote_ns_cap;
-        err = aos_rpc_call(get_init_rpc(),INIT_REG_NAMESERVER,disp_get_core_id(),name,ns_cap,&my_pid,&remote_ns_cap);
+        err = aos_rpc_call(get_init_rpc(),INIT_REG_NAMESERVER,disp_get_core_id(),name,ns_cap,my_pid,&remote_ns_cap);
         ON_ERR_RETURN(err);
         ns_rpc -> channel.lmp.remote_cap = remote_ns_cap;
     }
@@ -173,11 +174,10 @@ errval_t init_nameserver_rpc(char * name){
         err =  aos_rpc_init_ump_default(ns_rpc,(lvaddr_t) urpc_data, BASE_PAGE_SIZE,true);//take first half as ns takes second half
         ON_ERR_RETURN(err);
         struct capref dummy_cap; // not useed
-        err = aos_rpc_call(get_init_rpc(),INIT_REG_NAMESERVER,disp_get_core_id(),name,ns_cap,&my_pid,&dummy_cap);
+        err = aos_rpc_call(get_init_rpc(),INIT_REG_NAMESERVER,disp_get_core_id(),name,ns_cap,my_pid,&dummy_cap);
         ON_ERR_RETURN(err);
     }
 
-    disp_set_domain_id(my_pid);
     err = aos_rpc_set_interface(ns_rpc,get_nameserver_interface(),0,NULL);
     ON_ERR_RETURN(err);
     set_ns_rpc(ns_rpc);
