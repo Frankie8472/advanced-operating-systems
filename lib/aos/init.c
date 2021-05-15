@@ -17,8 +17,6 @@
 #include <stdio.h>
 
 #include <aos/aos.h>
-#include <aos/default_interfaces.h>
-#include <aos/dispatcher_rpc.h>
 #include <aos/dispatch.h>
 #include <aos/curdispatcher_arch.h>
 #include <aos/dispatcher_arch.h>
@@ -32,17 +30,16 @@
 #include "init.h"
 // added
 #include <aos/aos_rpc.h>
+#include <aos/default_interfaces.h>
+#include <aos/aos_datachan.h>
+#include <aos/dispatcher_rpc.h>
 
 /// Are we the init domain (and thus need to take some special paths)?
 static bool init_domain;
 
 
 static size_t count = 0;
-static struct aos_rpc rpcs[100];
-
-struct aos_rpc stdin_rpc;
-struct aos_rpc stdout_rpc;
-
+static struct aos_rpc rpcs[20];
 
 extern size_t (*_libc_terminal_read_func)(char *, size_t);
 extern size_t (*_libc_terminal_write_func)(const char *, size_t);
@@ -93,6 +90,7 @@ static size_t syscall_terminal_read(char * buf,size_t len)
 
 char stdin_buffer[1024];
 volatile int stdin_buffer_pos = 0;
+__unused
 static void handle_stdin_data(struct aos_rpc *rpc, struct aos_rpc_varbytes bytes)
 {
     memcpy(stdin_buffer + stdin_buffer_pos, bytes.bytes, bytes.length);
@@ -110,16 +108,15 @@ static size_t aos_terminal_write(const char * buf,size_t len)
             }
         }
     return len;*/
-    struct aos_rpc_varbytes bytes = {
-        .bytes = (char *)buf,
-        .length = len
-    };
+    if (capref_is_null(stdout_chan.channel.lmp.remote_cap)) {
+        return 0;
+    }
 
     char bof[128];
-    debug_print_cap_at_capref(bof, 128, stdout_rpc.channel.lmp.remote_cap);
+    debug_print_cap_at_capref(bof, 128, stdout_chan.channel.lmp.remote_cap);
 
-    debug_printf("aos_terminal_write to %s\n", bof);
-    aos_rpc_call(&stdout_rpc, WRITE_IFACE_WRITE_VARBYTES, bytes);
+    //debug_printf("aos_chan send to %s\n", bof);
+    aos_dc_send(&stdout_chan, len, buf);
 
     return len;
 }
@@ -127,14 +124,14 @@ static size_t aos_terminal_write(const char * buf,size_t len)
 volatile int stdin_read_buffer_pos = 0;
 __attribute__((__used__))
 static size_t aos_terminal_read(char* buf,size_t len){
-    //debug_printf("Got to aos_terminal_read\n");
+    //debug_printf("Got to aos_terminal_read len: %d\n", len);
     /*struct aos_rpc * rpc = get_init_rpc();
     errval_t err;
     err = aos_rpc_serial_getchar(rpc, buf);
     if(err_is_fail(err)){
       DEBUG_ERR(err,"Failed get char in aos_terminal_read\n");
     }*/
-    while(stdin_buffer_pos <= stdin_read_buffer_pos) {
+    /*while(stdin_buffer_pos <= stdin_read_buffer_pos) {
         errval_t err = event_dispatch(get_default_waitset());
         if (err_is_fail(err)) {
             DEBUG_ERR(err, "in event_dispatch");
@@ -147,7 +144,18 @@ static size_t aos_terminal_read(char* buf,size_t len){
         stdin_read_buffer_pos += bytes;
         return bytes;
     }
-    return 0;
+    return 0;*/
+    errval_t err;
+    //debug_printf("before receive!\n");
+    size_t received;
+    do {
+        err = aos_dc_receive_available(&stdin_chan, len, buf, &received);
+        if (received == 0) {
+            thread_yield();
+        }
+    } while(received == 0);
+    //debug_printf("after receive!\n");
+    return received;
 }
 
 /**
@@ -424,18 +432,17 @@ void handle_send_varbytes(struct aos_rpc *r, struct aos_rpc_varbytes bytes) {
 static
 void handle_get_stdin_ep(struct aos_rpc *r, struct capref *ret) {
     debug_printf("returning local cap!\n");
-    *ret = stdin_rpc.channel.lmp.local_cap;
+    *ret = stdin_chan.channel.lmp.local_cap;
 }
 
 static
 void handle_set_stdout_ep(struct aos_rpc *r, struct capref ep) {
     debug_printf("setting remote cap!\n");
 
-    struct lmp_endpoint *lmp_ep;
-    struct capref ep_cap;
-    endpoint_create(LMP_RECV_LENGTH, &ep_cap, &lmp_ep);
-    aos_rpc_init_lmp(&stdout_rpc, ep_cap, ep, lmp_ep, get_default_waitset()); // TODO: delete old ep
-    aos_rpc_register_handler(&stdout_rpc, AOS_RPC_SEND_VARBYTES, handle_stdin_data);
+    //struct lmp_endpoint *lmp_ep;
+    //struct capref ep_cap;
+    //endpoint_create(LMP_RECV_LENGTH, &ep_cap, &lmp_ep);
+    stdout_chan.channel.lmp.remote_cap = ep;
 }
 
 

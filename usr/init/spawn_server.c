@@ -7,6 +7,7 @@
 
 #include <aos/cache.h>
 #include <aos/default_interfaces.h>
+#include <aos/aos_datachan.h>
 #include <aos/coreboot.h>
 
 #include <maps/imx8x_map.h>
@@ -70,12 +71,12 @@ errval_t spawn_new_core(coreid_t core)
     return SYS_ERR_OK;
 }
 
-static void handle_get_ram(struct aos_rpc *rpc, size_t size, size_t alignment, struct capref *ramcap, size_t *retsize) {
-    ram_alloc_aligned(ramcap, size, alignment);
-    *retsize = size;
+static void handle_binding(struct aos_rpc *r, struct capref ep) {
+    debug_printf("in handle_binding\n");
+    r->channel.lmp.remote_cap = ep;
 }
 
-errval_t spawn_new_domain(const char *mod_name, domainid_t *new_pid, struct capref child_stdout_cap, struct spawninfo **ret_si)
+errval_t spawn_new_domain(const char *mod_name, domainid_t *new_pid, struct capref spawner_ep, struct capref child_stdout_cap, struct spawninfo **ret_si)
 {
     errval_t err;
     struct spawninfo *si = spawn_create_spawninfo();
@@ -85,26 +86,47 @@ errval_t spawn_new_domain(const char *mod_name, domainid_t *new_pid, struct capr
 
     aos_rpc_set_interface(rpc, get_init_interface(), INIT_IFACE_N_FUNCTIONS, malloc(INIT_IFACE_N_FUNCTIONS * sizeof(void *)));
     initialize_initiate_handler(rpc);
-    aos_rpc_register_handler(rpc, INIT_IFACE_GET_RAM, handle_get_ram);
 
+    if (capref_is_null(spawner_ep)) {
+        struct aos_rpc *disp_rpc = &si->disp_rpc;
+        aos_rpc_init_lmp(disp_rpc, NULL_CAP, NULL_CAP, NULL, NULL);
+        aos_rpc_set_interface(disp_rpc, get_dispatcher_interface(), DISP_IFACE_N_FUNCTIONS, malloc(DISP_IFACE_N_FUNCTIONS * sizeof(void *)));
+        aos_rpc_register_handler(disp_rpc, DISP_IFACE_BINDING, handle_binding);
 
-    struct aos_rpc *disp_rpc = &si->disp_rpc;
+        si->spawner_ep_cap = disp_rpc->channel.lmp.local_cap;
+    }
+    else {
+        si->spawner_ep_cap = spawner_ep;
+    }
+
+    //struct aos_rpc *disp_rpc = &si->disp_rpc;
+    /*static struct aos_datachan chan;
 
     if (capref_is_null(child_stdout_cap)) {
-        err = endpoint_create(LMP_RECV_LENGTH, &child_stdout_cap, &si->spawner_ep);
+        err = endpoint_create(LMP_RECV_LENGTH * 4, &child_stdout_cap, &si->spawner_ep);
         DEBUG_ERR(err, "works?\n");
-        aos_rpc_init_lmp(disp_rpc, child_stdout_cap, NULL_CAP, si->spawner_ep, NULL);
     }
 
-    void pront(struct aos_rpc *r, struct aos_rpc_varbytes bytes) {
+    void pront(void *arg) {
+        struct aos_datachan *ch = arg;
         debug_printf("pronting\n");
-        for (int i = 0; i < bytes.length; i++) {
-            printf("%c", bytes.bytes[i]);
-        }
+        char data[32];
+        size_t recvd = 0;
+        do {
+            errval_t e = aos_dc_receive_available(ch, sizeof data, data, &recvd);
+            if (err_is_fail(e)) break;
+            for (int i = 0; i < recvd; i++) {
+                printf("%c", data[i]);
+            }
+        } while(recvd == sizeof data);
         printf("\n");
     }
-    aos_rpc_set_interface(disp_rpc, get_write_interface(), DISP_IFACE_N_FUNCTIONS, malloc(DISP_IFACE_N_FUNCTIONS * sizeof(void *)));
-    aos_rpc_register_handler(disp_rpc, WRITE_IFACE_WRITE_VARBYTES, pront);
+
+    aos_dc_init(&chan, 2048);
+    lmp_chan_init(&chan.channel.lmp);
+    chan.channel.lmp.endpoint = si->spawner_ep;
+
+    lmp_chan_register_recv(&chan.channel.lmp, get_default_waitset(), MKCLOSURE(&pront, &chan));*/
 
 
     si->child_stdout_cap = child_stdout_cap;
@@ -137,22 +159,28 @@ errval_t spawn_new_domain(const char *mod_name, domainid_t *new_pid, struct capr
 }
 
 
-errval_t spawn_lpuart_driver(const char *mod_name)
+errval_t spawn_lpuart_driver(const char *mod_name, struct spawninfo **ret_si)
 {
     errval_t err;
     struct spawninfo *si = spawn_create_spawninfo();
 
     domainid_t *pid = &si->pid;
     struct aos_rpc *rpc = &si->rpc;
-    
 
-    aos_rpc_set_interface(rpc, get_dispatcher_interface(), DISP_IFACE_N_FUNCTIONS, malloc(DISP_IFACE_N_FUNCTIONS * sizeof(void *)));
+    aos_rpc_set_interface(rpc, get_init_interface(), INIT_IFACE_N_FUNCTIONS, malloc(INIT_IFACE_N_FUNCTIONS * sizeof(void *)));
     initialize_initiate_handler(rpc);
-    aos_rpc_register_handler(rpc, INIT_IFACE_GET_RAM, handle_get_ram);
-    
-    struct lmp_endpoint *spawner_ep;
-    struct capref spawner_ep_cap;
-    endpoint_create(LMP_RECV_LENGTH, &spawner_ep_cap, &spawner_ep);
+
+
+    struct aos_rpc *disp_rpc = &si->disp_rpc;
+
+
+    aos_rpc_init_lmp(disp_rpc, NULL_CAP, NULL_CAP, NULL, NULL);
+    aos_rpc_set_interface(disp_rpc, get_dispatcher_interface(), DISP_IFACE_N_FUNCTIONS, malloc(DISP_IFACE_N_FUNCTIONS * sizeof(void *)));
+    aos_rpc_register_handler(disp_rpc, DISP_IFACE_BINDING, handle_binding);
+    debug_printf("disp_rpc: %p\n", disp_rpc);
+    debug_printf("handle_binding: %p\n", handle_binding);
+
+    si->spawner_ep_cap = disp_rpc->channel.lmp.local_cap;
 
     spawn_load_by_name((char*) mod_name, si, pid);
     /*err = lmp_chan_register_recv(&rpc->channel.lmp, get_default_waitset(), MKCLOSURE(&aos_rpc_on_lmp_message, &rpc));
@@ -197,6 +225,9 @@ errval_t spawn_lpuart_driver(const char *mod_name)
     err = cap_copy(irq, cap_irq);
     ON_ERR_PUSH_RETURN(err, LIB_ERR_CAP_COPY);
 
+    if (ret_si != NULL) {
+        *ret_si = si;
+    }
 
     return SYS_ERR_OK;
 }

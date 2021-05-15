@@ -35,9 +35,8 @@ static void initialize_interfaces(void)
     dispatcher_interface.n_bindings = DISP_IFACE_N_FUNCTIONS;
     dispatcher_interface.bindings = dispatcher_bindings;
 
-    // parameters: epcap for dispatcher interface, epcap for stdin, epcap for stdout
     aos_rpc_initialize_binding(&dispatcher_interface, "binding", DISP_IFACE_BINDING,
-                               2, 1, AOS_RPC_CAPABILITY, AOS_RPC_CAPABILITY, AOS_RPC_CAPABILITY);
+                               1, 0, AOS_RPC_CAPABILITY);
     aos_rpc_initialize_binding(&dispatcher_interface, "rebind", DISP_IFACE_REBIND,
                                1, 0, AOS_RPC_CAPABILITY);
     aos_rpc_initialize_binding(&dispatcher_interface, "set_stdout", DISP_IFACE_SET_STDOUT,
@@ -85,7 +84,7 @@ struct aos_rpc_interface *get_dispatcher_interface(void)
         initialize_interfaces();
     }
 
-    return &init_interface;
+    return &dispatcher_interface;
 }
 
 

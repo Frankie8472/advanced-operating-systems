@@ -170,7 +170,7 @@ void handle_spawn(struct aos_rpc *old_rpc, const char *name, uintptr_t core_id, 
     uintptr_t current_core_id = disp_get_core_id();
     if(core_id == current_core_id) {
         domainid_t pid;
-        errval_t err = spawn_new_domain(name, &pid, NULL_CAP, NULL);
+        errval_t err = spawn_new_domain(name, &pid, NULL_CAP, NULL_CAP, NULL);
         if (err_is_fail(err)) {
             DEBUG_ERR(err, "Failed to spawn new domain\n");
         }

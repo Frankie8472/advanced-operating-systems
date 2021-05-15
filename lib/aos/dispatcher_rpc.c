@@ -2,8 +2,8 @@
 #include <aos/default_interfaces.h>
 #include <aos/caddr.h>
 
-struct aos_rpc stdin_rpc;
-struct aos_rpc stdout_rpc;
+struct aos_datachan stdin_chan;
+struct aos_datachan stdout_chan;
 
 /// default service every dispatcher provides
 struct aos_rpc dispatcher_rpc;
@@ -25,22 +25,24 @@ static void handle_rebind(struct aos_rpc *rpc, struct capref new_ep)
 
 static void handle_set_stdout(struct aos_rpc *rpc, struct capref new_stdout_ep)
 {
-    slot_free(stdout_rpc.channel.lmp.remote_cap);
-    stdout_rpc.channel.lmp.remote_cap = new_stdout_ep;
+    debug_printf("handle_set_stdout\n");
+    slot_free(stdout_chan.channel.lmp.remote_cap);
+    stdout_chan.channel.lmp.remote_cap = new_stdout_ep;
 }
 
 
 static void handle_get_stdin(struct aos_rpc *rpc, struct capref *stdin_ep)
 {
-    *stdin_ep = stdin_rpc.channel.lmp.local_cap;
+    debug_printf("handle_get_stdin\n");
+    *stdin_ep = stdin_chan.channel.lmp.local_cap;
 }
 
 
-static void initialize_dispatcher_handlers(struct aos_rpc *disp_rpc)
+static void initialize_dispatcher_handlers(struct aos_rpc *dr)
 {
-    aos_rpc_register_handler(disp_rpc, DISP_IFACE_REBIND, handle_rebind);
-    aos_rpc_register_handler(disp_rpc, DISP_IFACE_SET_STDOUT, handle_set_stdout);
-    aos_rpc_register_handler(disp_rpc, DISP_IFACE_GET_STDIN, handle_get_stdin);
+    aos_rpc_register_handler(dr, DISP_IFACE_REBIND, handle_rebind);
+    aos_rpc_register_handler(dr, DISP_IFACE_SET_STDOUT, handle_set_stdout);
+    aos_rpc_register_handler(dr, DISP_IFACE_GET_STDIN, handle_get_stdin);
 }
 
 
@@ -104,19 +106,31 @@ errval_t init_dispatcher_rpcs(void)
 
 
     // Setting up stdout endpoint
-    struct capref epcap;
+    /*struct capref epcap;
     struct lmp_endpoint *stdout_endpoint;
 
     endpoint_create(LMP_RECV_LENGTH, &epcap, &stdout_endpoint);
     err = aos_rpc_init_lmp(&stdout_rpc, epcap, stdout_ep_cap, stdout_endpoint, NULL);
-    err = aos_rpc_set_interface(&stdout_rpc, get_write_interface(), 0, NULL);
+    err = aos_rpc_set_interface(&stdout_rpc, get_write_interface(), 0, NULL);*/
+    aos_dc_init(&stdout_chan, 64);
+
+    struct capability stdout_cap;
+    invoke_cap_identify(stdout_ep_cap, &stdout_cap);
+    if (stdout_cap.type == ObjType_EndPointLMP) {
+        stdout_chan.channel.lmp.remote_cap = stdout_ep_cap;
+    }
+    else {
+        stdout_chan.channel.lmp.remote_cap = NULL_CAP;
+    }
 
 
+    // setup stdin
     struct capref stdin_epcap;
     struct lmp_endpoint *stdin_endpoint;
-
-    endpoint_create(LMP_RECV_LENGTH * 8, &stdin_epcap, &stdin_endpoint);
-    //err = aos_rpc_init_lmp(&stdout_rpc, stdin_epcap, NULL_CAP, stdin_endpoint, NULL);
+    err = endpoint_create(LMP_RECV_LENGTH * 8, &stdin_epcap, &stdin_endpoint);
+    err = aos_dc_init(&stdin_chan, 1024);
+    stdin_chan.channel.lmp.endpoint = stdin_endpoint;
+    stdin_chan.channel.lmp.local_cap = stdin_epcap;
 
 
 
@@ -127,13 +141,24 @@ errval_t init_dispatcher_rpcs(void)
         abort();
     }
 
+    //initialize_dispatcher_handlers(&dispatcher_rpc);
+
+
+    aos_rpc_register_handler(&dispatcher_rpc, DISP_IFACE_GET_STDIN, handle_get_stdin);
+
     initialize_dispatcher_handlers(&dispatcher_rpc);
 
     debug_printf("dispatcher iface: %p\n", dispatcher_rpc);
+    debug_printf("n_rets: %p\n", dispatcher_rpc.interface->bindings[DISP_IFACE_GET_STDIN].n_rets);
 
+    struct capability disp_rpc_ep;
+    invoke_cap_identify(dispatcher_rpc.channel.lmp.remote_cap, &disp_rpc_ep);
+    if (disp_rpc_ep.type == ObjType_EndPointLMP) {
+        debug_printf("binding spawner\n");
+        err = aos_rpc_call(&dispatcher_rpc, DISP_IFACE_BINDING, dispatcher_rpc.channel.lmp.local_cap);
 
-    //err = aos_rpc_call(&dispatcher_rpc, DISP_IFACE_BINDING, dispatcher_rpc.channel.lmp.local_cap,
-    //                   stdin_epcap, &stdout_rpc.channel.lmp.remote_cap);
+    }
+
     /*struct capability rem_cap;
     invoke_cap_identify(dispatcher_rpc.channel.lmp.remote_cap, &rem_cap);
     if (rem_cap.type == ObjType_EndPointLMP) {

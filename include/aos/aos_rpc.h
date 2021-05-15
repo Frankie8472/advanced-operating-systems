@@ -128,7 +128,7 @@ struct aos_rpc {
         struct ump_chan ump;
     } channel;
 
-    struct aos_rpc_interface *interface;
+    const struct aos_rpc_interface *interface;
 
     struct waitset *waitset;
 

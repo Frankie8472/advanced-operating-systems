@@ -1,39 +1,47 @@
 #include <aos/aos_rpc.h>
+#include <aos/dispatcher_rpc.h>
 
 #include <stdio.h>
+
+
+static void print_prompt(void)
+{
+    printf("$ \033[C\033[C\033[C");
+    fflush(stdout);
+}
+
+static void on_input(void *arg)
+{
+    struct aos_datachan *chan = arg;
+    char c = getchar();
+    //debug_printf("%d\n", c);
+    if (c == 13) {
+        printf("\n");
+        fflush(stdout);
+        print_prompt();
+    }
+    if (c == 033) {
+        //c = getchar();
+    }
+    else {
+        printf("%c", c);
+    }
+    fflush(stdout);
+
+    lmp_chan_register_recv(&chan->channel.lmp, get_default_waitset(), MKCLOSURE(on_input, arg));
+}
 
 
 int main(int argc, char **argv)
 {
     errval_t err;
-
-    debug_printf("Welcome to JameOS Shell\n");
-
-    printf("printing this, this can be a very long text, it is just not that efficient but doable\n");
-
-
     struct waitset *default_ws = get_default_waitset();
-    /*
-    for (int i = 0; i < 2; i++) {
-        err = event_dispatch(default_ws);
-        if (err_is_fail(err)) {
-            DEBUG_ERR(err, "in event_dispatch");
-            abort();
-        }
-        debug_printf("josh event %d\n", i);
-    }
-    thread_yield();
-    thread_yield();
-    thread_yield();
-    thread_yield();
-    thread_yield();
-    for (int i = 0; i < 200000000; i++) {
-        __asm volatile("mov x8, x8\n");
-    }
 
-    debug_printf("reading char...");
-    char c = getchar();
-    debug_printf("read chan '%c'\n", c);*/
+    printf("Welcome to JameOS Shell\n");
+
+    print_prompt();
+
+    lmp_chan_register_recv(&stdin_chan.channel.lmp, get_default_waitset(), MKCLOSURE(on_input, &stdin_chan));
 
     while (true) {
         err = event_dispatch(default_ws);

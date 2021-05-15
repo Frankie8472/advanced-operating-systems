@@ -187,8 +187,10 @@ errval_t spawn_setup_dispatcher(int argc, const char *const argv[], struct spawn
     //err = endpoint_create(LMP_RECV_LENGTH, &si->child_stdout_cap, &si->child_stdout);
     //ON_ERR_PUSH_RETURN(err, LIB_ERR_ENDPOINT_CREATE);
 
-    err = cap_copy(child_stdout_cap, si->child_stdout_cap);
-    ON_ERR_PUSH_RETURN(err, LIB_ERR_CAP_COPY_FAIL);
+    if (!capref_is_null(si->child_stdout_cap)) {
+        err = cap_copy(child_stdout_cap, si->child_stdout_cap);
+        ON_ERR_PUSH_RETURN(err, LIB_ERR_CAP_COPY_FAIL);
+    }
 
     err = cap_copy(mm_ep_cap, cap_mmep);
     ON_ERR_PUSH_RETURN(err, LIB_ERR_CAP_COPY_FAIL);

@@ -278,6 +278,7 @@ static int bsp_main(int argc, char *argv[])
     }
 
     err = start_memory_server_thread();
+    thread_yield();
     if (err_is_fail(err)) {
         DEBUG_ERR(err, "/>/> Error: starting memory thread");
     }
@@ -311,14 +312,44 @@ static int bsp_main(int argc, char *argv[])
     invoke_ipi_notify(ump_ep);*/
 
 
-    spawn_lpuart_driver("lpuart_terminal");
+    struct spawninfo *term_si;
+    spawn_lpuart_driver("lpuart_terminal", &term_si);
 
     domainid_t pid;
     struct spawninfo *josh_si;
 
-    spawn_new_domain("josh", &pid, NULL_CAP, &josh_si);
+    while (capref_is_null(term_si->disp_rpc.channel.lmp.remote_cap)) {
+        err = event_dispatch(get_default_waitset());
+        if (err_is_fail(err)) {
+            DEBUG_ERR(err, "in event_dispatch");
+            abort();
+        }
+    }
+
+    debug_printf("getting stdin from terminal!\n");
+
+    struct capref testep;
+    aos_rpc_call(&term_si->disp_rpc, DISP_IFACE_GET_STDIN, &testep);
+
+    debug_printf("got stdin from terminal!\n");
 
 
+    spawn_new_domain("josh", &pid, NULL_CAP, testep, &josh_si);
+
+
+    while (capref_is_null(josh_si->disp_rpc.channel.lmp.remote_cap)) {
+        err = event_dispatch(get_default_waitset());
+        if (err_is_fail(err)) {
+            DEBUG_ERR(err, "in event_dispatch");
+            abort();
+        }
+    }
+
+    struct capref josh_in;
+    debug_printf("getting stdin from josh!\n");
+    aos_rpc_call(&josh_si->disp_rpc, DISP_IFACE_GET_STDIN, &josh_in);
+    debug_printf("got stdin from josh!\n");
+    aos_rpc_call(&term_si->disp_rpc, DISP_IFACE_SET_STDOUT, josh_in);
 
     //struct aos_rpc *josh_rpc = &josh_si->disp_rpc;
 
