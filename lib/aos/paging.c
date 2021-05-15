@@ -567,7 +567,7 @@ errval_t paging_alloc(struct paging_state *st, void **buf, size_t bytes, size_t 
  * \brief Finds a free virtual address and maps a frame at that address
  * 
  * \param st A pointer to the paging state.
- * \param buf This will parameter will be used to return the free virtual
+ * \param buf This parameter will be used to return the free virtual
  * address at which a new frame as been mapped.
  * \param bytes The number of bytes that need to be free (at the minimum)
  *        at the virtual address found.
