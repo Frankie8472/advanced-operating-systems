@@ -45,8 +45,9 @@ enum {
 
 enum {
     NS_REG_SERVER = AOS_RPC_MSG_TYPE_START,
-    // NS_GET_PROC_NAME,
-    // NS_GET_PROC_CORE,
+    NS_GET_PROC_NAME,
+    NS_GET_PROC_CORE,
+    NS_GET_PROC_LIST,
     NS_IFACE_N_FUNCTIONS,
 
 };

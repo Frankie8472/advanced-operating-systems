@@ -176,6 +176,8 @@ static errval_t init_name_server(void){
         }
     }
 
+    // init
+
     domainid_t my_pid;
     err = aos_rpc_call(ns_rpc,INIT_REG_INIT,disp_get_core_id(),"init",&my_pid);
     ON_ERR_RETURN(err);
@@ -255,6 +257,7 @@ static int bsp_main(int argc, char *argv[])
 
 
     spawn_new_domain("server", NULL, NULL_CAP);
+    // spawn_new_domain("client",NULL,NULL_CAP);
     // for (int i = 0; i < 1; i++) {
     //     spawn_new_domain("client", NULL, NULL_CAP);
     // }
@@ -331,8 +334,8 @@ static int app_main(int argc, char *argv[])
     
     // run_init_tests(my_core_id);
 
-    spawn_new_domain("memeater",NULL,NULL_CAP);
-
+    // spawn_new_domain("memeater",NULL,NULL_CAP);
+    spawn_new_domain("server", NULL, NULL_CAP);
     grading_setup_app_init(bi);
 
     grading_test_early();

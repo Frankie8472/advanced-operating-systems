@@ -197,7 +197,7 @@ errval_t barrelfish_init_onthread(struct spawn_domain_params *params)
     ON_ERR_RETURN(err);
     debug_printf("init_dispatcher_rpcs returned\n");
     if(get_ns_online()){
-        err = init_nameserver_rpc();
+        err = init_nameserver_rpc((char* ) params -> argv[0]);
         ON_ERR_RETURN(err);
     }
 

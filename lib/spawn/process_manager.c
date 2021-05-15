@@ -67,11 +67,22 @@ struct aos_rpc *get_rpc_from_spawn_info(domainid_t pid){
         }
     }
 
-    debug_printf("Did not find rpc from spawninfos for pid = %d\n",pid);
+    assert(false && "Did not find rpc from spawninfos for pid");
     return NULL;
 }
 
 
+struct spawninfo *get_si_from_rpc(struct aos_rpc * rpc){
+    struct process_manager *pm = get_process_manager();
+    for(struct spawninfo * curr = pm -> first; curr != NULL;curr = curr -> next ){
+        if(&curr  -> rpc == rpc){
+
+            return curr;
+        }
+    }
+    assert(false && "Did not find si from rpc");
+    return NULL;
+}
 
 // domainid_t spawn_get_new_domainid(void)
 // {

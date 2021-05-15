@@ -15,7 +15,6 @@
 #include "rpc_server.h"
 #include "spawn_server.h"
 #include "mem_alloc.h"
-
 #include "../../lib/aos/include/init.h"
 
 
@@ -150,7 +149,7 @@ void handle_getchar(struct aos_rpc *r, uintptr_t *c) {
  * \brief handler function for ram alloc rpc call
  */
 void handle_request_ram(struct aos_rpc *r, uintptr_t size, uintptr_t alignment, struct capref *cap, uintptr_t *ret_size) {
-    //debug_printf("handle_request_ram\n");
+    // debug_printf("handle_request_ram\n");
     errval_t err = ram_alloc_aligned(cap, size, alignment);
     if (err_is_fail(err)) {
         DEBUG_ERR(err, "Error in remote ram allocation!\n");
@@ -211,17 +210,10 @@ void handle_ns_on(struct aos_rpc *r){
     set_ns_online();
 }
 
+
+//TODO get rid
 void handle_service_on(struct aos_rpc *r, uintptr_t service){
     debug_printf("Handle nameserver online\n");
-    // switch(service){
-    //     case PROCESS_MANAGER: 
-    //         set_pm_online();
-    //         break;
-    //     case MEMORY_SERVER:
-    //         break;
-    //     default:
-    //         debug_printf("Invalid parameter to turn on service\n");
-    // }
 }
 
 void handle_foreign_spawn(struct aos_rpc *origin_rpc, const char *name, uintptr_t core_id, uintptr_t *new_pid)
@@ -434,22 +426,24 @@ void handle_all_binding_request(struct aos_rpc *r, uintptr_t pid, uintptr_t core
 
 void handle_forward_ns_reg(struct aos_rpc *rpc,uintptr_t core_id,const char* name,struct capref proc_ep_cap, uintptr_t * pid, struct capref* ns_ep_cap){
 
-    debug_printf("Forwarding ns request!\n");
     errval_t err = aos_rpc_call(get_ns_rpc(),INIT_REG_NAMESERVER,core_id,name,proc_ep_cap,pid,ns_ep_cap);
     if(err_is_fail(err)){
         DEBUG_ERR(err,"Failed to forward ns reg!\n");
     }
-
-
 }
 
 
 void handle_forward_init_reg(struct aos_rpc *rpc,uintptr_t core_id,const char* name, uintptr_t * pid){
-    debug_printf("Forwarding init reg!\n");
     errval_t err = aos_rpc_call(get_ns_rpc(),INIT_REG_INIT,core_id,name,pid);
     if(err_is_fail(err)){
         DEBUG_ERR(err,"Failed to forward ns reg init!\n");
     }
+    // Update the spawninfo struct with the pid assigned by the nameserver, so we can forward server binding requests when necessary
+    if(core_id == disp_get_core_id()){
+        struct spawninfo* si = get_si_from_rpc(rpc);
+        si -> pid = *pid;
+    }
+
 }
 
 /**

@@ -49,6 +49,8 @@ static void initialize_interfaces(void)
 
 
 
+
+
     // ===================== Dispatcher Interface =====================
 
     dispatcher_interface.n_bindings = DISP_IFACE_N_FUNCTIONS;
@@ -82,10 +84,17 @@ static void initialize_interfaces(void)
 
 
 
+
+
     // ===================== Name Server Interface ========================
 
     name_server_interface.n_bindings = NS_IFACE_N_FUNCTIONS;
     name_server_interface.bindings = name_server_bindings;
+
+
+    aos_rpc_initialize_binding(&name_server_interface,"get_proc_name",NS_GET_PROC_NAME,1,1,AOS_RPC_WORD,AOS_RPC_VARSTR);
+    aos_rpc_initialize_binding(&name_server_interface,"get_proc_core",NS_GET_PROC_CORE,1,1,AOS_RPC_WORD,AOS_RPC_WORD);
+    aos_rpc_initialize_binding(&name_server_interface,"get_proc_list",NS_GET_PROC_LIST,0,2,AOS_RPC_WORD,AOS_RPC_VARSTR);
 
 
 
