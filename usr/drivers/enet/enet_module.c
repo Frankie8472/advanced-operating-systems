@@ -565,7 +565,7 @@ static errval_t enet_probe(struct enet_driver_state* st)
     enet_write_mac(st);
     enet_read_mac(st);
 
-    // TODO checked dump until here! 
+    // TODO checked dump until here!
     return SYS_ERR_OK;
 }
 
