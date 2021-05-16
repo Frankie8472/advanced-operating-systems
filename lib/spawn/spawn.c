@@ -318,8 +318,8 @@ errval_t spawn_setup_dispatcher(int argc, const char *const argv[], struct spawn
     aos_rpc_init_lmp(&si->rpc, cap_selfep, NULL_CAP, si->lmp_ep, NULL);
 
 
-    err = register_process_to_process_manager((char*)name, pid);
-    ON_ERR_RETURN(err);
+    //err = register_process_to_process_manager((char*)name, pid);
+    //ON_ERR_RETURN(err);
     disp_gen->domain_id = *pid;
 
     if(get_mem_online()){
@@ -542,10 +542,18 @@ errval_t spawn_load_by_name(char *binary_name, struct spawninfo *si,
     // - Fill in argc/argv from the multiboot command line
     // - Call spawn_load_argv
     errval_t err = SYS_ERR_OK;
-    // debug_printf("Halli Hallo\n");
 
+
+
+    //Pretty ugly, but fixes a silent Nullptr dereference
+    int argc = get_argc(binary_name);
+    char * res[argc];
+    char cmd_line_copy[strlen(binary_name)];
+    strcpy(cmd_line_copy,binary_name);
+    create_argv(cmd_line_copy,(char **) res);
+    // binary_name = ;
     //TODO: is  bi correctly initialized by the init/usr/main.c
-    struct mem_region* mem_region = multiboot_find_module(bi, binary_name);
+    struct mem_region* mem_region = multiboot_find_module(bi, res[0]);
     
     if (mem_region == NULL) {
         return SPAWN_ERR_MAP_MODULE;
@@ -580,20 +588,37 @@ errval_t spawn_load_by_name(char *binary_name, struct spawninfo *si,
     // debug_printf("ELF address = %lx\n", elf_address);
     // debug_printf("%x, '%c', '%c', '%c'\n", elf_address[0], elf_address[1], elf_address[2], elf_address[3]);
     // debug_printf("BOI\n");
+    // if()
 
-    char *args_string = (char *)  multiboot_module_opts(mem_region);
-    char copy[strlen(args_string)];
-    strcpy(copy,args_string);
-    strip_extra_spaces(copy);
 
-    int argc = get_argc(copy);
-    char  const *argv[argc];
-    create_argv(copy, (char **) argv);
 
     // set binary name to full name
-    si->binary_name = binary_name;
+    si->binary_name = res[0];
 
-    return spawn_load_argv(argc, argv, si, pid);
+    
+    if(argc > 1){ 
+        char *args_string = binary_name;
+        char copy[strlen(args_string)];
+        strcpy(copy,args_string);
+        strip_extra_spaces(copy);
+        argc = get_argc(copy);
+        debug_printf("Argc = %d\n",argc);
+        char  const *argv[argc];
+        create_argv(copy, (char **) argv);
+        binary_name = (char *) argv[0];
+        return spawn_load_argv(argc,argv , si, pid);
+    }else {
+        char * args_string = (char *)  multiboot_module_opts(mem_region);
+        // debug_printf("Args string = %s\n",args_string);
+        char copy[strlen(args_string)];
+        strcpy(copy,args_string);
+        strip_extra_spaces(copy);
+
+        argc = get_argc(copy);
+        char  const *argv[argc];
+        create_argv(copy, (char **) argv);
+        return spawn_load_argv(argc,argv , si, pid);
+    }
 }
 
 
@@ -617,3 +642,4 @@ errval_t register_process_to_process_manager(char* binary_name,domainid_t* pid){
     }
     return SYS_ERR_OK;
 }
+
