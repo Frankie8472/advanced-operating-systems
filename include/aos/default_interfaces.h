@@ -13,6 +13,7 @@ void initialize_initiate_handler(struct aos_rpc *rpc);
 enum {
     INIT_IFACE_GET_RAM = AOS_RPC_MSG_TYPE_START,
     INIT_IFACE_SPAWN,
+    INIT_IFACE_SPAWN_EXTENDED,      ///< same as spawn but with more detailed parameters 
     INIT_IFACE_GET_PROCESS_LIST,
 
     INIT_IFACE_N_FUNCTIONS, // <- count -- must be last
