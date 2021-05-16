@@ -103,6 +103,7 @@ static void handle_input(void *arg)
             return;
         }
         for (size_t i = 0; i < received; i++) {
+            //debug_printf("char %d '%c'\n", buffer[i], buffer[i]);
             if (buffer[i] == '\n') {
                 //debug_printf("crlf\n");
                 lpuart_putchar(lpuart_driver_state, '\r');

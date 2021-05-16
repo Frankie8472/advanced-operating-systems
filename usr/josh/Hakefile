@@ -1,18 +1,23 @@
 
 
+-- bison :: String -> String -> HRule
+-- bison src dest =
+--     Rule [ Str "bison ",
+--            In Str BuildTree src,
+--            Out "josh.tab.c" ]
 
-
-[ build application 
-    {
+[
+    build application {
         target = "josh",
-        cFiles = [ "main.c" ],
+        cFiles = [ "main.c", "ast.c", "builtins.c", "liblinenoise_glue.c", "josh.tab.c", "lex.yy.c" ],
+        addCFlags = [ -- need to ignore warnings for bison generated code
+            "-Wno-implicit-function-declaration",
+            "-Wno-missing-prototypes",
+            "-Wno-missing-declarations",
+            "-Wno-unused-function"
+        ],
         addIncludes = [ "/lib" ],
         addLibraries = [ "aos", "linenoise" ],
-      
-        -- addCFlags = [
-        --     "-Wno-redundant-decls",
-        --     "-Wno-strict-prototypes"
-        -- ],
         architectures = allArchitectures
     }
 ]

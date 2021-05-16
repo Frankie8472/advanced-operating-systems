@@ -86,6 +86,7 @@ errval_t spawn_new_domain(const char *mod_name, domainid_t *new_pid, struct capr
 
     aos_rpc_set_interface(rpc, get_init_interface(), INIT_IFACE_N_FUNCTIONS, malloc(INIT_IFACE_N_FUNCTIONS * sizeof(void *)));
     initialize_initiate_handler(rpc);
+    aos_rpc_register_handler(rpc, INIT_IFACE_SPAWN, handle_spawn);
 
     if (capref_is_null(spawner_ep)) {
         struct aos_rpc *disp_rpc = &si->disp_rpc;
@@ -136,7 +137,8 @@ errval_t spawn_new_domain(const char *mod_name, domainid_t *new_pid, struct capr
     debug_printf("created stdout ep: %s\n", buf);
 
     //initialize_rpc_handlers(rpc);
-    spawn_load_by_name((char*) mod_name, si, pid);
+    err = spawn_load_by_name((char*) mod_name, si, pid);
+    ON_ERR_RETURN(err);
 
     /*char buf[128];
     debug_print_cap_at_capref(buf, 128, si->rpc.channel.lmp.remote_cap);
