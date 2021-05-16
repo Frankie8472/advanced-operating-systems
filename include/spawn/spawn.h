@@ -27,6 +27,10 @@ struct spawninfo {
 
     // Information about the binary
     char *binary_name;     // Name of the binary
+    int argc;
+    char **argv;
+    int envc;
+    char **envp;
 
     // root cnode of the child
     struct capref rootcn;
@@ -67,6 +71,10 @@ errval_t spawn_load_by_name_setup(char *binary_name, struct spawninfo *si);
 
 // Start a child process using the multiboot command line. Fills in si.
 errval_t spawn_load_by_name(char *binary_name, struct spawninfo *si,
+                            domainid_t *pid);
+
+// Do the same as spawn_load_by_name but don't start the dispatcher yet
+errval_t spawn_setup_by_name(char *binary_name, struct spawninfo *si,
                             domainid_t *pid);
 
 // setup cspace for a dispatcher

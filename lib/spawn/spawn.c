@@ -395,8 +395,6 @@ errval_t spawn_load_argv(int argc, const char *const argv[], struct spawninfo *s
     err = spawn_setup_dispatcher(argc, argv, si, pid);
     ON_ERR_RETURN(err);
 
-    debug_printf("%s set up!\n", si->binary_name);
-
     err = spawn_invoke_dispatcher(si);
     ON_ERR_RETURN(err);
 
@@ -477,70 +475,8 @@ static void strip_extra_spaces(char* str) {
   str[x] = '\0';
 }
 
-errval_t spawn_load_by_name_setup(char *binary_name, struct spawninfo *si)
+errval_t spawn_setup_by_name(char *binary_name, struct spawninfo *si, domainid_t *pid)
 {
-    errval_t err = SYS_ERR_OK;
-
-    //TODO: is bi correctly initialized by the init/usr/main.c
-    struct mem_region* mem_region = multiboot_find_module(bi, binary_name);
-
-    if (mem_region == NULL) {
-        return SPAWN_ERR_MAP_MODULE;
-    }
-    
-    //this mem_region should be of type module
-    assert(mem_region->mr_type == RegionType_Module);
-    struct capability cap;
-    struct capref child_frame = {
-        .cnode = cnode_module,
-        .slot = mem_region->mrmod_slot
-    };
-
-    ON_ERR_RETURN(err);
-
-    size_t mapping_size = get_size(&cap);
-    char* elf_address;
-    
-    err = paging_map_frame_attr(get_current_paging_state(), (void **) &elf_address,
-                          mapping_size, child_frame, VREGION_FLAGS_READ_WRITE, NULL, NULL);
-    ON_ERR_RETURN(err);
-
-    si->mapped_elf = (lvaddr_t) elf_address;
-    si->mapped_elf_size = (size_t) mem_region->mrmod_size;
-
-    char *args_string = (char *)  multiboot_module_opts(mem_region);
-    char copy[strlen(args_string)];
-    strcpy(copy,args_string);
-    strip_extra_spaces(copy);
-
-    int argc = get_argc(copy);
-    char  const *argv[argc];
-    create_argv(copy, (char **) argv);
-
-    // set binary name to full name
-    si->binary_name = binary_name;
-
-    return SYS_ERR_OK;
-}
-
-/**
- * TODO(M2): Implement this function.
- * \brief Spawn a new dispatcher executing 'binary_name'
- *
- * \param binary_name The name of the binary.
- * \param si A pointer to a spawninfo struct that will be
- * filled out by spawn_load_by_name. Must not be NULL.
- * \param pid A pointer to a domainid_t that will be
- * filled out by spawn_load_by_name. Must not be NULL.
- *
- * \return Either SYS_ERR_OK if no error occured or an error
- * indicating what went wrong otherwise.
- */
-errval_t spawn_load_by_name(char *binary_name, struct spawninfo *si,
-                            domainid_t *pid) {
-    // - Get the mem_region from the multiboot image
-    // - Fill in argc/argv from the multiboot command line
-    // - Call spawn_load_argv
     errval_t err = SYS_ERR_OK;
 
 
@@ -560,7 +496,6 @@ errval_t spawn_load_by_name(char *binary_name, struct spawninfo *si,
     }
 
 
-    
     //this mem_region should be of type module
     assert(mem_region->mr_type == RegionType_Module);
     struct capability cap;
@@ -593,20 +528,19 @@ errval_t spawn_load_by_name(char *binary_name, struct spawninfo *si,
 
 
     // set binary name to full name
-    si->binary_name = res[0];
 
     
-    if(argc > 1){ 
+    if(argc > 1){
         char *args_string = binary_name;
         char copy[strlen(args_string)];
         strcpy(copy,args_string);
         strip_extra_spaces(copy);
         argc = get_argc(copy);
         debug_printf("Argc = %d\n",argc);
-        char  const *argv[argc];
-        create_argv(copy, (char **) argv);
-        binary_name = (char *) argv[0];
-        return spawn_load_argv(argc,argv , si, pid);
+        si->argv = malloc(argc * sizeof(char *));
+        
+        create_argv(copy, (char **) si->argv);
+        si->binary_name = (char *) si->argv[0];
     }else {
         char * args_string = (char *)  multiboot_module_opts(mem_region);
         // debug_printf("Args string = %s\n",args_string);
@@ -615,10 +549,43 @@ errval_t spawn_load_by_name(char *binary_name, struct spawninfo *si,
         strip_extra_spaces(copy);
 
         argc = get_argc(copy);
-        char  const *argv[argc];
-        create_argv(copy, (char **) argv);
-        return spawn_load_argv(argc,argv , si, pid);
+        si->argv = malloc(argc * sizeof(char *));
+        create_argv(copy, (char **) si->argv);
+        si->binary_name = (char *) si->argv[0];
     }
+
+    binary_name = (char *) si->argv[0];
+    
+    return spawn_setup_dispatcher(argc, (const char *const *)si->argv , si, pid);
+}
+
+/**
+ * TODO(M2): Implement this function.
+ * \brief Spawn a new dispatcher executing 'binary_name'
+ *
+ * \param binary_name The name of the binary.
+ * \param si A pointer to a spawninfo struct that will be
+ * filled out by spawn_load_by_name. Must not be NULL.
+ * \param pid A pointer to a domainid_t that will be
+ * filled out by spawn_load_by_name. Must not be NULL.
+ *
+ * \return Either SYS_ERR_OK if no error occured or an error
+ * indicating what went wrong otherwise.
+ */
+errval_t spawn_load_by_name(char *binary_name, struct spawninfo *si,
+                            domainid_t *pid) {
+    // - Get the mem_region from the multiboot image
+    // - Fill in argc/argv from the multiboot command line
+    // - Call spawn_load_argv
+    errval_t err;
+    
+    err = spawn_setup_by_name(binary_name, si, pid);
+    ON_ERR_RETURN(err);
+    
+    err = spawn_invoke_dispatcher(si);
+    ON_ERR_RETURN(err);
+
+    return SYS_ERR_OK;
 }
 
 
