@@ -90,15 +90,15 @@ struct enet_driver_state {
     struct capref regs;
     lvaddr_t d_vaddr;
 
-    struct enet_queue* rxq;
-    struct enet_queue* txq;
+    struct enet_queue* rxq;  // receive queue
+    struct enet_queue* txq;  // send queue
     enet_t* d;
     uint64_t mac;
 
     uint32_t phy_id;
 
-    struct capref rx_mem;
-    struct capref tx_mem;
+    struct capref rx_mem;  // receive memcap
+    struct capref tx_mem;  // send memcap
 };
 
 #define ENET_HASH_BITS 6
