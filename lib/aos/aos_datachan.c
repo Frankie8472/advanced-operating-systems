@@ -239,7 +239,21 @@ errval_t aos_dc_receive_available(struct aos_datachan *dc, size_t bytes, char *d
 }
 
 
-errval_t aos_dc_receive(struct aos_datachan *dc, size_t bytes, char *data)
+errval_t aos_dc_receive(struct aos_datachan *dc, size_t bytes, char *data, size_t *received)
+{
+    *received = 0;
+    do {
+        errval_t err = aos_dc_receive_available(dc, bytes, data, received);
+        ON_ERR_RETURN(err);
+        if (*received == 0) {
+            thread_yield();
+        }
+    } while(*received == 0);
+    return SYS_ERR_OK;
+}
+
+
+errval_t aos_dc_receive_all(struct aos_datachan *dc, size_t bytes, char *data)
 {
     errval_t err;
 

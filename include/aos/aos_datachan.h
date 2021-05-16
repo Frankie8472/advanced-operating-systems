@@ -67,7 +67,9 @@ errval_t aos_dc_receive_available(struct aos_datachan *dc, size_t bytes, char *d
  * 
  * This function blocks until it receives some data.
  */
-errval_t aos_dc_receive(struct aos_datachan *dc, size_t bytes, char *data);
+errval_t aos_dc_receive(struct aos_datachan *dc, size_t bytes, char *data, size_t *received);
+
+errval_t aos_dc_receive_all(struct aos_datachan *dc, size_t bytes, char *data);
 
 
 #endif // LIB_AOS_DATACHAN_H
