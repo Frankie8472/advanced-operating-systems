@@ -418,11 +418,11 @@ errval_t allocate_elf_memory(void* state, genvaddr_t base, size_t size, uint32_t
 
     int actual_flags = 0;
     if (flags & PF_R)
-        actual_flags |= VREGION_FLAGS_READ;
+        actual_flags |= KPI_PAGING_FLAGS_READ;
     if (flags & PF_W)
-        actual_flags |= VREGION_FLAGS_WRITE;
+        actual_flags |= KPI_PAGING_FLAGS_WRITE;
     if (flags & PF_X)
-        actual_flags |= VREGION_FLAGS_EXECUTE;
+        actual_flags |= KPI_PAGING_FLAGS_EXECUTE;
 
     //debug_printf("ALLOC ELF STUFF: 0x%lx -> 0x%lx\n", base, base + size);
 
