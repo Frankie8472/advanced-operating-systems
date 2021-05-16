@@ -47,7 +47,11 @@ static void initialize_interfaces(void)
 
 
     aos_rpc_initialize_binding(&init_interface, "reg_prc", INIT_REG_NAMESERVER, 4, 1, AOS_RPC_WORD, AOS_RPC_VARSTR,AOS_RPC_CAPABILITY,AOS_RPC_WORD,AOS_RPC_CAPABILITY);
+    
+    aos_rpc_initialize_binding(&init_interface, "reg_server", INIT_REG_SERVER, 4, 1, AOS_RPC_WORD, AOS_RPC_VARSTR, AOS_RPC_CAPABILITY,AOS_RPC_VARSTR, AOS_RPC_VARSTR);
 
+
+    aos_rpc_initialize_binding(&init_interface, "lookup_server", INIT_NAME_LOOKUP, 1, 1, AOS_RPC_VARSTR, AOS_RPC_CAPABILITY);
 
 
 
@@ -146,6 +150,14 @@ struct aos_rpc_interface *get_nameserver_interface(void)
     }
 
     return &name_server_interface;
+}
+
+struct aos_rpc_interface * get_opaque_server_interface(void){
+    if (!initialized) {
+        initialize_interfaces();
+    }
+
+    return &opaque_server_interface;
 }
 
 

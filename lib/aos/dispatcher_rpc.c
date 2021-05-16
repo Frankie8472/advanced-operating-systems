@@ -91,7 +91,7 @@ errval_t init_dispatcher_rpcs(void)
     }
     err = aos_rpc_call(&init_rpc, AOS_RPC_INITIATE, init_rpc.channel.lmp.local_cap);
     if (!err_is_fail(err)) {
-        debug_printf("init channel established!\n");
+        // debug_printf("init channel established!\n");
     }
     else {
         DEBUG_ERR(err, "Error establishing connection with init! aborting!");

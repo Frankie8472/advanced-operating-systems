@@ -16,4 +16,7 @@ void handle_get_proc_name(struct aos_rpc *rpc, uintptr_t pid,char* name);
 void handle_get_proc_core(struct aos_rpc* rpc, uintptr_t pid,uintptr_t *core);
 void handle_get_proc_list(struct aos_rpc *rpc, uintptr_t *size,char * pids);
 void handle_pid_request(struct aos_rpc *rpc,uintptr_t* pid);
+void handle_server_request(struct aos_rpc * rpc, uintptr_t pid,const char* name, struct capref server_ep_cap,char * properties, char * return_message);
+
+void handle_server_lookup(struct aos_rpc *rpc, char *name,struct capref* server_ep_cap);
 #endif 

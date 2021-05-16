@@ -1539,7 +1539,7 @@ errval_t aos_rpc_serial_putchar(struct aos_rpc *rpc, char c)
  */
 errval_t aos_rpc_process_spawn(struct aos_rpc *rpc, char *cmdline, coreid_t core, domainid_t *newpid) {
     // TODO (M5): implement spawn new process rpc
-    return aos_rpc_call(rpc, AOS_RPC_PROC_SPAWN_REQUEST, cmdline, core, newpid);
+    return aos_rpc_call(rpc, INIT_IFACE_SPAWN, cmdline, core, newpid);
 }
 
 /**

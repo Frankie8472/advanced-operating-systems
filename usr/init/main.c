@@ -166,14 +166,6 @@ static errval_t init_foreign_core(void){
     disp_set_domain_id(my_pid);
     set_ns_rpc(ns_rpc);
 
-
-    // while(!get_ns_online()){
-    //     err = event_dispatch(get_default_waitset());
-    //     if (err_is_fail(err)) {
-    //         DEBUG_ERR(err, "in event_dispatch");
-    //         abort();
-    //     }
-    // }
     
     set_ns_online();
     return SYS_ERR_OK;
@@ -226,6 +218,7 @@ static errval_t init_name_server(void){
     disp_set_domain_id(my_pid);
     set_ns_rpc(ns_rpc);
     set_ns_forw_rpc(rpc);
+    // set_ns_online();
 
     return SYS_ERR_OK;
 }
@@ -296,7 +289,8 @@ static int bsp_main(int argc, char *argv[])
     invoke_ipi_notify(ump_ep);*/
 
 
-    spawn_new_domain("server", NULL, NULL_CAP);
+    spawn_new_domain("nameservicetest",NULL,NULL_CAP);
+    // spawn_new_domain("server", NULL, NULL_CAP);
     // spawn_new_domain("client",NULL,NULL_CAP);
     // for (int i = 0; i < 1; i++) {
     //     spawn_new_domain("client", NULL, NULL_CAP);
@@ -304,7 +298,7 @@ static int bsp_main(int argc, char *argv[])
 
     // spawn_new_domain("memeater",NULL,NULL_CAP);
 
-    spawn_new_core(my_core_id + 1);
+    // spawn_new_core(my_core_id + 1);
     // spawn_new_core(my_core_id + 2);
     // spawn_new_core(my_core_id + 3);
 

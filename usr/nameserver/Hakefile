@@ -16,6 +16,7 @@
     cFiles = [ 
       "nameserver.c",
       "process_list.c",
+      "server_list.c",
       "nameserver_handlers.c"
     ]
   }

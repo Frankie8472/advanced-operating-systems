@@ -7,17 +7,16 @@
 #include <aos/default_interfaces.h>
 #include "process_list.h"
 #include "nameserver_handlers.h"
-
+#include "server_list.h"
 
 
 int main(int argc, char *argv[])
 {   
 
 
-    process = 0;
+    process = 2;
 
     errval_t err;
-    debug_printf("Hello from nameserver!\n");
 
     pl.head = NULL;
     pl.tail = NULL;
@@ -25,7 +24,7 @@ int main(int argc, char *argv[])
 
     // domainid_t my_pid;
     
-    err = add_process(0,"nameserver",process++,NULL);
+    err = add_process(0,"nameserver",0,NULL);
     if(err_is_fail(err)){
         DEBUG_ERR(err,"Failed to add ns to process list!\n");
     }

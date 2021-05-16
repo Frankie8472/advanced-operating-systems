@@ -5,13 +5,15 @@
 #include <aos/default_interfaces.h>
 #include "nameserver_handlers.h"
 #include "process_list.h"
-
+#include "server_list.h"
 
 // extern struct process_list pl;
 static void *name_server_rpc_handlers[NS_IFACE_N_FUNCTIONS];
 
 void initialize_ns_handlers(struct aos_rpc * init_rpc){
     aos_rpc_register_handler(init_rpc,INIT_REG_NAMESERVER,&handle_reg_proc);
+    aos_rpc_register_handler(init_rpc,INIT_REG_SERVER,&handle_server_request);
+    aos_rpc_register_handler(init_rpc,INIT_NAME_LOOKUP,&handle_server_lookup);
 }
 
 void initialize_nameservice_handlers(struct aos_rpc *ns_rpc){
@@ -22,6 +24,44 @@ void initialize_nameservice_handlers(struct aos_rpc *ns_rpc){
 
 }
 
+void handle_server_lookup(struct aos_rpc *rpc, char *name,struct capref* server_ep_cap){
+    errval_t err;
+    struct server_list server;
+    err = find_server_by_name(name,&server);
+    if(err_is_fail(err)){
+        DEBUG_ERR(err,"Failed to find server: %s \n",name);
+        *server_ep_cap = NULL_CAP;
+        return;
+    }
+    *server_ep_cap = *server.end_point;
+
+}
+
+void handle_server_request(struct aos_rpc * rpc, uintptr_t pid, const char* name, struct capref server_ep_cap,char * properties, char * return_message){
+    errval_t err;
+    coreid_t core_id; 
+
+    if(!verify_name(name)){
+        return_message = "Tried to register invalid name for nameserver\0";
+        return;
+    }
+
+
+
+    err =  get_core_id(pid,&core_id);
+    if(err_is_fail(err)){
+        DEBUG_ERR(err,"Failed to find coreid");
+    }
+
+
+    err = add_server(pid,core_id,name,server_ep_cap,properties);
+    if(err_is_fail(err)){
+        DEBUG_ERR(err,"Failed to add server\n");
+    }
+
+    print_server_list();
+
+}
 
 void handle_reg_proc(struct aos_rpc *rpc,uintptr_t core_id,const char* name,struct capref proc_ep_cap, uintptr_t pid, struct capref* ns_ep_cap){
 
@@ -93,15 +133,12 @@ void handle_get_proc_name(struct aos_rpc *rpc, uintptr_t pid,char* name){
 
 
 void handle_get_proc_core(struct aos_rpc* rpc, uintptr_t pid,uintptr_t *core){
-    for(struct process* curr = pl.head; curr != NULL; curr = curr ->  next){
-        if(curr -> pid == pid){
-            *core = curr -> core_id;
-            return;
-        }
-    }
 
-    *core = -1;
-    debug_printf("Could not find pid!\n");
+    errval_t err =  get_core_id(pid,(coreid_t*)core);
+    if(err_is_fail(err)){
+        DEBUG_ERR(err,"Failed to find core id form domain %d\n",pid);
+        *core = -1;
+    }
 }
 
 

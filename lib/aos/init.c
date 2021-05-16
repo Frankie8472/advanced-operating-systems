@@ -195,7 +195,7 @@ errval_t barrelfish_init_onthread(struct spawn_domain_params *params)
 
     err = init_dispatcher_rpcs();
     ON_ERR_RETURN(err);
-    debug_printf("init_dispatcher_rpcs returned\n");
+    // debug_printf("init_dispatcher_rpcs returned\n");
     if(get_ns_online()){
         err = init_nameserver_rpc((char* ) params -> argv[0]);
         ON_ERR_RETURN(err);
@@ -219,6 +219,7 @@ errval_t barrelfish_init_onthread(struct spawn_domain_params *params)
 
     // right now we don't have the nameservice & don't need the terminal
     // and domain spanning, so we return here
+    debug_printf("Initialization ok!\n");
     return SYS_ERR_OK;
 }
 

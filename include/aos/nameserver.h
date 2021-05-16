@@ -8,6 +8,12 @@
 
 #include <aos/aos.h>
 #include <aos/aos_rpc.h>
+#include <stdarg.h>
+
+
+
+
+
 typedef void* nameservice_chan_t;
 
 ///< handler which is called when a message is received over the registered channel
@@ -15,6 +21,10 @@ typedef void(nameservice_receive_handler_t)(void *st,
 										    void *message, size_t bytes,
 										    void **response, size_t *response_bytes,
                                             struct capref tx_cap, struct capref *rx_cap);
+
+
+
+
 
 /**
  * @brief sends a message back to the client who sent us a message
@@ -46,6 +56,8 @@ errval_t nameservice_register(const char *name,
 	                              nameservice_receive_handler_t recv_handler,
 	                              void *st);
 
+
+errval_t nameservice_register_properties(const char * name,nameservice_receive_handler_t recv_handler, void * st, bool ump,...);
 
 /**
  * @brief deregisters the service 'name'
@@ -81,5 +93,8 @@ errval_t nameservice_enumerate(char *query, size_t *num, char **result );
 
 void nameservice_reveice_handler_wrapper(struct aos_rpc * rpc,struct aos_rpc_varbytes message,struct capref tx_cap, struct aos_rpc_varbytes * response, struct capref* rx_cap);
 
+
+errval_t create_ump_server_ep(struct capref* server_ep);
+errval_t create_lmp_server_ep(struct capref* server_ep);
 
 #endif /* INCLUDE_AOS_AOS_NAMESERVICE_H_ */

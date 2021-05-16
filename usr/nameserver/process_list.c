@@ -29,6 +29,18 @@ errval_t add_process(coreid_t core_id,const char* name,domainid_t pid,struct aos
     return SYS_ERR_OK;
 };
 
+
+errval_t get_core_id(domainid_t pid, coreid_t *core_id){
+    struct process  * curr = pl.head;
+    for(;curr != NULL; curr = curr -> next){
+        if(curr -> pid == pid){
+            *core_id = curr -> core_id;
+            return SYS_ERR_OK;
+        }
+    }
+    return PROC_MGMT_ERR_DOMAIN_NOT_RUNNING;
+}
+
 char* strcopy(const char* str){
     size_t n = strlen(str) + 1;
     char * new_str = (char * ) malloc( n * sizeof(char));
@@ -37,8 +49,9 @@ char* strcopy(const char* str){
 }
 
 void print_process_list(void){
-    debug_printf("================ Processes ====================\n");
+    debug_printf("================ Processes ============================\n");
     for(struct process* curr = pl.head; curr != NULL; curr = curr -> next){
-        debug_printf("Pid:   %d  Core:   %d  Name:   %s\n",curr -> pid, curr -> core_id, curr -> name);
+        debug_printf("|| Pid:   %d  Core:   %d  Name:  %s         \n",curr -> pid, curr -> core_id, curr -> name);
     }
+    debug_printf("========================================================\n");
 }

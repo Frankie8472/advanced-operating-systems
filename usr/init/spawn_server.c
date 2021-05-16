@@ -75,7 +75,7 @@ errval_t spawn_new_core(coreid_t core)
 errval_t spawn_new_domain(const char *mod_name, domainid_t *new_pid, struct capref spawner_ep_cap)
 {
     struct spawninfo *si = spawn_create_spawninfo();
-
+    
     domainid_t *pid = &si->pid;
     struct aos_rpc *rpc = &si->rpc;
 
@@ -90,7 +90,6 @@ errval_t spawn_new_domain(const char *mod_name, domainid_t *new_pid, struct capr
     si->spawner_ep_cap = spawner_ep_cap;
 
     spawn_load_by_name((char*) mod_name, si, pid);
-
     /*char buf[128];
     debug_print_cap_at_capref(buf, 128, si->rpc.channel.lmp.remote_cap);
     debug_printf("child ep: %s", buf);*/
@@ -99,10 +98,12 @@ errval_t spawn_new_domain(const char *mod_name, domainid_t *new_pid, struct capr
     if (new_pid != NULL) {
         *new_pid = *pid;
     }
+    
     errval_t err = lmp_chan_register_recv(&rpc->channel.lmp, get_default_waitset(), MKCLOSURE(&aos_rpc_on_lmp_message, &rpc));
     if (err_is_fail(err) && err == LIB_ERR_CHAN_ALREADY_REGISTERED) {
         // not too bad, already registered
     }
+    debug_printf("Got here\n");
 
     return SYS_ERR_OK;
 }

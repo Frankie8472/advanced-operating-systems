@@ -168,6 +168,7 @@ void handle_initiate(struct aos_rpc *rpc, struct capref cap) {
 
 
 void handle_spawn(struct aos_rpc *old_rpc, const char *name, uintptr_t core_id, uintptr_t *new_pid) {
+
     uintptr_t current_core_id = disp_get_core_id();
     if(core_id == current_core_id) {
         domainid_t pid;
@@ -181,7 +182,7 @@ void handle_spawn(struct aos_rpc *old_rpc, const char *name, uintptr_t core_id, 
         errval_t err;
         struct aos_rpc* ump_chan = get_core_channel(0);
         assert(ump_chan && "NO U!");
-        err = aos_rpc_call(ump_chan, AOS_RPC_FOREIGN_SPAWN, name, core_id, new_pid);
+        err = aos_rpc_call(ump_chan, INIT_IFACE_SPAWN, name, core_id, new_pid);
         if(err_is_fail(err)){
             DEBUG_ERR(err,"Failed to call aos rpc in spawn handler for foreign core\n");
         }
@@ -197,7 +198,7 @@ void handle_spawn(struct aos_rpc *old_rpc, const char *name, uintptr_t core_id, 
             *new_pid = 0;
             return;
         }
-        err = aos_rpc_call(ump_chan, AOS_RPC_FOREIGN_SPAWN, name, core_id, new_pid);
+        err = aos_rpc_call(ump_chan, INIT_IFACE_SPAWN, name, core_id, new_pid);
         if(err_is_fail(err)){
             DEBUG_ERR(err,"Failed to call aos rpc in spawn handler for foreign core\n");
         }
@@ -432,7 +433,19 @@ void handle_forward_ns_reg(struct aos_rpc *rpc,uintptr_t core_id,const char* nam
     }
 }
 
+void handle_server_request(struct aos_rpc * rpc, uintptr_t pid,const char* name, struct capref server_ep_cap,char * properties, char * return_message){
+    errval_t err = aos_rpc_call(get_ns_forw_rpc(),INIT_REG_SERVER,pid,name,server_ep_cap,properties,return_message);
+    if(err_is_fail(err)){
+        DEBUG_ERR(err,"Failed to forward server request\n");
+    }
+}
 
+void handle_name_lookup(struct aos_rpc *rpc, char * name,struct capref* server_ep_cap){
+    errval_t err = aos_rpc_call(get_ns_forw_rpc(),INIT_NAME_LOOKUP,name,server_ep_cap);
+    if(err_is_fail(err)){
+        DEBUG_ERR(err,"Failed to forward server lookup\n");
+    }
+}
 
 /**
  * \brief initialize all handlers for rpc calls
@@ -443,7 +456,9 @@ void handle_forward_ns_reg(struct aos_rpc *rpc,uintptr_t core_id,const char* nam
  * the lmp recieve handler.
  */
 errval_t initialize_rpc_handlers(struct aos_rpc *rpc)
-{
+{   
+
+    //STANDARD INTERFACE (MOSTLY FOR TESTS + MEMEATER)
     void handle_roundtrip(struct aos_rpc *r) { return; }
     aos_rpc_register_handler(rpc, AOS_RPC_INITIATE, &handle_initiate);
     aos_rpc_register_handler(rpc, AOS_RPC_SEND_NUMBER, &handle_send_number);
@@ -452,9 +467,13 @@ errval_t initialize_rpc_handlers(struct aos_rpc *rpc)
     aos_rpc_register_handler(rpc, AOS_RPC_GETCHAR, &handle_getchar);
     aos_rpc_register_handler(rpc, AOS_RPC_ROUNDTRIP, &handle_roundtrip);
 
+
+    //INIT INTERFACE (MOSTLY FORWARDING)
     aos_rpc_register_handler(rpc, INIT_IFACE_SPAWN, &handle_spawn);
     aos_rpc_register_handler(rpc, INIT_NAMESERVER_ON, &handle_ns_on);
     aos_rpc_register_handler(rpc,INIT_REG_NAMESERVER,&handle_forward_ns_reg);
+    aos_rpc_register_handler(rpc,INIT_REG_SERVER,&handle_server_request);
+    aos_rpc_register_handler(rpc,INIT_NAME_LOOKUP,&handle_name_lookup);
     // aos_rpc_register_handler(rpc,AOS_RPC_REGISTER_PROCESS,&handle_init_process_register);
     // aos_rpc_register_handler(rpc,AOS_RPC_MEM_SERVER_REQ,&handle_mem_server_request);
     // aos_rpc_register_handler(rpc,AOS_RPC_GET_PROC_NAME,&handle_init_get_proc_name);
