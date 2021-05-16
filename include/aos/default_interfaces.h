@@ -42,4 +42,17 @@ enum {
 };
 
 
+struct spawn_request_header
+{
+    int argc;
+    int envc;
+};
+
+struct spawn_request_arg
+{
+    size_t length;
+    char str[0];
+};
+
+
 #endif // LIB_AOS_DEFAULT_INTERFACES_H

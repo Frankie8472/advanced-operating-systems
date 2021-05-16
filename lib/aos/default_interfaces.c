@@ -28,7 +28,7 @@ static void initialize_interfaces(void)
     aos_rpc_initialize_binding(&init_interface, "spawn", INIT_IFACE_SPAWN,
                                2, 1, AOS_RPC_VARSTR, AOS_RPC_WORD, AOS_RPC_WORD);
     aos_rpc_initialize_binding(&init_interface, "spawn_extended", INIT_IFACE_SPAWN_EXTENDED,
-                               2, 1, AOS_RPC_VARBYTES, AOS_RPC_CAPABILITY, AOS_RPC_WORD);
+                               3, 1, AOS_RPC_VARBYTES, AOS_RPC_WORD, AOS_RPC_CAPABILITY, AOS_RPC_WORD);
 
 
 

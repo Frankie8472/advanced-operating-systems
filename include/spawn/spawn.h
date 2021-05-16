@@ -77,6 +77,9 @@ errval_t spawn_load_by_name(char *binary_name, struct spawninfo *si,
 errval_t spawn_setup_by_name(char *binary_name, struct spawninfo *si,
                             domainid_t *pid);
 
+// only map module
+errval_t spawn_setup_module_by_name(const char *binary_name, struct spawninfo *si);
+
 // setup cspace for a dispatcher
 errval_t setup_c_space(struct capref, struct cnoderef *, struct cnoderef *, struct cnoderef *, struct cnoderef *, struct cnoderef *, struct cnoderef *);
 

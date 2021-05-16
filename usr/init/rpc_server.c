@@ -170,7 +170,7 @@ void handle_spawn(struct aos_rpc *old_rpc, const char *name, uintptr_t core_id, 
     uintptr_t current_core_id = disp_get_core_id();
     if(core_id == current_core_id) {
         domainid_t pid;
-        errval_t err = spawn_new_domain(name, &pid, NULL_CAP, NULL_CAP, NULL);
+        errval_t err = spawn_new_domain(name, 0, NULL, &pid, NULL_CAP, NULL_CAP, NULL);
         if (err_is_fail(err)) {
             DEBUG_ERR(err, "Failed to spawn new domain\n");
         }
@@ -202,6 +202,39 @@ void handle_spawn(struct aos_rpc *old_rpc, const char *name, uintptr_t core_id, 
         }
         
     }
+}
+
+
+void handle_spawn_extended(struct aos_rpc *rpc, struct aos_rpc_varbytes request, uintptr_t core_id, struct capref spawner_ep, uintptr_t *new_pid)
+{
+    struct spawn_request_header *header = (struct spawn_request_header *) request.bytes;
+    int argc = header->argc;
+    char **argv = malloc(argc * sizeof(char *));
+    memset(argv, 0, argc * sizeof(char *));
+
+    size_t offset = sizeof(struct spawn_request_header);
+
+    for (int i = 0; i < argc; i++) {
+        struct spawn_request_arg *arg_hdr = (struct spawn_request_arg *) (request.bytes + offset);
+        argv[i] = malloc(arg_hdr->length);
+        memcpy(argv[i], arg_hdr->str, arg_hdr->length);
+        offset += sizeof(struct spawn_request_arg) + arg_hdr->length;
+    }
+
+    if (argc <= 0) {
+        debug_printf("error, no name supplied\n");
+        return;
+    }
+
+    const char *name = argv[0];
+
+    domainid_t pid;
+    errval_t err = spawn_new_domain(name, argc, argv, &pid, NULL_CAP, spawner_ep, NULL);
+    if (err_is_fail(err)) {
+        *new_pid = -1;
+        return;
+    }
+    *new_pid = pid;
 }
 
 

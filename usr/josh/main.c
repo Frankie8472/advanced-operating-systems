@@ -12,16 +12,78 @@
 
 struct josh_line *parsed_line;
 
+static void spawn_program(const char *name, struct array_list *args)
+{
+    errval_t err;
+    size_t bytes_needed = sizeof(struct spawn_request_header);
+    bytes_needed += sizeof(struct spawn_request_header) + strlen(name) + 1;
+    for (size_t i = 0; i < args->length; i++) {
+        const char *arg = *(char **) array_list_at(args, i);
+        bytes_needed += sizeof(struct spawn_request_header) + strlen(arg) + 1;
+    }
 
-void execute_command(struct josh_line *line)
+    void *data = malloc(bytes_needed);
+    struct spawn_request_header *header = data;
+    size_t offset = sizeof(struct spawn_request_header);
+
+    header->argc = args->length + 1;
+    header->envc = 0;
+
+    struct spawn_request_arg *arg_hdr1 = data + offset;
+
+    arg_hdr1->length = strlen(name) + 1;
+    memcpy(arg_hdr1->str, name, arg_hdr1->length);
+    offset += sizeof(struct spawn_request_header) + arg_hdr1->length;
+
+    for (size_t i = 0; i < args->length; i++) {
+        struct spawn_request_arg *arg_hdr = data + offset;
+        const char *arg = *(char **) array_list_at(args, i);
+        arg_hdr->length = strlen(arg) + 1;
+        memcpy(arg_hdr->str, arg, arg_hdr->length);
+        offset += sizeof(struct spawn_request_header) + arg_hdr->length;
+    }
+
+    struct aos_rpc_varbytes bytes = {
+        .length = bytes_needed,
+        .bytes = data
+    };
+
+    struct lmp_endpoint *lmp_ep;
+    struct capref lmp_ep_cap;
+    endpoint_create(LMP_RECV_LENGTH * 8, &lmp_ep_cap, &lmp_ep);
+
+    struct aos_rpc *init_rpc = get_init_rpc();
+    uintptr_t pid;
+    err = aos_rpc_call(init_rpc, INIT_IFACE_SPAWN_EXTENDED, bytes, 0, NULL_CAP, &pid);
+    if (err_is_fail(err)) {
+        printf("failed to call init\n");
+        goto free_resources;
+    }
+
+    if (pid == -1) {
+        printf("command not found '%s'\n", name);
+        goto free_resources;
+    }
+
+
+
+
+free_resources:
+    lmp_endpoint_free(lmp_ep);
+    cap_destroy(lmp_ep_cap);
+
+    free(data);
+}
+
+
+static void execute_command(struct josh_line *line)
 {
     if (is_builtin(line->cmd)) {
         run_builtin(line);
     }
     else {
-        struct aos_rpc *init_rpc = get_init_rpc();
-        uintptr_t pid;
-        aos_rpc_call(init_rpc, INIT_IFACE_SPAWN, line->cmd, 0, &pid);
+
+        spawn_program(line->cmd, &line->args);
 
         //printf("unknown command: %s\n", line->cmd);
     }

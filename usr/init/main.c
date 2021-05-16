@@ -334,7 +334,7 @@ static int bsp_main(int argc, char *argv[])
     debug_printf("got stdin from terminal!\n");
 
 
-    spawn_new_domain("josh", &pid, NULL_CAP, testep, &josh_si);
+    spawn_new_domain("josh", 0, NULL, &pid, NULL_CAP, testep, &josh_si);
 
 
     while (capref_is_null(josh_si->disp_rpc.channel.lmp.remote_cap)) {

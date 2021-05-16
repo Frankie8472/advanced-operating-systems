@@ -100,7 +100,7 @@ errval_t setup_c_space(struct capref cnode_l1,
 }
 
 
-errval_t spawn_setup_dispatcher(int argc, const char *const argv[], struct spawninfo *si,
+errval_t spawn_setup_dispatcher(int argc, const char *const *argv, struct spawninfo *si,
                 domainid_t *pid)
 {
     errval_t err;
@@ -297,6 +297,7 @@ errval_t spawn_setup_dispatcher(int argc, const char *const argv[], struct spawn
     //disp_aarch64->generic.current;
     disp->udisp = dispaddr; // Virtual address of the dispatcher frame in child’s VSpace
     disp->disabled = 1;// Start in disabled mode
+    assert(si->binary_name);
     strncpy(disp->name, si->binary_name, DISP_NAME_LEN); // A name (for debugging)
     disabled_area->named.pc = retentry; // Set program counter (where it should start to execute)
 
@@ -475,21 +476,11 @@ static void strip_extra_spaces(char* str) {
   str[x] = '\0';
 }
 
-errval_t spawn_setup_by_name(char *binary_name, struct spawninfo *si, domainid_t *pid)
+
+errval_t spawn_setup_module_by_name(const char *binary_name, struct spawninfo *si)
 {
-    errval_t err = SYS_ERR_OK;
-
-
-
-    //Pretty ugly, but fixes a silent Nullptr dereference
-    int argc = get_argc(binary_name);
-    char * res[argc];
-    char cmd_line_copy[strlen(binary_name)];
-    strcpy(cmd_line_copy,binary_name);
-    create_argv(cmd_line_copy,(char **) res);
-    // binary_name = ;
-    //TODO: is  bi correctly initialized by the init/usr/main.c
-    struct mem_region* mem_region = multiboot_find_module(bi, res[0]);
+    errval_t err;
+    struct mem_region* mem_region = multiboot_find_module(bi, binary_name);
     
     if (mem_region == NULL) {
         return SPAWN_ERR_MAP_MODULE;
@@ -504,10 +495,6 @@ errval_t spawn_setup_by_name(char *binary_name, struct spawninfo *si, domainid_t
         .slot = mem_region->mrmod_slot
     };
     err = invoke_cap_identify(child_frame, &cap);
-    char bbb[128];
-    debug_print_cap_at_capref(bbb, 128, child_frame);
-    // debug_printf("Hello, %s\n", bbb);
-
     ON_ERR_RETURN(err);
 
     size_t mapping_size = get_size(&cap);
@@ -517,9 +504,30 @@ errval_t spawn_setup_by_name(char *binary_name, struct spawninfo *si, domainid_t
     paging_map_frame_attr(get_current_paging_state(), (void **) &elf_address,
                           mapping_size, child_frame, VREGION_FLAGS_READ_WRITE, NULL, NULL);
 
-    // debug_printf("Hello\n");
     si->mapped_elf = (lvaddr_t) elf_address;
     si->mapped_elf_size = (size_t) mem_region->mrmod_size;
+    
+    return SYS_ERR_OK;
+}
+
+errval_t spawn_setup_by_name(char *binary_name, struct spawninfo *si, domainid_t *pid)
+{
+    errval_t err = SYS_ERR_OK;
+
+
+
+    //Pretty ugly, but fixes a silent Nullptr dereference
+    int argc = get_argc(binary_name);
+    char * res[argc];
+    char cmd_line_copy[strlen(binary_name)];
+    strcpy(cmd_line_copy,binary_name);
+    create_argv(cmd_line_copy,(char **) res);
+    // binary_name = ;
+    //TODO: is  bi correctly initialized by the init/usr/main.c
+    err = spawn_setup_module_by_name(res[0], si);
+    ON_ERR_RETURN(err);
+
+    // debug_printf("Hello\n");
     // debug_printf("ELF address = %lx\n", elf_address);
     // debug_printf("%x, '%c', '%c', '%c'\n", elf_address[0], elf_address[1], elf_address[2], elf_address[3]);
     // debug_printf("BOI\n");
@@ -542,6 +550,7 @@ errval_t spawn_setup_by_name(char *binary_name, struct spawninfo *si, domainid_t
         create_argv(copy, (char **) si->argv);
         si->binary_name = (char *) si->argv[0];
     }else {
+        struct mem_region* mem_region = multiboot_find_module(bi, res[0]);
         char * args_string = (char *)  multiboot_module_opts(mem_region);
         // debug_printf("Args string = %s\n",args_string);
         char copy[strlen(args_string)];

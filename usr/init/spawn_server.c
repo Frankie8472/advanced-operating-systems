@@ -72,11 +72,12 @@ errval_t spawn_new_core(coreid_t core)
 }
 
 static void handle_binding(struct aos_rpc *r, struct capref ep) {
-    debug_printf("in handle_binding\n");
+    //debug_printf("in handle_binding\n");
     r->channel.lmp.remote_cap = ep;
 }
 
-errval_t spawn_new_domain(const char *mod_name, domainid_t *new_pid, struct capref spawner_ep, struct capref child_stdout_cap, struct spawninfo **ret_si)
+errval_t spawn_new_domain(const char *mod_name, int argc, char **argv, domainid_t *new_pid, struct capref spawner_ep,
+                          struct capref child_stdout_cap, struct spawninfo **ret_si)
 {
     errval_t err;
     struct spawninfo *si = spawn_create_spawninfo();
@@ -87,6 +88,7 @@ errval_t spawn_new_domain(const char *mod_name, domainid_t *new_pid, struct capr
     aos_rpc_set_interface(rpc, get_init_interface(), INIT_IFACE_N_FUNCTIONS, malloc(INIT_IFACE_N_FUNCTIONS * sizeof(void *)));
     initialize_initiate_handler(rpc);
     aos_rpc_register_handler(rpc, INIT_IFACE_SPAWN, handle_spawn);
+    aos_rpc_register_handler(rpc, INIT_IFACE_SPAWN_EXTENDED, handle_spawn_extended);
 
     if (capref_is_null(spawner_ep)) {
         struct aos_rpc *disp_rpc = &si->disp_rpc;
@@ -132,13 +134,22 @@ errval_t spawn_new_domain(const char *mod_name, domainid_t *new_pid, struct capr
 
     si->child_stdout_cap = child_stdout_cap;
 
-    char buf[128];
-    debug_print_cap_at_capref(buf, 128, si->child_stdout_cap);
-    debug_printf("created stdout ep: %s\n", buf);
-
     //initialize_rpc_handlers(rpc);
-    err = spawn_load_by_name((char*) mod_name, si, pid);
-    ON_ERR_RETURN(err);
+    if (argv == NULL || argc == 0) {
+        err = spawn_load_by_name((char*) mod_name, si, pid);
+        ON_ERR_RETURN(err);
+    }
+    else {
+        err = spawn_setup_module_by_name(mod_name, si);
+        ON_ERR_RETURN(err);
+        si->binary_name = argv[0];
+        err = spawn_setup_dispatcher(argc, (const char * const *)argv, si, pid);
+        ON_ERR_RETURN(err);
+        err = spawn_invoke_dispatcher(si);
+        ON_ERR_RETURN(err);
+    }
+    //
+
 
     /*char buf[128];
     debug_print_cap_at_capref(buf, 128, si->rpc.channel.lmp.remote_cap);
@@ -184,7 +195,7 @@ errval_t spawn_lpuart_driver(const char *mod_name, struct spawninfo **ret_si)
 
     si->spawner_ep_cap = disp_rpc->channel.lmp.local_cap;
 
-    spawn_load_by_name((char*) mod_name, si, pid);
+    spawn_setup_by_name((char*) mod_name, si, pid);
     /*err = lmp_chan_register_recv(&rpc->channel.lmp, get_default_waitset(), MKCLOSURE(&aos_rpc_on_lmp_message, &rpc));
     if (err_is_fail(err) && err == LIB_ERR_CHAN_ALREADY_REGISTERED) {
         // not too bad, already registered
@@ -216,7 +227,6 @@ errval_t spawn_lpuart_driver(const char *mod_name, struct spawninfo **ret_si)
 
     source_addr = get_phys_addr(dev_frame);
     err = cap_retype(child_dev_frame2, dev_frame, IMX8X_GIC_DIST_BASE - source_addr, ObjType_DevFrame, IMX8X_GIC_DIST_SIZE, 1);
-    DEBUG_ERR(err, "oh no\n");
     ON_ERR_PUSH_RETURN(err, LIB_ERR_CAP_RETYPE);
 
 
@@ -226,6 +236,9 @@ errval_t spawn_lpuart_driver(const char *mod_name, struct spawninfo **ret_si)
     };
     err = cap_copy(irq, cap_irq);
     ON_ERR_PUSH_RETURN(err, LIB_ERR_CAP_COPY);
+
+    err = spawn_invoke_dispatcher(si);
+    ON_ERR_RETURN(err);
 
     if (ret_si != NULL) {
         *ret_si = si;

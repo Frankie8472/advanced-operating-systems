@@ -30,6 +30,8 @@ void handle_request_ram(struct aos_rpc *r, uintptr_t size,
 void handle_initiate(struct aos_rpc *rpc, struct capref cap);
 void handle_spawn(struct aos_rpc *old_rpc, const char *name,
                   uintptr_t core_id, uintptr_t *new_pid);
+void handle_spawn_extended(struct aos_rpc *rpc, struct aos_rpc_varbytes request,
+                           uintptr_t core_id, struct capref spawner_ep, uintptr_t *new_pid);
 void handle_foreign_spawn(struct aos_rpc *origin_rpc, const char *name,
                           uintptr_t core_id, uintptr_t *new_pid);
 // void handle_send_number(struct aos_rpc *r, uintptr_t number);
