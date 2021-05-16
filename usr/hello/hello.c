@@ -33,8 +33,10 @@ __attribute__((unused))
 int main(int argc, char *argv[])
 {
     
-    // printf("Hello, world! from userspace\n");
-    // printf("%s\n", argv[1]);
+    printf("Hello, world! from userspace\n");
+    printf("%s\n", argv[1]);
+
+    return EXIT_SUCCESS;
     // stack_overflow();
 
     errval_t err;

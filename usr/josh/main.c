@@ -22,6 +22,7 @@ void execute_command(struct josh_line *line)
         struct aos_rpc *init_rpc = get_init_rpc();
         uintptr_t pid;
         aos_rpc_call(init_rpc, INIT_IFACE_SPAWN, line->cmd, 0, &pid);
+
         //printf("unknown command: %s\n", line->cmd);
     }
 }
