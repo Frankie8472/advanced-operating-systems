@@ -89,6 +89,7 @@ errval_t spawn_new_domain(const char *mod_name, domainid_t *new_pid, struct capr
 
     si->spawner_ep_cap = spawner_ep_cap;
 
+
     spawn_load_by_name((char*) mod_name, si, pid);
     /*char buf[128];
     debug_print_cap_at_capref(buf, 128, si->rpc.channel.lmp.remote_cap);
@@ -103,7 +104,6 @@ errval_t spawn_new_domain(const char *mod_name, domainid_t *new_pid, struct capr
     if (err_is_fail(err) && err == LIB_ERR_CHAN_ALREADY_REGISTERED) {
         // not too bad, already registered
     }
-    debug_printf("Got here\n");
 
     return SYS_ERR_OK;
 }

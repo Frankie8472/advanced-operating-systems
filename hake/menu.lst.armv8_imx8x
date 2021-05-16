@@ -5,7 +5,7 @@
 bootdriver  /armv8/sbin/boot_armv8_generic
 cpudriver /armv8/sbin/cpu_imx8x
 module  /armv8/sbin/init
-module /armv8/sbin/hello nice it works
+module /armv8/sbin/hello x y z
 #module /armv8/sbin/page
 module /armv8/sbin/memeater
 module /armv8/sbin/performance_tester

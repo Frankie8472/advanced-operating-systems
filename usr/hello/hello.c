@@ -33,50 +33,21 @@ __attribute__((unused))
 int main(int argc, char *argv[])
 {
     
-    // printf("Hello, world! from userspace\n");
+    printf("Hello, world! from userspace\n");
+
+    for(int i = 0; i < argc; ++i){
+        debug_printf("Argv[%d] = %s\n",i,argv[i]);
+    }
     // printf("%s\n", argv[1]);
     // stack_overflow();
 
-    errval_t err;
+    // errval_t err;
     // char * name;
     
-    debug_printf("Trying to resolve name\n");
-    struct aos_rpc * init_rpc = get_init_rpc();
-    debug_printf("Got initrpc!\n");
+    // debug_printf("Trying to resolve name\n");
+    // struct aos_rpc * init_rpc = get_init_rpc();
+    // debug_printf("Got initrpc!\n");
 
-    coreid_t cid;
-    err = aos_rpc_call(init_rpc, AOS_RPC_GET_PROC_CORE,3,&cid);
-
-    debug_printf("Got core id : %d\n",cid);
-
-
-
-    // aos_rpc_call(init_rpc, AOS_INIT_NEW_CHANNEL )
-
-    char buffer[512];
-    err = aos_rpc_call(init_rpc,AOS_RPC_GET_PROC_NAME,0,buffer);
-    // err = aos_rpc_process_get_name(aos_rpc_get_process_channel(),0,&buffer);
-    if(err_is_fail(err)){
-        DEBUG_ERR(err,"Failed to resolve pid name\n");
-    }
-
-    debug_printf("Received name for pid %d: %s\n",0,buffer);
-
-
-
-
-    debug_printf("Trying to get process list:\n");
-    domainid_t* pids;
-    size_t pid_count;
-    err = aos_rpc_process_get_all_pids(init_rpc,&pids,&pid_count);
-    if(err_is_fail(err)){
-        DEBUG_ERR(err,"Failed to get all pids\n");
-    }
-
-    for(int i = 0; i < pid_count; ++i){
-        debug_printf("%d\n",pids[i]);
-    }
-    
 
 
     return EXIT_SUCCESS;

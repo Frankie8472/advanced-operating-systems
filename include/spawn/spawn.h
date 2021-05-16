@@ -69,5 +69,5 @@ errval_t spawn_load_argv(int argc, const char *const argv[], struct spawninfo *s
 
 /// elf callback function
 errval_t allocate_elf_memory(void* state, genvaddr_t base, size_t size, uint32_t flags, void **ret);
-errval_t register_process_to_process_manager(char* binary_name,domainid_t* pid);
+
 #endif /* _INIT_SPAWN_H_ */

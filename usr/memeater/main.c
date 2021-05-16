@@ -117,6 +117,9 @@ __attribute__((unused))  static errval_t test_basic_rpc(void)
 {
     errval_t err;
 
+
+    domainid_t new_pid;
+    err = aos_rpc_process_spawn(get_init_rpc(),"hello",0,&new_pid);
     debug_printf("RPC: testing basic RPCs...\n");
 
     debug_printf("RPC: sending number...\n");

@@ -3,10 +3,25 @@
 #include <aos/aos.h>
 #include <aos/aos_rpc.h>
 #include <aos/waitset.h>
+#include <stdio.h>
+#include <stdlib.h>
+
+#include <aos/aos.h>
+#include <aos/aos_rpc.h>
+#include <aos/waitset.h>
+#include <aos/paging.h>
+#include <aos/nameserver.h>
+#define PANIC_IF_FAIL(err, msg)    \
+    if (err_is_fail(err)) {        \
+        USER_PANIC_ERR(err, msg);  \
+    }
 
 
 
+#define SERVICE_NAME "myservicename"
+#define TEST_BINARY  "nameservicetest"
 
+static char *myrequest = "request !!";
 
 int main(int argc, char *argv[])
 {
@@ -21,6 +36,24 @@ int main(int argc, char *argv[])
 
   
 
+    /* look up service using name server */
+    nameservice_chan_t chan;
+    err = nameservice_lookup(SERVICE_NAME, &chan);
+    PANIC_IF_FAIL(err, "failed to lookup service\n");
+
+    debug_printf("Got the service %p. Sending request '%s'\n", chan, myrequest);
+
+    void *request = myrequest;
+    size_t request_size = strlen(myrequest);
+
+    void *response;
+    size_t response_bytes;
+    err = nameservice_rpc(chan, request, request_size,
+                          &response, &response_bytes,
+                          NULL_CAP, NULL_CAP);
+    PANIC_IF_FAIL(err, "failed to do the nameservice rpc\n");
+
+    debug_printf("got response: %s\n", (char *)response);
 
 
     // char * name;

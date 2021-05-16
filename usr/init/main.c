@@ -289,8 +289,12 @@ static int bsp_main(int argc, char *argv[])
     invoke_ipi_notify(ump_ep);*/
 
 
-    spawn_new_domain("nameservicetest",NULL,NULL_CAP);
-    // spawn_new_domain("server", NULL, NULL_CAP);
+
+    // spawn_new_domain("memeater",NULL,NULL_CAP);
+    // spawn_new_domain("nameservicetest",NULL,NULL_CAP);
+    // spawn_new_domain("server a b c", NULL, NULL_CAP);
+    spawn_new_domain("hello a b c", NULL, NULL_CAP);
+    spawn_new_domain("hello", NULL, NULL_CAP);
     // spawn_new_domain("client",NULL,NULL_CAP);
     // for (int i = 0; i < 1; i++) {
     //     spawn_new_domain("client", NULL, NULL_CAP);
