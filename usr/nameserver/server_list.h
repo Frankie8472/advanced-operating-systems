@@ -26,6 +26,7 @@ errval_t add_server(struct server_list* new_server);
 errval_t find_server_by_name(char * name, struct server_list ** ret_serv);
 bool verify_name(const char* name); // TODO 
 
+void remove_server(struct server_list* del_server);
 void print_server_list(void);
 
 #endif

@@ -22,6 +22,7 @@ void initialize_nameservice_handlers(struct aos_rpc *ns_rpc){
     aos_rpc_register_handler(ns_rpc,NS_GET_PROC_CORE,&handle_get_proc_core);
     aos_rpc_register_handler(ns_rpc,NS_GET_PROC_LIST,&handle_get_proc_list);
     aos_rpc_register_handler(ns_rpc,NS_GET_PID,&handle_pid_request);
+    aos_rpc_register_handler(ns_rpc,NS_DEREG_SERVER,&handle_dereg_server);
 
 }
 
@@ -150,13 +151,30 @@ void handle_reg_proc(struct aos_rpc *rpc,uintptr_t core_id,const char* name,stru
 }
 
 
-// void handle_reg_init(struct aos_rpc *rpc,uintptr_t core_id,const char* name, uintptr_t * pid){
-//     errval_t err = add_process(core_id,name,(domainid_t *) pid,get_init_rpc());
-//     if(err_is_fail(err)){
-//         DEBUG_ERR(err,"Failed to add process to process list\n");
-//     }
-// }
 
+void handle_dereg_server(struct aos_rpc *rpc, const char* name, uintptr_t* success){
+    errval_t err;
+    domainid_t pid;
+    err = find_process_by_rpc(rpc,&pid);
+    if(err_is_fail(err)){
+        debug_printf("Trying to delete server from nonexistent process\n"); 
+    
+    }
+    struct server_list * ret_server;
+    err = find_server_by_name((char*) name,&ret_server);
+    if(err_is_fail(err)){
+        debug_printf("Server %s already removed!\n",name);
+        return;
+    }
+    if(pid == -1 || pid == ret_server -> pid){ //if process is dead, anyone can deregister server
+        remove_server(ret_server);
+        print_server_list();
+    }else{
+        debug_printf("Invalid access rights to delete server!\n");
+    }
+
+    
+}
 
 
 void handle_get_proc_name(struct aos_rpc *rpc, uintptr_t pid,char* name){

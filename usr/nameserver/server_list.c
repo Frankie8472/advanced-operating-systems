@@ -56,11 +56,26 @@ errval_t find_server_by_name(char * name, struct server_list ** ret_serv){
             return SYS_ERR_OK;
         }
     }
-    return PROC_MGMT_ERR_DOMAIN_NOT_RUNNING;
+    return LIB_ERR_NAMESERVICE_UNKNOWN_NAME;
 }
 
 bool verify_name(const char* name){
     return true;
+}
+
+void remove_server(struct server_list* del_server){
+    if(servers == del_server){
+        servers = del_server -> next;
+        free(del_server);   
+        return;
+    }
+    struct server_list* curr = servers;
+    for(;curr != NULL;curr = curr -> next){
+        if(curr -> next == del_server){
+            curr -> next = del_server->next;
+        }
+    }
+    free(del_server);
 }
 
 void print_server_list(void){

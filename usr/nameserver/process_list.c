@@ -41,6 +41,19 @@ errval_t get_core_id(domainid_t pid, coreid_t *core_id){
     return PROC_MGMT_ERR_DOMAIN_NOT_RUNNING;
 }
 
+
+errval_t find_process_by_rpc(struct aos_rpc *rpc,domainid_t * res_pid){
+    struct process  * curr = pl.head;
+    for(;curr != NULL; curr = curr -> next){
+        if(curr -> rpc == rpc){
+            *res_pid = curr -> pid;
+            return SYS_ERR_OK;
+        }
+    }
+    *res_pid = -1;
+    return PROC_MGMT_ERR_DOMAIN_NOT_RUNNING;
+}
+
 char* strcopy(const char* str){
     size_t n = strlen(str) + 1;
     char * new_str = (char * ) malloc( n * sizeof(char));

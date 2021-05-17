@@ -380,6 +380,7 @@ errors libaos LIB_ERR_ {
     failure NAMESERVICE_NOT_BOUND "Name service client is not bound",
     failure NAMESERVICE_UNKNOWN_NAME "Lookup failed: unknown name",
     failure NAMESERVICE_INVALID_NAME "Invalid record retrieved (no iref attribute)",
+    failure NAMESERVICE_INVALID_DEREG "Invalid rights to dereg server",
     failure BIND_LMP_REQ        "Failure sending bind_lmp_request to monitor",
     failure BIND_UMP_REQ        "Failure sending bind_ump_request to monitor",
     failure BIND_LMP_REPLY      "Failure sending bind_lmp_reply to monitor",

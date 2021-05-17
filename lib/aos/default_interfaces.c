@@ -118,6 +118,7 @@ static void initialize_interfaces(void)
     aos_rpc_initialize_binding(&name_server_interface,"get_proc_core",NS_GET_PROC_CORE,1,1,AOS_RPC_WORD,AOS_RPC_WORD);
     aos_rpc_initialize_binding(&name_server_interface,"get_proc_list",NS_GET_PROC_LIST,0,2,AOS_RPC_WORD,AOS_RPC_VARSTR);
     aos_rpc_initialize_binding(&name_server_interface,"get_pid",NS_GET_PID,0,1,AOS_RPC_WORD);
+    aos_rpc_initialize_binding(&name_server_interface,"dereg server",NS_DEREG_SERVER,1,1,AOS_RPC_VARSTR,AOS_RPC_WORD);
 
 
 

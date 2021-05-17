@@ -231,7 +231,20 @@ errval_t establish_init_server_con(const char* name,struct aos_rpc* server_rpc, 
  */
 errval_t nameservice_deregister(const char *name)
 {
-	return LIB_ERR_NOT_IMPLEMENTED;
+
+	// remove from ns
+	errval_t err;
+	bool success;
+	err = aos_rpc_call(get_ns_rpc(), NS_DEREG_SERVER,name,&success);
+	if(err_is_fail(err)){
+		DEBUG_ERR(err,"Failed to call dereg server!\n");
+	}
+	if(success){
+		return SYS_ERR_OK;
+	}
+	else {
+		return LIB_ERR_NAMESERVICE_INVALID_DEREG;
+	}
 }
 
 
