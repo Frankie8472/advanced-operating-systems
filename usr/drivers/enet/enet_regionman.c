@@ -60,7 +60,7 @@ errval_t dequeue_bufs(struct enet_qstate* qs) {
  */
 errval_t get_free_buf(struct enet_qstate* qs, struct devq_buf* ret) {
     if (qs->free == NULL) {
-        return DEVQ_ERR_NO_FREE_BUFFER
+        return DEVQ_ERR_NO_FREE_BUFFER;
     }
 
     struct dev_list* fr = qs->free;
