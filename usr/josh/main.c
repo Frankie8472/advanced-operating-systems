@@ -68,6 +68,8 @@ static void spawn_program(const char *name, struct array_list *args)
 
     void haendl(struct aos_rpc *r, struct capref ep, struct capref stdinep, struct capref *stdoutep) {
         debug_printf("handle!\n");
+        r->channel.lmp.remote_cap = ep;
+        *stdoutep = stdout_chan.channel.lmp.remote_cap;
     }
 
     struct aos_rpc rpc;
