@@ -1308,6 +1308,7 @@ errors cpuid DEVQ_ERR_ {
     failure QUEUE_EMPTY             "Nothing to dequeue.",
     failure QUEUE_FULL              "The queue is full.",
     failure DESCQ_INIT              "Failure in descriptor queue init",
+    failure NO_FREE_BUFFER
 };
 
 errors cpuid NET_QUEUE_ERR_ {
