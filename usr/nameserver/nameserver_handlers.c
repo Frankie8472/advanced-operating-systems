@@ -82,7 +82,6 @@ void handle_server_request(struct aos_rpc * rpc, uintptr_t pid, uintptr_t core_i
     new_server -> name = serv_name;
     new_server -> pid = pid; 
     new_server -> core_id = core_id;
-    // new_server -> end_point = &new_server_ep_cap;
     new_server -> ump = ump;
 
 
@@ -163,14 +162,16 @@ void handle_dereg_server(struct aos_rpc *rpc, const char* name, uintptr_t* succe
     struct server_list * ret_server;
     err = find_server_by_name((char*) name,&ret_server);
     if(err_is_fail(err)){
+        *success = 1;
         debug_printf("Server %s already removed!\n",name);
         return;
     }
     if(pid == -1 || pid == ret_server -> pid){ //if process is dead, anyone can deregister server
         remove_server(ret_server);
+        *success = 1;
         print_server_list();
     }else{
-        debug_printf("Invalid access rights to delete server!\n");
+        *success = 0;
     }
 
     

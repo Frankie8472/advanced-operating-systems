@@ -268,6 +268,9 @@ errval_t nameservice_lookup(const char *name, nameservice_chan_t *nschan)
 	coreid_t core_id;
 	err = aos_rpc_call(get_init_rpc(),INIT_NAME_LOOKUP,name,&core_id,&ump,&server_ep);
 	ON_ERR_RETURN(err);
+	if(capref_is_null(server_ep)){
+		return LIB_ERR_NAMESERVICE_UNKNOWN_NAME;
+	}
 
 	struct server_connection* serv_con = (struct server_connection*) malloc(sizeof(struct server_connection));
 	const char * con_name = (const char *) malloc(sizeof(strlen(name) + 1));
