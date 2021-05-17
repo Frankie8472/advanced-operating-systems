@@ -126,6 +126,7 @@ struct aos_rpc {
 
     const struct aos_rpc_interface *interface;
 
+    void* serv_entry;
     struct waitset *waitset;
 
     size_t n_handlers;

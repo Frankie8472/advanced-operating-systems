@@ -22,6 +22,7 @@ struct server_connection {
 	coreid_t core_id;
 	bool ump;
 	struct aos_rpc * rpc;
+	bool dead;
 };
 
 
@@ -103,11 +104,12 @@ errval_t nameservice_enumerate(char *query, size_t *num, char **result );
 void nameservice_reveice_handler_wrapper(struct aos_rpc * rpc,char*  message,struct capref tx_cap, char * response, struct capref* rx_cap);
 
 
-errval_t create_ump_server_ep(struct capref* server_ep);
+errval_t create_ump_server_ep(struct capref* server_ep,struct aos_rpc** ret_rpc);
 errval_t create_lmp_server_ep(struct capref* server_ep, struct aos_rpc** ret_rpc);
 errval_t serialize(const char * name, const char * properties,char** ret_server_data);
 errval_t deserialize_prop(const char * server_data,char *  key[],char *  value[], char**name);
 errval_t get_properties_size(char * properties,size_t * size);
 errval_t establish_init_server_con(const char* name,struct aos_rpc* server_rpc, struct capref local_cap);
+void init_server_handlers(struct aos_rpc* server_rpc);
 #endif /* INCLUDE_AOS_AOS_NAMESERVICE_H_ */
 

@@ -539,6 +539,10 @@ errval_t spawn_setup_by_name(char *binary_name, struct spawninfo *si, domainid_t
     char cmd_line_copy[strlen(binary_name)];
     strcpy(cmd_line_copy,binary_name);
     create_argv(cmd_line_copy,(char **) res);
+
+    // char * name = (char *) malloc(strlen(res[0]) + 1);
+    // // strcpy(name,res[0]);
+
     // si -> binary_name = (char*) res[0];
     // binary_name = ;
     //TODO: is  bi correctly initialized by the init/usr/main.c

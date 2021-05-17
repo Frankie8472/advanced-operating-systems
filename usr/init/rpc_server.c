@@ -257,7 +257,7 @@ void handle_foreign_spawn(struct aos_rpc *origin_rpc, const char *name, uintptr_
 {   
 
 
-    
+
     // debug_printf("WE SPAWN: %s, %ld\n", name, core_id);
     // struct spawninfo *si = spawn_create_spawninfo();
 
@@ -531,7 +531,7 @@ void handle_multi_hop_init(struct aos_rpc *rpc,const char* name, struct capref s
 
 
 
-void handle_client_call(struct aos_rpc *rpc,coreid_t core_id,const char* message,struct capref send_cap, struct capref *recv_cap){
+void handle_client_call(struct aos_rpc *rpc,coreid_t core_id,const char* message,struct capref send_cap,char* response, struct capref *recv_cap){
     debug_printf("handling client call!\n");
     errval_t err;
     coreid_t curr_core = disp_get_core_id();
@@ -540,9 +540,33 @@ void handle_client_call(struct aos_rpc *rpc,coreid_t core_id,const char* message
         if(curr_core == 0){ fw_rpc = get_core_channel(core_id);}
         else{fw_rpc = get_core_channel(0);}
         assert(fw_rpc && "Core channel not online!");
-        err = aos_rpc_call(get_core_channel(0),INIT_CLIENT_CALL,core_id,message,send_cap,recv_cap);
+        err = aos_rpc_call(get_core_channel(0),INIT_CLIENT_CALL,core_id,message,send_cap,response,recv_cap);
         if(err_is_fail(err)){DEBUG_ERR(err,"Failed forward!");}
     }else {
+
+
+        char name[1024];
+        size_t n_index = 0;
+        char * extracted_message = (char *) message;
+        while(*extracted_message != '\0' && *extracted_message != '?'){
+            name[n_index] = *extracted_message++;
+            n_index++;
+        }
+        name[n_index] = '\0';
+        extracted_message++;
+
+        debug_printf("Routing to server with name %s\n",name);
+        struct routing_entry * re = get_routing_entry_by_name(name);
+        if(!re){
+            debug_printf("Server routing not found!\n");
+            // *response = '\0';
+            return;
+        }
+
+        err = aos_rpc_call(re -> rpc,OS_IFACE_MESSAGE,extracted_message,send_cap,response,recv_cap);
+        if(err_is_fail(err)){
+            DEBUG_ERR(err,"Failed call to server ep!\n");
+        }
     }
 }
 /**

@@ -15,7 +15,6 @@
 
 #include <hashtable/hashtable.h>
 
-static struct srv_entry* head;
 static void *get_opaque_server_rpc_handlers[OS_IFACE_N_FUNCTIONS];
 // * server_table = create_hashtable();
 
@@ -23,7 +22,6 @@ static void *get_opaque_server_rpc_handlers[OS_IFACE_N_FUNCTIONS];
 
 
 struct srv_entry {
-	struct srv_entry * next;
 	const char *name;
 	nameservice_receive_handler_t *recv_handler;
 	void *st;
@@ -70,15 +68,17 @@ errval_t nameservice_rpc(nameservice_chan_t chan, void *message, size_t bytes,
 		return LIB_ERR_NOT_IMPLEMENTED;
 	}else{
 
-
-		debug_printf("Client call with core: %d message: %s\n",serv_con -> core_id,message );
-
-
-		struct capref send_cap;
-		slot_alloc(&send_cap);
-		// struct capref ret_cap;
-		err = aos_rpc_call(serv_con -> rpc,INIT_CLIENT_CALL,serv_con -> core_id,(char *)message,NULL_CAP,(char *) response,&response_cap);
+		char * payload = (char * ) malloc(bytes + strlen(serv_con -> name) + 2);
+		strcpy(payload,serv_con -> name);
+		strcat(payload,"?");
+		strcat(payload,(char * ) message);
+		// debug_printf("Client call with core: %d message: %s\n",serv_con -> core_id,message );
+		err = aos_rpc_call(serv_con -> rpc,INIT_CLIENT_CALL,serv_con -> core_id,payload,tx_cap,(char *) *response,&response_cap);
 		ON_ERR_RETURN(err);
+		*response_bytes = strlen(*response);
+
+		// debug_printf("Response: %s\n",(char*) *response);
+
 	}
 	return SYS_ERR_OK;
 }
@@ -115,22 +115,15 @@ errval_t nameservice_register_properties(const char * name,nameservice_receive_h
 	ON_ERR_RETURN(err);
 	// create and add srv_entry
 	struct srv_entry* new_srv_entry = (struct srv_entry *) malloc(sizeof(struct srv_entry));
-	new_srv_entry -> next = NULL;
 	new_srv_entry -> name = name;
 	new_srv_entry -> recv_handler = recv_handler;
 	new_srv_entry -> st = st;
-	if(head == NULL){
-		head = new_srv_entry;
-	}else {
-		struct srv_entry * curr = head;
-		for(; curr -> next != NULL;curr = curr -> next){}
-		curr -> next = new_srv_entry;
-	}
+
 
 	struct aos_rpc *new_rpc;
 	struct capref server_ep;
 	if(ump){
-		err = create_ump_server_ep(&server_ep);
+		err = create_ump_server_ep(&server_ep,&new_rpc);
 	}else{
 		err = create_lmp_server_ep(&server_ep,&new_rpc);
 	}
@@ -147,7 +140,7 @@ errval_t nameservice_register_properties(const char * name,nameservice_receive_h
 	// struct capability cap;
 	// invoke_cap_identify(server_ep,&cap);
 	// debug_print_cap(buffer,512,&cap);
-	debug_printf("Register with name : %s \n",server_data);
+	// debug_printf("Register with name : %s \n",server_data);
 
 	char buf[512];
 	err = aos_rpc_call(get_init_rpc(),INIT_REG_SERVER,disp_get_domain_id(),disp_get_core_id(),server_data,server_ep,buf);
@@ -159,10 +152,12 @@ errval_t nameservice_register_properties(const char * name,nameservice_receive_h
 		establish_init_server_con(name,new_rpc,server_ep);
 	}
 
+	new_rpc -> serv_entry = (void*) new_srv_entry;
+
 	return SYS_ERR_OK;
 }
 
-errval_t create_ump_server_ep(struct capref* server_ep){
+errval_t create_ump_server_ep(struct capref* server_ep,struct aos_rpc** ret_rpc){
 	errval_t err;
 	struct aos_rpc* new_rpc = (struct aos_rpc*) malloc(sizeof(struct aos_rpc));
 	err = slot_alloc(server_ep);
@@ -176,10 +171,10 @@ errval_t create_ump_server_ep(struct capref* server_ep){
 	ON_ERR_RETURN(err);
 	err = aos_rpc_set_interface(new_rpc,get_opaque_server_interface(),OS_IFACE_N_FUNCTIONS,get_opaque_server_rpc_handlers);
 	ON_ERR_RETURN(err);
+	init_server_handlers(new_rpc);
 
 
-
-
+	*ret_rpc = new_rpc;
 	return SYS_ERR_OK;
 
 }
@@ -195,14 +190,16 @@ errval_t create_lmp_server_ep(struct capref* server_ep, struct aos_rpc** ret_rpc
 	ON_ERR_RETURN(err);
 	err = aos_rpc_init_lmp(new_rpc,*server_ep,NULL_CAP,lmp_ep, get_default_waitset());
 	ON_ERR_RETURN(err);
+
+	err = aos_rpc_set_interface(new_rpc,get_opaque_server_interface(),OS_IFACE_N_FUNCTIONS,get_opaque_server_rpc_handlers);
+	init_server_handlers(new_rpc);
+
+	// char buffer[512];
+
+	// debug_print_cap_at_capref(buffer,512,new_rpc -> channel.lmp.local_cap);
+	// debug_printf("Cap : %s\n",buffer);
+
 	*ret_rpc = new_rpc;
-
-
-	char buffer[512];
-
-	debug_print_cap_at_capref(buffer,512,new_rpc -> channel.lmp.local_cap);
-	debug_printf("Cap : %s\n",buffer);
-
 	return SYS_ERR_OK;
 }
 
@@ -297,9 +294,13 @@ errval_t nameservice_enumerate(char *query, size_t *num, char **result )
 void nameservice_reveice_handler_wrapper(struct aos_rpc * rpc,char*  message,struct capref tx_cap, char * response, struct capref* rx_cap){
 
 	
-
-	// ht_get_capability()
-	//find correct namerver (map channel -> name)
+	struct srv_entry * se = (struct srv_entry *) rpc -> serv_entry;
+	size_t response_bytes;
+	char * response_buffer = (char * ) malloc(1024); //TODO make varstrlarger
+	se -> recv_handler(se -> st,(void *) message,strlen(message),(void*)&response_buffer,&response_bytes,tx_cap,rx_cap);
+	debug_printf("Response in wrapper : %s\n",response_buffer);
+	strcpy(response,response_buffer);
+	// free(response_buffer);
 
 }
 
@@ -443,4 +444,9 @@ errval_t deserialize_prop(const char * server_data,char *  key[],char *  value[]
 	// free(value_res);
 
 	return SYS_ERR_OK;
+}
+
+
+void init_server_handlers(struct aos_rpc* server_rpc){
+	aos_rpc_register_handler(server_rpc,OS_IFACE_MESSAGE,&nameservice_reveice_handler_wrapper);
 }
