@@ -26,6 +26,7 @@
 
 
 #include "enet.h"
+#include "enet_regionman.h"
 
 #define PHY_ID 0x2
 
