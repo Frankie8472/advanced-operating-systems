@@ -4,7 +4,7 @@
  */
 #include <stdio.h>
 #include <stdlib.h>
-
+#include <ctype.h>
 #include <aos/aos.h>
 #include <aos/waitset.h>
 #include <aos/nameserver.h>
@@ -53,7 +53,34 @@ errval_t nameservice_rpc(nameservice_chan_t chan, void *message, size_t bytes,
                          void **response, size_t *response_bytes,
                          struct capref tx_cap, struct capref rx_cap)
 {
-	return LIB_ERR_NOT_IMPLEMENTED;
+
+
+	errval_t err;
+	// debug_printf("here is channel address: 0x%lx\n",chan);
+	struct server_connection *serv_con = (struct server_connection *) chan;
+
+
+	struct capref response_cap;
+	slot_alloc(&response_cap);
+	if(serv_con -> ump){
+		if(!capref_is_null(tx_cap) && !capref_is_null(rx_cap)){
+			debug_printf("Trying to send or recv cap over a ump server connection!(impossible to do!)\n");
+			return LIB_ERR_NOT_IMPLEMENTED;
+		}
+		return LIB_ERR_NOT_IMPLEMENTED;
+	}else{
+
+
+		debug_printf("Client call with core: %d message: %s\n",serv_con -> core_id,message );
+
+
+		struct capref send_cap;
+		slot_alloc(&send_cap);
+		// struct capref ret_cap;
+		err = aos_rpc_call(serv_con -> rpc,INIT_CLIENT_CALL,serv_con -> core_id,(char *)message,NULL_CAP,(char *) response,&response_cap);
+		ON_ERR_RETURN(err);
+	}
+	return SYS_ERR_OK;
 }
 
 
@@ -73,16 +100,19 @@ errval_t nameservice_register(const char *name,
 	                              void *st)
 {	
 	
-	return nameservice_register_properties(name,recv_handler,st,true);
+	return nameservice_register_properties(name,recv_handler,st,false,NULL);
 }
 
 
-errval_t nameservice_register_properties(const char * name,nameservice_receive_handler_t recv_handler, void * st, bool ump,...){
+errval_t nameservice_register_properties(const char * name,nameservice_receive_handler_t recv_handler, void * st, bool ump,const char * properties){
 
-	va_list args;
-	va_start(args, ump);
+
 	errval_t err;
 
+
+	char* server_data;
+	err = serialize(name,properties,&server_data);
+	ON_ERR_RETURN(err);
 	// create and add srv_entry
 	struct srv_entry* new_srv_entry = (struct srv_entry *) malloc(sizeof(struct srv_entry));
 	new_srv_entry -> next = NULL;
@@ -97,25 +127,37 @@ errval_t nameservice_register_properties(const char * name,nameservice_receive_h
 		curr -> next = new_srv_entry;
 	}
 
+	struct aos_rpc *new_rpc;
 	struct capref server_ep;
 	if(ump){
 		err = create_ump_server_ep(&server_ep);
 	}else{
-		err = create_lmp_server_ep(&server_ep);
+		err = create_lmp_server_ep(&server_ep,&new_rpc);
 	}
 	ON_ERR_RETURN(err);
+
+
+	// char buffer[512];
+
+	// debug_print_cap_at_capref(buffer,512,server_ep);
+	// debug_printf("Cap : %s\n",buffer);
+
 
 	// char buffer[512];
 	// struct capability cap;
 	// invoke_cap_identify(server_ep,&cap);
 	// debug_print_cap(buffer,512,&cap);
-	// debug_printf("Cap: %s\n",buffer);
+	debug_printf("Register with name : %s \n",server_data);
+
 	char buf[512];
-	err = aos_rpc_call(get_init_rpc(),INIT_REG_SERVER,disp_get_domain_id(),name,server_ep,"hi",buf);
+	err = aos_rpc_call(get_init_rpc(),INIT_REG_SERVER,disp_get_domain_id(),disp_get_core_id(),server_data,server_ep,buf);
 	ON_ERR_RETURN(err);
 	//TODO: rich properties
 	//TODO: lmp ep
 
+	if(!ump){
+		establish_init_server_con(name,new_rpc,server_ep);
+	}
 
 	return SYS_ERR_OK;
 }
@@ -124,9 +166,9 @@ errval_t create_ump_server_ep(struct capref* server_ep){
 	errval_t err;
 	struct aos_rpc* new_rpc = (struct aos_rpc*) malloc(sizeof(struct aos_rpc));
 	err = slot_alloc(server_ep);
+	ON_ERR_RETURN(err);
 	size_t urpc_cap_size;
 	err  = frame_alloc(server_ep,BASE_PAGE_SIZE,&urpc_cap_size);
-	ON_ERR_RETURN(err);
 	ON_ERR_RETURN(err);
 	char *urpc_data = NULL;
 	err = paging_map_frame_complete(get_current_paging_state(), (void **) &urpc_data, *server_ep, NULL, NULL);
@@ -134,21 +176,51 @@ errval_t create_ump_server_ep(struct capref* server_ep){
 	ON_ERR_RETURN(err);
 	err = aos_rpc_set_interface(new_rpc,get_opaque_server_interface(),OS_IFACE_N_FUNCTIONS,get_opaque_server_rpc_handlers);
 	ON_ERR_RETURN(err);
+
+
+
+
 	return SYS_ERR_OK;
 
 }
 
-errval_t create_lmp_server_ep(struct capref* server_ep){
+errval_t create_lmp_server_ep(struct capref* server_ep, struct aos_rpc** ret_rpc){
 	errval_t err;
-	struct aos_rpc* new_rpc = (struct aos_rpc*) malloc(sizeof(struct aos_rpc));
-	new_rpc -> lmp_server_mode  = true; // NOTE: unsure?
 	err = slot_alloc(server_ep);
 	ON_ERR_RETURN(err);
+	struct aos_rpc* new_rpc = (struct aos_rpc*) malloc(sizeof(struct aos_rpc));
+	// new_rpc -> lmp_server_mode  = true; // NOTE: unsure?
 	struct lmp_endpoint * lmp_ep;
 	err = endpoint_create(256,server_ep,&lmp_ep);
 	ON_ERR_RETURN(err);
 	err = aos_rpc_init_lmp(new_rpc,*server_ep,NULL_CAP,lmp_ep, get_default_waitset());
 	ON_ERR_RETURN(err);
+	*ret_rpc = new_rpc;
+
+
+	char buffer[512];
+
+	debug_print_cap_at_capref(buffer,512,new_rpc -> channel.lmp.local_cap);
+	debug_printf("Cap : %s\n",buffer);
+
+	return SYS_ERR_OK;
+}
+
+errval_t establish_init_server_con(const char* name,struct aos_rpc* server_rpc, struct capref local_cap){
+	errval_t err;
+	debug_printf("establish init server con\n");
+
+	struct capref remote_cap;
+
+
+	char buffer[512];
+
+	debug_print_cap_at_capref(buffer,512,local_cap);
+	debug_printf("Cap : %s\n",buffer);
+	
+	err = aos_rpc_call(get_init_rpc(),INIT_MULTI_HOP_CON,name,local_cap,&remote_cap);
+	ON_ERR_RETURN(err);
+	server_rpc -> channel.lmp.remote_cap = remote_cap;
 	return SYS_ERR_OK;
 }
 
@@ -176,7 +248,34 @@ errval_t nameservice_deregister(const char *name)
  */
 errval_t nameservice_lookup(const char *name, nameservice_chan_t *nschan)
 {
-	return LIB_ERR_NOT_IMPLEMENTED;
+
+
+	errval_t err;
+	struct capref server_ep;
+	// err = slot_alloc(&server_ep);
+	// ON_ERR_RETURN(err);
+	bool ump;
+	coreid_t core_id;
+	err = aos_rpc_call(get_init_rpc(),INIT_NAME_LOOKUP,name,&core_id,&ump,&server_ep);
+	ON_ERR_RETURN(err);
+
+	struct server_connection* serv_con = (struct server_connection*) malloc(sizeof(struct server_connection));
+	const char * con_name = (const char *) malloc(sizeof(strlen(name) + 1));
+	strcpy((char*)con_name,(char*)name);  
+	serv_con -> name = con_name;
+	serv_con -> core_id = core_id;
+	if(ump){
+		serv_con -> ump = true;
+		return LIB_ERR_NOT_IMPLEMENTED;
+	}
+	else{
+		serv_con -> ump = false;
+		serv_con -> rpc = get_init_rpc();
+	}
+	
+
+	*nschan = (void*) serv_con; 
+	return SYS_ERR_OK;
 }
 
 
@@ -188,17 +287,160 @@ errval_t nameservice_lookup(const char *name, nameservice_chan_t *nschan)
  * @param result	an array of entries
  */
 errval_t nameservice_enumerate(char *query, size_t *num, char **result )
-{
+{	
+
 	return LIB_ERR_NOT_IMPLEMENTED;
 }
 
 
 
-void nameservice_reveice_handler_wrapper(struct aos_rpc * rpc,struct aos_rpc_varbytes message,struct capref tx_cap, struct aos_rpc_varbytes * response, struct capref* rx_cap){
+void nameservice_reveice_handler_wrapper(struct aos_rpc * rpc,char*  message,struct capref tx_cap, char * response, struct capref* rx_cap){
 
 	
 
 	// ht_get_capability()
 	//find correct namerver (map channel -> name)
 
+}
+
+
+
+static void remove_spaces (char* restrict str_trimmed, const char* restrict str_untrimmed)
+{
+  while (*str_untrimmed != '\0')
+  {
+    if(!isspace(*str_untrimmed))
+    {
+      *str_trimmed = *str_untrimmed;
+      str_trimmed++;
+    }
+    str_untrimmed++;
+  }
+  *str_trimmed = '\0';
+}
+
+
+errval_t get_properties_size(char * properties,size_t * size){
+	size_t ret_size = 1;
+	// *size = 1;
+	while(*properties != '\0'){
+		if(*properties++ == ','){ret_size++;}
+	}
+	*size = ret_size;
+	return SYS_ERR_OK;
+}
+
+errval_t serialize(const char * name, const char * properties,char** ret_server_data){	
+
+	errval_t err;
+	char* trimmed_name = (char * ) malloc(strlen(name)); 
+	char * trimmed_prop = (char * ) malloc(strlen(properties)); 
+	remove_spaces(trimmed_name,name);
+	remove_spaces(trimmed_prop,properties);
+	size_t ret_size;
+	err = get_properties_size((char * ) properties,&ret_size);
+	ON_ERR_RETURN(err);
+	if(ret_size > 64){
+		free(trimmed_name);
+		free(trimmed_prop);
+		debug_printf("We do not support more than 64 properties!\n");
+		return LIB_ERR_NOT_IMPLEMENTED;
+	}
+
+	// if()
+	// TODO: Regex check
+	if(properties == NULL){
+		*ret_server_data = (char * ) malloc(6 + strlen(trimmed_name));
+		strcpy(*ret_server_data,"name=");
+		strcat(*ret_server_data,trimmed_name);
+		debug_printf("Here is output: %s\n",*ret_server_data);
+		return SYS_ERR_OK;
+	}
+	size_t output_size = strlen(trimmed_name) + strlen(trimmed_prop) + 7;
+	*ret_server_data = (char * ) malloc(output_size);
+	strcpy(*ret_server_data,"name=");
+	strcat(*ret_server_data,trimmed_name);
+	strcat(*ret_server_data,",");
+	strcat(*ret_server_data,trimmed_prop);
+	free(trimmed_name);
+	free(trimmed_prop);
+
+	// TODO: Regex check for properties
+	// debug_printf("Here is output: %s\n",*ret_server_data);
+	// debug_printf("outsize : %d\n",output_size);
+
+	return SYS_ERR_OK;
+}
+
+
+errval_t deserialize_prop(const char * server_data,char *  key[],char *  value[], char**name){
+	
+	size_t map_index = 0;
+	size_t key_index = 0;
+	size_t value_index = 0;
+	bool is_key = true;
+	bool is_name = false;
+	size_t name_index = 0;
+
+	char * extract_name = (char * ) malloc(512);
+	while(*server_data != ','){
+		if(*server_data == '='){
+			is_name = true;
+			server_data++;
+		}
+		else{
+			if(is_name){
+				*(extract_name + name_index++) = *server_data++;
+			}
+			else{
+				server_data++;
+			}
+		}
+	}
+	*(extract_name + name_index++) = '\0';
+	*name = (char*) realloc(extract_name,name_index);
+	server_data++;
+
+	char * key_res = (char *) malloc(512);
+	char * value_res = (char *) malloc(512);
+
+
+	while(true){
+		
+		if(is_key){
+			if(*server_data == '='){
+				*(key_res + (key_index++))= '\0';
+				// key[map_index] = (char*) realloc(key_res,key_index);
+				key[map_index] = key_res;
+				// debug_printf("0x%lx -> %s\n",key_res,key[map_index]);
+				key_res = malloc(512);
+				is_key=false;
+				key_index = 0;
+				server_data++;
+			}else{
+				// debug_printf("%c\n",*server_data);
+				*(key_res + (key_index++))= *server_data++;
+			}
+		}else{
+			if(*server_data == ',' || *server_data == '\0'){
+				*(value_res + (value_index++)) = '\0';
+				// key[map_index++] = (char*) realloc(value_res,value_index);
+				value[map_index++] = value_res;
+				value_res = malloc(512);
+				value_index = 0;
+				is_key=true;
+				if(*server_data == '\0'){return SYS_ERR_OK;}
+				server_data++;
+			}else{
+				// debug_printf("%c\n",*server_data);
+				*(value_res + (value_index++)) = *server_data++;
+			
+			}
+		}
+	}
+
+	// free(key_res);
+	// free(value_res);
+
+	return SYS_ERR_OK;
 }

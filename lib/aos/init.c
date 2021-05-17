@@ -51,7 +51,11 @@ void libc_exit(int);
 
 __weak_reference(libc_exit, _exit);
 void libc_exit(int status)
-{
+{   
+
+
+    //TODO dereg from ns
+    
     debug_printf("libc exit NYI!\n");
     thread_exit(status);
     // If we're not dead by now, we wait

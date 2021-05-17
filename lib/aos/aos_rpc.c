@@ -123,6 +123,7 @@ errval_t aos_rpc_init_lmp(struct aos_rpc* rpc, struct capref self_ep, struct cap
         ON_ERR_PUSH_RETURN(err, LIB_ERR_ENDPOINT_CREATE);
     }
 
+
     rpc->channel.lmp.buflen_words = default_buflen;
     rpc->channel.lmp.endpoint = lmp_ep;
 
@@ -1198,7 +1199,7 @@ static void send_remaining_lmp(struct lmp_chan *lc, uintptr_t *lm, struct capref
         do {
             char buf[128];
             debug_print_cap_at_capref(buf, 128, *cap);
-            // debug_printf("sending: %ld %ld %ld %ld, %s\n", lm[0], lm[1], lm[2], lm[3], buf);
+            debug_printf("sending: %ld %ld %ld %ld, %s\n", lm[0], lm[1], lm[2], lm[3], buf);
             debug_print_cap_at_capref(buf, 128, lc->remote_cap);
             // debug_printf("to: %s\n", buf);
             // debug_printf("Word index %d\n",*word_ind);

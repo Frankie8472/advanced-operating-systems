@@ -46,6 +46,9 @@ struct terminal_state{
 };
 
 static struct terminal_state *terminal_state;
+static struct routing_entry* routing_head;
+static void *get_opaque_server_rpc_handlers[OS_IFACE_N_FUNCTIONS];
+
 
 errval_t init_terminal_state(void)
 {
@@ -433,20 +436,81 @@ void handle_forward_ns_reg(struct aos_rpc *rpc,uintptr_t core_id,const char* nam
     }
 }
 
-void handle_server_request(struct aos_rpc * rpc, uintptr_t pid,const char* name, struct capref server_ep_cap,char * properties, char * return_message){
-    errval_t err = aos_rpc_call(get_ns_forw_rpc(),INIT_REG_SERVER,pid,name,server_ep_cap,properties,return_message);
+void handle_server_request(struct aos_rpc * rpc, uintptr_t pid, uintptr_t core_id ,const char* server_data, struct capref server_ep_cap, const char * return_message){
+    debug_printf("Register with name server data: %s \n",server_data);
+    errval_t err = aos_rpc_call(get_ns_forw_rpc(),INIT_REG_SERVER,pid,core_id,server_data,server_ep_cap,return_message);
     if(err_is_fail(err)){
         DEBUG_ERR(err,"Failed to forward server request\n");
     }
 }
 
-void handle_name_lookup(struct aos_rpc *rpc, char * name,struct capref* server_ep_cap){
-    errval_t err = aos_rpc_call(get_ns_forw_rpc(),INIT_NAME_LOOKUP,name,server_ep_cap);
+void handle_name_lookup(struct aos_rpc *rpc, char * name,uintptr_t * core_id,uintptr_t *ump, struct capref* server_ep_cap){
+    errval_t err = aos_rpc_call(get_ns_forw_rpc(),INIT_NAME_LOOKUP,name,core_id,ump, server_ep_cap);
     if(err_is_fail(err)){
         DEBUG_ERR(err,"Failed to forward server lookup\n");
     }
 }
 
+
+
+void handle_multi_hop_init(struct aos_rpc *rpc,const char* name, struct capref server_ep_cap, struct capref* init_ep_cap){
+    errval_t err;
+
+
+    debug_printf("Starting init multihop stuff!\n");
+    struct aos_rpc * new_rpc = malloc(sizeof(struct aos_rpc));
+
+    struct capref new_init_ep_cap;
+    err = slot_alloc(&new_init_ep_cap);    
+    if(err_is_fail(err)){
+        DEBUG_ERR(err,"Failed to slot alloc in multihop init!\n");
+    }
+    struct lmp_endpoint * lmp_ep;
+    err = endpoint_create(256,&new_init_ep_cap,&lmp_ep);
+    if(err_is_fail(err)){
+        DEBUG_ERR(err,"Failed to create ep in memory server\n");
+    }
+    err = aos_rpc_init_lmp(new_rpc,new_init_ep_cap,server_ep_cap,lmp_ep, NULL);
+    if(err_is_fail(err)){
+        DEBUG_ERR(err,"Failed to register waitset on rpc\n");
+    }
+
+    err = aos_rpc_set_interface(new_rpc,get_opaque_server_interface(),OS_IFACE_N_FUNCTIONS,get_opaque_server_rpc_handlers);
+
+    if(err_is_fail(err)){
+        DEBUG_ERR(err,"Failed to set server interface in multi hop init\n");
+    }
+
+
+    
+    struct routing_entry * re = (struct routing_entry *) malloc(sizeof(struct routing_entry));
+
+    // re -> name = name;
+    strcpy(re -> name,(char *) name);
+    re -> rpc = new_rpc;
+
+    // debug_printf("Got here!\n");
+    add_routing_entry(re);
+    *init_ep_cap = new_init_ep_cap;
+}
+
+
+
+void handle_client_call(struct aos_rpc *rpc,coreid_t core_id,const char* message,struct capref send_cap, struct capref *recv_cap){
+    debug_printf("handling client call!\n");
+    errval_t err;
+    coreid_t curr_core = disp_get_core_id();
+    if(core_id != curr_core){
+        struct aos_rpc* fw_rpc;
+        if(curr_core == 0){ fw_rpc = get_core_channel(core_id);}
+        else{fw_rpc = get_core_channel(0);}
+        assert(fw_rpc && "Core channel not online!");
+        err = aos_rpc_call(get_core_channel(0),INIT_CLIENT_CALL,core_id,message,send_cap,recv_cap);
+        if(err_is_fail(err)){DEBUG_ERR(err,"Failed forward!");}
+    }else {
+        debug_printf("Got here!\n");
+    }
+}
 /**
  * \brief initialize all handlers for rpc calls
  * 
@@ -474,6 +538,9 @@ errval_t initialize_rpc_handlers(struct aos_rpc *rpc)
     aos_rpc_register_handler(rpc,INIT_REG_NAMESERVER,&handle_forward_ns_reg);
     aos_rpc_register_handler(rpc,INIT_REG_SERVER,&handle_server_request);
     aos_rpc_register_handler(rpc,INIT_NAME_LOOKUP,&handle_name_lookup);
+    aos_rpc_register_handler(rpc,INIT_MULTI_HOP_CON,&handle_multi_hop_init);
+    aos_rpc_register_handler(rpc,INIT_CLIENT_CALL,&handle_client_call);
+
     // aos_rpc_register_handler(rpc,AOS_RPC_REGISTER_PROCESS,&handle_init_process_register);
     // aos_rpc_register_handler(rpc,AOS_RPC_MEM_SERVER_REQ,&handle_mem_server_request);
     // aos_rpc_register_handler(rpc,AOS_RPC_GET_PROC_NAME,&handle_init_get_proc_name);
@@ -497,7 +564,25 @@ void register_core_channel_handlers(struct aos_rpc *rpc)
     aos_rpc_register_handler(rpc,AOS_RPC_GET_PROC_LIST,&handle_init_get_proc_list);
     aos_rpc_register_handler(rpc, AOS_RPC_GET_PROC_CORE,&handle_init_get_core_id);
     aos_rpc_register_handler(rpc,AOS_RPC_BINDING_REQUEST,&handle_all_binding_request );
-
 }
 
+void add_routing_entry(struct routing_entry * re){
+    if(routing_head == NULL){
+        routing_head = re;
+    }else{
+        struct routing_entry * curr = routing_head;
+        for(;curr != NULL;curr = curr -> next){}
+        curr -> next  = re;
+    }
+}
+
+struct routing_entry* get_routing_entry_by_name(const char* name){
+    struct routing_entry * curr = routing_head;
+    for(;curr != NULL;curr = curr -> next){
+        if(!strcmp(curr ->  name,name)){
+            return curr;
+        }
+    }
+    return NULL;
+}
 

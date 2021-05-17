@@ -11,10 +11,17 @@ errval_t init_terminal_state(void);
 errval_t start_memory_server_thread(void);
 
 
-enum SERVICES {
-    PROCESS_MANAGER,
-    MEMORY_SERVER
-} ;
+struct routing_entry {
+    struct routing_entry* next;
+    char name[1024];
+    struct aos_rpc* rpc;
+};
+
+
+// enum SERVICES {
+//     PROCESS_MANAGER,
+//     MEMORY_SERVER
+// } ;
 
 errval_t init_core_channel(coreid_t coreid, lvaddr_t urpc_frame);
 void register_core_channel_handlers(struct aos_rpc *rpc);
@@ -46,6 +53,11 @@ void handle_init_get_core_id(struct aos_rpc *r, uintptr_t pid, uintptr_t * core_
 void handle_all_binding_request(struct aos_rpc *r, uintptr_t pid, uintptr_t core_id,uintptr_t client_core,struct capref client_cap,struct capref * server_cap);
 void  handle_ns_on(struct aos_rpc *r);
 void handle_forward_ns_reg(struct aos_rpc *rpc,uintptr_t core_id,const char* name,struct capref proc_ep_cap, uintptr_t  pid, struct capref* ns_ep_cap);
-void handle_server_request(struct aos_rpc * rpc, uintptr_t pid,const char* name, struct capref server_ep_cap,char * properties, char * return_message);
-void handle_name_lookup(struct aos_rpc *rpc, char * name,struct capref* server_ep_cap);
+void handle_server_request(struct aos_rpc * rpc, uintptr_t pid, uintptr_t core_id ,const char* server_data, struct capref server_ep_cap, const char * return_message);
+void handle_name_lookup(struct aos_rpc *rpc, char * name,uintptr_t * core_id,uintptr_t *ump, struct capref* server_ep_cap);
+void handle_multi_hop_init(struct aos_rpc *rpc, const char* name,struct capref server_ep_cap, struct capref* init_ep_cap);
+void handle_client_call(struct aos_rpc *rpc,coreid_t core_id,const char* message,struct capref send_cap, struct capref *recv_cap);
+
+void add_routing_entry(struct routing_entry * re);
+struct routing_entry* get_routing_entry_by_name(const char* name);
 #endif // INIT_RPC_SERVER_H_

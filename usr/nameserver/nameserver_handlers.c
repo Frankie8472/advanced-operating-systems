@@ -6,6 +6,7 @@
 #include "nameserver_handlers.h"
 #include "process_list.h"
 #include "server_list.h"
+#include <aos/nameserver.h>
 
 // extern struct process_list pl;
 static void *name_server_rpc_handlers[NS_IFACE_N_FUNCTIONS];
@@ -24,43 +25,84 @@ void initialize_nameservice_handlers(struct aos_rpc *ns_rpc){
 
 }
 
-void handle_server_lookup(struct aos_rpc *rpc, char *name,struct capref* server_ep_cap){
+void handle_server_lookup(struct aos_rpc *rpc, char *name,uintptr_t* core_id,uintptr_t *ump,struct capref* server_ep_cap){
+    debug_printf("Handling server lookup\n");
     errval_t err;
-    struct server_list server;
+    struct server_list* server;
     err = find_server_by_name(name,&server);
     if(err_is_fail(err)){
         DEBUG_ERR(err,"Failed to find server: %s \n",name);
         *server_ep_cap = NULL_CAP;
         return;
     }
-    *server_ep_cap = *server.end_point;
+
+    char buf[512];
+    debug_print_cap_at_capref(buf,512,server -> end_point);
+    debug_printf("|| P: %d | C: %d | N: %s | UMP: %d | EP: %s \n", server -> pid, server -> core_id, server -> name,server -> ump,buf);
+
+    *core_id =  server -> core_id;
+    *ump  = server -> ump;
+    *server_ep_cap = server -> end_point;
 
 }
 
-void handle_server_request(struct aos_rpc * rpc, uintptr_t pid, const char* name, struct capref server_ep_cap,char * properties, char * return_message){
+void handle_server_request(struct aos_rpc * rpc, uintptr_t pid, uintptr_t core_id ,const char* server_data, struct capref server_ep_cap, const char * return_message){
     errval_t err;
-    coreid_t core_id; 
 
-    if(!verify_name(name)){
-        return_message = "Tried to register invalid name for nameserver\0";
+
+    debug_printf("Got here!\n");
+    struct server_list * new_server = (struct server_list * ) malloc(sizeof(struct server_list));
+    // struct capref new_server_ep_cap;
+
+    // serve
+    const char* serv_name;
+    err  = deserialize_prop(server_data,new_server -> key,new_server -> value,(char**)&serv_name);
+    if(err_is_fail(err)){
+        DEBUG_ERR(err,"Failed to deserialize sever request\n");
+    }
+
+
+    if(!verify_name(serv_name)){
+        return_message = "Invalid name!\n";
+        free(new_server);
         return;
     }
-
-
-
-    err =  get_core_id(pid,&core_id);
+    // err = find_server_by_name(new_server,)
+    struct capability cap;
+    err = invoke_cap_identify(server_ep_cap,&cap);
+    // ON_ERR_RETURN(err);
     if(err_is_fail(err)){
-        DEBUG_ERR(err,"Failed to find coreid");
+        DEBUG_ERR(err,"Failed to invoke cap identify on receiving server request!\n");
+    }
+    bool ump = false;
+    if(cap.type == ObjType_Frame){
+        ump = true;
     }
 
+    new_server -> next = NULL;
+    new_server -> name = serv_name;
+    new_server -> pid = pid; 
+    new_server -> core_id = core_id;
+    // new_server -> end_point = &new_server_ep_cap;
+    new_server -> ump = ump;
 
-    err = add_server(pid,core_id,name,server_ep_cap,properties);
+
+
+    err = slot_alloc(&new_server -> end_point);
     if(err_is_fail(err)){
-        DEBUG_ERR(err,"Failed to add server\n");
+        DEBUG_ERR(err,"Failed to slot alloc in handler server request\n");
+    }
+    err = cap_copy(new_server -> end_point,server_ep_cap);
+    if(err_is_fail(err)){
+        DEBUG_ERR(err,"Faild cap copy in server request handler\n");
+    }
+
+    err = add_server(new_server);
+    if(err_is_fail(err)){
+        DEBUG_ERR(err,"Failed to add new server!\n");
     }
 
     print_server_list();
-
 }
 
 void handle_reg_proc(struct aos_rpc *rpc,uintptr_t core_id,const char* name,struct capref proc_ep_cap, uintptr_t pid, struct capref* ns_ep_cap){

@@ -13,15 +13,17 @@ struct server_list {
     const char* name;
     domainid_t pid;
     coreid_t core_id;
-    struct capref *end_point;
+    struct capref end_point;
     bool ump;
-    const char* properties;
+    char * key[64];
+    char * value[64];
 
 };
 
 
-errval_t add_server(domainid_t pid, coreid_t core_id,const char* name, struct capref end_point,const char* properties);
-errval_t find_server_by_name(char * name, struct server_list * ret_serv);
+
+errval_t add_server(struct server_list* new_server);
+errval_t find_server_by_name(char * name, struct server_list ** ret_serv);
 bool verify_name(const char* name); // TODO 
 
 void print_server_list(void);

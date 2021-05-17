@@ -16,6 +16,15 @@
 
 typedef void* nameservice_chan_t;
 
+
+struct server_connection {
+	const char* name;
+	coreid_t core_id;
+	bool ump;
+	struct aos_rpc * rpc;
+};
+
+
 ///< handler which is called when a message is received over the registered channel
 typedef void(nameservice_receive_handler_t)(void *st, 
 										    void *message, size_t bytes,
@@ -57,7 +66,7 @@ errval_t nameservice_register(const char *name,
 	                              void *st);
 
 
-errval_t nameservice_register_properties(const char * name,nameservice_receive_handler_t recv_handler, void * st, bool ump,...);
+errval_t nameservice_register_properties(const char * name,nameservice_receive_handler_t recv_handler, void * st, bool ump,const char * properties);
 
 /**
  * @brief deregisters the service 'name'
@@ -91,10 +100,14 @@ errval_t nameservice_enumerate(char *query, size_t *num, char **result );
 
 
 
-void nameservice_reveice_handler_wrapper(struct aos_rpc * rpc,struct aos_rpc_varbytes message,struct capref tx_cap, struct aos_rpc_varbytes * response, struct capref* rx_cap);
+void nameservice_reveice_handler_wrapper(struct aos_rpc * rpc,char*  message,struct capref tx_cap, char * response, struct capref* rx_cap);
 
 
 errval_t create_ump_server_ep(struct capref* server_ep);
-errval_t create_lmp_server_ep(struct capref* server_ep);
-
+errval_t create_lmp_server_ep(struct capref* server_ep, struct aos_rpc** ret_rpc);
+errval_t serialize(const char * name, const char * properties,char** ret_server_data);
+errval_t deserialize_prop(const char * server_data,char *  key[],char *  value[], char**name);
+errval_t get_properties_size(char * properties,size_t * size);
+errval_t establish_init_server_con(const char* name,struct aos_rpc* server_rpc, struct capref local_cap);
 #endif /* INCLUDE_AOS_AOS_NAMESERVICE_H_ */
+

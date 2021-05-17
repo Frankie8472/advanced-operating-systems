@@ -159,6 +159,7 @@ errval_t init_nameserver_rpc(char * name){
         ON_ERR_RETURN(err);
         err = aos_rpc_init_lmp(ns_rpc,ns_cap,NULL_CAP,name_server_ep,get_default_waitset());
         ON_ERR_RETURN(err);
+
         struct capref remote_ns_cap;
         err = aos_rpc_call(get_init_rpc(),INIT_REG_NAMESERVER,disp_get_core_id(),name,ns_cap,my_pid,&remote_ns_cap);
         ON_ERR_RETURN(err);

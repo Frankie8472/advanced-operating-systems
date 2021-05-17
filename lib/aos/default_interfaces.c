@@ -48,10 +48,15 @@ static void initialize_interfaces(void)
 
     aos_rpc_initialize_binding(&init_interface, "reg_prc", INIT_REG_NAMESERVER, 4, 1, AOS_RPC_WORD, AOS_RPC_VARSTR,AOS_RPC_CAPABILITY,AOS_RPC_WORD,AOS_RPC_CAPABILITY);
     
-    aos_rpc_initialize_binding(&init_interface, "reg_server", INIT_REG_SERVER, 4, 1, AOS_RPC_WORD, AOS_RPC_VARSTR, AOS_RPC_CAPABILITY,AOS_RPC_VARSTR, AOS_RPC_VARSTR);
+    aos_rpc_initialize_binding(&init_interface, "reg_server", INIT_REG_SERVER, 4, 1,AOS_RPC_WORD,AOS_RPC_WORD, AOS_RPC_VARSTR, AOS_RPC_CAPABILITY, AOS_RPC_VARSTR);
 
 
-    aos_rpc_initialize_binding(&init_interface, "lookup_server", INIT_NAME_LOOKUP, 1, 1, AOS_RPC_VARSTR, AOS_RPC_CAPABILITY);
+    aos_rpc_initialize_binding(&init_interface, "lookup_server", INIT_NAME_LOOKUP, 1, 3, AOS_RPC_VARSTR,AOS_RPC_WORD,AOS_RPC_WORD, AOS_RPC_CAPABILITY);
+
+    aos_rpc_initialize_binding(&init_interface, "forward client-server rpc", INIT_CLIENT_CALL,3,2,AOS_RPC_WORD,AOS_RPC_VARSTR,AOS_RPC_CAPABILITY,AOS_RPC_VARSTR,AOS_RPC_CAPABILITY);
+
+
+    aos_rpc_initialize_binding(&init_interface, "multi-hop-init", INIT_MULTI_HOP_CON,2,1,AOS_RPC_VARSTR,AOS_RPC_CAPABILITY,AOS_RPC_CAPABILITY);
 
 
 
@@ -109,7 +114,7 @@ static void initialize_interfaces(void)
     // ===================== Opaque Server Interface ========================
     opaque_server_interface.n_bindings = OS_IFACE_N_FUNCTIONS;
     opaque_server_interface.bindings = opaque_server_bindings;
-    aos_rpc_initialize_binding(&opaque_server_interface,"server_message",OS_IFACE_MESSAGE,2,2,AOS_RPC_VARBYTES,AOS_RPC_CAPABILITY,AOS_RPC_VARBYTES,AOS_RPC_CAPABILITY);
+    aos_rpc_initialize_binding(&opaque_server_interface,"server_message",OS_IFACE_MESSAGE,2,2,AOS_RPC_VARSTR,AOS_RPC_CAPABILITY,AOS_RPC_VARSTR,AOS_RPC_CAPABILITY);
 
     initialized = true;
 }

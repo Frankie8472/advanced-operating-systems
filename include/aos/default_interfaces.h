@@ -19,6 +19,8 @@ enum {
     INIT_REG_NAMESERVER,
     INIT_REG_SERVER,
     INIT_NAME_LOOKUP,
+    INIT_CLIENT_CALL,
+    INIT_MULTI_HOP_CON,
     INIT_IFACE_N_FUNCTIONS, // <- count -- must be last
 };
 

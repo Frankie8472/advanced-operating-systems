@@ -130,8 +130,8 @@ errval_t spawn_load_argv(int argc, const char *const argv[], struct spawninfo *s
     // - Setup the environment
     // - Make the new dispatcher runnable
     errval_t err;
-    const char* name = argv[0];
-    DEBUG_PRINTF("Spawning process: %s\n", name);
+    // const char* name = argv[0];
+    // DEBUG_PRINTF("Spawning process: %s\n", name);
 
     struct capref cnode_child_l1;
     struct cnoderef child_ref;
@@ -512,12 +512,11 @@ errval_t spawn_load_by_name(char *binary_name, struct spawninfo *si,
     // debug_printf("ELF address = %lx\n", elf_address);
     // debug_printf("%x, '%c', '%c', '%c'\n", elf_address[0], elf_address[1], elf_address[2], elf_address[3]);
     // debug_printf("BOI\n");
-    // if()
 
 
 
     // set binary name to full name
-    si->binary_name = res[0];
+    si->binary_name = binary_name;
 
     
     if(argc > 1){ 
@@ -526,14 +525,12 @@ errval_t spawn_load_by_name(char *binary_name, struct spawninfo *si,
         strcpy(copy,args_string);
         strip_extra_spaces(copy);
         argc = get_argc(copy);
-        debug_printf("Argc = %d\n",argc);
         char  const *argv[argc];
         create_argv(copy, (char **) argv);
         binary_name = (char *) argv[0];
         return spawn_load_argv(argc,argv , si, pid);
     }else {
         char * args_string = (char *)  multiboot_module_opts(mem_region);
-        // debug_printf("Args string = %s\n",args_string);
         char copy[strlen(args_string)];
         strcpy(copy,args_string);
         strip_extra_spaces(copy);
