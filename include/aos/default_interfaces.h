@@ -7,21 +7,26 @@ struct aos_rpc_interface *get_init_interface(void);
 struct aos_rpc_interface *get_dispatcher_interface(void);
 struct aos_rpc_interface *get_write_interface(void);
 struct aos_rpc_interface *get_memory_server_interface(void);
+struct aos_rpc_interface *get_nameserver_interface(void);
+struct aos_rpc_interface * get_opaque_server_interface(void);
 
 void initialize_initiate_handler(struct aos_rpc *rpc);
 
 enum {
-    INIT_IFACE_GET_RAM = AOS_RPC_MSG_TYPE_START,
-    INIT_IFACE_SPAWN,
-    INIT_IFACE_SPAWN_EXTENDED,      ///< same as spawn but with more detailed parameters 
-    INIT_IFACE_GET_PROCESS_LIST,
-
+    INIT_IFACE_SPAWN = AOS_RPC_MSG_TYPE_START,
+    INIT_IFACE_SPAWN_EXTENDED,      ///< same as spawn but with more 
+    INIT_NAMESERVER_ON,
+    INIT_REG_NAMESERVER,
+    INIT_REG_SERVER,
+    INIT_NAME_LOOKUP,
+    INIT_CLIENT_CALL,
+    INIT_MULTI_HOP_CON,
     INIT_IFACE_N_FUNCTIONS, // <- count -- must be last
 };
 
 
 enum {
-    DISP_IFACE_BINDING,
+    DISP_IFACE_BINDING = AOS_RPC_MSG_TYPE_START,
     DISP_IFACE_REBIND,
     DISP_IFACE_SET_STDOUT,
     DISP_IFACE_GET_STDIN,
@@ -31,7 +36,7 @@ enum {
 
 
 enum {
-    WRITE_IFACE_WRITE_VARBYTES,
+    WRITE_IFACE_WRITE_VARBYTES = AOS_RPC_MSG_TYPE_START,
     WRITE_IFACE_N_FUNCTIONS, // <- count -- must be last
 };
 
@@ -40,6 +45,24 @@ enum {
     MM_IFACE_GET_RAM = AOS_RPC_MSG_TYPE_START,
     MM_IFACE_N_FUNCTIONS, // <- count -- must be last
 };
+
+
+
+enum {
+    NS_REG_SERVER = AOS_RPC_MSG_TYPE_START,
+    NS_GET_PROC_NAME,
+    NS_GET_PROC_CORE,
+    NS_GET_PROC_LIST,
+    NS_GET_PID,
+    NS_IFACE_N_FUNCTIONS,
+
+};
+
+enum {
+    OS_IFACE_MESSAGE = AOS_RPC_MSG_TYPE_START,
+    OS_IFACE_N_FUNCTIONS,
+};
+
 
 
 struct spawn_request_header
@@ -53,6 +76,5 @@ struct spawn_request_arg
     size_t length;
     char str[0];
 };
-
 
 #endif // LIB_AOS_DEFAULT_INTERFACES_H

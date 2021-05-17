@@ -44,7 +44,7 @@ void benchmark_rpc(void)
         uint64_t start = systime_now();
         struct capref frame;
         uintptr_t act_size;
-        aos_rpc_call(rpc, INIT_IFACE_GET_RAM, 4096, 1, &frame, &act_size);
+        aos_rpc_call(rpc, MM_IFACE_GET_RAM, 4096, 1, &frame, &act_size);
         uint64_t end = systime_now();
         times[i] = end - start;
         cap_destroy(frame);

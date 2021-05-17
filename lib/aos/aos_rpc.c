@@ -18,6 +18,7 @@
 #include <arch/aarch64/aos/lmp_chan_arch.h>
 #include <stdarg.h>
 #include <aos/kernel_cap_invocations.h>
+#include <aos/default_interfaces.h>
 #include "init.h"
 
 
@@ -50,6 +51,7 @@ static errval_t aos_rpc_unmarshall_lmp_aarch64(struct aos_rpc *rpc, void *handle
 
 /* ================== Global RPC Processing ================== */
 
+
 /**
  * \brief Initializes the RPC channel bindings and sets the default RPC channel bindings.
  */
@@ -73,8 +75,8 @@ errval_t aos_rpc_set_interface(struct aos_rpc *rpc, struct aos_rpc_interface *in
 
     aos_rpc_initialize_binding(rpc, AOS_RPC_SETUP_PAGE, 3, 0, AOS_RPC_WORD, AOS_RPC_WORD, AOS_RPC_CAPABILITY);
     aos_rpc_register_handler(rpc, AOS_RPC_SETUP_PAGE, &aos_rpc_setup_page_handler);
-
     aos_rpc_initialize_binding(rpc, AOS_RPC_PROC_SPAWN_REQUEST, 2, 1, AOS_RPC_VARSTR, AOS_RPC_WORD, AOS_RPC_WORD);
+
     aos_rpc_initialize_binding(rpc, AOS_RPC_FOREIGN_SPAWN, 2, 1, AOS_RPC_VARSTR, AOS_RPC_WORD, AOS_RPC_WORD);
 
     aos_rpc_initialize_binding(rpc, AOS_RPC_PUTCHAR, 1, 0, AOS_RPC_WORD);
@@ -135,6 +137,7 @@ errval_t aos_rpc_init_lmp(struct aos_rpc* rpc, struct capref self_ep, struct cap
         ON_ERR_PUSH_RETURN(err, LIB_ERR_ENDPOINT_CREATE);
     }
 
+
     rpc->channel.lmp.buflen_words = default_buflen;
     rpc->channel.lmp.endpoint = lmp_ep;
 
@@ -182,6 +185,7 @@ errval_t aos_rpc_init_ump_default(struct aos_rpc *rpc, lvaddr_t shared_page, siz
     err = ump_chan_init(&rpc->channel.ump, send_pane, half_page_size, recv_pane, half_page_size);
     ON_ERR_RETURN(err);
 
+    // debug_printf("Here!\n");
     err = ump_chan_register_recv(&rpc->channel.ump, rpc->waitset, MKCLOSURE(&aos_rpc_on_ump_message, rpc));
     //err = ump_chan_register_polling(ump_chan_get_default_poller(), &rpc->channel.ump, &aos_rpc_on_ump_message, rpc);
     ON_ERR_RETURN(err);
@@ -206,7 +210,8 @@ errval_t aos_rpc_init_ump_default(struct aos_rpc *rpc, lvaddr_t shared_page, siz
 *            of the return types.
 */
 errval_t aos_rpc_initialize_binding(struct aos_rpc_interface *interface, const char *name, int msg_type, int n_args, int n_rets, ...)
-{
+{   
+
     assert(msg_type < interface->n_bindings);
 
     struct aos_rpc_function_binding *fb = &interface->bindings[msg_type];
@@ -264,7 +269,8 @@ errval_t aos_rpc_register_handler(struct aos_rpc *rpc, enum aos_rpc_msg_type msg
  *            AOS_RPC_CAPABILITY    becomes struct capref
  */
 errval_t aos_rpc_call(struct aos_rpc *rpc, enum aos_rpc_msg_type msg_type, ...)
-{
+{   
+
 
     va_list args;
     va_start(args, msg_type);
@@ -838,7 +844,7 @@ static errval_t aos_rpc_call_lmp(struct aos_rpc *rpc, enum aos_rpc_msg_type msg_
 
 
 
-    //debug_printf("THis domain: %d is calling call with type %d\n",disp_get_domain_id(),msg_type );
+    // debug_printf("THis domain: %d is calling call with type %d\n",disp_get_domain_id(),msg_type );
 
     assert(rpc);
     assert(rpc->backend == AOS_RPC_LMP);
@@ -847,6 +853,8 @@ static errval_t aos_rpc_call_lmp(struct aos_rpc *rpc, enum aos_rpc_msg_type msg_
     errval_t err;
 
     struct lmp_chan *lc = &rpc->channel.lmp;
+
+
 
     struct aos_rpc_function_binding *binding = &rpc->interface->bindings[msg_type];
     size_t n_args = binding->n_args;
@@ -859,6 +867,7 @@ static errval_t aos_rpc_call_lmp(struct aos_rpc *rpc, enum aos_rpc_msg_type msg_
     size_t buf_page_offset = 0;
 
 
+
     if (rpc->lmp_server_mode) {
         push_cap_lmp(lc, &lmi, rpc->channel.lmp.local_cap);
     }
@@ -866,7 +875,6 @@ static errval_t aos_rpc_call_lmp(struct aos_rpc *rpc, enum aos_rpc_msg_type msg_
     lmi.msg.words[0] = msg_type;
     lmi.word_index = 1;
     int ret_ind = 0;
-
     for (int i = 0; i < n_args; i++) {
         switch(binding->args[i]) {
         case AOS_RPC_WORD: {
@@ -941,7 +949,7 @@ static errval_t aos_rpc_call_lmp(struct aos_rpc *rpc, enum aos_rpc_msg_type msg_
     //debug_printf("waiting for response\n");
     while(!lmp_chan_can_recv(&rpc->channel.lmp)) {
         // yield to dispatcher we are communicating with
-        //debug_printf("waiting for response\n");
+        // debug_printf("waiting for response\n");
         thread_yield_dispatcher(rpc->channel.lmp.remote_cap);
     }
 
@@ -1203,15 +1211,17 @@ static void send_remaining_lmp(struct lmp_chan *lc, struct lmp_msg_info *lmi)
         do {
             errval_t err = lmp_chan_send(lc, LMP_SEND_FLAGS_DEFAULT, lmi->cap, 4,
                                          lmi->msg.words[0], lmi->msg.words[1], lmi->msg.words[2], lmi->msg.words[3]);
+
             if (err_is_fail(err) && !lmp_err_is_transient(err)) {
                 DEBUG_ERR(err, "what is this?\n");
                 break;
             }
             else if (err_is_fail(err)) {
                 //err_print_calltrace(err);
-                //DEBUG_ERR(err, "interesting\n");
+                // DEBUG_ERR(err, "interesting\n");
                 thread_yield_dispatcher(lc->remote_cap);
             }
+        // debug_printf("Stuck here!\n");
             sent = err == SYS_ERR_OK;
         } while (!sent);
         lmi->cap_taken = false;
@@ -1404,6 +1414,7 @@ static errval_t aos_rpc_unmarshall_lmp_aarch64(struct aos_rpc *rpc, void *handle
     lmi->msg.words[0] = binding->msg_type | AOS_RPC_RETURN_BIT;
     lmi->cap = NULL_CAP;
     lmi->cap_taken = false;
+
     ret_pos = 0;
 
     for (int i = 0; i < binding->n_rets; i++) {
@@ -1448,7 +1459,6 @@ static errval_t aos_rpc_unmarshall_lmp_aarch64(struct aos_rpc *rpc, void *handle
     }
     send_remaining_lmp(lc, lmi);
 
-
     return SYS_ERR_OK;
 }
 
@@ -1472,18 +1482,7 @@ struct aos_rpc *aos_rpc_get_process_channel(void)
 {
     //TODO: Return channel to talk to process server process (or whoever
     //implements process server functionality)
-    // debug_printf("aos_rpc_get_process_channel NYI\n");
-    // return aos_rpc_get_init_channel();
-    // return NULL;
-    if(get_init_domain() && disp_get_current_core_id() == 0 ){
-        return get_pm_rpc();
-    }
-    else if(get_init_domain() && disp_get_core_id() != 0){
-        return get_core_channel(0);
-    }
-    else{
-        return get_init_rpc();
-    }
+    return get_ns_rpc();
 }
 
 /**
@@ -1555,7 +1554,7 @@ errval_t aos_rpc_serial_putchar(struct aos_rpc *rpc, char c)
  */
 errval_t aos_rpc_process_spawn(struct aos_rpc *rpc, char *cmdline, coreid_t core, domainid_t *newpid) {
     // TODO (M5): implement spawn new process rpc
-    return aos_rpc_call(rpc, AOS_RPC_PROC_SPAWN_REQUEST, cmdline, core, newpid);
+    return aos_rpc_call(rpc, INIT_IFACE_SPAWN, cmdline, core, newpid);
 }
 
 /**
@@ -1567,14 +1566,12 @@ errval_t aos_rpc_process_spawn(struct aos_rpc *rpc, char *cmdline, coreid_t core
  * responsibility.
  */
 errval_t aos_rpc_process_get_name(struct aos_rpc *rpc, domainid_t pid, char **name) {
-    // TODO (M5): implement name lookup for process given a process id
     errval_t err;
     char * new_name = malloc(8 * 1024 * sizeof(char));
-    err = aos_rpc_call(rpc,AOS_RPC_GET_PROC_NAME,pid,new_name);
+    err = aos_rpc_call(rpc,NS_GET_PROC_NAME,pid,new_name);
     ON_ERR_RETURN(err);
     size_t n = strlen(new_name) + 1;
-    char * new_new_name = realloc(new_name, n * sizeof(char));
-    *name = new_new_name;
+    *name = realloc(new_name, n * sizeof(char));
     return SYS_ERR_OK;
 }
 
@@ -1590,7 +1587,7 @@ errval_t aos_rpc_process_get_all_pids(struct aos_rpc *rpc, domainid_t **pids, si
     errval_t err;
     char buffer[1024];
 
-    err = aos_rpc_call(aos_rpc_get_process_channel(),AOS_RPC_GET_PROC_LIST,pid_count,buffer);
+    err = aos_rpc_call(rpc,NS_GET_PROC_LIST,pid_count,buffer);
     if(err_is_fail(err)){
         DEBUG_ERR(err,"Failed aos_rpc call in get all pids\n");
     }
@@ -1758,10 +1755,7 @@ errval_t aos_rpc_new_binding_by_name(char * name, struct aos_rpc * new_rpc){
 
     // domainid_t pid_buffer
     // for(size_t i = 0; i < pid_count;++i){
-
     // }
-
-
     for(size_t i = 0; i < pid_count; ++i){
         
         domainid_t pid = pids[i];

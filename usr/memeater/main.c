@@ -123,6 +123,8 @@ __attribute__((unused))  static errval_t test_basic_rpc(void)
     debug_printf("RPC: testing basic RPCs...\n");
 
     debug_printf("RPC: sending number...\n");
+    // print(init_rpc);
+    // debug_printf("Initrpc address = %lx\n",init_rpc);
     err =  aos_rpc_send_number(init_rpc, 42);
     if (err_is_fail(err)) {
         DEBUG_ERR(err, "could not send a number\n");
@@ -174,7 +176,7 @@ int main(int argc, char *argv[])
     }
 
     //mem_rpc = aos_rpc_get_memory_channel();
-    mem_rpc = init_rpc;
+    mem_rpc = get_mm_rpc();
     if (!mem_rpc) {
         USER_PANIC_ERR(err, "memory RPC channel NULL?\n");
     }

@@ -15,6 +15,7 @@
 #include <spawn/argv.h>
 #include <spawn/process_manager.h>
 #include <string.h>
+#include <aos/default_interfaces.h>
 
 extern struct bootinfo *bi;
 extern coreid_t my_core_id;
@@ -104,9 +105,9 @@ errval_t spawn_setup_dispatcher(int argc, const char *const *argv, struct spawni
                 domainid_t *pid)
 {
     errval_t err;
-    const char* name = argv[0];
-    DEBUG_PRINTF("Spawning process: %s\n", name);
-
+    // const char* name = argv[0];
+    // DEBUG_PRINTF("Spawning process: %s\n", name);
+    // debug_printf("Spawning process: %s\n",argv[0]);
     struct capref cnode_child_l1;
     struct cnoderef child_ref;
     err = cnode_create_l1(&cnode_child_l1, &child_ref);
@@ -319,16 +320,29 @@ errval_t spawn_setup_dispatcher(int argc, const char *const *argv, struct spawni
     aos_rpc_init_lmp(&si->rpc, cap_selfep, NULL_CAP, si->lmp_ep, NULL);
 
 
-    //err = register_process_to_process_manager((char*)name, pid);
-    //ON_ERR_RETURN(err);
-    disp_gen->domain_id = *pid;
 
-    if(get_mem_online()){
-        disp_gen -> core_state.c.mem_online = true;
+    if(get_ns_online()){
+        domainid_t new_pid;
+        err = aos_rpc_call(get_ns_rpc(),NS_GET_PID,&new_pid);
+        ON_ERR_RETURN(err);
+
+        disp_gen->domain_id = new_pid;
+        si -> pid = new_pid;
+        *pid = new_pid;
+    }else{
+        disp_gen-> domain_id = 0;
+        si -> pid = 0;
+        *pid = 0;
     }
+
+
     if(get_pm_online()){
         disp_gen -> core_state.c.pm_online = true;
     }
+    if(get_ns_online()){
+        disp_gen -> core_state.c.ns_online = true;
+    }
+
 
     si->dispatcher_cap = cap_dispatcher;
     si->dispframe_cap = child_dispframe;
@@ -477,6 +491,9 @@ static void strip_extra_spaces(char* str) {
 }
 
 
+
+
+
 errval_t spawn_setup_module_by_name(const char *binary_name, struct spawninfo *si)
 {
     errval_t err;
@@ -522,6 +539,7 @@ errval_t spawn_setup_by_name(char *binary_name, struct spawninfo *si, domainid_t
     char cmd_line_copy[strlen(binary_name)];
     strcpy(cmd_line_copy,binary_name);
     create_argv(cmd_line_copy,(char **) res);
+    // si -> binary_name = (char*) res[0];
     // binary_name = ;
     //TODO: is  bi correctly initialized by the init/usr/main.c
     err = spawn_setup_module_by_name(res[0], si);
@@ -537,19 +555,22 @@ errval_t spawn_setup_by_name(char *binary_name, struct spawninfo *si, domainid_t
 
     // set binary name to full name
 
+
     
+
+
     if(argc > 1){
         char *args_string = binary_name;
         char copy[strlen(args_string)];
         strcpy(copy,args_string);
         strip_extra_spaces(copy);
         argc = get_argc(copy);
-        debug_printf("Argc = %d\n",argc);
         si->argv = malloc(argc * sizeof(char *));
         
         create_argv(copy, (char **) si->argv);
         si->binary_name = (char *) si->argv[0];
-    }else {
+    }
+    else {
         struct mem_region* mem_region = multiboot_find_module(bi, res[0]);
         char * args_string = (char *)  multiboot_module_opts(mem_region);
         // debug_printf("Args string = %s\n",args_string);
@@ -560,13 +581,18 @@ errval_t spawn_setup_by_name(char *binary_name, struct spawninfo *si, domainid_t
         argc = get_argc(copy);
         si->argv = malloc(argc * sizeof(char *));
         create_argv(copy, (char **) si->argv);
-        si->binary_name = (char *) si->argv[0];
-    }
-
-    binary_name = (char *) si->argv[0];
+        si->binary_name = (char *) res[0];
+    }   
     
+
     return spawn_setup_dispatcher(argc, (const char *const *)si->argv , si, pid);
 }
+
+
+
+
+
+
 
 /**
  * TODO(M2): Implement this function.
@@ -598,24 +624,6 @@ errval_t spawn_load_by_name(char *binary_name, struct spawninfo *si,
 }
 
 
-errval_t register_process_to_process_manager(char* binary_name,domainid_t* pid){
 
-    if(!get_pm_online()){
-        debug_printf("Pm is not online!\n");
-        return SYS_ERR_OK;
-    }
 
-    errval_t err;
-    coreid_t core_id = disp_get_core_id();
-    if(core_id == 0){
-        struct aos_rpc* pm_rpc =  get_pm_rpc();
-        debug_printf("calling register process %s\n", binary_name);
-        err = aos_rpc_call(pm_rpc,AOS_RPC_REGISTER_PROCESS,core_id,binary_name,pid);
-        ON_ERR_RETURN(err);
-    }else{
-        assert(get_core_channel(0) && "UMP channel to core 0 is not present!");
-        err = aos_rpc_call(get_core_channel(0),AOS_RPC_REGISTER_PROCESS,core_id,binary_name,pid);
-    }
-    return SYS_ERR_OK;
-}
 

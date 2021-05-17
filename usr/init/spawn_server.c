@@ -56,6 +56,9 @@ errval_t spawn_new_core(coreid_t core)
     urpc_init[3] = get_phys_size(core_ram);
     urpc_init[4] = get_phys_addr(cap_mmstrings);
     urpc_init[5] = get_phys_size(cap_mmstrings);
+    
+    err = aos_rpc_call(get_ns_rpc(),NS_GET_PID,&urpc_init[6]);
+    ON_ERR_RETURN(err);
 
     cpu_dcache_wbinv_range((vm_offset_t) urpc_data, BASE_PAGE_SIZE);
 
@@ -76,16 +79,17 @@ static void handle_binding(struct aos_rpc *r, struct capref ep) {
     r->channel.lmp.remote_cap = ep;
 }
 
-errval_t spawn_new_domain(const char *mod_name, int argc, char **argv, domainid_t *new_pid, struct capref spawner_ep,
-                          struct capref child_stdout_cap, struct spawninfo **ret_si)
+
+errval_t spawn_new_domain(const char *mod_name, int argc, char **argv, domainid_t *new_pid, struct capref spawner_ep, struct capref child_stdout_cap, struct spawninfo **ret_si)
 {
     errval_t err;
     struct spawninfo *si = spawn_create_spawninfo();
-
+    
     domainid_t *pid = &si->pid;
     struct aos_rpc *rpc = &si->rpc;
 
     aos_rpc_set_interface(rpc, get_init_interface(), INIT_IFACE_N_FUNCTIONS, malloc(INIT_IFACE_N_FUNCTIONS * sizeof(void *)));
+    initialize_rpc_handlers(rpc);
     initialize_initiate_handler(rpc);
     aos_rpc_register_handler(rpc, INIT_IFACE_SPAWN, handle_spawn);
     aos_rpc_register_handler(rpc, INIT_IFACE_SPAWN_EXTENDED, handle_spawn_extended);
@@ -104,6 +108,8 @@ errval_t spawn_new_domain(const char *mod_name, int argc, char **argv, domainid_
 
     //struct aos_rpc *disp_rpc = &si->disp_rpc;
     /*static struct aos_datachan chan;
+=======
+>>>>>>> to_merge
 
     if (capref_is_null(child_stdout_cap)) {
         err = endpoint_create(LMP_RECV_LENGTH * 4, &child_stdout_cap, &si->spawner_ep);
@@ -138,6 +144,7 @@ errval_t spawn_new_domain(const char *mod_name, int argc, char **argv, domainid_
     if (argv == NULL || argc == 0) {
         err = spawn_load_by_name((char*) mod_name, si, pid);
         ON_ERR_RETURN(err);
+        // si -> binary_name = (char*) mod_name;
     }
     else {
         err = spawn_setup_module_by_name(mod_name, si);
@@ -151,16 +158,13 @@ errval_t spawn_new_domain(const char *mod_name, int argc, char **argv, domainid_
     //
 
 
-    /*char buf[128];
-    debug_print_cap_at_capref(buf, 128, si->rpc.channel.lmp.remote_cap);
-    debug_printf("child ep: %s", buf);*/
-    //
-    //initialize_initiate_handler(rpc);
 
     if (new_pid != NULL) {
         *new_pid = *pid;
     }
     err = lmp_chan_register_recv(&rpc->channel.lmp, get_default_waitset(), MKCLOSURE(&aos_rpc_on_lmp_message, &rpc));
+    
+
     if (err_is_fail(err) && err == LIB_ERR_CHAN_ALREADY_REGISTERED) {
         // not too bad, already registered
     }

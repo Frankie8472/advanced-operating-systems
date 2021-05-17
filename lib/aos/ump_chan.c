@@ -154,7 +154,12 @@ errval_t ump_chan_register_recv(struct ump_chan *chan, struct waitset *ws, struc
 
     dispatcher_handle_t handle = disp_disable();
 
+    // debug_printf("Here1\n");
     err = waitset_chan_register_polled_disabled(ws, &chan->waitset_state, closure, handle);
+    // debug_printf("Here2\n");
+    if(err_is_fail(err)){
+        DEBUG_ERR(err,"Failed to register dissabled waitset\n");
+    }
 
     disp_enable(handle);
 
