@@ -70,7 +70,7 @@ void remove_server(struct server_list* del_server){
         return;
     }
     struct server_list* curr = servers;
-    for(;curr != NULL;curr = curr -> next){
+    for(;curr -> next  != NULL;curr = curr -> next){
         if(curr -> next == del_server){
             curr -> next = del_server->next;
         }

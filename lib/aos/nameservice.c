@@ -129,24 +129,9 @@ errval_t nameservice_register_properties(const char * name,nameservice_receive_h
 	}
 	ON_ERR_RETURN(err);
 
-
-	// char buffer[512];
-
-	// debug_print_cap_at_capref(buffer,512,server_ep);
-	// debug_printf("Cap : %s\n",buffer);
-
-
-	// char buffer[512];
-	// struct capability cap;
-	// invoke_cap_identify(server_ep,&cap);
-	// debug_print_cap(buffer,512,&cap);
-	// debug_printf("Register with name : %s \n",server_data);
-
 	char buf[512];
 	err = aos_rpc_call(get_init_rpc(),INIT_REG_SERVER,disp_get_domain_id(),disp_get_core_id(),server_data,server_ep,buf);
 	ON_ERR_RETURN(err);
-	//TODO: rich properties
-	//TODO: lmp ep
 
 	if(!ump){
 		establish_init_server_con(name,new_rpc,server_ep);

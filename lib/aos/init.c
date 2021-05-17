@@ -55,7 +55,9 @@ void libc_exit(int status)
 
 
     //TODO dereg from ns
-    
+    // debug_printf("Dereg pid %d, rpc: 0x%lx\n",disp_get_domain_id(),get_ns_rpc());
+    // aos_rpc_call(get_ns_rpc(),NS_DEREG_SERVER,disp_get_domain_id());
+
     debug_printf("libc exit NYI!\n");
     thread_exit(status);
     // If we're not dead by now, we wait

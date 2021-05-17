@@ -17,7 +17,8 @@
       "nameserver.c",
       "process_list.c",
       "server_list.c",
-      "nameserver_handlers.c"
+      "nameserver_handlers.c",
+      "process_manager_handlers.c"
     ]
   }
 ]
