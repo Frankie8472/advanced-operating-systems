@@ -37,8 +37,9 @@ static void initialize_interfaces(void)
     dispatcher_interface.n_bindings = DISP_IFACE_N_FUNCTIONS;
     dispatcher_interface.bindings = dispatcher_bindings;
 
+    // params: dispatcher interface ep, stdin ep stdout ep
     aos_rpc_initialize_binding(&dispatcher_interface, "binding", DISP_IFACE_BINDING,
-                               1, 0, AOS_RPC_CAPABILITY);
+                               2, 1, AOS_RPC_CAPABILITY, AOS_RPC_CAPABILITY, AOS_RPC_CAPABILITY);
     aos_rpc_initialize_binding(&dispatcher_interface, "rebind", DISP_IFACE_REBIND,
                                1, 0, AOS_RPC_CAPABILITY);
     aos_rpc_initialize_binding(&dispatcher_interface, "set_stdout", DISP_IFACE_SET_STDOUT,

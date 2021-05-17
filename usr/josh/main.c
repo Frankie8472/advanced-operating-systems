@@ -50,11 +50,12 @@ static void spawn_program(const char *name, struct array_list *args)
 
     struct lmp_endpoint *lmp_ep;
     struct capref lmp_ep_cap;
-    endpoint_create(LMP_RECV_LENGTH * 8, &lmp_ep_cap, &lmp_ep);
+    err = endpoint_create(LMP_RECV_LENGTH * 8, &lmp_ep_cap, &lmp_ep);
+    ON_ERR_NO_RETURN(err);
 
     struct aos_rpc *init_rpc = get_init_rpc();
     uintptr_t pid;
-    err = aos_rpc_call(init_rpc, INIT_IFACE_SPAWN_EXTENDED, bytes, 0, NULL_CAP, &pid);
+    err = aos_rpc_call(init_rpc, INIT_IFACE_SPAWN_EXTENDED, bytes, 0, lmp_ep_cap, &pid);
     if (err_is_fail(err)) {
         printf("failed to call init\n");
         goto free_resources;
@@ -63,6 +64,26 @@ static void spawn_program(const char *name, struct array_list *args)
     if (pid == -1) {
         printf("command not found '%s'\n", name);
         goto free_resources;
+    }
+
+    void haendl(struct aos_rpc *r, struct capref ep, struct capref stdinep, struct capref *stdoutep) {
+        debug_printf("handle!\n");
+    }
+
+    struct aos_rpc rpc;
+    aos_rpc_init_lmp(&rpc, lmp_ep_cap, NULL_CAP, lmp_ep, get_default_waitset());
+    aos_rpc_set_interface(&rpc, get_dispatcher_interface(), DISP_IFACE_N_FUNCTIONS, malloc(DISP_IFACE_N_FUNCTIONS * sizeof (void *)));
+    aos_rpc_register_handler(&rpc, DISP_IFACE_BINDING, haendl);
+    //struct capref otherep;
+    while(true) {
+        struct lmp_recv_msg lrm = LMP_RECV_MSG_INIT;
+        err = event_dispatch(get_default_waitset());
+        if (lmp_chan_can_recv(&rpc.channel.lmp)) {
+            if (err_is_ok(err)) {
+                debug_printf("%ld, %ld, %ld, %ld\n", lrm.words[0], lrm.words[1], lrm.words[2], lrm.words[3]);
+                break;
+            }
+        }
     }
 
 

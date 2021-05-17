@@ -71,7 +71,7 @@ errval_t spawn_new_core(coreid_t core)
     return SYS_ERR_OK;
 }
 
-static void handle_binding(struct aos_rpc *r, struct capref ep) {
+static void handle_binding(struct aos_rpc *r, struct capref ep, struct capref remote_in, struct capref *remote_out) {
     //debug_printf("in handle_binding\n");
     r->channel.lmp.remote_cap = ep;
 }
@@ -141,7 +141,9 @@ errval_t spawn_new_domain(const char *mod_name, int argc, char **argv, domainid_
     }
     else {
         err = spawn_setup_module_by_name(mod_name, si);
-        ON_ERR_RETURN(err);
+        if (err_is_fail(err)) {
+            return err;
+        }
         si->binary_name = argv[0];
         err = spawn_setup_dispatcher(argc, (const char * const *)argv, si, pid);
         ON_ERR_RETURN(err);

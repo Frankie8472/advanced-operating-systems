@@ -229,7 +229,7 @@ void handle_spawn_extended(struct aos_rpc *rpc, struct aos_rpc_varbytes request,
     const char *name = argv[0];
 
     domainid_t pid;
-    errval_t err = spawn_new_domain(name, argc, argv, &pid, NULL_CAP, spawner_ep, NULL);
+    errval_t err = spawn_new_domain(name, argc, argv, &pid, spawner_ep, NULL_CAP, NULL);
     if (err_is_fail(err)) {
         *new_pid = -1;
         return;
