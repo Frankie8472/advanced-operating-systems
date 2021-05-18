@@ -28,6 +28,7 @@
 
 #include "enet.h"
 #include "enet_regionman.h"
+#include "enet_handler.h"
 
 #define PHY_ID 0x2
 
@@ -596,29 +597,6 @@ static void print_packet(struct enet_queue* q, struct devq_buf* buf) {
     }
 }
 
-// TODO
-static errval_t handle_packet(struct enet_queue* q, struct devq_buf* buf) {
-    ENET_DEBUG("handling new pakcet\n");
-    /* print_packet(q, buf); */
-    struct region_entry *entry = get_region(q, buf->rid);
-    lvaddr_t vaddr = (lvaddr_t) entry->mem.vbase + buf->offset + buf->valid_data;
-
-    struct eth_hdr *header = (struct eth_hdr*) vaddr;
-
-    switch (htons(ETH_TYPE(header))) {
-    case ETH_TYPE_ARP:
-        ENET_DEBUG("Got an ARP package!\n")
-        break;
-    case ETH_TYPE_IP:
-        ENET_DEBUG("Got an IP package!\n")
-        break;
-    default:
-        ENET_DEBUG("Package of unknown type!\n")
-        break;
-    }
-
-    return SYS_ERR_OK;
-}
 
 int main(int argc, char *argv[]) {
     errval_t err;
@@ -728,6 +706,7 @@ int main(int argc, char *argv[]) {
         if (err_is_ok(err)) {
             debug_printf("Received Packet of size %lu \n", buf.valid_length);
             handle_packet(st->rxq, &buf);
+            /* print_packet(st->rxq, &buf); */
             err = devq_enqueue((struct devq*) st->rxq, buf.rid, buf.offset,
                                buf.length, buf.valid_data, buf.valid_length,
                                buf.flags);
