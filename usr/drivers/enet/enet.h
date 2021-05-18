@@ -7,6 +7,8 @@
  * ETH Zurich D-INFK, Universitaetstrasse 6, CH-8092 Zurich. Attn: Systems Group.
  */
 
+#include <collections/hash_table.h>
+
 #ifndef ENET_H_
 #define ENET_H_
 
@@ -99,6 +101,8 @@ struct enet_driver_state {
 
     struct capref rx_mem;  // receive memcap
     struct capref tx_mem;  // send memcap
+
+    collections_hash_table* arp_table;  // arp-related state
 };
 
 #define ENET_HASH_BITS 6

@@ -25,6 +25,7 @@
 #include <netutil/etharp.h>
 #include <netutil/htons.h>
 
+#include <collections/hash_table.h>
 
 #include "enet.h"
 #include "enet_regionman.h"
@@ -633,6 +634,7 @@ int main(int argc, char *argv[]) {
     st->d = (enet_t *) malloc(sizeof(enet_t));
     ENET_DEBUG("malloct\n");
     enet_initialize(st->d, (void *) st->d_vaddr);
+    collections_hash_create(&st->arp_table, free);
     ENET_DEBUG("==============================> BP1\n");
 
     assert(st->d != NULL);
@@ -705,7 +707,7 @@ int main(int argc, char *argv[]) {
                            &buf.flags);
         if (err_is_ok(err)) {
             debug_printf("Received Packet of size %lu \n", buf.valid_length);
-            handle_packet(st->rxq, &buf);
+            handle_packet(st->rxq, &buf, st);
             /* print_packet(st->rxq, &buf); */
             err = devq_enqueue((struct devq*) st->rxq, buf.rid, buf.offset,
                                buf.length, buf.valid_data, buf.valid_length,
