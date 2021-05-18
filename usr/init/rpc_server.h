@@ -5,6 +5,7 @@
 #include <errno.h>
 #include <aos/aos_rpc.h>
 
+#include <aos/nameserver.h>
 errval_t init_terminal_state(void);
 
 
@@ -13,7 +14,7 @@ errval_t start_memory_server_thread(void);
 
 struct routing_entry {
     struct routing_entry* next;
-    char name[1024];
+    char name[SERVER_NAME_SIZE];
     struct aos_rpc* rpc;
 };
 

@@ -100,7 +100,7 @@ errval_t nameservice_register(const char *name,
 	                              void *st)
 {	
 	
-	return nameservice_register_properties(name,recv_handler,st,false,NULL);
+	return nameservice_register_properties(name,recv_handler,st,false,"type=default");
 }
 
 
@@ -112,6 +112,7 @@ errval_t nameservice_register_properties(const char * name,nameservice_receive_h
 
 	char* server_data;
 	err = serialize(name,properties,&server_data);
+	debug_printf("Here!\n");
 	ON_ERR_RETURN(err);
 	// create and add srv_entry
 	struct srv_entry* new_srv_entry = (struct srv_entry *) malloc(sizeof(struct srv_entry));
@@ -128,6 +129,7 @@ errval_t nameservice_register_properties(const char * name,nameservice_receive_h
 		err = create_lmp_server_ep(&server_ep,&new_rpc);
 	}
 	ON_ERR_RETURN(err);
+
 
 	char buf[512];
 	err = aos_rpc_call(get_init_rpc(),INIT_REG_SERVER,disp_get_domain_id(),disp_get_core_id(),server_data,server_ep,buf);
@@ -287,7 +289,24 @@ errval_t nameservice_lookup(const char *name, nameservice_chan_t *nschan)
 errval_t nameservice_enumerate(char *query, size_t *num, char **result )
 {	
 
-	return LIB_ERR_NOT_IMPLEMENTED;
+	errval_t err;
+	char * response = malloc(1024 * sizeof(char));
+	err = aos_rpc_call(get_ns_rpc(),NS_ENUM_SERVERS,query,num);
+	ON_ERR_RETURN(err);
+	response = malloc(1024 * (*num) * sizeof(char * ));
+
+	size_t res_index = 0;
+	while(*response != '\0'){
+		if(*response == ','){
+			*response = '\0';
+			res_index++;
+			response++;
+			result[res_index] = response;
+		}
+		response++;
+	}
+
+	return SYS_ERR_OK;
 }
 
 
@@ -335,6 +354,10 @@ errval_t get_properties_size(char * properties,size_t * size){
 errval_t serialize(const char * name, const char * properties,char** ret_server_data){	
 
 	errval_t err;
+	if(properties == NULL){
+		return LIB_ERR_NAMESERVICE_INVALID_PROPERTY_FORMAT;
+	}
+	// TODO REGEX HERE
 	char* trimmed_name = (char * ) malloc(strlen(name)); 
 	char * trimmed_prop = (char * ) malloc(strlen(properties)); 
 	remove_spaces(trimmed_name,name);
@@ -349,8 +372,6 @@ errval_t serialize(const char * name, const char * properties,char** ret_server_
 		return LIB_ERR_NOT_IMPLEMENTED;
 	}
 
-	// if()
-	// TODO: Regex check
 	if(properties == NULL){
 		*ret_server_data = (char * ) malloc(6 + strlen(trimmed_name));
 		strcpy(*ret_server_data,"name=");
@@ -358,6 +379,8 @@ errval_t serialize(const char * name, const char * properties,char** ret_server_
 		debug_printf("Here is output: %s\n",*ret_server_data);
 		return SYS_ERR_OK;
 	}
+	// if()
+	// TODO: Regex check
 	size_t output_size = strlen(trimmed_name) + strlen(trimmed_prop) + 7;
 	*ret_server_data = (char * ) malloc(output_size);
 	strcpy(*ret_server_data,"name=");
@@ -384,7 +407,7 @@ errval_t deserialize_prop(const char * server_data,char *  key[],char *  value[]
 	bool is_name = false;
 	size_t name_index = 0;
 
-	char * extract_name = (char * ) malloc(512);
+	char * extract_name = (char * ) malloc(PROPERTY_MAX_SIZE);
 	while(*server_data != ','){
 		if(*server_data == '='){
 			is_name = true;
@@ -403,8 +426,9 @@ errval_t deserialize_prop(const char * server_data,char *  key[],char *  value[]
 	*name = (char*) realloc(extract_name,name_index);
 	server_data++;
 
-	char * key_res = (char *) malloc(512);
-	char * value_res = (char *) malloc(512);
+	if(strlen(server_data ) == 0){return SYS_ERR_OK;}
+	char * key_res = (char *) malloc(PROPERTY_MAX_SIZE);
+	char * value_res = (char *) malloc(PROPERTY_MAX_SIZE);
 
 
 	while(true){
@@ -415,7 +439,7 @@ errval_t deserialize_prop(const char * server_data,char *  key[],char *  value[]
 				// key[map_index] = (char*) realloc(key_res,key_index);
 				key[map_index] = key_res;
 				// debug_printf("0x%lx -> %s\n",key_res,key[map_index]);
-				key_res = malloc(512);
+				key_res = malloc(PROPERTY_MAX_SIZE);
 				is_key=false;
 				key_index = 0;
 				server_data++;
@@ -428,7 +452,7 @@ errval_t deserialize_prop(const char * server_data,char *  key[],char *  value[]
 				*(value_res + (value_index++)) = '\0';
 				// key[map_index++] = (char*) realloc(value_res,value_index);
 				value[map_index++] = value_res;
-				value_res = malloc(512);
+				value_res = malloc(PROPERTY_MAX_SIZE);
 				value_index = 0;
 				is_key=true;
 				if(*server_data == '\0'){return SYS_ERR_OK;}

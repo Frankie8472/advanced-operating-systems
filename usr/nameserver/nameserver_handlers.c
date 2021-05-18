@@ -11,6 +11,7 @@
 
 void *name_server_rpc_handlers[NS_IFACE_N_FUNCTIONS];
 
+
 void initialize_ns_handlers(struct aos_rpc * init_rpc){
     aos_rpc_register_handler(init_rpc,INIT_REG_NAMESERVER,&handle_reg_proc);
     aos_rpc_register_handler(init_rpc,INIT_REG_SERVER,&handle_server_request);
@@ -25,6 +26,7 @@ void initialize_nameservice_handlers(struct aos_rpc *ns_rpc){
     aos_rpc_register_handler(ns_rpc,NS_DEREG_PROCESS,&handle_dereg_process);
 
     aos_rpc_register_handler(ns_rpc,NS_DEREG_SERVER,&handle_dereg_server);
+    aos_rpc_register_handler(ns_rpc,NS_ENUM_SERVERS,&handle_enum_servers);
 }
 
 void handle_server_lookup(struct aos_rpc *rpc, char *name,uintptr_t* core_id,uintptr_t *ump,struct capref* server_ep_cap){
@@ -134,6 +136,12 @@ void handle_dereg_server(struct aos_rpc *rpc, const char* name, uintptr_t* succe
     
 }
 
+
+void handle_enum_servers(struct aos_rpc *rpc,const char* name, char * response, uintptr_t * resp_size){
+    response = (char *) malloc(SERVER_NAME_SIZE * n_servers * sizeof(char)); //enough for all names 
+    // debug_printf("Got here 0x%lx!\n",resp_size);
+    find_servers_by_prefix(name,response,resp_size);
+}
 
 
 

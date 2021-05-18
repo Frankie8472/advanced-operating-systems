@@ -12,7 +12,8 @@
 
 
 
-
+#define PROPERTY_MAX_SIZE 512
+#define SERVER_NAME_SIZE 1024
 
 typedef void* nameservice_chan_t;
 

@@ -21,7 +21,7 @@
 #define SERVICE_NAME "myservicename"
 #define TEST_BINARY  "nameservicetest"
 
-static char *myrequest = "request !!";
+// static char *myrequest = "request !!";
 
 int main(int argc, char *argv[])
 {
@@ -37,24 +37,31 @@ int main(int argc, char *argv[])
   
 
     /* look up service using name server */
-    nameservice_chan_t chan;
-    err = nameservice_lookup(SERVICE_NAME, &chan);
-    PANIC_IF_FAIL(err, "failed to lookup service\n");
+    // nameservice_chan_t chan;
+    // err = nameservice_lookup(SERVICE_NAME, &chan);
+    // PANIC_IF_FAIL(err, "failed to lookup service\n");
 
-    debug_printf("Got the service %p. Sending request '%s'\n", chan, myrequest);
+    // debug_printf("Got the service %p. Sending request '%s'\n", chan, myrequest);
 
-    void *request = myrequest;
-    size_t request_size = strlen(myrequest);
+    // void *request = myrequest;
+    // size_t request_size = strlen(myrequest);
 
-    void *response;
-    size_t response_bytes;
-    err = nameservice_rpc(chan, request, request_size,
-                          &response, &response_bytes,
-                          NULL_CAP, NULL_CAP);
-    PANIC_IF_FAIL(err, "failed to do the nameservice rpc\n");
+    // void *response;
+    // size_t response_bytes;
+    // err = nameservice_rpc(chan, request, request_size,
+    //                       &response, &response_bytes,
+    //                       NULL_CAP, NULL_CAP);
+    // PANIC_IF_FAIL(err, "failed to do the nameservice rpc\n");
 
-    debug_printf("got response: %s\n", (char *)response);
+    // debug_printf("got response: %s\n", (char *)response);
 
+    // size_t num;
+    // char * query_resp;
+    // err = nameservice_enumerate("myservice",&num,&query_resp);
+    // debug_printf("Got response : %d\n",num);
+    // for(int i = 0; i < num;++i){
+    //     debug_printf("[%d] = %s\n",i,&query_resp[i]);
+    // }
 
     // char * name;
     // err = aos_rpc_process_get_name(aos_rpc_get_process_channel(),1,&name);
