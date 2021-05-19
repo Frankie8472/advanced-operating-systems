@@ -25,6 +25,7 @@ struct aos_datachan
         struct ump_chan ump;
     } channel;
 
+    bool is_closed;
     size_t bytes_left;
 
     /// receive buffer
@@ -33,6 +34,8 @@ struct aos_datachan
 
 
 void aos_dc_buffer_init(struct aos_dc_ringbuffer *buf, size_t bytes, char *buffer);
+
+
 size_t aos_dc_write_into_buffer(struct aos_dc_ringbuffer *buf, size_t bytes, const char *data);
 size_t aos_dc_read_from_buffer(struct aos_dc_ringbuffer *buf, size_t bytes, char *data);
 size_t aos_dc_bytes_available(struct aos_dc_ringbuffer *buf);
@@ -40,6 +43,9 @@ size_t aos_dc_bytes_available(struct aos_dc_ringbuffer *buf);
 
 errval_t aos_dc_init(struct aos_datachan *dc, size_t buffer_length);
 errval_t aos_dc_free(struct aos_datachan *dc);
+
+
+bool aos_dc_send_is_connected(struct aos_datachan *dc);
 
 
 /**
@@ -71,5 +77,15 @@ errval_t aos_dc_receive(struct aos_datachan *dc, size_t bytes, char *data, size_
 
 errval_t aos_dc_receive_all(struct aos_datachan *dc, size_t bytes, char *data);
 
+
+bool aos_dc_is_closed(struct aos_datachan *dc);
+
+/**
+ * \brief sends a close message through the channel
+ * 
+ * \param dc 
+ * \return errval_t 
+ */
+errval_t aos_dc_close(struct aos_datachan *dc);
 
 #endif // LIB_AOS_DATACHAN_H

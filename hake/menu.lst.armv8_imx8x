@@ -16,4 +16,5 @@ module /armv8/sbin/nameserver
 module /armv8/sbin/nameservicetest
 module /armv8/sbin/lpuart_terminal
 module /armv8/sbin/josh
+module /armv8/sbin/cat
 # newlines are important here
