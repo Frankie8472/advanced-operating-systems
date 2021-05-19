@@ -289,45 +289,48 @@ static int bsp_main(int argc, char *argv[])
 
     invoke_ipi_notify(ump_ep);*/
 
+    struct spawninfo *term_si;
+    spawn_lpuart_driver("lpuart_terminal", &term_si);
 
-    // struct spawninfo *term_si;
-    // spawn_lpuart_driver("lpuart_terminal", &term_si);
+    domainid_t pid;
+    struct spawninfo *josh_si;
 
-    // domainid_t pid;
-    // struct spawninfo *josh_si;
+    while (capref_is_null(term_si->disp_rpc.channel.lmp.remote_cap)) {
+        err = event_dispatch(get_default_waitset());
+        if (err_is_fail(err)) {
+            DEBUG_ERR(err, "in event_dispatch");
+            abort();
+        }
+    }
+    err = event_dispatch(get_default_waitset());
+    err = event_dispatch(get_default_waitset());
 
-    // while (capref_is_null(term_si->disp_rpc.channel.lmp.remote_cap)) {
-    //     err = event_dispatch(get_default_waitset());
-    //     if (err_is_fail(err)) {
-    //         DEBUG_ERR(err, "in event_dispatch");
-    //         abort();
-    //     }
-    // }
+    debug_printf("getting stdin from terminal!\n");
 
-    // debug_printf("getting stdin from terminal!\n");
+    struct capref testep;
+    aos_rpc_call(&term_si->disp_rpc, DISP_IFACE_GET_STDIN, &testep);
 
-    // struct capref testep;
-    // aos_rpc_call(&term_si->disp_rpc, DISP_IFACE_GET_STDIN, &testep);
-
-    // debug_printf("got stdin from terminal!\n");
-
-
-    // spawn_new_domain("josh", 0, NULL, &pid, NULL_CAP, testep, &josh_si);
+    debug_printf("got stdin from terminal!\n");
 
 
-    // while (capref_is_null(josh_si->disp_rpc.channel.lmp.remote_cap)) {
-    //     err = event_dispatch(get_default_waitset());
-    //     if (err_is_fail(err)) {
-    //         DEBUG_ERR(err, "in event_dispatch");
-    //         abort();
-    //     }
-    // }
+    spawn_new_domain("josh", 0, NULL, &pid, NULL_CAP, testep, &josh_si);
 
-    // struct capref josh_in;
-    // debug_printf("getting stdin from josh!\n");
-    // aos_rpc_call(&josh_si->disp_rpc, DISP_IFACE_GET_STDIN, &josh_in);
-    // debug_printf("got stdin from josh!\n");
-    // aos_rpc_call(&term_si->disp_rpc, DISP_IFACE_SET_STDOUT, josh_in);
+
+    while (capref_is_null(josh_si->disp_rpc.channel.lmp.remote_cap)) {
+        err = event_dispatch(get_default_waitset());
+        if (err_is_fail(err)) {
+            DEBUG_ERR(err, "in event_dispatch");
+            abort();
+        }
+    }
+    err = event_dispatch(get_default_waitset());
+    err = event_dispatch(get_default_waitset());
+
+    struct capref josh_in;
+    debug_printf("getting stdin from josh!\n");
+    aos_rpc_call(&josh_si->disp_rpc, DISP_IFACE_GET_STDIN, &josh_in);
+    debug_printf("got stdin from josh!\n");
+    aos_rpc_call(&term_si->disp_rpc, DISP_IFACE_SET_STDOUT, josh_in);
 
     //struct aos_rpc *josh_rpc = &josh_si->disp_rpc;
 
@@ -366,7 +369,7 @@ static int bsp_main(int argc, char *argv[])
   
 
     // spawn_new_domain("nameservicetest",0,NULL,NULL,NULL_CAP,NULL_CAP,NULL);
-    spawn_new_domain("nameservicetest",0,NULL,NULL,NULL_CAP,NULL_CAP,NULL);
+    //spawn_new_domain("nameservicetest",0,NULL,NULL,NULL_CAP,NULL_CAP,NULL);
     // spawn_new_domain("memeater",0,NULL,NULL,NULL_CAP,NULL_CAP,NULL);
 
 

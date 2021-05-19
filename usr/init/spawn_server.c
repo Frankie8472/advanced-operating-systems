@@ -90,7 +90,8 @@ errval_t spawn_new_domain(const char *mod_name, int argc, char **argv, domainid_
 
     aos_rpc_set_interface(rpc, get_init_interface(), INIT_IFACE_N_FUNCTIONS, malloc(INIT_IFACE_N_FUNCTIONS * sizeof(void *)));
     initialize_rpc_handlers(rpc);
-    initialize_initiate_handler(rpc);
+
+
     aos_rpc_register_handler(rpc, INIT_IFACE_SPAWN, handle_spawn);
     aos_rpc_register_handler(rpc, INIT_IFACE_SPAWN_EXTENDED, handle_spawn_extended);
 
@@ -187,7 +188,7 @@ errval_t spawn_lpuart_driver(const char *mod_name, struct spawninfo **ret_si)
     struct aos_rpc *rpc = &si->rpc;
 
     aos_rpc_set_interface(rpc, get_init_interface(), INIT_IFACE_N_FUNCTIONS, malloc(INIT_IFACE_N_FUNCTIONS * sizeof(void *)));
-    initialize_initiate_handler(rpc);
+    initialize_rpc_handlers(rpc);
 
 
     struct aos_rpc *disp_rpc = &si->disp_rpc;

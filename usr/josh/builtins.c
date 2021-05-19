@@ -8,10 +8,12 @@ struct builtin
 
 int handle_echo(struct josh_line *line);
 int handle_env(struct josh_line *line);
+int handle_nslist(struct josh_line *line);
 
 const struct builtin builtins[] = {
     { "echo", &handle_echo },
     { "env", &handle_env },
+    { "nslist", &handle_nslist },
 };
 
 
@@ -65,5 +67,12 @@ int handle_env(struct josh_line *line)
         }
         printf("\n");
     }
+    return 0;
+}
+
+
+int handle_nslist(struct josh_line *line)
+{
+    printf("list of services here\n");
     return 0;
 }
