@@ -70,7 +70,7 @@ void print_process_list(void){
 }
 
 errval_t remove_process_by_pid(struct aos_rpc* rpc, domainid_t pid){
-
+    assert(pl.head != NULL && "PL head is NULL (can never be true)");
     struct process * temp;
     if(pl.head -> pid == pid && rpc == pl.head -> rpc){
         temp = pl.head;
@@ -79,10 +79,13 @@ errval_t remove_process_by_pid(struct aos_rpc* rpc, domainid_t pid){
         return SYS_ERR_OK;
     }
     struct process * curr;
-    for(curr = pl.head; curr != pl.tail;curr = curr -> next){
+    for(curr = pl.head; curr -> next != NULL;curr = curr -> next){
         if(curr->next->pid == pid  && rpc == curr -> next -> rpc){
             temp = curr -> next;
             curr -> next = curr -> next -> next;
+            if(temp == pl.tail){
+                pl.tail = curr;
+            }
             free(temp);
             return SYS_ERR_OK;
         }

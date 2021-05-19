@@ -378,6 +378,7 @@ errors libaos LIB_ERR_ {
     failure MONITOR_CLIENT_BIND "Error in monitor_client_lmp_bind()",
     failure MONITOR_CLIENT_ACCEPT "Error in monitor_client_lmp_accept()",
     failure NAMESERVICE_NOT_BOUND "Name service client is not bound",
+    failure NAMESERVICE_INVALID_REGISTER "Server Name not unique",
     failure NAMESERVICE_UNKNOWN_NAME "Lookup failed: unknown name",
     failure NAMESERVICE_INVALID_PROPERTY_FORMAT "Lookup failed: unknown name",
     failure NAMESERVICE_INVALID_NAME "Invalid record retrieved (no iref attribute)",

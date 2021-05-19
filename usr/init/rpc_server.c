@@ -153,6 +153,7 @@ void handle_getchar(struct aos_rpc *r, uintptr_t *c) {
  */
 void handle_request_ram(struct aos_rpc *r, uintptr_t size, uintptr_t alignment, struct capref *cap, uintptr_t *ret_size) {
     // debug_printf("handle_request_ram\n");
+    //TODO: error here?!
     errval_t err = ram_alloc_aligned(cap, size, alignment);
     if (err_is_fail(err)) {
         DEBUG_ERR(err, "Error in remote ram allocation!\n");
@@ -509,7 +510,7 @@ void handle_multi_hop_init(struct aos_rpc *rpc,const char* name, struct capref s
     struct lmp_endpoint * lmp_ep;
     err = endpoint_create(256,&new_init_ep_cap,&lmp_ep);
     if(err_is_fail(err)){
-        DEBUG_ERR(err,"Failed to create ep in memory server\n");
+        DEBUG_ERR(err,"Failed to create ep for multihop\n");
     }
     err = aos_rpc_init_lmp(new_rpc,new_init_ep_cap,server_ep_cap,lmp_ep, get_default_waitset());
     if(err_is_fail(err)){
@@ -521,17 +522,9 @@ void handle_multi_hop_init(struct aos_rpc *rpc,const char* name, struct capref s
     if(err_is_fail(err)){
         DEBUG_ERR(err,"Failed to set server interface in multi hop init\n");
     }
-
-
-    
-
-    // re -> name = name;
     re -> rpc = new_rpc;
-
     add_routing_entry(re);
-    debug_printf("Here!: %s\n",name);
     *init_ep_cap = new_init_ep_cap;
-    debug_printf("Finished multiho stuff\n");
 }
 
 

@@ -38,11 +38,24 @@
 
 
 errval_t add_server(struct server_list* new_server){
-    if(servers == NULL){
+    struct server_list* curr = servers;
+    if(curr == NULL){
         servers = new_server;
-    }else {
-        struct server_list* curr = servers;
-        for(;curr -> next != NULL;curr = curr -> next){}
+    }
+    else {
+        
+        for(;curr -> next != NULL;curr = curr -> next){
+            debug_printf("%s =? %s\n",new_server->name, curr -> name);
+            if(!strcmp(new_server-> name, curr -> name)){
+                free(new_server);
+                return LIB_ERR_NAMESERVICE_INVALID_REGISTER;
+            }
+        }
+
+        if(!strcmp(new_server-> name, curr -> name)){
+            free(new_server);
+            return LIB_ERR_NAMESERVICE_INVALID_REGISTER;
+        }
         curr -> next = new_server;
     }
     n_servers++;
@@ -102,30 +115,24 @@ void print_server_list(void){
 
 
 void find_servers_by_prefix(const char* name, char* response,size_t * resp_size){
-    resp_size = 0;
-    
-    // for(struct server_list* curr = servers;curr != NULL;curr = curr -> next){
-
-    //     if(prefix_match((char*) name,(char*) curr -> name)){
-    //         debug_printf("Here!\n");
-    //         debug_printf("Name : %s\n",curr -> name);
-    //         (*resp_size) += 1;
-    //         // char buffer[SERVER_NAME_SIZE];
-    //         // strcpy(buffer,curr -> name);
-    //         // if(strlen(response) == 0){
-    //         // strcat(buffer,",");
-    //         // strcat(response, curr->name);
-    //         // }else {
-    //         // strcat(response,curr -> name);
-    //         // }
-    //         // strcat(response,",");
-    //         debug_printf("Herre!\n");
-    //     }
-    // }
+    *resp_size = 0;
+    *response = '\0';
+    for(struct server_list* curr = servers;curr != NULL;curr = curr -> next){
+        if(prefix_match((char*) name,(char*) curr -> name)){            
+            if(*resp_size > 0){
+                strcat(response,",");
+            }
+            (*resp_size) += 1;
+            strcat(response,curr -> name);
+        }
+}
 }
 
 
 bool prefix_match(char* name, char* server_name){
+    if(*name == '/'){
+        return true;
+    }
     while(*name != '\0'){
         if(*server_name == '\0'){return false;}
         if(*name++ != *server_name++){

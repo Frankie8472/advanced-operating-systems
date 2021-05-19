@@ -5,6 +5,7 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <ctype.h>
+#include <regex.h>
 #include <aos/aos.h>
 #include <aos/waitset.h>
 #include <aos/nameserver.h>
@@ -12,11 +13,11 @@
 #include <stdarg.h>
 #include <aos/default_interfaces.h>
 
-
 #include <hashtable/hashtable.h>
 
 static void *get_opaque_server_rpc_handlers[OS_IFACE_N_FUNCTIONS];
 // * server_table = create_hashtable();
+
 
 
 
@@ -110,9 +111,12 @@ errval_t nameservice_register_properties(const char * name,nameservice_receive_h
 	errval_t err;
 
 
+	
+
+
 	char* server_data;
 	err = serialize(name,properties,&server_data);
-	debug_printf("Here!\n");
+	// debug_printf("Here!\n");
 	ON_ERR_RETURN(err);
 	// create and add srv_entry
 	struct srv_entry* new_srv_entry = (struct srv_entry *) malloc(sizeof(struct srv_entry));
@@ -286,26 +290,26 @@ errval_t nameservice_lookup(const char *name, nameservice_chan_t *nschan)
  * @param num 		number of entries in the result array
  * @param result	an array of entries
  */
+//NOTE: will buffer overflow if buffer pass in result not large enough!
 errval_t nameservice_enumerate(char *query, size_t *num, char **result )
 {	
 
 	errval_t err;
-	char * response = malloc(1024 * sizeof(char));
-	err = aos_rpc_call(get_ns_rpc(),NS_ENUM_SERVERS,query,num);
+	char * response = malloc(1024 * sizeof(char)); 
+	err = aos_rpc_call(get_ns_rpc(),NS_ENUM_SERVERS,query,response,num);
 	ON_ERR_RETURN(err);
-	response = malloc(1024 * (*num) * sizeof(char * ));
-
-	size_t res_index = 0;
+	size_t res_index = 1;
+	*result = response;
 	while(*response != '\0'){
+
 		if(*response == ','){
 			*response = '\0';
-			res_index++;
 			response++;
 			result[res_index] = response;
+			res_index++;
 		}
 		response++;
 	}
-
 	return SYS_ERR_OK;
 }
 
@@ -474,4 +478,17 @@ errval_t deserialize_prop(const char * server_data,char *  key[],char *  value[]
 
 void init_server_handlers(struct aos_rpc* server_rpc){
 	aos_rpc_register_handler(server_rpc,OS_IFACE_MESSAGE,&nameservice_reveice_handler_wrapper);
+}
+
+
+
+
+
+bool name_check(const char*name){
+	// regex_t regex_name;
+	// regex_name = 1;
+	// int reti_name = regcomp(&regex_name,"^/([a-z]|[A-Z])+([a-z]|[A-Z]|[0-9])*(/([a-z]|[A-Z])+([a-z]|[A-Z]|[0-9])*)*$",REG_EXTENDED);
+	// reti_name = regexec(&regex_name,name,0,NULL,0);
+	// return !reti_name;
+	return true;
 }
