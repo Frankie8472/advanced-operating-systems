@@ -37,11 +37,6 @@
 static bool init_domain;
 
 
-static size_t count = 0;
-static struct aos_rpc rpcs[100];
-
-
-
 extern size_t (*_libc_terminal_read_func)(char *, size_t);
 extern size_t (*_libc_terminal_write_func)(const char *, size_t);
 extern void (*_libc_exit_func)(int);
@@ -52,8 +47,6 @@ void libc_exit(int);
 __weak_reference(libc_exit, _exit);
 void libc_exit(int status)
 {   
-
-
     //TODO dereg from ns
     // debug_printf("Dereg pid %d, rpc: 0x%lx\n",disp_get_domain_id(),get_ns_rpc());
     errval_t err = aos_rpc_call(get_ns_rpc(),NS_DEREG_PROCESS,disp_get_domain_id());
@@ -61,6 +54,11 @@ void libc_exit(int status)
         DEBUG_ERR(err,"Failed to remove self process from nameserver before exiting!\n");
     }
     debug_printf("libc exit NYI!\n");
+
+    // close stdout
+    aos_dc_close(&stdout_chan);
+
+
     thread_exit(status);
     // If we're not dead by now, we wait
     while (1) {}
@@ -96,30 +94,50 @@ static size_t syscall_terminal_read(char * buf,size_t len)
     return 1;
 }
 
-__attribute__((__used__))
-static size_t aos_terminal_write(const char * buf,size_t len)
+
+static size_t aos_terminal_write(const char *buf, size_t len)
 {
-  // debug_printf("Terminal write: in aos_terminal_write\n");
-    struct aos_rpc * rpc = get_init_rpc();
-        if(len) {
-            for(size_t i = 0;i < len;++i) {
-                aos_rpc_serial_putchar(rpc,buf[i]);
-            }
+    errval_t err;
+    if (aos_dc_send_is_connected(&stdout_chan)) {
+        err = aos_dc_send(&stdout_chan, len, buf);
+        if (err_is_fail(err)) {
+            return 0;
         }
-    return len;
+        else {
+            return len;
+        }
+    }
+    return 0;
 }
 
-__attribute__((__used__))
-static size_t aos_terminal_read(char* buf,size_t len){
-    //debug_printf("Got to aos_terminal_read\n");
-    struct aos_rpc * rpc = get_init_rpc();
+
+static size_t aos_terminal_read(char *buf, size_t len)
+{
     errval_t err;
-    err = aos_rpc_serial_getchar(rpc, buf);
-    if(err_is_fail(err)){
-      DEBUG_ERR(err,"Failed get char in aos_terminal_read\n");
+    size_t received;
+    bool is_available = lmp_chan_can_recv(&stdin_chan.channel.lmp);
+    void avail(void *arg) {
+        is_available = true;
     }
-    return 1;
+    if (!is_available) {
+        lmp_chan_register_recv(&stdin_chan.channel.lmp, get_default_waitset(), MKCLOSURE(avail, NULL));
+        while(!is_available) {
+            err = event_dispatch(get_default_waitset());
+            if (err_is_fail(err)) {
+                debug_printf("Error in event_dispatch\n");
+                return 0;
+            }
+            if (aos_dc_is_closed(&stdin_chan)) {
+                lmp_chan_deregister_recv(&stdin_chan.channel.lmp);
+                return -1;
+            }
+        }
+    }
+
+    err = aos_dc_receive_available(&stdin_chan, len, buf, &received);
+    return received;
 }
+
 
 /**
  * Set libc function pointers
@@ -248,100 +266,3 @@ void barrelfish_init_disabled(dispatcher_handle_t handle, bool init_dom_arg)
     thread_init_disabled(handle, init_dom_arg);
 }
 
-
-
-
-
-
-
-
-
-
-void handle_all_binding_request_on_process(struct aos_rpc *r, uintptr_t pid, uintptr_t core_id,uintptr_t client_core ,struct capref client_cap,struct capref * server_cap){
-    errval_t err;
-    struct capref self_ep_cap = (struct capref) {
-        .cnode = cnode_task,
-        .slot = TASKCN_SLOT_SELFEP
-    };
-
-
-
-   
-    // struct aos_rpc* rpc = (struct aos_rpc*) malloc(sizeof(struct aos_rpc));
-    
-
-    // static struct aos_rpc new_rpc;
-    struct aos_rpc * rpc = &(rpcs[count++]);
-    initialize_general_purpose_handler(rpc);
-    if(client_core == disp_get_current_core_id()){//lmp channel
-
-
-        struct lmp_endpoint * lmp_ep;
-        err = endpoint_create(256,&self_ep_cap,&lmp_ep);
-        if(err_is_fail(err)){
-            DEBUG_ERR(err,"Failed to create ep in memory server\n");
-        }
-        err = aos_rpc_init_lmp(rpc,self_ep_cap,client_cap,lmp_ep, NULL);
-        if(err_is_fail(err)){
-            DEBUG_ERR(err,"Failed to register waitset on rpc\n");
-        }
-
-        // char buf[512];
-        // debug_print_cap_at_capref(buf,512,self_ep_cap);
-        // debug_printf("Cap her %s\n",buf);
-        *server_cap = self_ep_cap;
-        // debug_print_cap_at_capref(buf,512,*server_cap);
-        // debug_printf("Here server cap her %s\n",buf);
-    }else {
-
-        char *urpc_data = NULL;
-        err = paging_map_frame_complete(get_current_paging_state(), (void **) &urpc_data, client_cap, NULL, NULL);
-        if(err_is_fail(err)){
-            DEBUG_ERR(err,"Failed to map urpc frame for ump channel into virtual address space\n");
-        }
-        err =  aos_rpc_init_ump_default(rpc,(lvaddr_t) urpc_data, BASE_PAGE_SIZE,false);//take second half as creating process
-        if(err_is_fail(err)){
-            DEBUG_ERR(err,"Failed to init_ump_default\n");
-        } 
-        *server_cap = client_cap; //NOTE: this is fucking stupid
-    }
-
-
-
-    //err = aos_rpc_init(rpc); // TODO (RPC): set interface
-    if(err_is_fail(err)){
-        DEBUG_ERR(err,"Failed to init rpc\n");
-    }
-    
-    debug_printf("Channel established on server!\n");
-}
-
-/**
- * \brief handler function for send number rpc call
- */
-void handle_send_number(struct aos_rpc *r, uintptr_t number) {
-    debug_printf("recieved number: %ld\n", number);
-}
-
-/**
- * \brief handler function for send string rpc call
- */
-void handle_send_string(struct aos_rpc *r, const char *string) {
-    debug_printf("recieved string: %s\n", string);
-}
-
-void handle_send_varbytes(struct aos_rpc *r, struct aos_rpc_varbytes bytes) {
-    debug_printf("recieved bytes (len: %ld): ", bytes.length);
-    for (int i = 0; i < bytes.length; i++) {
-        debug_printf("%d, ", bytes.bytes[i]);
-    }
-    debug_printf("\n");
-}
-
-
-void initialize_general_purpose_handler(struct aos_rpc* rpc){
-    aos_rpc_register_handler(rpc,AOS_RPC_BINDING_REQUEST,&handle_all_binding_request_on_process);
-    aos_rpc_register_handler(rpc, AOS_RPC_SEND_NUMBER, &handle_send_number);
-    aos_rpc_register_handler(rpc, AOS_RPC_SEND_STRING, &handle_send_string);
-    aos_rpc_register_handler(rpc, AOS_RPC_SEND_VARBYTES, &handle_send_varbytes);
-}

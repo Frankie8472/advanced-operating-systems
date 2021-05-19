@@ -1,5 +1,7 @@
 #include <aos/aos_datachan.h>
 
+#define CLOSE_MESSAGE (~((uintptr_t) 0))
+
 
 void aos_dc_buffer_init(struct aos_dc_ringbuffer *buf, size_t bytes, char *buffer)
 {
@@ -90,6 +92,7 @@ errval_t aos_dc_init(struct aos_datachan *dc, size_t buffer_length)
     NULLPTR_CHECK(buffer, LIB_ERR_MALLOC_FAIL);
     aos_dc_buffer_init(&dc->buffer, buffer_length, buffer);
     dc->backend = AOS_RPC_LMP;
+    dc->is_closed = false;
 
     return SYS_ERR_OK;
 }
@@ -99,6 +102,18 @@ errval_t aos_dc_free(struct aos_datachan *dc)
 {
     free(dc->buffer.buffer);
     return SYS_ERR_OK;
+}
+
+
+bool aos_dc_send_is_connected(struct aos_datachan *dc)
+{
+    if (dc->backend == AOS_RPC_LMP) {
+        return !capref_is_null(dc->channel.lmp.remote_cap);
+    }
+    else {
+        // NYI
+        return false;
+    }
 }
 
 
@@ -118,7 +133,7 @@ static errval_t aos_dc_send_lmp(struct aos_datachan *dc, size_t bytes, const cha
     msg[0] = bytes;
     memcpy(&msg[1], data, min(first_msg_length, bytes));
     do {
-        err = lmp_chan_send(&dc->channel.lmp, LMP_FLAG_YIELD, NULL_CAP, 4, msg[0], msg[1], msg[2], msg[3]);
+        err = lmp_chan_send(&dc->channel.lmp, LMP_FLAG_YIELD | (bytes > first_msg_length ? LMP_FLAG_SYNC : 0), NULL_CAP, 4, msg[0], msg[1], msg[2], msg[3]);
     } while (err_is_fail(err) && lmp_err_is_transient(err));
 
     for (size_t offs = first_msg_length; offs < bytes; offs += lmp_bytes_length) {
@@ -175,7 +190,6 @@ static errval_t aos_dc_receive_one_message_lmp(struct aos_datachan *dc)
         }
     } while (err_is_fail(err) && lmp_err_is_transient(err));
 
-
     if (dc->bytes_left > 0) {
         // part of a multi message chunk
         size_t to_read = min(dc->bytes_left, LMP_MSG_LENGTH * sizeof(uintptr_t));
@@ -186,6 +200,13 @@ static errval_t aos_dc_receive_one_message_lmp(struct aos_datachan *dc)
         }
     }
     else {
+        //debug_printf("msg.words[0] = 0x%lx\n", msg.words[0]);
+        //debug_printf("msg.words[1] = 0x%lx\n", msg.words[1]);
+        if (msg.words[0] == CLOSE_MESSAGE) {
+            dc->is_closed = true;
+            return true;
+        }
+
         dc->bytes_left = msg.words[0];
         size_t to_read = min(dc->bytes_left, (LMP_MSG_LENGTH - 1) * sizeof(uintptr_t));
         size_t written = aos_dc_write_into_buffer(&dc->buffer, to_read, (const char *) &msg.words[1]);
@@ -232,6 +253,10 @@ errval_t aos_dc_receive_available(struct aos_datachan *dc, size_t bytes, char *d
         err = aos_dc_receive_one_message_lmp(dc);
         ON_ERR_RETURN(err);
         read += aos_dc_read_from_buffer(&dc->buffer, bytes - read, data + read);
+
+        if (dc->is_closed) {
+            break;
+        }
     }
 
      *received = read;
@@ -247,6 +272,9 @@ errval_t aos_dc_receive(struct aos_datachan *dc, size_t bytes, char *data, size_
         ON_ERR_RETURN(err);
         if (*received == 0) {
             thread_yield();
+        }
+        if (dc->is_closed) {
+            break;
         }
     } while(*received == 0);
     return SYS_ERR_OK;
@@ -279,5 +307,35 @@ errval_t aos_dc_receive_all(struct aos_datachan *dc, size_t bytes, char *data)
         }
     }
 
+    return SYS_ERR_OK;
+}
+
+
+bool aos_dc_is_closed(struct aos_datachan *dc)
+{
+    return dc->is_closed;
+}
+
+/**
+ * \brief sends a close message through the channel
+ * 
+ * \param dc 
+ * \return errval_t 
+ */
+errval_t aos_dc_close(struct aos_datachan *dc)
+{
+    errval_t err;
+    dc->is_closed = true;
+    if (dc->backend == AOS_RPC_LMP) {
+        do {
+            err = lmp_chan_send4(&dc->channel.lmp, LMP_FLAG_SYNC | LMP_FLAG_YIELD, NULL_CAP, CLOSE_MESSAGE, 0, 0, 0);
+        } while (err_is_fail(err) && lmp_err_is_transient(err));
+        if (err_is_fail(err)) {
+            return err;
+        }
+    }
+    else if (dc->backend == AOS_RPC_UMP) {
+        return SYS_ERR_NOT_IMPLEMENTED;
+    }
     return SYS_ERR_OK;
 }

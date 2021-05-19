@@ -30,6 +30,7 @@ enum {
     DISP_IFACE_REBIND,
     DISP_IFACE_SET_STDOUT,
     DISP_IFACE_GET_STDIN,
+    DISP_IFACE_TERMINATE,
 
     DISP_IFACE_N_FUNCTIONS, // <- count -- must be last
 };

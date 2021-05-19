@@ -1,6 +1,7 @@
 #include <aos/dispatcher_rpc.h>
 #include <aos/default_interfaces.h>
 #include <aos/caddr.h>
+#include <aos/deferred.h>
 
 struct aos_datachan stdin_chan;
 struct aos_datachan stdout_chan;
@@ -37,12 +38,22 @@ static void handle_get_stdin(struct aos_rpc *rpc, struct capref *stdin_ep)
     *stdin_ep = stdin_chan.channel.lmp.local_cap;
 }
 
+static void handle_terminate(struct aos_rpc *rpc)
+{
+    void finito(void *a) { exit(1); }
+
+    struct deferred_event *de = malloc(sizeof(struct deferred_event));
+    deferred_event_init(de);
+    deferred_event_register(de, get_default_waitset(), 0, MKCLOSURE(finito, NULL));
+}
+
 
 static void initialize_dispatcher_handlers(struct aos_rpc *dr)
 {
     aos_rpc_register_handler(dr, DISP_IFACE_REBIND, handle_rebind);
     aos_rpc_register_handler(dr, DISP_IFACE_SET_STDOUT, handle_set_stdout);
     aos_rpc_register_handler(dr, DISP_IFACE_GET_STDIN, handle_get_stdin);
+    aos_rpc_register_handler(dr, DISP_IFACE_TERMINATE, handle_terminate);
 }
 
 
@@ -115,16 +126,7 @@ errval_t init_dispatcher_rpcs(void)
     endpoint_create(LMP_RECV_LENGTH, &epcap, &stdout_endpoint);
     err = aos_rpc_init_lmp(&stdout_rpc, epcap, stdout_ep_cap, stdout_endpoint, NULL);
     err = aos_rpc_set_interface(&stdout_rpc, get_write_interface(), 0, NULL);*/
-    aos_dc_init(&stdout_chan, 64);
 
-    struct capability stdout_cap;
-    invoke_cap_identify(stdout_ep_cap, &stdout_cap);
-    if (stdout_cap.type == ObjType_EndPointLMP) {
-        stdout_chan.channel.lmp.remote_cap = stdout_ep_cap;
-    }
-    else {
-        stdout_chan.channel.lmp.remote_cap = NULL_CAP;
-    }
 
 
     // setup stdin
@@ -147,19 +149,36 @@ errval_t init_dispatcher_rpcs(void)
     //initialize_dispatcher_handlers(&dispatcher_rpc);
 
 
-    aos_rpc_register_handler(&dispatcher_rpc, DISP_IFACE_GET_STDIN, handle_get_stdin);
-
     initialize_dispatcher_handlers(&dispatcher_rpc);
 
+    struct capref real_stdout_ep_cap = stdout_ep_cap;
 
     struct capability disp_rpc_ep;
     invoke_cap_identify(dispatcher_rpc.channel.lmp.remote_cap, &disp_rpc_ep);
     if (disp_rpc_ep.type == ObjType_EndPointLMP) {
-        //debug_printf("binding spawner\n");
-        err = aos_rpc_call(&dispatcher_rpc, DISP_IFACE_BINDING, dispatcher_rpc.channel.lmp.local_cap);
+        debug_printf("binding spawner\n");
+        struct capref new_stdout;
+        err = aos_rpc_call(&dispatcher_rpc, DISP_IFACE_BINDING, dispatcher_rpc.channel.lmp.local_cap, stdin_epcap, &new_stdout);
+        if (!capref_is_null(new_stdout)) {
+            real_stdout_ep_cap = new_stdout;
+        }
         if (err_is_fail(err)) {
             debug_printf("error binding to spawner endpoint\n");
         }
+    }
+    else {
+
+    }
+
+    aos_dc_init(&stdout_chan, 64);
+
+    struct capability stdout_cap;
+    invoke_cap_identify(real_stdout_ep_cap, &stdout_cap);
+    if (stdout_cap.type == ObjType_EndPointLMP) {
+        stdout_chan.channel.lmp.remote_cap = real_stdout_ep_cap;
+    }
+    else {
+        stdout_chan.channel.lmp.remote_cap = NULL_CAP;
     }
 
 

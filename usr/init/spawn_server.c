@@ -74,7 +74,7 @@ errval_t spawn_new_core(coreid_t core)
     return SYS_ERR_OK;
 }
 
-static void handle_binding(struct aos_rpc *r, struct capref ep) {
+static void handle_binding(struct aos_rpc *r, struct capref ep, struct capref remote_in, struct capref *remote_out) {
     //debug_printf("in handle_binding\n");
     r->channel.lmp.remote_cap = ep;
 }
@@ -90,7 +90,8 @@ errval_t spawn_new_domain(const char *mod_name, int argc, char **argv, domainid_
 
     aos_rpc_set_interface(rpc, get_init_interface(), INIT_IFACE_N_FUNCTIONS, malloc(INIT_IFACE_N_FUNCTIONS * sizeof(void *)));
     initialize_rpc_handlers(rpc);
-    initialize_initiate_handler(rpc);
+
+
     aos_rpc_register_handler(rpc, INIT_IFACE_SPAWN, handle_spawn);
     aos_rpc_register_handler(rpc, INIT_IFACE_SPAWN_EXTENDED, handle_spawn_extended);
 
@@ -148,7 +149,9 @@ errval_t spawn_new_domain(const char *mod_name, int argc, char **argv, domainid_
     }
     else {
         err = spawn_setup_module_by_name(mod_name, si);
-        ON_ERR_RETURN(err);
+        if (err_is_fail(err)) {
+            return err;
+        }
         si->binary_name = argv[0];
         err = spawn_setup_dispatcher(argc, (const char * const *)argv, si, pid);
         ON_ERR_RETURN(err);
@@ -185,7 +188,7 @@ errval_t spawn_lpuart_driver(const char *mod_name, struct spawninfo **ret_si)
     struct aos_rpc *rpc = &si->rpc;
 
     aos_rpc_set_interface(rpc, get_init_interface(), INIT_IFACE_N_FUNCTIONS, malloc(INIT_IFACE_N_FUNCTIONS * sizeof(void *)));
-    initialize_initiate_handler(rpc);
+    initialize_rpc_handlers(rpc);
 
 
     struct aos_rpc *disp_rpc = &si->disp_rpc;

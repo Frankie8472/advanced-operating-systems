@@ -12,6 +12,12 @@
 
 struct josh_line *parsed_line;
 
+struct aos_datachan process_chan;
+struct aos_datachan processin_chan;
+struct aos_rpc *process_rpc;
+
+void process_running(void);
+
 static void spawn_program(const char *name, struct array_list *args)
 {
     errval_t err;
@@ -50,11 +56,12 @@ static void spawn_program(const char *name, struct array_list *args)
 
     struct lmp_endpoint *lmp_ep;
     struct capref lmp_ep_cap;
-    endpoint_create(LMP_RECV_LENGTH * 8, &lmp_ep_cap, &lmp_ep);
+    err = endpoint_create(LMP_RECV_LENGTH * 8, &lmp_ep_cap, &lmp_ep);
+    ON_ERR_NO_RETURN(err);
 
     struct aos_rpc *init_rpc = get_init_rpc();
     uintptr_t pid;
-    err = aos_rpc_call(init_rpc, INIT_IFACE_SPAWN_EXTENDED, bytes, 0, NULL_CAP, &pid);
+    err = aos_rpc_call(init_rpc, INIT_IFACE_SPAWN_EXTENDED, bytes, 0, lmp_ep_cap, &pid);
     if (err_is_fail(err)) {
         printf("failed to call init\n");
         goto free_resources;
@@ -65,14 +72,90 @@ static void spawn_program(const char *name, struct array_list *args)
         goto free_resources;
     }
 
+    aos_dc_init(&process_chan, 1024);
+    aos_dc_init(&processin_chan, 1024);
+    endpoint_create(LMP_RECV_LENGTH * 64, &process_chan.channel.lmp.local_cap, &process_chan.channel.lmp.endpoint);
 
+    void haendl(struct aos_rpc *r, struct capref ep, struct capref stdinep, struct capref *stdoutep) {
+        debug_printf("handle!\n");
+        r->channel.lmp.remote_cap = ep;
+        processin_chan.channel.lmp.remote_cap = stdinep;
+        *stdoutep = process_chan.channel.lmp.local_cap;
+        //*stdoutep = stdout_chan.channel.lmp.remote_cap;
+    }
 
+    struct aos_rpc rpc;
+    process_rpc = &rpc;
+    aos_rpc_init_lmp(&rpc, lmp_ep_cap, NULL_CAP, lmp_ep, get_default_waitset());
+    aos_rpc_set_interface(&rpc, get_dispatcher_interface(), DISP_IFACE_N_FUNCTIONS, malloc(DISP_IFACE_N_FUNCTIONS * sizeof (void *)));
+    aos_rpc_register_handler(&rpc, DISP_IFACE_BINDING, haendl);
+    //struct capref otherep;
+
+    while(capref_is_null(rpc.channel.lmp.remote_cap)) {
+        err = event_dispatch(get_default_waitset());
+    }
+
+    process_running();
+
+    printf("\n");
 
 free_resources:
     lmp_endpoint_free(lmp_ep);
     cap_destroy(lmp_ep_cap);
 
     free(data);
+}
+
+
+void on_process_input(void *arg) {
+    struct lmp_endpoint *ep = arg;
+    errval_t err;
+
+    char buffer[1024];
+    size_t recvd;
+    do {
+        err = aos_dc_receive_available(&process_chan, sizeof buffer, buffer, &recvd);
+        if (recvd > 0)
+            err = aos_dc_send(&stdout_chan, recvd, buffer);
+    } while(recvd > 0);
+
+    if (aos_dc_is_closed(&process_chan)) {
+        return;
+    }
+
+    lmp_endpoint_register(ep, get_default_waitset(), MKCLOSURE(on_process_input, arg));
+}
+
+void on_console_input(void *arg) {
+    struct lmp_endpoint *ep = arg;
+    errval_t err;
+
+    char buffer[1024];
+    size_t recvd;
+    do {
+        err = aos_dc_receive_available(&stdin_chan, sizeof buffer, buffer, &recvd);
+        if (recvd > 0) {
+            if (buffer[0] == 3) {
+                aos_rpc_call(process_rpc, DISP_IFACE_TERMINATE);
+            }
+            else {
+                err = aos_dc_send(&processin_chan, recvd, buffer);
+            }
+        }
+    } while(recvd > 0);
+
+    lmp_endpoint_register(ep, get_default_waitset(), MKCLOSURE(on_console_input, arg));
+}
+
+
+void process_running(void)
+{
+    lmp_endpoint_register(process_chan.channel.lmp.endpoint, get_default_waitset(), MKCLOSURE(on_process_input, process_chan.channel.lmp.endpoint));
+    lmp_endpoint_register(stdin_chan.channel.lmp.endpoint, get_default_waitset(), MKCLOSURE(on_console_input, stdin_chan.channel.lmp.endpoint));
+    errval_t err;
+    while(!aos_dc_is_closed(&process_chan)) {
+        err = event_dispatch(get_default_waitset());
+    }
 }
 
 
@@ -110,7 +193,7 @@ static void process_line(void) {
     else {
         printf("error parsing command!\n");
     }
-    free(line);
+    linenoiseFree(line);
 }
 
 int main(int argc, char **argv)
@@ -124,6 +207,9 @@ int main(int argc, char **argv)
     printf("Welcome to JameOS Shell\n");
 
     setenv("PROMPT", "\033[32;1mjosh\033[m $ ", 0);
+
+
+    linenoiseHistorySetMaxLen(64);
 
     while(true) {
         process_line();
