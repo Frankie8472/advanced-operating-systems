@@ -46,6 +46,8 @@ static void initialize_interfaces(void)
                                1, 0, AOS_RPC_CAPABILITY);
     aos_rpc_initialize_binding(&dispatcher_interface, "get_stdin", DISP_IFACE_GET_STDIN,
                                0, 1, AOS_RPC_CAPABILITY);
+    aos_rpc_initialize_binding(&dispatcher_interface, "terminate", DISP_IFACE_TERMINATE,
+                               0, 0);
 
     // ===================== Write Interface =====================
 

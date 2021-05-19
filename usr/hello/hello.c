@@ -35,7 +35,7 @@ int main(int argc, char *argv[])
     
     printf("Hello, world! from userspace\n");
     for(int i = 0; i < argc; ++i){
-        debug_printf("Argv[%d] = %s\n",i,argv[i]);
+        printf("Argv[%d] = %s\n",i,argv[i]);
     }
     // stack_overflow();
 

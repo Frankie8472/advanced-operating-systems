@@ -1,6 +1,7 @@
 #include <aos/dispatcher_rpc.h>
 #include <aos/default_interfaces.h>
 #include <aos/caddr.h>
+#include <aos/deferred.h>
 
 struct aos_datachan stdin_chan;
 struct aos_datachan stdout_chan;
@@ -37,12 +38,22 @@ static void handle_get_stdin(struct aos_rpc *rpc, struct capref *stdin_ep)
     *stdin_ep = stdin_chan.channel.lmp.local_cap;
 }
 
+static void handle_terminate(struct aos_rpc *rpc)
+{
+    void finito(void *a) { exit(1); }
+
+    struct deferred_event *de = malloc(sizeof(struct deferred_event));
+    deferred_event_init(de);
+    deferred_event_register(de, get_default_waitset(), 0, MKCLOSURE(finito, NULL));
+}
+
 
 static void initialize_dispatcher_handlers(struct aos_rpc *dr)
 {
     aos_rpc_register_handler(dr, DISP_IFACE_REBIND, handle_rebind);
     aos_rpc_register_handler(dr, DISP_IFACE_SET_STDOUT, handle_set_stdout);
     aos_rpc_register_handler(dr, DISP_IFACE_GET_STDIN, handle_get_stdin);
+    aos_rpc_register_handler(dr, DISP_IFACE_TERMINATE, handle_terminate);
 }
 
 
@@ -134,8 +145,6 @@ errval_t init_dispatcher_rpcs(void)
 
     //initialize_dispatcher_handlers(&dispatcher_rpc);
 
-
-    aos_rpc_register_handler(&dispatcher_rpc, DISP_IFACE_GET_STDIN, handle_get_stdin);
 
     initialize_dispatcher_handlers(&dispatcher_rpc);
 

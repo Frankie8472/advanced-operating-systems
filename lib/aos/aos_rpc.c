@@ -1741,7 +1741,7 @@ errval_t aos_rpc_new_binding(domainid_t pid, coreid_t core_id, struct aos_rpc* r
         debug_printf("Cahnnel estblished on requester!\n");
     }
 
-    initialize_general_purpose_handler(ret_rpc);
+    //initialize_general_purpose_handler(ret_rpc);
     
     return SYS_ERR_OK;
 }
