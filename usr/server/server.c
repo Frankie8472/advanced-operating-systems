@@ -14,7 +14,7 @@
         USER_PANIC_ERR(err, msg);  \
     }
 
-#define SERVICE_NAME "myservicename"
+#define SERVICE_NAME "/myservicename"
 // #define TEST_BINARY  "nameservicetest"
 
 // extern struct aos_rpc fresh_connection;
@@ -70,6 +70,10 @@ int main(int argc, char *argv[])
     PANIC_IF_FAIL(err, "failed to register...\n");
     domainid_t my_pid;
 
+    // err = aos_rpc_process_spawn(get_init_rpc(),"client",!disp_get_core_id(),&my_pid);
+    // if(err_is_fail(err)){
+    //     DEBUG_ERR(err,"Failed to spawn client!\n");
+    // }
     err = aos_rpc_process_spawn(get_init_rpc(),"client",0,&my_pid);
     if(err_is_fail(err)){
         DEBUG_ERR(err,"Failed to spawn client!\n");

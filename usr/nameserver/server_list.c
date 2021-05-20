@@ -96,9 +96,7 @@ void remove_server(struct server_list* del_server){
 void print_server_list(void){
     debug_printf("================ Servers ==============================\n");
     for(struct server_list * curr = servers; curr != NULL; curr = curr -> next){
-        char buffer[512];
-        debug_print_cap_at_capref(buffer,512,curr ->end_point);
-        debug_printf("|| P: %d | C: %d | N: %s | UMP: %d | EP: %s                \n", curr -> pid, curr -> core_id, curr -> name,curr -> ump, buffer);
+        debug_printf("|| P: %d | C: %d | N: %s | UMP: %d |               \n", curr -> pid, curr -> core_id, curr -> name,curr -> ump);
 
         for(int i =0 ;i < 64;++i){
             if(curr -> key[i] != NULL && curr -> value[i] != NULL){

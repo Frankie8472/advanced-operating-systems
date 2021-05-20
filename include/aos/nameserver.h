@@ -118,5 +118,7 @@ errval_t establish_init_server_con(const char* name,struct aos_rpc* server_rpc, 
 void init_server_handlers(struct aos_rpc* server_rpc);
 
 bool name_check(const char*name);
+bool property_check(const char * properties);
+bool query_check(const char*query);
 #endif /* INCLUDE_AOS_AOS_NAMESERVICE_H_ */
 
