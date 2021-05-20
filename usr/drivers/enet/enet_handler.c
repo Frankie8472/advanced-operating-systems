@@ -48,9 +48,42 @@ static void print_arp_packet(struct arp_hdr* h) {
         ENET_DEBUG("%d: %x\n", i, h->eth_dst.addr[i]);
 }
 
+// TODO: make more concise with architecture in mind
+static inline uint64_t eth_addr_to_u64(struct eth_addr *a) {
+    return (0  // to make it look more aligned
+            | a->addr[0] << 7
+            | a->addr[1] << 6
+            | a->addr[2] << 5
+            | a->addr[3] << 4
+            | a->addr[4] << 3
+            | a->addr[5] << 2);
+}
+
+/**
+ * \brief convert an uint64_t to an eth address:
+ * converts src, writes it into dest
+ */
+// TODO: make more concise with architecture in mind
+static inline void u64_to_eth_addr(uint64_t src, struct eth_addr* dest) {
+    dest->addr[0] = src >> 7;
+    dest->addr[1] = src >> 6;
+    dest->addr[2] = src >> 5;
+    dest->addr[3] = src >> 4;
+    dest->addr[4] = src >> 3;
+    dest->addr[5] = src >> 2;
+}
+
 static errval_t arp_request_handle(struct enet_queue* q, struct devq_buf* buf,
                                    struct arp_hdr *h, struct enet_driver_state* st) {
-    // TODO: i guess  save src info, then reply with dest info? idk i never read the book
+    // extract src-info
+    uint64_t mac_src = eth_addr_to_u64(&h->eth_src);
+    uint32_t *ip_src_ref = malloc(sizeof(uint32_t));
+    *ip_src_ref = h->ip_src;
+
+    // save info in arp-table
+    collections_hash_insert(st->arp_table, mac_src, ip_src_ref);
+
+    // TODO: prepare and send response
     return SYS_ERR_OK;
 }
 
