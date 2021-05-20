@@ -185,7 +185,6 @@ void handle_initiate(struct aos_rpc *rpc, struct capref cap) {
 
 
 void handle_spawn(struct aos_rpc *old_rpc, const char *name, uintptr_t core_id, uintptr_t *new_pid) {
-
     uintptr_t current_core_id = disp_get_core_id();
     if(core_id == current_core_id) {
         domainid_t pid;
@@ -606,6 +605,7 @@ errval_t initialize_rpc_handlers(struct aos_rpc *rpc)
 
     //INIT INTERFACE (MOSTLY FORWARDING)
     aos_rpc_register_handler(rpc, INIT_IFACE_SPAWN, &handle_spawn);
+    aos_rpc_register_handler(rpc, INIT_IFACE_SPAWN_EXTENDED, &handle_spawn_extended);
     aos_rpc_register_handler(rpc, INIT_NAMESERVER_ON, &handle_ns_on);
     aos_rpc_register_handler(rpc,INIT_REG_NAMESERVER,&handle_forward_ns_reg);
     aos_rpc_register_handler(rpc,INIT_REG_SERVER,&handle_server_request);

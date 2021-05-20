@@ -82,6 +82,7 @@ static void handle_binding(struct aos_rpc *r, struct capref ep, struct capref re
 
 errval_t spawn_new_domain(const char *mod_name, int argc, char **argv, domainid_t *new_pid, struct capref spawner_ep, struct capref child_stdout_cap, struct spawninfo **ret_si)
 {
+    debug_printf("spawn_new_domain %s\n", mod_name);
     errval_t err;
     struct spawninfo *si = spawn_create_spawninfo();
     
@@ -91,9 +92,6 @@ errval_t spawn_new_domain(const char *mod_name, int argc, char **argv, domainid_
     aos_rpc_set_interface(rpc, get_init_interface(), INIT_IFACE_N_FUNCTIONS, malloc(INIT_IFACE_N_FUNCTIONS * sizeof(void *)));
     initialize_rpc_handlers(rpc);
 
-
-    aos_rpc_register_handler(rpc, INIT_IFACE_SPAWN, handle_spawn);
-    aos_rpc_register_handler(rpc, INIT_IFACE_SPAWN_EXTENDED, handle_spawn_extended);
 
     if (capref_is_null(spawner_ep)) {
         struct aos_rpc *disp_rpc = &si->disp_rpc;
@@ -107,40 +105,7 @@ errval_t spawn_new_domain(const char *mod_name, int argc, char **argv, domainid_
         si->spawner_ep_cap = spawner_ep;
     }
 
-    //struct aos_rpc *disp_rpc = &si->disp_rpc;
-    /*static struct aos_datachan chan;
-=======
->>>>>>> to_merge
-
-    if (capref_is_null(child_stdout_cap)) {
-        err = endpoint_create(LMP_RECV_LENGTH * 4, &child_stdout_cap, &si->spawner_ep);
-        DEBUG_ERR(err, "works?\n");
-    }
-
-    void pront(void *arg) {
-        struct aos_datachan *ch = arg;
-        debug_printf("pronting\n");
-        char data[32];
-        size_t recvd = 0;
-        do {
-            errval_t e = aos_dc_receive_available(ch, sizeof data, data, &recvd);
-            if (err_is_fail(e)) break;
-            for (int i = 0; i < recvd; i++) {
-                printf("%c", data[i]);
-            }
-        } while(recvd == sizeof data);
-        printf("\n");
-    }
-
-    aos_dc_init(&chan, 2048);
-    lmp_chan_init(&chan.channel.lmp);
-    chan.channel.lmp.endpoint = si->spawner_ep;
-
-    lmp_chan_register_recv(&chan.channel.lmp, get_default_waitset(), MKCLOSURE(&pront, &chan));*/
-
-
     si->child_stdout_cap = child_stdout_cap;
-
     //initialize_rpc_handlers(rpc);
     if (argv == NULL || argc == 0) {
         err = spawn_load_by_name((char*) mod_name, si, pid);

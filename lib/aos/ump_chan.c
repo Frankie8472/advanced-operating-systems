@@ -3,7 +3,7 @@
 #include <aos/aos.h>
 #include <aos/dispatcher_arch.h>
 #include <aos/waitset.h>
-#include "waitset_chan_priv.h"
+#include <aos/waitset_chan.h>
 
 /**
  * \brief Like ump_chan_init, just with (maybe) a different msg_size than UMP_MSG_SIZE
@@ -150,20 +150,13 @@ bool ump_chan_poll_once(struct ump_chan *chan, struct ump_msg *recv)
 
 errval_t ump_chan_register_recv(struct ump_chan *chan, struct waitset *ws, struct event_closure closure)
 {
-    errval_t err;
+    return waitset_chan_register_polled(ws, &chan->waitset_state, closure);
+}
 
-    dispatcher_handle_t handle = disp_disable();
 
-    // debug_printf("Here1\n");
-    err = waitset_chan_register_polled_disabled(ws, &chan->waitset_state, closure, handle);
-    // debug_printf("Here2\n");
-    if(err_is_fail(err)){
-        DEBUG_ERR(err,"Failed to register dissabled waitset\n");
-    }
-
-    disp_enable(handle);
-
-    return err;
+errval_t ump_chan_deregister_recv(struct ump_chan *chan)
+{
+    return waitset_chan_deregister(&chan->waitset_state);
 }
 
 

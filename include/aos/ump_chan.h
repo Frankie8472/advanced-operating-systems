@@ -64,6 +64,7 @@ bool ump_chan_can_receive(struct ump_chan *chan);
 bool ump_chan_poll_once(struct ump_chan *chan, struct ump_msg *recv);
 
 errval_t ump_chan_register_recv(struct ump_chan *chan, struct waitset *ws, struct event_closure closure);
+errval_t ump_chan_deregister_recv(struct ump_chan *chan);
 
 
 
