@@ -86,12 +86,24 @@ size_t aos_dc_bytes_available(struct aos_dc_ringbuffer *buf)
 }
 
 
-errval_t aos_dc_init(struct aos_datachan *dc, size_t buffer_length)
+errval_t aos_dc_init_lmp(struct aos_datachan *dc, size_t buffer_length)
 {
     char *buffer = malloc(buffer_length);
     NULLPTR_CHECK(buffer, LIB_ERR_MALLOC_FAIL);
     aos_dc_buffer_init(&dc->buffer, buffer_length, buffer);
     dc->backend = AOS_RPC_LMP;
+    dc->is_closed = false;
+
+    return SYS_ERR_OK;
+}
+
+
+errval_t aos_dc_init_ump(struct aos_datachan *dc, size_t buffer_length)
+{
+    char *buffer = malloc(buffer_length);
+    NULLPTR_CHECK(buffer, LIB_ERR_MALLOC_FAIL);
+    aos_dc_buffer_init(&dc->buffer, buffer_length, buffer);
+    dc->backend = AOS_RPC_UMP;
     dc->is_closed = false;
 
     return SYS_ERR_OK;
@@ -174,6 +186,9 @@ errval_t aos_dc_send(struct aos_datachan *dc, size_t bytes, const char *data)
 }
 
 
+/**
+ * \brief spins until at least one message is available, reads it and writes it into the buffer
+ */
 static errval_t aos_dc_receive_one_message_lmp(struct aos_datachan *dc)
 {
     errval_t err;
@@ -220,7 +235,48 @@ static errval_t aos_dc_receive_one_message_lmp(struct aos_datachan *dc)
 }
 
 
-static errval_t aos_dc_receive_buffered_lmp(struct aos_datachan *dc, size_t bytes, char *data)
+/**
+ * \brief spins until at least one message is available, reads it and writes it into the buffer
+ */
+static errval_t aos_dc_receive_one_message_ump(struct aos_datachan *dc)
+{
+    while (!ump_chan_can_receive(&dc->channel.ump)) {
+        thread_yield();
+    }
+
+    DECLARE_MESSAGE(dc->channel.ump, msg);
+
+    while(!ump_chan_poll_once(&dc->channel.ump, msg));
+
+    if (dc->bytes_left > 0) {
+        // part of a multi message chunk
+        size_t to_read = min(dc->bytes_left, ump_chan_get_data_len(&dc->channel.ump) * sizeof(uintptr_t));
+        size_t written = aos_dc_write_into_buffer(&dc->buffer, to_read, (const char *) &msg->data[0]);
+        dc->bytes_left -= to_read;
+        if (written < to_read) {
+            return SYS_ERR_LMP_BUF_OVERFLOW; // TODO: err code
+        }
+    }
+    else {
+        if (msg->data[0] == CLOSE_MESSAGE) {
+            dc->is_closed = true;
+            return true;
+        }
+
+        dc->bytes_left = msg->data[0];
+        size_t to_read = min(dc->bytes_left, (ump_chan_get_data_len(&dc->channel.ump) - 1) * sizeof(uintptr_t));
+        size_t written = aos_dc_write_into_buffer(&dc->buffer, to_read, (const char *) &msg->data[1]);
+        dc->bytes_left -= to_read;
+        if (written < to_read) {
+            return SYS_ERR_LMP_BUF_OVERFLOW; // TODO: err code
+        }
+    }
+
+    return SYS_ERR_OK;
+}
+
+
+static errval_t aos_dc_receive_buffered(struct aos_datachan *dc, size_t bytes, char *data)
 {
     while(bytes > 0) {
         if (aos_dc_bytes_available(&dc->buffer) != 0) {
@@ -229,18 +285,20 @@ static errval_t aos_dc_receive_buffered_lmp(struct aos_datachan *dc, size_t byte
             data += read;
         }
         else {
-            errval_t err = aos_dc_receive_one_message_lmp(dc);
-            ON_ERR_RETURN(err);
+            if (dc->backend == AOS_RPC_LMP) {
+                errval_t err = aos_dc_receive_one_message_lmp(dc);
+                ON_ERR_RETURN(err);
+            }
+            else if (dc->backend == AOS_RPC_UMP) {
+                errval_t err = aos_dc_receive_one_message_ump(dc);
+                ON_ERR_RETURN(err);
+            }
+            else {
+                return LIB_ERR_NOT_IMPLEMENTED;
+            }
         }
     }
     return SYS_ERR_OK;
-}
-
-
-static errval_t aos_dc_receive_buffered_ump(struct aos_datachan *dc, size_t bytes, char *data)
-{
-    DEBUG_PRINTF("NYI!");
-    return LIB_ERR_NOT_IMPLEMENTED;
 }
 
 
@@ -299,12 +357,7 @@ errval_t aos_dc_receive_all(struct aos_datachan *dc, size_t bytes, char *data)
         bytes -= buffered;
 
         // read the rest
-        if (dc->backend == AOS_RPC_LMP) {
-            return aos_dc_receive_buffered_lmp(dc, bytes, data);
-        }
-        else if (dc->backend == AOS_RPC_UMP) {
-            return aos_dc_receive_buffered_ump(dc, bytes, data);
-        }
+        return aos_dc_receive_buffered(dc, bytes, data);
     }
 
     return SYS_ERR_OK;

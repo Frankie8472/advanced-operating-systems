@@ -133,7 +133,7 @@ errval_t init_dispatcher_rpcs(void)
     struct capref stdin_epcap;
     struct lmp_endpoint *stdin_endpoint;
     err = endpoint_create(LMP_RECV_LENGTH * 8, &stdin_epcap, &stdin_endpoint);
-    err = aos_dc_init(&stdin_chan, 1024);
+    err = aos_dc_init_lmp(&stdin_chan, 1024);
     stdin_chan.channel.lmp.endpoint = stdin_endpoint;
     stdin_chan.channel.lmp.local_cap = stdin_epcap;
 
@@ -170,7 +170,7 @@ errval_t init_dispatcher_rpcs(void)
 
     }
 
-    aos_dc_init(&stdout_chan, 64);
+    aos_dc_init_lmp(&stdout_chan, 64);
 
     struct capability stdout_cap;
     invoke_cap_identify(real_stdout_ep_cap, &stdout_cap);
