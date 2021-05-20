@@ -27,6 +27,7 @@ void inline ENET_DEBUG_UI32_AS_IP(char *msg, uint32_t ip) {
 void inline ENET_DEBUG_UI32_AS_IP(char *msg, uint32_t ip) {}
 #endif
 
+#define STATIC_ENET_IP 0x0a000201  // ip address of enet interface -> 10.0.2.1
 
 #define ENET_PROMISC
 
