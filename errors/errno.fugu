@@ -453,6 +453,7 @@ errors libaos LIB_ERR_ {
     failure RPC_INITIATE            "RPC connection could not be initiated",
     failure RPC_SETUP_PAGE          "Error calling remote to setup shared frame",
     failure RPC_ARGUMENT_OVERFLOW   "Too many arguments specified for rpc call",
+    failure RPC_NOT_CONNECTED       "Rpc struct not connected",
 };
 
 // errors in Flounder-generated bindings

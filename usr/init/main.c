@@ -275,6 +275,7 @@ static int bsp_main(int argc, char *argv[])
     }
 
 
+    spawn_new_core(1);
 
 
     /*struct capref lmp_ep;
@@ -331,6 +332,8 @@ static int bsp_main(int argc, char *argv[])
     aos_rpc_call(&josh_si->disp_rpc, DISP_IFACE_GET_STDIN, &josh_in);
     debug_printf("got stdin from josh!\n");
     aos_rpc_call(&term_si->disp_rpc, DISP_IFACE_SET_STDOUT, josh_in);
+
+
 
     //struct aos_rpc *josh_rpc = &josh_si->disp_rpc;
 
