@@ -2,6 +2,7 @@
 #define LIB_AOS_DATACHAN_H
 
 #include <aos/aos_rpc.h>
+#include <aos/waitset.h>
 
 struct aos_dc_ringbuffer
 {
@@ -76,6 +77,13 @@ errval_t aos_dc_receive_available(struct aos_datachan *dc, size_t bytes, char *d
 errval_t aos_dc_receive(struct aos_datachan *dc, size_t bytes, char *data, size_t *received);
 
 errval_t aos_dc_receive_all(struct aos_datachan *dc, size_t bytes, char *data);
+
+/**
+ * \brief register a handler to be notified whenever somethin can be received on this channel
+ */
+errval_t aos_dc_register(struct aos_datachan *dc, struct waitset *ws, struct event_closure closure);
+
+errval_t aos_dc_deregister(struct aos_datachan *dc);
 
 
 bool aos_dc_is_closed(struct aos_datachan *dc);

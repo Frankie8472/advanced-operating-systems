@@ -310,6 +310,28 @@ errval_t aos_dc_receive_all(struct aos_datachan *dc, size_t bytes, char *data)
     return SYS_ERR_OK;
 }
 
+errval_t aos_dc_register(struct aos_datachan *dc, struct waitset *ws, struct event_closure closure)
+{
+    if (dc->backend == AOS_RPC_LMP) {
+        return lmp_endpoint_register(dc->channel.lmp.endpoint, ws, closure);
+    }
+    else if (dc->backend == AOS_RPC_UMP) {
+        return ump_chan_register_recv(&dc->channel.ump, ws, closure);
+    }
+    return LIB_ERR_NOT_IMPLEMENTED;
+}
+
+errval_t aos_dc_deregister(struct aos_datachan *dc)
+{
+    if (dc->backend == AOS_RPC_LMP) {
+        return lmp_endpoint_deregister(dc->channel.lmp.endpoint);
+    }
+    else if (dc->backend == AOS_RPC_UMP) {
+        return ump_chan_deregister_recv(&dc->channel.ump);
+    }
+    return LIB_ERR_NOT_IMPLEMENTED;
+}
+
 
 bool aos_dc_is_closed(struct aos_datachan *dc)
 {
