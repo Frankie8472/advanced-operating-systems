@@ -24,7 +24,7 @@ struct ump_msg
  * `chan` will then be initialized with type `struct ump_msg*`, pointing
  * to the according stack location.
  */
-#define DECLARE_MESSAGE(chan, msg_name) uint64_t _temp_##msg_name[1 + ump_chan_get_data_len(&chan)]; \
+#define DECLARE_MESSAGE(chan, msg_name) uint64_t _temp_##msg_name[1 + ump_chan_get_data_len(&(chan))]; \
     struct ump_msg *msg_name = (struct ump_msg *) &_temp_##msg_name;
 
 /* static_assert(sizeof(struct ump_msg) == UMP_MSG_SIZE, "ump_msg needs to be 64 bytes"); */
@@ -64,6 +64,7 @@ bool ump_chan_can_receive(struct ump_chan *chan);
 bool ump_chan_poll_once(struct ump_chan *chan, struct ump_msg *recv);
 
 errval_t ump_chan_register_recv(struct ump_chan *chan, struct waitset *ws, struct event_closure closure);
+errval_t ump_chan_deregister_recv(struct ump_chan *chan);
 
 
 

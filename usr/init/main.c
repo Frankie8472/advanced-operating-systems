@@ -275,6 +275,7 @@ static int bsp_main(int argc, char *argv[])
     }
 
 
+    spawn_new_core(1);
 
 
     /*struct capref lmp_ep;
@@ -332,6 +333,8 @@ static int bsp_main(int argc, char *argv[])
     debug_printf("got stdin from josh!\n");
     aos_rpc_call(&term_si->disp_rpc, DISP_IFACE_SET_STDOUT, josh_in);
 
+
+
     //struct aos_rpc *josh_rpc = &josh_si->disp_rpc;
 
     /*aos_rpc_set_interface(josh_rpc, get_dispatcher_interface(), DISP_IFACE_N_FUNCTIONS, malloc(DISP_IFACE_N_FUNCTIONS * sizeof(void *)));
@@ -370,9 +373,14 @@ static int bsp_main(int argc, char *argv[])
 
     // spawn_new_domain("nameservicetest",0,NULL,NULL,NULL_CAP,NULL_CAP,NULL);
 
+<<<<<<< HEAD
     spawn_new_core(my_core_id + 1);
     spawn_new_domain("server a",0,NULL,NULL,NULL_CAP,NULL_CAP,NULL);
     // spawn_new_domain("server b",1,NULL,NULL,NULL_CAP,NULL_CAP,NULL);
+=======
+    //spawn_new_domain("server a",0,NULL,NULL,NULL_CAP,NULL_CAP,NULL);
+    //spawn_new_domain("server b",0,NULL,NULL,NULL_CAP,NULL_CAP,NULL);
+>>>>>>> master
     // spawn_new_domain("server c",0,NULL,NULL,NULL_CAP,NULL_CAP,NULL);
     // spawn_new_domain("server d",0,NULL,NULL,NULL_CAP,NULL_CAP,NULL);
     // spawn_new_core(my_core_id + 2);

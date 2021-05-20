@@ -8,17 +8,14 @@
 
 #include "ast.h"
 #include "builtins.h"
+#include "running.h"
 
+enum shell_state current_state;
 
 struct josh_line *parsed_line;
 
-struct aos_datachan process_chan;
-struct aos_datachan processin_chan;
-struct aos_rpc *process_rpc;
 
-void process_running(void);
-
-static void spawn_program(const char *name, struct array_list *args)
+static errval_t call_spawn_request(const char *name, struct array_list *args, struct array_list *envp, struct running_program *prog)
 {
     errval_t err;
     size_t bytes_needed = sizeof(struct spawn_request_header);
@@ -57,106 +54,76 @@ static void spawn_program(const char *name, struct array_list *args)
     struct lmp_endpoint *lmp_ep;
     struct capref lmp_ep_cap;
     err = endpoint_create(LMP_RECV_LENGTH * 8, &lmp_ep_cap, &lmp_ep);
-    ON_ERR_NO_RETURN(err);
+    ON_ERR_RETURN(err);
 
     struct aos_rpc *init_rpc = get_init_rpc();
     uintptr_t pid;
     err = aos_rpc_call(init_rpc, INIT_IFACE_SPAWN_EXTENDED, bytes, 0, lmp_ep_cap, &pid);
+
+    free(data); // not needed anymore
+
     if (err_is_fail(err)) {
-        printf("failed to call init\n");
-        goto free_resources;
+        debug_printf("failed to call init\n");
+
+        lmp_endpoint_free(lmp_ep);
+        cap_destroy(lmp_ep_cap);
+        return LIB_ERR_RPC_NOT_CONNECTED;
     }
 
     if (pid == -1) {
-        printf("command not found '%s'\n", name);
-        goto free_resources;
+        lmp_endpoint_free(lmp_ep);
+        cap_destroy(lmp_ep_cap);
+        return SPAWN_ERR_FIND_MODULE;
     }
 
-    aos_dc_init(&process_chan, 1024);
-    aos_dc_init(&processin_chan, 1024);
-    endpoint_create(LMP_RECV_LENGTH * 64, &process_chan.channel.lmp.local_cap, &process_chan.channel.lmp.endpoint);
-
-    void haendl(struct aos_rpc *r, struct capref ep, struct capref stdinep, struct capref *stdoutep) {
-        debug_printf("handle!\n");
-        r->channel.lmp.remote_cap = ep;
-        processin_chan.channel.lmp.remote_cap = stdinep;
-        *stdoutep = process_chan.channel.lmp.local_cap;
-        //*stdoutep = stdout_chan.channel.lmp.remote_cap;
+    err = aos_rpc_init_lmp(&prog->process_disprpc, lmp_ep_cap, NULL_CAP, lmp_ep, get_default_waitset());
+    if (err_is_fail(err)) {
+        lmp_endpoint_free(lmp_ep);
+        cap_destroy(lmp_ep_cap);
+        return err;
     }
 
-    struct aos_rpc rpc;
-    process_rpc = &rpc;
-    aos_rpc_init_lmp(&rpc, lmp_ep_cap, NULL_CAP, lmp_ep, get_default_waitset());
-    aos_rpc_set_interface(&rpc, get_dispatcher_interface(), DISP_IFACE_N_FUNCTIONS, malloc(DISP_IFACE_N_FUNCTIONS * sizeof (void *)));
-    aos_rpc_register_handler(&rpc, DISP_IFACE_BINDING, haendl);
-    //struct capref otherep;
-
-    while(capref_is_null(rpc.channel.lmp.remote_cap)) {
-        err = event_dispatch(get_default_waitset());
-    }
-
-    process_running();
-
-    printf("\n");
-
-free_resources:
-    lmp_endpoint_free(lmp_ep);
-    cap_destroy(lmp_ep_cap);
-
-    free(data);
+    return SYS_ERR_OK;
 }
 
-
-void on_process_input(void *arg) {
-    struct lmp_endpoint *ep = arg;
+static void spawn_program(const char *name, struct array_list *args)
+{
     errval_t err;
+    struct running_program program;
 
-    char buffer[1024];
-    size_t recvd;
-    do {
-        err = aos_dc_receive_available(&process_chan, sizeof buffer, buffer, &recvd);
-        if (recvd > 0)
-            err = aos_dc_send(&stdout_chan, recvd, buffer);
-    } while(recvd > 0);
-
-    if (aos_dc_is_closed(&process_chan)) {
+    err = call_spawn_request(name, args, NULL, &program);
+    if (err == SPAWN_ERR_FIND_MODULE) {
+        printf("no module with name '%s' found\n", name);
         return;
     }
 
-    lmp_endpoint_register(ep, get_default_waitset(), MKCLOSURE(on_process_input, arg));
-}
+    aos_dc_init_lmp(&program.process_in, 1024);
+    aos_dc_init_lmp(&program.process_out, 1024);
+    endpoint_create(LMP_RECV_LENGTH * 64, &program.process_out.channel.lmp.local_cap, &program.process_out.channel.lmp.endpoint);
 
-void on_console_input(void *arg) {
-    struct lmp_endpoint *ep = arg;
-    errval_t err;
+    void haendl(struct aos_rpc *r, struct capref ep, struct capref stdinep, struct capref *stdoutep) {
+        r->channel.lmp.remote_cap = ep;
+        program.process_in.channel.lmp.remote_cap = stdinep;
+        *stdoutep = program.process_out.channel.lmp.local_cap;
+    }
 
-    char buffer[1024];
-    size_t recvd;
-    do {
-        err = aos_dc_receive_available(&stdin_chan, sizeof buffer, buffer, &recvd);
-        if (recvd > 0) {
-            if (buffer[0] == 3) {
-                aos_rpc_call(process_rpc, DISP_IFACE_TERMINATE);
-            }
-            else {
-                err = aos_dc_send(&processin_chan, recvd, buffer);
-            }
-        }
-    } while(recvd > 0);
+    struct aos_rpc *rpc = &program.process_disprpc;
+    aos_rpc_set_interface(rpc, get_dispatcher_interface(), DISP_IFACE_N_FUNCTIONS, malloc(DISP_IFACE_N_FUNCTIONS * sizeof (void *)));
+    aos_rpc_register_handler(rpc, DISP_IFACE_BINDING, haendl);
+    
+    //struct capref otherep;
 
-    lmp_endpoint_register(ep, get_default_waitset(), MKCLOSURE(on_console_input, arg));
-}
-
-
-void process_running(void)
-{
-    lmp_endpoint_register(process_chan.channel.lmp.endpoint, get_default_waitset(), MKCLOSURE(on_process_input, process_chan.channel.lmp.endpoint));
-    lmp_endpoint_register(stdin_chan.channel.lmp.endpoint, get_default_waitset(), MKCLOSURE(on_console_input, stdin_chan.channel.lmp.endpoint));
-    errval_t err;
-    while(!aos_dc_is_closed(&process_chan)) {
+    while(capref_is_null(rpc->channel.lmp.remote_cap)) {
         err = event_dispatch(get_default_waitset());
     }
+
+    process_running(&program);
+
+    aos_dc_free(&program.process_in);
+    aos_dc_free(&program.process_out);
+    printf("\n");
 }
+
 
 
 static void execute_command(struct josh_line *line)
@@ -165,10 +132,7 @@ static void execute_command(struct josh_line *line)
         run_builtin(line);
     }
     else {
-
         spawn_program(line->cmd, &line->args);
-
-        //printf("unknown command: %s\n", line->cmd);
     }
 }
 

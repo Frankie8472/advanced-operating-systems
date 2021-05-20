@@ -75,6 +75,7 @@ errval_t remove_process_by_pid(struct aos_rpc* rpc, domainid_t pid){
     if(pl.head -> pid == pid && rpc == pl.head -> rpc){
         temp = pl.head;
         pl.head = pl.head -> next;
+        pl.size--;
         free(temp);
         return SYS_ERR_OK;
     }
@@ -86,6 +87,7 @@ errval_t remove_process_by_pid(struct aos_rpc* rpc, domainid_t pid){
             if(temp == pl.tail){
                 pl.tail = curr;
             }
+            pl.size--;
             free(temp);
             return SYS_ERR_OK;
         }

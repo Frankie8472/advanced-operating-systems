@@ -1,4 +1,8 @@
 #include "builtins.h"
+#include "format.h"
+
+#include <aos/aos_rpc.h>
+#include <aos/default_interfaces.h>
 
 struct builtin
 {
@@ -73,6 +77,29 @@ int handle_env(struct josh_line *line)
 
 int handle_nslist(struct josh_line *line)
 {
-    printf("list of services here\n");
+    errval_t err;
+    size_t pid_count;
+    domainid_t *pids;
+    err = aos_rpc_process_get_all_pids(get_ns_rpc(), &pids, &pid_count);
+
+    if (err_is_fail(err)) {
+        printf("error querying nameserver\n");
+        return 1;
+    }
+
+    printf(JF_BOLD "%-9s %-32s\n" JF_RESET, "PID", "Name");
+    for (size_t i = 0; i < pid_count; i++) {
+        char *pname;
+        err = aos_rpc_process_get_name(get_ns_rpc(), pids[i], &pname);
+        if (err_is_ok(err)) {
+            printf("%-9"PRIuDOMAINID" %-32s\n", pids[i], pname);
+        }
+        else {
+            printf("error querying process name\n");
+        }
+
+        free(pname);
+    }
+    free(pids);
     return 0;
 }
