@@ -700,6 +700,25 @@ int main(int argc, char *argv[]) {
     if (err_is_fail(err)) {
         return err;
     }
+
+    // initialize region-manager for send-queue
+    st->send_qstate = malloc(sizeof(struct enet_qstate));
+    err = init_enet_qstate(st->txq, st->send_qstate);
+    for (int i = 0; i < st->txq->size - 1; i++) {
+        struct devq_buf *curb = malloc(sizeof(struct devq_buf));
+        curb->rid = rid;
+        curb->offset = i * 2048;
+        curb->length = 2048;
+        curb->valid_data = 0;
+        curb->valid_length = 2048;
+        curb->flags = 0;
+
+        struct dev_list *curn = malloc(sizeof(struct dev_list));
+        curn->cur = curb;
+
+        qstate_append_free(st->send_qstate, curn);
+    }
+
     struct devq_buf buf;
     while(true) {
         err = devq_dequeue((struct devq*) st->rxq, &buf.rid, &buf.offset,

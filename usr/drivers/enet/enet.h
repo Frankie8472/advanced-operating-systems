@@ -28,6 +28,7 @@ void inline ENET_DEBUG_UI32_AS_IP(char *msg, uint32_t ip) {}
 #endif
 
 #define STATIC_ENET_IP 0x0a000201  // ip address of enet interface -> 10.0.2.1
+/* #define STATIC_ENET_IP 0xC0A80101  // ip address of enet interface -> 192.168.1.1 */
 
 #define ENET_PROMISC
 
@@ -110,6 +111,7 @@ struct enet_driver_state {
     struct capref tx_mem;  // send memcap
 
     collections_hash_table* arp_table;  // arp-related state
+    struct enet_qstate* send_qstate;  // regionman for send-queue
 };
 
 #define ENET_HASH_BITS 6

@@ -19,6 +19,7 @@ errval_t init_enet_qstate(struct enet_queue* queue,
 
 /**
  * \brief Add a new free buffer to an enet-qstate.
+ * NOTE: susceptible to heavily reuse a small number of buffs
  * \param fr Node containing the free devq_buf to be added.
  */
 void qstate_append_free(struct enet_qstate* qs,
@@ -28,7 +29,9 @@ void qstate_append_free(struct enet_qstate* qs,
 }
 
 /**
- * \brief DO NOT USE -> ignores incoming packets.
+ * \brief Dequeues as many buffers as it can.
+ * NOTE: the 'content' of the buffers is completely ignored.
+ * DO NOT USE THIS FOR THE RECEIVE QUEUE!!!! only for the send queue
  */
 errval_t dequeue_bufs(struct enet_qstate* qs) {
     struct devq_buf buf;
