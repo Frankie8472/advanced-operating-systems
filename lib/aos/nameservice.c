@@ -5,6 +5,7 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <ctype.h>
+#include <regex.h>
 #include <aos/aos.h>
 #include <aos/waitset.h>
 #include <aos/nameserver.h>
@@ -12,11 +13,11 @@
 #include <stdarg.h>
 #include <aos/default_interfaces.h>
 
-
 #include <hashtable/hashtable.h>
 
 static void *get_opaque_server_rpc_handlers[OS_IFACE_N_FUNCTIONS];
 // * server_table = create_hashtable();
+
 
 
 
@@ -100,7 +101,7 @@ errval_t nameservice_register(const char *name,
 	                              void *st)
 {	
 	
-	return nameservice_register_properties(name,recv_handler,st,false,NULL);
+	return nameservice_register_properties(name,recv_handler,st,false,"type=default");
 }
 
 
@@ -110,8 +111,12 @@ errval_t nameservice_register_properties(const char * name,nameservice_receive_h
 	errval_t err;
 
 
+	
+
+
 	char* server_data;
 	err = serialize(name,properties,&server_data);
+	// debug_printf("Here!\n");
 	ON_ERR_RETURN(err);
 	// create and add srv_entry
 	struct srv_entry* new_srv_entry = (struct srv_entry *) malloc(sizeof(struct srv_entry));
@@ -128,6 +133,7 @@ errval_t nameservice_register_properties(const char * name,nameservice_receive_h
 		err = create_lmp_server_ep(&server_ep,&new_rpc);
 	}
 	ON_ERR_RETURN(err);
+
 
 	char buf[512];
 	err = aos_rpc_call(get_init_rpc(),INIT_REG_SERVER,disp_get_domain_id(),disp_get_core_id(),server_data,server_ep,buf);
@@ -284,10 +290,27 @@ errval_t nameservice_lookup(const char *name, nameservice_chan_t *nschan)
  * @param num 		number of entries in the result array
  * @param result	an array of entries
  */
+//NOTE: will buffer overflow if buffer pass in result not large enough!
 errval_t nameservice_enumerate(char *query, size_t *num, char **result )
 {	
 
-	return LIB_ERR_NOT_IMPLEMENTED;
+	errval_t err;
+	char * response = malloc(1024 * sizeof(char)); 
+	err = aos_rpc_call(get_ns_rpc(),NS_ENUM_SERVERS,query,response,num);
+	ON_ERR_RETURN(err);
+	size_t res_index = 1;
+	*result = response;
+	while(*response != '\0'){
+
+		if(*response == ','){
+			*response = '\0';
+			response++;
+			result[res_index] = response;
+			res_index++;
+		}
+		response++;
+	}
+	return SYS_ERR_OK;
 }
 
 
@@ -335,6 +358,10 @@ errval_t get_properties_size(char * properties,size_t * size){
 errval_t serialize(const char * name, const char * properties,char** ret_server_data){	
 
 	errval_t err;
+	if(properties == NULL){
+		return LIB_ERR_NAMESERVICE_INVALID_PROPERTY_FORMAT;
+	}
+	// TODO REGEX HERE
 	char* trimmed_name = (char * ) malloc(strlen(name)); 
 	char * trimmed_prop = (char * ) malloc(strlen(properties)); 
 	remove_spaces(trimmed_name,name);
@@ -349,8 +376,6 @@ errval_t serialize(const char * name, const char * properties,char** ret_server_
 		return LIB_ERR_NOT_IMPLEMENTED;
 	}
 
-	// if()
-	// TODO: Regex check
 	if(properties == NULL){
 		*ret_server_data = (char * ) malloc(6 + strlen(trimmed_name));
 		strcpy(*ret_server_data,"name=");
@@ -358,6 +383,8 @@ errval_t serialize(const char * name, const char * properties,char** ret_server_
 		debug_printf("Here is output: %s\n",*ret_server_data);
 		return SYS_ERR_OK;
 	}
+	// if()
+	// TODO: Regex check
 	size_t output_size = strlen(trimmed_name) + strlen(trimmed_prop) + 7;
 	*ret_server_data = (char * ) malloc(output_size);
 	strcpy(*ret_server_data,"name=");
@@ -384,7 +411,7 @@ errval_t deserialize_prop(const char * server_data,char *  key[],char *  value[]
 	bool is_name = false;
 	size_t name_index = 0;
 
-	char * extract_name = (char * ) malloc(512);
+	char * extract_name = (char * ) malloc(PROPERTY_MAX_SIZE);
 	while(*server_data != ','){
 		if(*server_data == '='){
 			is_name = true;
@@ -403,8 +430,9 @@ errval_t deserialize_prop(const char * server_data,char *  key[],char *  value[]
 	*name = (char*) realloc(extract_name,name_index);
 	server_data++;
 
-	char * key_res = (char *) malloc(512);
-	char * value_res = (char *) malloc(512);
+	if(strlen(server_data ) == 0){return SYS_ERR_OK;}
+	char * key_res = (char *) malloc(PROPERTY_MAX_SIZE);
+	char * value_res = (char *) malloc(PROPERTY_MAX_SIZE);
 
 
 	while(true){
@@ -415,7 +443,7 @@ errval_t deserialize_prop(const char * server_data,char *  key[],char *  value[]
 				// key[map_index] = (char*) realloc(key_res,key_index);
 				key[map_index] = key_res;
 				// debug_printf("0x%lx -> %s\n",key_res,key[map_index]);
-				key_res = malloc(512);
+				key_res = malloc(PROPERTY_MAX_SIZE);
 				is_key=false;
 				key_index = 0;
 				server_data++;
@@ -428,7 +456,7 @@ errval_t deserialize_prop(const char * server_data,char *  key[],char *  value[]
 				*(value_res + (value_index++)) = '\0';
 				// key[map_index++] = (char*) realloc(value_res,value_index);
 				value[map_index++] = value_res;
-				value_res = malloc(512);
+				value_res = malloc(PROPERTY_MAX_SIZE);
 				value_index = 0;
 				is_key=true;
 				if(*server_data == '\0'){return SYS_ERR_OK;}
@@ -450,4 +478,17 @@ errval_t deserialize_prop(const char * server_data,char *  key[],char *  value[]
 
 void init_server_handlers(struct aos_rpc* server_rpc){
 	aos_rpc_register_handler(server_rpc,OS_IFACE_MESSAGE,&nameservice_reveice_handler_wrapper);
+}
+
+
+
+
+
+bool name_check(const char*name){
+	// regex_t regex_name;
+	// regex_name = 1;
+	// int reti_name = regcomp(&regex_name,"^/([a-z]|[A-Z])+([a-z]|[A-Z]|[0-9])*(/([a-z]|[A-Z])+([a-z]|[A-Z]|[0-9])*)*$",REG_EXTENDED);
+	// reti_name = regexec(&regex_name,name,0,NULL,0);
+	// return !reti_name;
+	return true;
 }

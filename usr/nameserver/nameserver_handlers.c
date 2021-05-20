@@ -11,6 +11,7 @@
 
 void *name_server_rpc_handlers[NS_IFACE_N_FUNCTIONS];
 
+
 void initialize_ns_handlers(struct aos_rpc * init_rpc){
     aos_rpc_register_handler(init_rpc,INIT_REG_NAMESERVER,&handle_reg_proc);
     aos_rpc_register_handler(init_rpc,INIT_REG_SERVER,&handle_server_request);
@@ -25,6 +26,7 @@ void initialize_nameservice_handlers(struct aos_rpc *ns_rpc){
     aos_rpc_register_handler(ns_rpc,NS_DEREG_PROCESS,&handle_dereg_process);
 
     aos_rpc_register_handler(ns_rpc,NS_DEREG_SERVER,&handle_dereg_server);
+    aos_rpc_register_handler(ns_rpc,NS_ENUM_SERVERS,&handle_enum_servers);
 }
 
 void handle_server_lookup(struct aos_rpc *rpc, char *name,uintptr_t* core_id,uintptr_t *ump,struct capref* server_ep_cap){
@@ -55,19 +57,13 @@ void handle_server_request(struct aos_rpc * rpc, uintptr_t pid, uintptr_t core_i
     // struct capref new_server_ep_cap;
 
     // serve
-    const char* serv_name;
-    err  = deserialize_prop(server_data,new_server -> key,new_server -> value,(char**)&serv_name);
+    char* serv_name = (char *) malloc(SERVER_NAME_SIZE * sizeof(char));
+    err  = deserialize_prop(server_data,new_server -> key,new_server -> value,(char**) &serv_name);
     if(err_is_fail(err)){
         DEBUG_ERR(err,"Failed to deserialize sever request\n");
     }
 
 
-    if(!verify_name(serv_name)){
-        return_message = "Invalid name!\n";
-        free(new_server);
-        return;
-    }
-    // err = find_server_by_name(new_server,)
     struct capability cap;
     err = invoke_cap_identify(server_ep_cap,&cap);
     // ON_ERR_RETURN(err);
@@ -80,12 +76,12 @@ void handle_server_request(struct aos_rpc * rpc, uintptr_t pid, uintptr_t core_i
     }
 
     new_server -> next = NULL;
-    new_server -> name = serv_name;
+    strcpy(new_server -> name,serv_name);
     new_server -> pid = pid; 
     new_server -> core_id = core_id;
     new_server -> ump = ump;
 
-
+    free(serv_name);
 
     err = slot_alloc(&new_server -> end_point);
     if(err_is_fail(err)){
@@ -134,6 +130,13 @@ void handle_dereg_server(struct aos_rpc *rpc, const char* name, uintptr_t* succe
     
 }
 
+
+void handle_enum_servers(struct aos_rpc *rpc,const char* name, char * response, uintptr_t * resp_size){
+    // response = (char *) malloc(SERVER_NAME_SIZE * n_servers * sizeof(char)); //enough for all names 
+    // debug_printf("Got here 0x%lx!\n",resp_size);
+    find_servers_by_prefix(name,response,resp_size);
+    // debug_printf("Response : %s\n",response);
+}
 
 
 

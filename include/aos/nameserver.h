@@ -12,6 +12,11 @@
 
 
 
+#define PROPERTY_MAX_SIZE 512
+#define SERVER_NAME_SIZE 128
+
+
+
 
 
 typedef void* nameservice_chan_t;
@@ -111,5 +116,7 @@ errval_t deserialize_prop(const char * server_data,char *  key[],char *  value[]
 errval_t get_properties_size(char * properties,size_t * size);
 errval_t establish_init_server_con(const char* name,struct aos_rpc* server_rpc, struct capref local_cap);
 void init_server_handlers(struct aos_rpc* server_rpc);
+
+bool name_check(const char*name);
 #endif /* INCLUDE_AOS_AOS_NAMESERVICE_H_ */
 

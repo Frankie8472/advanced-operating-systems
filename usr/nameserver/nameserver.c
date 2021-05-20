@@ -15,7 +15,7 @@ int main(int argc, char *argv[])
 
 
     process = 2;
-
+    n_servers = 0;
     errval_t err;
 
     pl.head = NULL;

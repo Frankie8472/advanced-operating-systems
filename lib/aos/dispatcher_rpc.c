@@ -200,7 +200,7 @@ errval_t init_dispatcher_rpcs(void)
 
 
 errval_t init_nameserver_rpc(char * name){
-    debug_printf("Calling init ns with name ========================================================== %s\n",name);
+    // debug_printf("Calling init ns with name ========================================================== %s\n",name);
     errval_t err;
     struct aos_rpc* ns_rpc = (struct aos_rpc*) malloc(sizeof(struct aos_rpc));
     struct capref ns_cap;

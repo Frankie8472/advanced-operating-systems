@@ -123,6 +123,7 @@ static void initialize_interfaces(void)
     aos_rpc_initialize_binding(&name_server_interface,"get_pid",NS_GET_PID,0,1,AOS_RPC_WORD);
     aos_rpc_initialize_binding(&name_server_interface,"dereg server",NS_DEREG_SERVER,1,1,AOS_RPC_VARSTR,AOS_RPC_WORD);
     aos_rpc_initialize_binding(&name_server_interface,"dereg process",NS_DEREG_PROCESS,1,0,AOS_RPC_WORD);
+    aos_rpc_initialize_binding(&name_server_interface,"enumerate",NS_ENUM_SERVERS,1,2,AOS_RPC_VARSTR,AOS_RPC_VARSTR,AOS_RPC_WORD);
 
 
 

@@ -1,5 +1,5 @@
 
-sgproject "ARMv8_Base_A57x1"
+    sgproject "ARMv8_Base_A57x1"
 {
     TOP_LEVEL_COMPONENT = "ARMv8_Base_A57x1";
     ACTIVE_CONFIG_LINUX  = "default";

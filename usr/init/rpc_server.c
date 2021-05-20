@@ -167,6 +167,7 @@ void handle_getchar(struct aos_rpc *r, uintptr_t *c) {
  */
 void handle_request_ram(struct aos_rpc *r, uintptr_t size, uintptr_t alignment, struct capref *cap, uintptr_t *ret_size) {
     // debug_printf("handle_request_ram\n");
+    //TODO: error here?!
     errval_t err = ram_alloc_aligned(cap, size, alignment);
     if (err_is_fail(err)) {
         DEBUG_ERR(err, "Error in remote ram allocation!\n");
@@ -506,7 +507,12 @@ void handle_multi_hop_init(struct aos_rpc *rpc,const char* name, struct capref s
     errval_t err;
 
 
-    debug_printf("Starting init multihop stuff!\n");
+    debug_printf("Starting init multihop stuff for %s!\n",name);
+    struct routing_entry * re = (struct routing_entry *) malloc(sizeof(struct routing_entry));
+    assert(re && "Routing entry failed!\n");
+    strcpy(re -> name,(char *) name);
+
+
     struct aos_rpc * new_rpc = malloc(sizeof(struct aos_rpc));
 
     struct capref new_init_ep_cap;
@@ -517,9 +523,9 @@ void handle_multi_hop_init(struct aos_rpc *rpc,const char* name, struct capref s
     struct lmp_endpoint * lmp_ep;
     err = endpoint_create(256,&new_init_ep_cap,&lmp_ep);
     if(err_is_fail(err)){
-        DEBUG_ERR(err,"Failed to create ep in memory server\n");
+        DEBUG_ERR(err,"Failed to create ep for multihop\n");
     }
-    err = aos_rpc_init_lmp(new_rpc,new_init_ep_cap,server_ep_cap,lmp_ep, NULL);
+    err = aos_rpc_init_lmp(new_rpc,new_init_ep_cap,server_ep_cap,lmp_ep, get_default_waitset());
     if(err_is_fail(err)){
         DEBUG_ERR(err,"Failed to register waitset on rpc\n");
     }
@@ -529,15 +535,7 @@ void handle_multi_hop_init(struct aos_rpc *rpc,const char* name, struct capref s
     if(err_is_fail(err)){
         DEBUG_ERR(err,"Failed to set server interface in multi hop init\n");
     }
-
-
-    
-    struct routing_entry * re = (struct routing_entry *) malloc(sizeof(struct routing_entry));
-
-    // re -> name = name;
-    strcpy(re -> name,(char *) name);
     re -> rpc = new_rpc;
-
     add_routing_entry(re);
     *init_ep_cap = new_init_ep_cap;
 }
@@ -643,7 +641,7 @@ void add_routing_entry(struct routing_entry * re){
         routing_head = re;
     }else{
         struct routing_entry * curr = routing_head;
-        for(;curr != NULL;curr = curr -> next){}
+        for(;curr -> next != NULL;curr = curr -> next){}
         curr -> next  = re;
     }
 }
