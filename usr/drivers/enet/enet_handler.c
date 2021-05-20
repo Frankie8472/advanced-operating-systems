@@ -80,8 +80,20 @@ static errval_t arp_request_handle(struct enet_queue* q, struct devq_buf* buf,
     uint32_t *ip_src_ref = malloc(sizeof(uint32_t));
     *ip_src_ref = h->ip_src;
 
-    // save info in arp-table
-    collections_hash_insert(st->arp_table, mac_src, ip_src_ref);
+    uint32_t *stored = collections_hash_find(st->arp_table, mac_src);
+    if (stored) {
+        if (*stored != *ip_src_ref) {
+            ENET_DEBUG("updating ARP table entry\n");
+            collections_hash_delete(st->arp_table, mac_src);
+            collections_hash_insert(st->arp_table, mac_src, ip_src_ref);
+        } else {
+            ENET_DEBUG("ARP entry already stored\n");
+        }
+    } else {
+        // save info in arp-table
+        ENET_DEBUG("adding new ARP table entry\n");
+        collections_hash_insert(st->arp_table, mac_src, ip_src_ref);
+    }
 
     // TODO: prepare and send response
     return SYS_ERR_OK;
