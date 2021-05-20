@@ -38,8 +38,8 @@ static void print_arp_packet(struct arp_hdr* h) {
     ENET_DEBUG("hwlen - %d\n", h->hwlen);
     ENET_DEBUG("protolen - %d\n", h->protolen);
     ENET_DEBUG("opcode - %d\n", ntohs(h->opcode));
-    ENET_DEBUG_UI32_AS_IP("ip_src - ", ntohl(h->ip_src));
-    ENET_DEBUG_UI32_AS_IP("ip_dst - ", ntohl(h->ip_dst));
+    ENET_DEBUG_UI32_AS_IP("ip_src -", ntohl(h->ip_src));
+    ENET_DEBUG_UI32_AS_IP("ip_dst -", ntohl(h->ip_dst));
     /* ENET_DEBUG("ip_src - %d\n", ntohl(h->ip_src)); */
     /* ENET_DEBUG("ip_dst - %d\n", ntohl(h->ip_dst)); */
     ENET_DEBUG("eth_src:\n");
@@ -76,11 +76,13 @@ static inline void u64_to_eth_addr(uint64_t src, struct eth_addr* dest) {
 }
 
 static errval_t arp_request_handle(struct enet_queue* q, struct devq_buf* buf,
-                                   struct arp_hdr *h, struct enet_driver_state* st) {
+                                   struct arp_hdr *h, struct enet_driver_state* st,
+                                   lvaddr_t original_header) {
     // extract src-info
+    errval_t err;
     uint64_t mac_src = eth_addr_to_u64(&h->eth_src);
     uint32_t *ip_src_ref = malloc(sizeof(uint32_t));
-    *ip_src_ref = h->ip_src;
+    *ip_src_ref = ntohl(h->ip_src);
 
     uint32_t *stored = collections_hash_find(st->arp_table, mac_src);
     if (stored) {
@@ -97,6 +99,50 @@ static errval_t arp_request_handle(struct enet_queue* q, struct devq_buf* buf,
         collections_hash_insert(st->arp_table, mac_src, ip_src_ref);
     }
 
+    // possibly reply to it
+    if (ntohl(h->ip_dst) == STATIC_ENET_IP) {
+        ENET_DEBUG("is for me?\n");
+        ENET_DEBUG("(o--o)\n");
+        ENET_DEBUG("|    |\n");
+        ENET_DEBUG("`-><-'\n");
+
+        struct devq_buf repl;
+        err = get_free_buf(st->send_qstate, &repl);
+        if (err_is_fail(err)) {
+            ENET_DEBUG("could not get free buffer\n");
+            return err;
+        }
+
+        // write eth-header for reply
+        struct region_entry *entry = get_region(st->txq, repl.rid);
+        lvaddr_t raddr = (lvaddr_t) entry->mem.vbase + repl.offset + repl.valid_data;
+        char *ra2 = (char *) raddr;
+        char *oh2 = (char *) original_header;
+        memcpy(ra2, oh2 + 6, 6);
+        memcpy(ra2 + 6, oh2, 6);
+        memcpy(ra2 + 12, oh2 + 12, 2);
+
+        // write arp-header for reply
+        struct arp_hdr *ahr = (struct arp_hdr *) (ra2 + ETH_HLEN);
+        ahr->hwtype = h->hwtype;
+        ahr->proto = h->proto;
+        ahr->hwlen = h->hwlen;
+        ahr->protolen = h->protolen;
+        ahr->opcode = htons(ARP_OP_REP);
+        memcpy(&ahr->eth_src, &st->mac, 6);
+        ENET_DEBUG("macbac: %x\n", ahr->eth_src);
+        ahr->ip_src = htonl(STATIC_ENET_IP);
+        memcpy(&ahr->eth_dst, &h->eth_src, 6);
+        ahr->ip_dst = h->ip_src;
+
+        repl.valid_length = ETH_HLEN + ARP_HLEN;
+
+        dmb();
+
+        ENET_DEBUG("=========== SENDING REPLYYY\n");
+        enqueue_buf(st->send_qstate, &repl);
+    }
+
     // TODO: prepare and send response
     return SYS_ERR_OK;
 }
@@ -106,15 +152,19 @@ errval_t handle_ARP(struct enet_queue* q, struct devq_buf* buf,
     struct arp_hdr *header = (struct arp_hdr*) ((char *)vaddr + ETH_HLEN);
     print_arp_packet(header);
 
-    int opc = ntohs(header->opcode);
-    if (opc == 1) {
+    switch (ntohs(header->opcode)) {
+    case ARP_OP_REQ:
         ENET_DEBUG("ARP Request\n");
-        arp_request_handle(q, buf, header, st);
-    } else if (opc == 2) {
+        arp_request_handle(q, buf, header, st, vaddr);
+        break;
+    case ARP_OP_REP:
         ENET_DEBUG("ARP Reply\n");
-    } else {
+        // TODO
+        break;
+    default:
         ENET_DEBUG("Unknown ARP opcode\n");
         // TODO: add errorcode to return here maybe?
+        break;
     }
     return SYS_ERR_OK;
 }
