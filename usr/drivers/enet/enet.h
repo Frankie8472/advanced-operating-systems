@@ -17,8 +17,14 @@
 
 #if defined(ENET_DEBUG_OPTION)
 #define ENET_DEBUG(x...) debug_printf("[enet] " x);
+// print message, then the provided ip in readable format
+void inline ENET_DEBUG_UI32_AS_IP(char *msg, uint32_t ip) {
+    uint8_t *ref = (uint8_t *) &ip;
+    ENET_DEBUG("%s %u.%u.%u.%u\n", msg, ref[3], ref[2], ref[1], ref[0]);
+}
 #else
 #define ENET_DEBUG(fmt, ...) ((void)0)
+void inline ENET_DEBUG_UI32_AS_IP(char *msg, uint32_t ip) {}
 #endif
 
 

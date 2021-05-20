@@ -38,8 +38,10 @@ static void print_arp_packet(struct arp_hdr* h) {
     ENET_DEBUG("hwlen - %d\n", h->hwlen);
     ENET_DEBUG("protolen - %d\n", h->protolen);
     ENET_DEBUG("opcode - %d\n", ntohs(h->opcode));
-    ENET_DEBUG("ip_src - %d\n", ntohl(h->ip_src));
-    ENET_DEBUG("ip_dst - %d\n", ntohl(h->ip_dst));
+    ENET_DEBUG_UI32_AS_IP("ip_src - ", ntohl(h->ip_src));
+    ENET_DEBUG_UI32_AS_IP("ip_dst - ", ntohl(h->ip_dst));
+    /* ENET_DEBUG("ip_src - %d\n", ntohl(h->ip_src)); */
+    /* ENET_DEBUG("ip_dst - %d\n", ntohl(h->ip_dst)); */
     ENET_DEBUG("eth_src:\n");
     for (int i = 0; i < 6; i++)
         ENET_DEBUG("%d: %x\n", i, h->eth_src.addr[i]);
