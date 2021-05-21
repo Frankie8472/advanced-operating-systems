@@ -10,6 +10,7 @@
 #include <driverkit/driverkit.h>
 #include <dev/imx8x/enet_dev.h>
 #include <netutil/etharp.h>
+#include <netutil/ip.h>
 #include <netutil/htons.h>
 
 #include <collections/hash_table.h>
@@ -169,6 +170,11 @@ errval_t handle_ARP(struct enet_queue* q, struct devq_buf* buf,
     return SYS_ERR_OK;
 }
 
+errval_t handle_IP(struct enet_queue* q, struct devq_buf* buf,
+                   lvaddr_t vaddr, struct enet_driver_state* st) {
+    return SYS_ERR_OK;
+}
+
 errval_t handle_packet(struct enet_queue* q, struct devq_buf* buf,
                        struct enet_driver_state* st) {
     ENET_DEBUG("handling new packet\n");
@@ -185,6 +191,7 @@ errval_t handle_packet(struct enet_queue* q, struct devq_buf* buf,
         break;
     case ETH_TYPE_IP:
         ENET_DEBUG("Got an IP packet!\n");
+        handle_IP(q, buf, vaddr, st);
         break;
     default:
         ENET_DEBUG("Packet of unknown type!\n");
