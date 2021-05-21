@@ -14,6 +14,7 @@
 %start line
 
 %token <token> SEMICOLON
+%token <token> DOUBLE_QUOT
 %token <string> STRING
 %type <line> part_line
 %type <line> line

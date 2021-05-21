@@ -121,6 +121,7 @@ static void spawn_program(const char *name, struct array_list *args)
 
     aos_dc_free(&program.process_in);
     aos_dc_free(&program.process_out);
+    aos_rpc_free(&program.process_disprpc);
     printf("\n");
 }
 
@@ -136,7 +137,6 @@ static void execute_command(struct josh_line *line)
     }
 }
 
-
 static void process_line(void) {
     char *line = linenoise(getenv("PROMPT"));
 
@@ -147,9 +147,10 @@ static void process_line(void) {
     linenoiseHistoryAdd(line);
 
     //debug_printf("we got line: %s\n", line);
+    yylex_destroy(); // reset parser
     yy_scan_string(line);
     int errval = yyparse();
-    if (errval == 0) {
+    if (errval == 0 && parsed_line != NULL) {
         execute_command(parsed_line);
         josh_line_free(parsed_line);
         parsed_line = NULL;
@@ -159,6 +160,13 @@ static void process_line(void) {
     }
     linenoiseFree(line);
 }
+
+
+static void complete_line(const char *line, linenoiseCompletions *completions)
+{
+    completions->len = 0;
+}
+
 
 int main(int argc, char **argv)
 {
@@ -174,6 +182,7 @@ int main(int argc, char **argv)
 
 
     linenoiseHistorySetMaxLen(64);
+    linenoiseSetCompletionCallback(&complete_line);
 
     while(true) {
         process_line();
@@ -182,12 +191,4 @@ int main(int argc, char **argv)
     //print_prompt();
 
     //lmp_chan_register_recv(&stdin_chan.channel.lmp, get_default_waitset(), MKCLOSURE(on_input, &stdin_chan));
-
-    while (true) {
-        err = event_dispatch(default_ws);
-        if (err_is_fail(err)) {
-            DEBUG_ERR(err, "in event_dispatch");
-            abort();
-        }
-    }
 }

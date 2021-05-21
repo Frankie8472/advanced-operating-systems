@@ -50,7 +50,8 @@ extern int yydebug;
   enum yytokentype
   {
     SEMICOLON = 258,
-    STRING = 259
+    DOUBLE_QUOT = 259,
+    STRING = 260
   };
 #endif
 
@@ -64,7 +65,7 @@ union YYSTYPE
     char *string;
     struct josh_line *line;
 
-#line 68 "josh.tab.h"
+#line 69 "josh.tab.h"
 
 };
 typedef union YYSTYPE YYSTYPE;

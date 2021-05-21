@@ -1009,6 +1009,7 @@ void aos_rpc_on_lmp_message(void *arg)
         return;
     }
     else if (err == LIB_ERR_NO_LMP_MSG) {
+        debug_printf("LIB_ERR_NO_LMP_MSG\n");
         err = lmp_chan_register_recv(channel, rpc->waitset ? : get_default_waitset(), MKCLOSURE(&aos_rpc_on_lmp_message, arg));
         return;
     }
@@ -1313,7 +1314,7 @@ static errval_t aos_rpc_unmarshall_retval_aarch64(struct aos_rpc *rpc, void **re
 static errval_t aos_rpc_unmarshall_lmp_aarch64(struct aos_rpc *rpc, void *handler, struct aos_rpc_function_binding *binding,
                                                struct lmp_msg_info *lmi)
 {
-    //debug_printf("words: %ld %ld %ld %ld\n", msg->words[0], msg->words[1], msg->words[2], msg->words[3]);
+    //debug_printf("words: %ld %ld %ld %ld\n", lmi->msg.words[0], lmi->msg.words[1], lmi->msg.words[2], lmi->msg.words[3]);
     //debug_printf("rpc = %p\n", rpc);
     struct lmp_chan *lc = &rpc->channel.lmp;
     
