@@ -56,7 +56,10 @@ void libc_exit(int status)
     debug_printf("libc exit NYI!\n");
 
     // close stdout
-    aos_dc_close(&stdout_chan);
+    err = aos_dc_close(&stdout_chan);
+    if(err_is_fail(err)){
+        DEBUG_ERR(err,"Failed to close stdout\n");
+    }
 
 
     thread_exit(status);

@@ -10,8 +10,9 @@
 void initialize_ns_handlers(struct aos_rpc * init_rpc);
 void initialize_nameservice_handlers(struct aos_rpc *ns_rpc);
 
-void handle_server_request(struct aos_rpc * rpc, uintptr_t pid, uintptr_t core_id ,const char* server_data, struct capref server_ep_cap, const char * return_message);
-void handle_server_lookup(struct aos_rpc *rpc, char *name,uintptr_t* core_id,uintptr_t *ump,struct capref* server_ep_cap);
+void handle_server_request(struct aos_rpc * rpc, uintptr_t pid, uintptr_t core_id ,const char* server_data, uintptr_t ump, const char * return_message);
+
+void handle_server_lookup(struct aos_rpc *rpc, char *name,uintptr_t* core_id,uintptr_t *ump,uintptr_t * success);
 void handle_dereg_server(struct aos_rpc *rpc, const char* name, uintptr_t* success);
 void handle_enum_servers(struct aos_rpc *rpc,const char* name, char * response, uintptr_t * resp_size);
 #endif 

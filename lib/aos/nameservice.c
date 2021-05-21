@@ -15,6 +15,10 @@
 
 #include <hashtable/hashtable.h>
 
+
+#include <sys/cdefs.h>
+
+
 static void *get_opaque_server_rpc_handlers[OS_IFACE_N_FUNCTIONS];
 // * server_table = create_hashtable();
 
@@ -59,8 +63,6 @@ errval_t nameservice_rpc(nameservice_chan_t chan, void *message, size_t bytes,
 	struct server_connection *serv_con = (struct server_connection *) chan;
 
 
-	struct capref response_cap;
-	slot_alloc(&response_cap);
 	if(serv_con -> ump){
 		if(!capref_is_null(tx_cap) && !capref_is_null(rx_cap)){
 			debug_printf("Trying to send or recv cap over a ump server connection!(impossible to do!)\n");
@@ -68,13 +70,26 @@ errval_t nameservice_rpc(nameservice_chan_t chan, void *message, size_t bytes,
 		}
 		return LIB_ERR_NOT_IMPLEMENTED;
 	}else{
-
+		
+		
+		struct capref response_cap;
+		slot_alloc(&response_cap);
 		char * payload = (char * ) malloc(bytes + strlen(serv_con -> name) + 2);
 		strcpy(payload,serv_con -> name);
 		strcat(payload,"?");
 		strcat(payload,(char * ) message);
 		// debug_printf("Client call with core: %d message: %s\n",serv_con -> core_id,message );
-		err = aos_rpc_call(serv_con -> rpc,INIT_CLIENT_CALL,serv_con -> core_id,payload,tx_cap,(char *) *response,&response_cap);
+
+		if(capref_is_null(rx_cap) && capref_is_null(tx_cap)){ //no ret no senc cap
+			err = aos_rpc_call(serv_con -> rpc,INIT_CLIENT_CALL2,serv_con -> core_id,payload,(char *) *response);
+		}else if(capref_is_null(rx_cap)){ // no ret cap
+			err = aos_rpc_call(serv_con -> rpc,INIT_CLIENT_CALL1,serv_con -> core_id,payload,tx_cap,(char *) *response);
+		}
+		else if(capref_is_null(tx_cap)){ //no send cap
+			err = aos_rpc_call(serv_con -> rpc,INIT_CLIENT_CALL3,serv_con -> core_id,payload,(char *) *response,&response_cap);
+		}else{
+			err = aos_rpc_call(serv_con -> rpc,INIT_CLIENT_CALL,serv_con -> core_id,payload,tx_cap,(char *) *response,&response_cap);
+		}
 		ON_ERR_RETURN(err);
 		*response_bytes = strlen(*response);
 
@@ -101,7 +116,7 @@ errval_t nameservice_register(const char *name,
 	                              void *st)
 {	
 	
-	return nameservice_register_properties(name,recv_handler,st,false,"type=default");
+	return nameservice_register_properties(name,recv_handler,st,false,"mac=44:8a:5b:d3:b8:07");
 }
 
 
@@ -111,8 +126,13 @@ errval_t nameservice_register_properties(const char * name,nameservice_receive_h
 	errval_t err;
 
 
-	
+	if(!name_check(name)){
+		return LIB_ERR_NAMESERVICE_INV_SERVER_NAME;
+	}
 
+	if(!property_check(properties)){
+		return LIB_ERR_NAMESERVICE_INVALID_PROPERTY_FORMAT;
+	}
 
 	char* server_data;
 	err = serialize(name,properties,&server_data);
@@ -136,7 +156,7 @@ errval_t nameservice_register_properties(const char * name,nameservice_receive_h
 
 
 	char buf[512];
-	err = aos_rpc_call(get_init_rpc(),INIT_REG_SERVER,disp_get_domain_id(),disp_get_core_id(),server_data,server_ep,buf);
+	err = aos_rpc_call(get_init_rpc(),INIT_REG_SERVER,disp_get_domain_id(),disp_get_core_id(),server_data,ump,buf);
 	ON_ERR_RETURN(err);
 
 	if(!ump){
@@ -252,16 +272,16 @@ errval_t nameservice_lookup(const char *name, nameservice_chan_t *nschan)
 
 
 	errval_t err;
-	struct capref server_ep;
-	// err = slot_alloc(&server_ep);
-	// ON_ERR_RETURN(err);
+	bool success;
+
 	bool ump;
 	coreid_t core_id;
-	err = aos_rpc_call(get_init_rpc(),INIT_NAME_LOOKUP,name,&core_id,&ump,&server_ep);
+	err = aos_rpc_call(get_init_rpc(),INIT_NAME_LOOKUP,name,&core_id,&ump,&success);
 	ON_ERR_RETURN(err);
-	if(capref_is_null(server_ep)){
+	if(!success){
 		return LIB_ERR_NAMESERVICE_UNKNOWN_NAME;
 	}
+	// ON_ERR_RETURN(err);
 
 	struct server_connection* serv_con = (struct server_connection*) malloc(sizeof(struct server_connection));
 	const char * con_name = (const char *) malloc(sizeof(strlen(name) + 1));
@@ -295,6 +315,9 @@ errval_t nameservice_enumerate(char *query, size_t *num, char **result )
 {	
 
 	errval_t err;
+	if(!query_check(query)){
+		return LIB_ERR_NAMESERVICE_INV_QUERY;
+	}
 	char * response = malloc(1024 * sizeof(char)); 
 	err = aos_rpc_call(get_ns_rpc(),NS_ENUM_SERVERS,query,response,num);
 	ON_ERR_RETURN(err);
@@ -322,9 +345,9 @@ void nameservice_reveice_handler_wrapper(struct aos_rpc * rpc,char*  message,str
 	size_t response_bytes;
 	char * response_buffer = (char * ) malloc(1024); //TODO make varstrlarger
 	se -> recv_handler(se -> st,(void *) message,strlen(message),(void*)&response_buffer,&response_bytes,tx_cap,rx_cap);
-	debug_printf("Response in wrapper : %s\n",response_buffer);
 	strcpy(response,response_buffer);
 	// free(response_buffer);
+	debug_printf("Response in wrapper : %s\n",response_buffer);
 
 }
 
@@ -485,10 +508,26 @@ void init_server_handlers(struct aos_rpc* server_rpc){
 
 
 bool name_check(const char*name){
-	// regex_t regex_name;
-	// regex_name = 1;
-	// int reti_name = regcomp(&regex_name,"^/([a-z]|[A-Z])+([a-z]|[A-Z]|[0-9])*(/([a-z]|[A-Z])+([a-z]|[A-Z]|[0-9])*)*$",REG_EXTENDED);
-	// reti_name = regexec(&regex_name,name,0,NULL,0);
-	// return !reti_name;
-	return true;
+	regex_t regex_name;
+	int reti = regcomp(&regex_name,"^/([a-z]|[A-Z])+([a-z]|[A-Z]|[0-9])*(/([a-z]|[A-Z])+([a-z]|[A-Z]|[0-9])*)*$",REG_EXTENDED);
+	reti = regexec(&regex_name,name,0,NULL,0);
+	return !reti;
+}
+
+bool query_check(const char*query){
+	regex_t regex_name;
+	int reti_name = regcomp(&regex_name,"^/([a-z]|[A-Z])+([a-z]|[A-Z]|[0-9])*(/([a-z]|[A-Z])+([a-z]|[A-Z]|[0-9])*)*/$",REG_EXTENDED);
+	reti_name = regexec(&regex_name,query,0,NULL,0);
+	return !reti_name;
+}
+
+
+bool property_check(const char * properties){
+	regex_t regex_name;
+	int reti = regcomp(&regex_name,"^(([a-z]|[A-Z])*=([a-z]|[A-Z]|[0-9]|:|-)*)(,([a-z]|[A-Z])*=([a-z]|[A-Z]|[0-9]|:|-)*)*$",REG_EXTENDED);
+	if(reti){
+		debug_printf("Failed to compile!\n");
+	}
+	reti = regexec(&regex_name,properties,0,NULL,0);
+	return !reti;
 }

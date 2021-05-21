@@ -476,6 +476,7 @@ static errval_t aos_rpc_call_ump(struct aos_rpc *rpc, enum aos_rpc_msg_type msg_
             vals[2] = pull_word_ump(&rpc->channel.ump, response, &ret_offs);
 
             struct capability cap;
+            
             memcpy(&cap, &vals, sizeof cap);
             ret_offs += sizeof(struct capability) / sizeof(uintptr_t);
 
@@ -692,7 +693,7 @@ static errval_t aos_rpc_unmarshall_ump_simple_aarch64(struct aos_rpc *rpc, void 
             // char buf[512];
             // debug_print_cap(buf,512,&cap);
             // debug_printf("%s\n",buf);
-
+            
             err = invoke_monitor_create_cap((uint64_t *) &cap,
                                             get_cnode_addr(forged),
                                             get_cnode_level(forged),
@@ -701,6 +702,7 @@ static errval_t aos_rpc_unmarshall_ump_simple_aarch64(struct aos_rpc *rpc, void 
 
             arg[a_pos++] = (forged.cnode.croot) | (((ui) forged.cnode.cnode) << 32);
             arg[a_pos++] = (forged.cnode.level) | (((ui) forged.slot) << 32);
+            
         }
         break;
         case AOS_RPC_VARSTR: {

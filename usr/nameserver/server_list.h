@@ -14,7 +14,6 @@ struct server_list {
     char name[SERVER_NAME_SIZE];
     domainid_t pid;
     coreid_t core_id;
-    struct capref end_point;
     bool ump;
     char * key[64];
     char * value[64];

@@ -52,12 +52,20 @@ static void initialize_interfaces(void)
 
     aos_rpc_initialize_binding(&init_interface, "reg_prc", INIT_REG_NAMESERVER, 4, 1, AOS_RPC_WORD, AOS_RPC_VARSTR,AOS_RPC_CAPABILITY,AOS_RPC_WORD,AOS_RPC_CAPABILITY);
     
-    aos_rpc_initialize_binding(&init_interface, "reg_server", INIT_REG_SERVER, 4, 1,AOS_RPC_WORD,AOS_RPC_WORD, AOS_RPC_VARSTR, AOS_RPC_CAPABILITY, AOS_RPC_VARSTR);
+    aos_rpc_initialize_binding(&init_interface, "reg_server", INIT_REG_SERVER, 4, 1,AOS_RPC_WORD,AOS_RPC_WORD, AOS_RPC_VARSTR,AOS_RPC_WORD, AOS_RPC_VARSTR);
 
 
-    aos_rpc_initialize_binding(&init_interface, "lookup_server", INIT_NAME_LOOKUP, 1, 3, AOS_RPC_VARSTR,AOS_RPC_WORD,AOS_RPC_WORD, AOS_RPC_CAPABILITY);
+    aos_rpc_initialize_binding(&init_interface, "lookup_server", INIT_NAME_LOOKUP, 1, 3, AOS_RPC_VARSTR,AOS_RPC_WORD,AOS_RPC_WORD,AOS_RPC_WORD);
 
     aos_rpc_initialize_binding(&init_interface, "forward client-server rpc", INIT_CLIENT_CALL,3,2,AOS_RPC_WORD,AOS_RPC_VARSTR,AOS_RPC_CAPABILITY,AOS_RPC_VARSTR,AOS_RPC_CAPABILITY);
+
+
+    aos_rpc_initialize_binding(&init_interface, "forward client-server rpc no ret cap", INIT_CLIENT_CALL1,3,1,AOS_RPC_WORD,AOS_RPC_VARSTR,AOS_RPC_CAPABILITY,AOS_RPC_VARSTR);
+
+
+    aos_rpc_initialize_binding(&init_interface, "forward client-server rpc no send no ret cap", INIT_CLIENT_CALL2,2,1,AOS_RPC_WORD,AOS_RPC_VARSTR,AOS_RPC_VARSTR);
+
+    aos_rpc_initialize_binding(&init_interface, "forward client-server rpc no send cap", INIT_CLIENT_CALL3,2,2,AOS_RPC_WORD,AOS_RPC_VARSTR,AOS_RPC_VARSTR,AOS_RPC_CAPABILITY);
 
 
     aos_rpc_initialize_binding(&init_interface, "multi-hop-init", INIT_MULTI_HOP_CON,2,1,AOS_RPC_VARSTR,AOS_RPC_CAPABILITY,AOS_RPC_CAPABILITY);

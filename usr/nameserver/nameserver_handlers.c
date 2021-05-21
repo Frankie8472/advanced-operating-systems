@@ -29,28 +29,22 @@ void initialize_nameservice_handlers(struct aos_rpc *ns_rpc){
     aos_rpc_register_handler(ns_rpc,NS_ENUM_SERVERS,&handle_enum_servers);
 }
 
-void handle_server_lookup(struct aos_rpc *rpc, char *name,uintptr_t* core_id,uintptr_t *ump,struct capref* server_ep_cap){
+void handle_server_lookup(struct aos_rpc *rpc, char *name,uintptr_t* core_id,uintptr_t *ump,uintptr_t * success){
     debug_printf("Handling server lookup\n");
     errval_t err;
     struct server_list* server;
     err = find_server_by_name(name,&server);
     if(err_is_fail(err)){
         DEBUG_ERR(err,"Failed to find server: %s \n",name);
-        *server_ep_cap = NULL_CAP;
-        return;
+        *success = 0;
+    }else{
+        *core_id =  server -> core_id;
+        *ump  = server -> ump;
+        *success = 1;
     }
-
-    char buf[512];
-    debug_print_cap_at_capref(buf,512,server -> end_point);
-    debug_printf("|| P: %d | C: %d | N: %s | UMP: %d | EP: %s \n", server -> pid, server -> core_id, server -> name,server -> ump,buf);
-
-    *core_id =  server -> core_id;
-    *ump  = server -> ump;
-    *server_ep_cap = server -> end_point;
-
 }
 
-void handle_server_request(struct aos_rpc * rpc, uintptr_t pid, uintptr_t core_id ,const char* server_data, struct capref server_ep_cap, const char * return_message){
+void handle_server_request(struct aos_rpc * rpc, uintptr_t pid, uintptr_t core_id ,const char* server_data, uintptr_t ump, const char * return_message){
     errval_t err;
 
     struct server_list * new_server = (struct server_list * ) malloc(sizeof(struct server_list));
@@ -64,16 +58,16 @@ void handle_server_request(struct aos_rpc * rpc, uintptr_t pid, uintptr_t core_i
     }
 
 
-    struct capability cap;
-    err = invoke_cap_identify(server_ep_cap,&cap);
+    // struct capability cap;
+    // err = invoke_cap_identify(server_ep_cap,&cap);
     // ON_ERR_RETURN(err);
-    if(err_is_fail(err)){
-        DEBUG_ERR(err,"Failed to invoke cap identify on receiving server request!\n");
-    }
-    bool ump = false;
-    if(cap.type == ObjType_Frame){
-        ump = true;
-    }
+    // if(err_is_fail(err)){
+    // //     DEBUG_ERR(err,"Failed to invoke cap identify on receiving server request!\n");
+    // // }
+    // // bool ump = false;
+    // if(ump){
+    //     ump = true;
+    // }
 
     new_server -> next = NULL;
     strcpy(new_server -> name,serv_name);
@@ -83,14 +77,14 @@ void handle_server_request(struct aos_rpc * rpc, uintptr_t pid, uintptr_t core_i
 
     free(serv_name);
 
-    err = slot_alloc(&new_server -> end_point);
-    if(err_is_fail(err)){
-        DEBUG_ERR(err,"Failed to slot alloc in handler server request\n");
-    }
-    err = cap_copy(new_server -> end_point,server_ep_cap);
-    if(err_is_fail(err)){
-        DEBUG_ERR(err,"Faild cap copy in server request handler\n");
-    }
+    // err = slot_alloc(&new_server -> end_point);
+    // if(err_is_fail(err)){
+    //     DEBUG_ERR(err,"Failed to slot alloc in handler server request\n");
+    // }
+    // err = cap_copy(new_server -> end_point,server_ep_cap);
+    // if(err_is_fail(err)){
+    //     DEBUG_ERR(err,"Faild cap copy in server request handler\n");
+    // }
 
     err = add_server(new_server);
     if(err_is_fail(err)){
