@@ -122,7 +122,8 @@ extern int yydebug;
   {
     SEMICOLON = 258,
     DOUBLE_QUOT = 259,
-    STRING = 260
+    AT_SIGN = 260,
+    STRING = 261
   };
 #endif
 
@@ -136,7 +137,7 @@ union YYSTYPE
     char *string;
     struct josh_line *line;
 
-#line 140 "josh.tab.c"
+#line 141 "josh.tab.c"
 
 };
 typedef union YYSTYPE YYSTYPE;
@@ -453,21 +454,21 @@ union yyalloc
 #endif /* !YYCOPY_NEEDED */
 
 /* YYFINAL -- State number of the termination state.  */
-#define YYFINAL  4
+#define YYFINAL  7
 /* YYLAST -- Last index in YYTABLE.  */
-#define YYLAST   3
+#define YYLAST   6
 
 /* YYNTOKENS -- Number of terminals.  */
-#define YYNTOKENS  6
+#define YYNTOKENS  7
 /* YYNNTS -- Number of nonterminals.  */
-#define YYNNTS  3
+#define YYNNTS  4
 /* YYNRULES -- Number of rules.  */
-#define YYNRULES  6
+#define YYNRULES  8
 /* YYNSTATES -- Number of states.  */
-#define YYNSTATES  7
+#define YYNSTATES  11
 
 #define YYUNDEFTOK  2
-#define YYMAXUTOK   260
+#define YYMAXUTOK   261
 
 
 /* YYTRANSLATE(TOKEN-NUM) -- Symbol number corresponding to TOKEN-NUM
@@ -505,14 +506,14 @@ static const yytype_int8 yytranslate[] =
        2,     2,     2,     2,     2,     2,     2,     2,     2,     2,
        2,     2,     2,     2,     2,     2,     2,     2,     2,     2,
        2,     2,     2,     2,     2,     2,     1,     2,     3,     4,
-       5
+       5,     6
 };
 
 #if YYDEBUG
   /* YYRLINE[YYN] -- Source line where rule number YYN was defined.  */
 static const yytype_int8 yyrline[] =
 {
-       0,    25,    25,    29,    33,    38,    46
+       0,    27,    27,    31,    35,    40,    48,    56,    64
 };
 #endif
 
@@ -521,8 +522,8 @@ static const yytype_int8 yyrline[] =
    First, the terminals, then, starting at YYNTOKENS, nonterminals.  */
 static const char *const yytname[] =
 {
-  "$end", "error", "$undefined", "SEMICOLON", "DOUBLE_QUOT", "STRING",
-  "$accept", "line", "part_line", YY_NULLPTR
+  "$end", "error", "$undefined", "SEMICOLON", "DOUBLE_QUOT", "AT_SIGN",
+  "STRING", "$accept", "line", "part_line", "destination", YY_NULLPTR
 };
 #endif
 
@@ -531,7 +532,7 @@ static const char *const yytname[] =
    (internal) symbol number NUM (which must be that of a token).  */
 static const yytype_int16 yytoknum[] =
 {
-       0,   256,   257,   258,   259,   260
+       0,   256,   257,   258,   259,   260,   261
 };
 # endif
 
@@ -549,7 +550,8 @@ static const yytype_int16 yytoknum[] =
      STATE-NUM.  */
 static const yytype_int8 yypact[] =
 {
-      -4,    -5,     3,    -3,    -5,    -5,    -5
+      -4,    -2,    -5,     5,    -3,     0,    -5,    -5,    -5,    -5,
+      -5
 };
 
   /* YYDEFACT[STATE-NUM] -- Default reduction number in state STATE-NUM.
@@ -557,19 +559,20 @@ static const yytype_int8 yypact[] =
      means the default is an error.  */
 static const yytype_int8 yydefact[] =
 {
-       2,     5,     0,     3,     1,     4,     6
+       2,     0,     6,     0,     3,     0,     8,     1,     4,     7,
+       5
 };
 
   /* YYPGOTO[NTERM-NUM].  */
 static const yytype_int8 yypgoto[] =
 {
-      -5,    -5,    -5
+      -5,    -5,    -5,    -5
 };
 
   /* YYDEFGOTO[NTERM-NUM].  */
 static const yytype_int8 yydefgoto[] =
 {
-      -1,     2,     3
+      -1,     3,     4,     5
 };
 
   /* YYTABLE[YYPACT[STATE-NUM]] -- What to do in state STATE-NUM.  If
@@ -577,31 +580,32 @@ static const yytype_int8 yydefgoto[] =
      number is the opposite.  If YYTABLE_NINF, syntax error.  */
 static const yytype_int8 yytable[] =
 {
-       5,     1,     6,     4
+       8,     1,     2,     9,     6,     7,    10
 };
 
 static const yytype_int8 yycheck[] =
 {
-       3,     5,     5,     0
+       3,     5,     6,     6,     6,     0,     6
 };
 
   /* YYSTOS[STATE-NUM] -- The (internal number of the) accessing
      symbol of state STATE-NUM.  */
 static const yytype_int8 yystos[] =
 {
-       0,     5,     7,     8,     0,     3,     5
+       0,     5,     6,     8,     9,    10,     6,     0,     3,     6,
+       6
 };
 
   /* YYR1[YYN] -- Symbol number of symbol that rule YYN derives.  */
 static const yytype_int8 yyr1[] =
 {
-       0,     6,     7,     7,     7,     8,     8
+       0,     7,     8,     8,     8,     9,     9,     9,    10
 };
 
   /* YYR2[YYN] -- Number of symbols on the right hand side of rule YYN.  */
 static const yytype_int8 yyr2[] =
 {
-       0,     2,     0,     1,     2,     1,     2
+       0,     2,     0,     1,     2,     2,     1,     2,     2
 };
 
 
@@ -1297,31 +1301,43 @@ yyreduce:
   switch (yyn)
     {
   case 2:
-#line 25 "josh.y"
+#line 27 "josh.y"
     {
         parsed_line = NULL;
     }
-#line 1305 "josh.tab.c"
+#line 1309 "josh.tab.c"
     break;
 
   case 3:
-#line 29 "josh.y"
+#line 31 "josh.y"
               {
         parsed_line = (yyvsp[0].line);
     }
-#line 1313 "josh.tab.c"
+#line 1317 "josh.tab.c"
     break;
 
   case 4:
-#line 33 "josh.y"
+#line 35 "josh.y"
                         {
         parsed_line = (yyvsp[-1].line);
     }
-#line 1321 "josh.tab.c"
+#line 1325 "josh.tab.c"
     break;
 
   case 5:
-#line 38 "josh.y"
+#line 40 "josh.y"
+                       {
+        (yyval.line) = malloc(sizeof(struct josh_line));
+        array_list_init(&(yyval.line)->args, sizeof(char *));
+        (yyval.line)->cmd = (yyvsp[0].string);
+        (yyval.line)->destination = (yyvsp[-1].string);
+        //debug_printf("string\n");
+    }
+#line 1337 "josh.tab.c"
+    break;
+
+  case 6:
+#line 48 "josh.y"
            {
         struct josh_line *new_line = malloc(sizeof(struct josh_line));
         array_list_init(&new_line->args, sizeof(char *));
@@ -1329,21 +1345,29 @@ yyreduce:
         (yyval.line) = new_line;
         //debug_printf("string\n");
     }
-#line 1333 "josh.tab.c"
+#line 1349 "josh.tab.c"
     break;
 
-  case 6:
-#line 46 "josh.y"
+  case 7:
+#line 56 "josh.y"
                      {
         (yyval.line) = (yyvsp[-1].line);
         array_list_append(&(yyval.line)->args, &(yyvsp[0].string));
         //debug_printf("multi-string: %s\n", $2);
     }
-#line 1343 "josh.tab.c"
+#line 1359 "josh.tab.c"
+    break;
+
+  case 8:
+#line 64 "josh.y"
+                   {
+        (yyval.string) = (yyvsp[0].string);
+    }
+#line 1367 "josh.tab.c"
     break;
 
 
-#line 1347 "josh.tab.c"
+#line 1371 "josh.tab.c"
 
       default: break;
     }
@@ -1575,7 +1599,7 @@ yyreturn:
 #endif
   return yyresult;
 }
-#line 52 "josh.y"
+#line 70 "josh.y"
 
 
 int yyerror(const char *s) {

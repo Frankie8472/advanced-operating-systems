@@ -226,6 +226,20 @@ void handle_spawn(struct aos_rpc *old_rpc, const char *name, uintptr_t core_id, 
 
 void handle_spawn_extended(struct aos_rpc *rpc, struct aos_rpc_varbytes request, uintptr_t core_id, struct capref spawner_ep, uintptr_t *new_pid)
 {
+    coreid_t current_core_id = disp_get_core_id();
+    if (core_id != current_core_id) {
+        if (current_core_id != 0) {
+            // TODO
+        }
+        else {
+            struct aos_rpc* core_rpc = get_core_channel(core_id);
+            debug_printf("redir\n");
+            aos_rpc_call(core_rpc, INIT_IFACE_SPAWN_EXTENDED, request, core_id, spawner_ep, new_pid);
+            return;
+        }
+    }
+
+
     struct spawn_request_header *header = (struct spawn_request_header *) request.bytes;
     int argc = header->argc;
     char **argv = malloc(argc * sizeof(char *));

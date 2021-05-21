@@ -1011,7 +1011,6 @@ void aos_rpc_on_lmp_message(void *arg)
         return;
     }
     else if (err == LIB_ERR_NO_LMP_MSG) {
-        debug_printf("LIB_ERR_NO_LMP_MSG\n");
         err = lmp_chan_register_recv(channel, rpc->waitset ? : get_default_waitset(), MKCLOSURE(&aos_rpc_on_lmp_message, arg));
         return;
     }

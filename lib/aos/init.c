@@ -26,6 +26,7 @@
 #include <aos/morecore.h>
 #include <aos/paging.h>
 #include <aos/systime.h>
+#include <aos/io_channels.h>
 #include <barrelfish_kpi/domain_params.h>
 
 #include "threads_priv.h"
@@ -98,7 +99,7 @@ static size_t syscall_terminal_read(char * buf,size_t len)
 }
 
 
-static size_t aos_terminal_write(const char *buf, size_t len)
+size_t aos_terminal_write(const char *buf, size_t len)
 {
     errval_t err;
     if (aos_dc_send_is_connected(&stdout_chan)) {
@@ -114,7 +115,7 @@ static size_t aos_terminal_write(const char *buf, size_t len)
 }
 
 
-static size_t aos_terminal_read(char *buf, size_t len)
+size_t aos_terminal_read(char *buf, size_t len)
 {
     errval_t err;
     size_t received;

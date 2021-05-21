@@ -12,7 +12,7 @@
 %%
 
 <QUOT>"\""        { yy_pop_state(); }
-<QUOT>([^ \t\n;])+    { yylval.string = strdup(yytext); return STRING; }
+<QUOT>([^\"])+    { yylval.string = strdup(yytext); return STRING; }
 
 
 <COMMENT>"\n"     { yy_pop_state(); }
@@ -25,5 +25,6 @@
 
 [ \t\n]           ;
 ";"               return SEMICOLON;
-([^ \t\n;])+              { yylval.string = strdup(yytext); return STRING; }
+"@"               return AT_SIGN;
+([^ \t\n;@])+              { yylval.string = strdup(yytext); return STRING; }
 %%

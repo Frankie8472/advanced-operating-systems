@@ -81,6 +81,7 @@ errval_t init_dispatcher_rpcs(void)
         .slot = TASKCN_SLOT_STDOUT_EP
     };
 
+
     err = aos_rpc_set_interface(&init_rpc, get_init_interface(), INIT_IFACE_N_FUNCTIONS, init_rpc_handlers);
     ON_ERR_RETURN(err);
     err = aos_rpc_set_interface(&mm_rpc, get_memory_server_interface(), 0, NULL);
@@ -120,12 +121,6 @@ errval_t init_dispatcher_rpcs(void)
 
 
     // Setting up stdout endpoint
-    /*struct capref epcap;
-    struct lmp_endpoint *stdout_endpoint;
-
-    endpoint_create(LMP_RECV_LENGTH, &epcap, &stdout_endpoint);
-    err = aos_rpc_init_lmp(&stdout_rpc, epcap, stdout_ep_cap, stdout_endpoint, NULL);
-    err = aos_rpc_set_interface(&stdout_rpc, get_write_interface(), 0, NULL);*/
 
 
 
@@ -175,6 +170,10 @@ errval_t init_dispatcher_rpcs(void)
     struct capability stdout_cap;
     invoke_cap_identify(real_stdout_ep_cap, &stdout_cap);
     if (stdout_cap.type == ObjType_EndPointLMP) {
+        stdout_chan.channel.lmp.remote_cap = real_stdout_ep_cap;
+    }
+    else if (stdout_cap.type == ObjType_Frame) {
+        debug_printf("FRAME Stdout\n");
         stdout_chan.channel.lmp.remote_cap = real_stdout_ep_cap;
     }
     else {

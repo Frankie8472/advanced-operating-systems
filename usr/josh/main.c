@@ -15,7 +15,7 @@ enum shell_state current_state;
 struct josh_line *parsed_line;
 
 
-static errval_t call_spawn_request(const char *name, struct array_list *args, struct array_list *envp, struct running_program *prog)
+static errval_t call_spawn_request(const char *name, coreid_t core, struct array_list *args, struct array_list *envp, struct running_program *prog)
 {
     errval_t err;
     size_t bytes_needed = sizeof(struct spawn_request_header);
@@ -51,49 +51,85 @@ static errval_t call_spawn_request(const char *name, struct array_list *args, st
         .bytes = data
     };
 
-    struct lmp_endpoint *lmp_ep;
-    struct capref lmp_ep_cap;
-    err = endpoint_create(LMP_RECV_LENGTH * 8, &lmp_ep_cap, &lmp_ep);
-    ON_ERR_RETURN(err);
+
 
     struct aos_rpc *init_rpc = get_init_rpc();
     uintptr_t pid;
-    err = aos_rpc_call(init_rpc, INIT_IFACE_SPAWN_EXTENDED, bytes, 0, lmp_ep_cap, &pid);
 
-    free(data); // not needed anymore
+    if (core == disp_get_core_id()) {
 
-    if (err_is_fail(err)) {
-        debug_printf("failed to call init\n");
+        struct lmp_endpoint *lmp_ep;
+        struct capref lmp_ep_cap;
+        err = endpoint_create(LMP_RECV_LENGTH * 8, &lmp_ep_cap, &lmp_ep);
+        ON_ERR_RETURN(err);
 
-        lmp_endpoint_free(lmp_ep);
-        cap_destroy(lmp_ep_cap);
-        return LIB_ERR_RPC_NOT_CONNECTED;
+        err = aos_rpc_call(init_rpc, INIT_IFACE_SPAWN_EXTENDED, bytes, core, lmp_ep_cap, &pid);
+
+        free(data); // not needed anymore
+
+        if (err_is_fail(err)) {
+            debug_printf("failed to call init\n");
+
+            lmp_endpoint_free(lmp_ep);
+            cap_destroy(lmp_ep_cap);
+            return LIB_ERR_RPC_NOT_CONNECTED;
+        }
+
+        if (pid == -1) {
+            lmp_endpoint_free(lmp_ep);
+            cap_destroy(lmp_ep_cap);
+            return SPAWN_ERR_FIND_MODULE;
+        }
+
+        err = aos_rpc_init_lmp(&prog->process_disprpc, lmp_ep_cap, NULL_CAP, lmp_ep, get_default_waitset());
+        if (err_is_fail(err)) {
+            lmp_endpoint_free(lmp_ep);
+            cap_destroy(lmp_ep_cap);
+            return err;
+        }
+    }
+    else {
+        struct capref frame;
+        frame_alloc(&frame, BASE_PAGE_SIZE, NULL);
+        err = aos_rpc_call(init_rpc, INIT_IFACE_SPAWN_EXTENDED, bytes, core, frame, &pid);
     }
 
-    if (pid == -1) {
-        lmp_endpoint_free(lmp_ep);
-        cap_destroy(lmp_ep_cap);
-        return SPAWN_ERR_FIND_MODULE;
-    }
-
-    err = aos_rpc_init_lmp(&prog->process_disprpc, lmp_ep_cap, NULL_CAP, lmp_ep, get_default_waitset());
-    if (err_is_fail(err)) {
-        lmp_endpoint_free(lmp_ep);
-        cap_destroy(lmp_ep_cap);
-        return err;
-    }
 
     return SYS_ERR_OK;
 }
 
-static void spawn_program(const char *name, struct array_list *args)
+
+bool is_number(char *string)
+{
+    for (int i = 0; string[i] != '\0'; i++) {
+        if (!isdigit(string[i])) {
+            return false;
+        }
+    }
+    return true;
+}
+
+
+static void spawn_program(struct josh_line *line)
 {
     errval_t err;
     struct running_program program;
 
-    err = call_spawn_request(name, args, NULL, &program);
+    coreid_t destination_core = disp_get_core_id();
+    if (line->destination != NULL) {
+        if (is_number(line->destination)) {
+            int idest = atoi(line->destination);
+            destination_core = idest;
+        }
+        else {
+            printf("invalid destination '%s'\n", line->destination);
+            return;
+        }
+    }
+
+    err = call_spawn_request(line->cmd, destination_core, &line->args, NULL, &program);
     if (err == SPAWN_ERR_FIND_MODULE) {
-        printf("no module with name '%s' found\n", name);
+        printf("no module with name '%s' found\n", line->cmd);
         return;
     }
 
@@ -133,7 +169,7 @@ static void execute_command(struct josh_line *line)
         run_builtin(line);
     }
     else {
-        spawn_program(line->cmd, &line->args);
+        spawn_program(line);
     }
 }
 
@@ -170,11 +206,11 @@ static void complete_line(const char *line, linenoiseCompletions *completions)
 
 int main(int argc, char **argv)
 {
-    errval_t err;
-    struct waitset *default_ws = get_default_waitset();
-    err = event_dispatch(default_ws);
-    err = event_dispatch(default_ws);
-    err = event_dispatch(default_ws);
+    //errval_t err;
+    //struct waitset *default_ws = get_default_waitset();
+    //err = event_dispatch(default_ws);
+    //err = event_dispatch(default_ws);
+    //err = event_dispatch(default_ws);
 
     printf("Welcome to JameOS Shell\n");
 

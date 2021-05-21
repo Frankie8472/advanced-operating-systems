@@ -15,9 +15,11 @@
 
 %token <token> SEMICOLON
 %token <token> DOUBLE_QUOT
+%token <token> AT_SIGN
 %token <string> STRING
 %type <line> part_line
 %type <line> line
+%type <string> destination
 
 %%
 
@@ -35,11 +37,19 @@ line:
     };
 
 part_line:
+    destination STRING {
+        $$ = malloc(sizeof(struct josh_line));
+        array_list_init(&$$->args, sizeof(char *));
+        $$->destination = $1;
+        $$->cmd = $2;
+        //debug_printf("string\n");
+    }
+    |
     STRING {
-        struct josh_line *new_line = malloc(sizeof(struct josh_line));
-        array_list_init(&new_line->args, sizeof(char *));
-        new_line->cmd = $1;
-        $$ = new_line;
+        $$ = malloc(sizeof(struct josh_line));
+        array_list_init(&$$->args, sizeof(char *));
+        $$->destination = NULL;
+        $$->cmd = $1;
         //debug_printf("string\n");
     }
     |
@@ -49,6 +59,14 @@ part_line:
         //debug_printf("multi-string: %s\n", $2);
     }
     ;
+
+destination:
+    AT_SIGN STRING {
+        $$ = $2;
+    }
+
+
+
 %%
 
 int yyerror(const char *s) {
