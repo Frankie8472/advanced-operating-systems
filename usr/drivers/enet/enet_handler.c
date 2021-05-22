@@ -11,6 +11,7 @@
 #include <dev/imx8x/enet_dev.h>
 #include <netutil/etharp.h>
 #include <netutil/ip.h>
+#include <netutil/icmp.h>
 #include <netutil/htons.h>
 
 #include <collections/hash_table.h>
@@ -165,39 +166,60 @@ static errval_t arp_request_handle(struct enet_queue* q, struct devq_buf* buf,
 
         dmb();
 
-        ENET_DEBUG("=========== SENDING REPLYYY\n");
+        ETHARP_DEBUG("=========== SENDING REPLYYY\n");
         enqueue_buf(st->send_qstate, &repl);
     }
 
-    // TODO: prepare and send response
     return SYS_ERR_OK;
 }
 
 errval_t handle_ARP(struct enet_queue* q, struct devq_buf* buf,
                     lvaddr_t vaddr, struct enet_driver_state* st) {
-    struct arp_hdr *header = (struct arp_hdr*) ((char *)vaddr + ETH_HLEN);
+    struct arp_hdr *header = (struct arp_hdr*) ((char *) vaddr + ETH_HLEN);
     print_arp_packet(header);
 
     switch (ntohs(header->opcode)) {
     case ARP_OP_REQ:
-        ENET_DEBUG("ARP Request\n");
+        ETHARP_DEBUG("ARP Request\n");
         arp_request_handle(q, buf, header, st, vaddr);
         break;
     case ARP_OP_REP:
-        ENET_DEBUG("ARP Reply\n");
+        ETHARP_DEBUG("ARP Reply\n");
         // TODO
         break;
     default:
-        ENET_DEBUG("Unknown ARP opcode\n");
+        ETHARP_DEBUG("Unknown ARP opcode\n");
         // TODO: add errorcode to return here maybe?
         break;
     }
     return SYS_ERR_OK;
 }
 
+// TODO: error-handling, checksum
 errval_t handle_IP(struct enet_queue* q, struct devq_buf* buf,
                    lvaddr_t vaddr, struct enet_driver_state* st) {
-    return SYS_ERR_OK;
+    errval_t err = SYS_ERR_OK;
+    ENET_DEBUG("handling IP packet\n");
+    struct ip_hdr *header = (struct ip_hdr*) ((char *) vaddr + ETH_HLEN);
+    print_ip_packet(header);
+
+    // TODO
+    switch (header->proto) {
+    case IP_PROTO_ICMP:
+        break;
+    case IP_PROTO_IGMP:
+        break;
+    case IP_PROTO_UDP:
+        break;
+    case IP_PROTO_UDPLITE:
+        break;
+    case IP_PROTO_TCP:
+        break;
+    default:
+        break;
+    }
+
+    return err;
 }
 
 errval_t handle_packet(struct enet_queue* q, struct devq_buf* buf,
