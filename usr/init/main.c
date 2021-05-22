@@ -171,7 +171,23 @@ static errval_t init_foreign_core(void){
     return SYS_ERR_OK;
 }
 
+static errval_t init_sdhc_block_driver(void)
+{
+    errval_t err;
+    domainid_t pid;
+    struct spawninfo *sdhc_si;
 
+    err = spawn_new_domain("sdhc_block_driver", 0, NULL, &pid, NULL_CAP, NULL_CAP, &sdhc_si);
+
+    return err;
+}
+
+__unused
+static errval_t init_fs_fat32_driver(void)
+{
+    errval_t err;
+    return err;
+}
 
 
 
@@ -390,8 +406,8 @@ static int bsp_main(int argc, char *argv[])
     
     //run_init_tests(my_core_id);
 
-
-    
+    debug_printf(">> Start sdhc block driver\n");
+    init_sdhc_block_driver();
 
     // Grading
     grading_test_early();
