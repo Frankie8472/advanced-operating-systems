@@ -43,25 +43,31 @@ static struct region_entry* get_region(struct enet_queue* q, regionid_t rid)
     return NULL;
 }
 
+static void print_ip_packet(struct ip_hdr *ih) {
+    ENET_DEBUG("======== IP  PACKET ========\n");
+    ENET_DEBUG("version - %d\n", ih->v_hl & 0x0f);
+    ENET_DEBUG("header length - %d\n", ih->v_hl & 0xf0);
+    // TODO: tos
+    ENET_DEBUG("length - %d\n", ntohs(ih->len));
+    ENET_DEBUG("id - %d\n", ntohs(ih->id));
+    ENET_DEBUG("offset - %d\n", ntohs(ih->offset));
+    ENET_DEBUG("ttl - %d\n", ih->ttl);
+    ENET_DEBUG("protocol - %d\n", ih->proto);
+    ENET_DEBUG_UI32_AS_IP("src:", ntohl(ih->src));
+    ENET_DEBUG_UI32_AS_IP("dest:", ntohl(ih->dest));
+}
+
 static void print_arp_packet(struct arp_hdr* h) {
-    ENET_DEBUG("======== ARP PACKET ========\n");
-    ENET_DEBUG("hwtype - %d\n", ntohs(h->hwtype));
-    ENET_DEBUG("proto - %d\n", ntohs(h->proto));
-    ENET_DEBUG("hwlen - %d\n", h->hwlen);
-    ENET_DEBUG("protolen - %d\n", h->protolen);
-    ENET_DEBUG("opcode - %d\n", ntohs(h->opcode));
+    ETHARP_DEBUG("======== ARP PACKET ========\n");
+    ETHARP_DEBUG("hwtype - %d\n", ntohs(h->hwtype));
+    ETHARP_DEBUG("proto - %d\n", ntohs(h->proto));
+    ETHARP_DEBUG("hwlen - %d\n", h->hwlen);
+    ETHARP_DEBUG("protolen - %d\n", h->protolen);
+    ETHARP_DEBUG("opcode - %d\n", ntohs(h->opcode));
     ENET_DEBUG_UI32_AS_IP("ip_src -", ntohl(h->ip_src));
     ENET_DEBUG_UI32_AS_IP("ip_dst -", ntohl(h->ip_dst));
-    /* ENET_DEBUG("ip_src - %d\n", ntohl(h->ip_src)); */
-    /* ENET_DEBUG("ip_dst - %d\n", ntohl(h->ip_dst)); */
     deb_print_mac("eth_src", &h->eth_src);
     deb_print_mac("eth_dst", &h->eth_dst);
-    /* ENET_DEBUG("eth_src:\n"); */
-    /* for (int i = 0; i < 6; i++) */
-    /*     ENET_DEBUG("%d: %x\n", i, h->eth_src.addr[i]); */
-    /* ENET_DEBUG("eth_dst:\n"); */
-    /* for (int i = 0; i < 6; i++) */
-    /*     ENET_DEBUG("%d: %x\n", i, h->eth_dst.addr[i]); */
 }
 
 // TODO: make more concise with architecture in mind
@@ -101,29 +107,29 @@ static errval_t arp_request_handle(struct enet_queue* q, struct devq_buf* buf,
     uint32_t *stored = collections_hash_find(st->arp_table, mac_src);
     if (stored) {
         if (*stored != *ip_src_ref) {
-            ENET_DEBUG("updating ARP table entry\n");
+            ETHARP_DEBUG("updating ARP table entry\n");
             collections_hash_delete(st->arp_table, mac_src);
             collections_hash_insert(st->arp_table, mac_src, ip_src_ref);
         } else {
-            ENET_DEBUG("ARP entry already stored\n");
+            ETHARP_DEBUG("ARP entry already stored\n");
         }
     } else {
         // save info in arp-table
-        ENET_DEBUG("adding new ARP table entry\n");
+        ETHARP_DEBUG("adding new ARP table entry\n");
         collections_hash_insert(st->arp_table, mac_src, ip_src_ref);
     }
 
     // possibly reply to it
     if (ntohl(h->ip_dst) == STATIC_ENET_IP) {
-        ENET_DEBUG("is for me?\n");
-        ENET_DEBUG("(o--o)\n");
-        ENET_DEBUG("|    |\n");
-        ENET_DEBUG("`-><-'\n");
+        ETHARP_DEBUG("is for me?\n");
+        ETHARP_DEBUG("(o--o)\n");
+        ETHARP_DEBUG("|    |\n");
+        ETHARP_DEBUG("`-><-'\n");
 
         struct devq_buf repl;
         err = get_free_buf(st->send_qstate, &repl);
         if (err_is_fail(err)) {
-            ENET_DEBUG("could not get free buffer\n");
+            ETHARP_DEBUG("could not get free buffer\n");
             return err;
         }
 
@@ -149,7 +155,7 @@ static errval_t arp_request_handle(struct enet_queue* q, struct devq_buf* buf,
         for (int i = 0; i < 6; i++) {
             ahr->eth_src.addr[i] = macref[5 - i];
         }
-        ENET_DEBUG("IPSDF: %x\n", st->mac);
+        ETHARP_DEBUG("IPSDF: %x\n", st->mac);
         deb_print_mac("macbac", &ahr->eth_src);
         ahr->ip_src = htonl(STATIC_ENET_IP);
         memcpy(&ahr->eth_dst, &h->eth_src, 6);
