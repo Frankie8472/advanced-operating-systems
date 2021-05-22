@@ -235,7 +235,6 @@ void handle_spawn_extended(struct aos_rpc *rpc, struct aos_rpc_varbytes request,
             struct aos_rpc* core_rpc = get_core_channel(core_id);
             if (core_rpc == NULL) {
                 *new_pid = COREID_INVALID;
-                debug_printf("AASDFASDF\n");
                 return;
             }
 

@@ -82,7 +82,6 @@ static void handle_binding(struct aos_rpc *r, struct capref ep, struct capref re
 
 errval_t spawn_new_domain(const char *mod_name, int argc, char **argv, domainid_t *new_pid, struct capref spawner_ep, struct capref child_stdout_cap, struct spawninfo **ret_si)
 {
-    debug_printf("spawn_new_domain %s\n", mod_name);
     errval_t err;
     struct spawninfo *si = spawn_create_spawninfo();
     

@@ -25,7 +25,7 @@ errval_t add_process(coreid_t core_id,const char* name,domainid_t pid,struct aos
     }
     pl.size++;
 
-    print_process_list();
+    //print_process_list();
     return SYS_ERR_OK;
 };
 

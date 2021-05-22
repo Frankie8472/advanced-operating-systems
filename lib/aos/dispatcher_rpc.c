@@ -159,7 +159,6 @@ errval_t init_dispatcher_rpcs(void)
         struct capability disp_rpc_ep;
         invoke_cap_identify(dispatcher_rpc.channel.lmp.remote_cap, &disp_rpc_ep);
         if (disp_rpc_ep.type == ObjType_EndPointLMP) {
-            debug_printf("binding spawner\n");
             struct capref new_stdout;
             err = aos_rpc_call(&dispatcher_rpc, DISP_IFACE_BINDING, dispatcher_rpc.channel.lmp.local_cap, stdin_epcap, &new_stdout);
             if (!capref_is_null(new_stdout)) {

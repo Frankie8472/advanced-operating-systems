@@ -10,7 +10,7 @@ void benchmark_rpc(void);
 
 int main(int argc, char *argv[])
 {
-    debug_printf("Starting performance measurments\n");
+    printf("Starting performance measurments\n");
 
     benchmark_rpc();
 
