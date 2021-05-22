@@ -19,6 +19,17 @@
 #include "enet_regionman.h"
 #include "enet_handler.h"
 
+static void inline deb_print_mac(char *msg, struct eth_addr* mac) {
+    ENET_DEBUG("%s: %x:%x:%x:%x:%x:%x\n",
+               msg,
+               mac->addr[0],
+               mac->addr[1],
+               mac->addr[2],
+               mac->addr[3],
+               mac->addr[4],
+               mac->addr[5]);
+}
+
 // NOTE: defined in other thingy too but nis
 static struct region_entry* get_region(struct enet_queue* q, regionid_t rid)
 {
@@ -43,12 +54,14 @@ static void print_arp_packet(struct arp_hdr* h) {
     ENET_DEBUG_UI32_AS_IP("ip_dst -", ntohl(h->ip_dst));
     /* ENET_DEBUG("ip_src - %d\n", ntohl(h->ip_src)); */
     /* ENET_DEBUG("ip_dst - %d\n", ntohl(h->ip_dst)); */
-    ENET_DEBUG("eth_src:\n");
-    for (int i = 0; i < 6; i++)
-        ENET_DEBUG("%d: %x\n", i, h->eth_src.addr[i]);
-    ENET_DEBUG("eth_dst:\n");
-    for (int i = 0; i < 6; i++)
-        ENET_DEBUG("%d: %x\n", i, h->eth_dst.addr[i]);
+    deb_print_mac("eth_src", &h->eth_src);
+    deb_print_mac("eth_dst", &h->eth_dst);
+    /* ENET_DEBUG("eth_src:\n"); */
+    /* for (int i = 0; i < 6; i++) */
+    /*     ENET_DEBUG("%d: %x\n", i, h->eth_src.addr[i]); */
+    /* ENET_DEBUG("eth_dst:\n"); */
+    /* for (int i = 0; i < 6; i++) */
+    /*     ENET_DEBUG("%d: %x\n", i, h->eth_dst.addr[i]); */
 }
 
 // TODO: make more concise with architecture in mind
@@ -130,8 +143,14 @@ static errval_t arp_request_handle(struct enet_queue* q, struct devq_buf* buf,
         ahr->hwlen = h->hwlen;
         ahr->protolen = h->protolen;
         ahr->opcode = htons(ARP_OP_REP);
-        memcpy(&ahr->eth_src, &st->mac, 6);
-        ENET_DEBUG("macbac: %x\n", ahr->eth_src);
+        /* memcpy(&ahr->eth_src, &st->mac, 6); */
+        // NOTE: do I have to worry bout no/ho?
+        uint8_t* macref = (uint8_t *) &(st->mac);
+        for (int i = 0; i < 6; i++) {
+            ahr->eth_src.addr[i] = macref[5 - i];
+        }
+        ENET_DEBUG("IPSDF: %x\n", st->mac);
+        deb_print_mac("macbac", &ahr->eth_src);
         ahr->ip_src = htonl(STATIC_ENET_IP);
         memcpy(&ahr->eth_dst, &h->eth_src, 6);
         ahr->ip_dst = h->ip_src;
