@@ -218,3 +218,71 @@ errval_t spawn_lpuart_driver(const char *mod_name, struct spawninfo **ret_si)
 
     return SYS_ERR_OK;
 }
+
+errval_t spawn_sdhc_driver(const char *mod_name, struct spawninfo **ret_si)
+{
+    errval_t err;
+    struct spawninfo *si = spawn_create_spawninfo();
+
+    domainid_t *pid = &si->pid;
+    struct aos_rpc *rpc = &si->rpc;
+
+    aos_rpc_set_interface(rpc, get_init_interface(), INIT_IFACE_N_FUNCTIONS, malloc(INIT_IFACE_N_FUNCTIONS * sizeof(void *)));
+    initialize_rpc_handlers(rpc);
+
+    struct aos_rpc *disp_rpc = &si->disp_rpc;
+
+    aos_rpc_init_lmp(disp_rpc, NULL_CAP, NULL_CAP, NULL, NULL);
+    aos_rpc_set_interface(disp_rpc, get_dispatcher_interface(), DISP_IFACE_N_FUNCTIONS, malloc(DISP_IFACE_N_FUNCTIONS * sizeof(void *)));
+    aos_rpc_register_handler(disp_rpc, DISP_IFACE_BINDING, handle_binding);
+    debug_printf("disp_rpc: %p\n", disp_rpc);
+    debug_printf("handle_binding: %p\n", handle_binding);
+
+    si->spawner_ep_cap = disp_rpc->channel.lmp.local_cap;
+
+    spawn_setup_by_name((char*) mod_name, si, pid);
+
+    struct cnoderef child_taskcn = {
+        .croot = get_cap_addr(si->rootcn),
+        .cnode = ROOTCN_SLOT_ADDR(ROOTCN_SLOT_TASKCN),
+        .level = CNODE_TYPE_OTHER
+    };
+
+    struct capref dev_frame = (struct capref) {
+        .cnode = cnode_task,
+        .slot = TASKCN_SLOT_DEV
+    };
+    struct capref child_dev_frame = (struct capref) {
+        .cnode = child_taskcn,
+        .slot = TASKCN_SLOT_DEV
+    };
+    struct capref child_dev_frame2 = (struct capref) {
+        .cnode = child_taskcn,
+        .slot = TASKCN_SLOT_BOOTINFO
+    };
+
+    // write capabilities to access the sdhc driver into the child
+    size_t source_addr = get_phys_addr(dev_frame);
+    err = cap_retype(child_dev_frame, dev_frame, IMX8X_SDHC2_BASE - source_addr, ObjType_DevFrame, IMX8X_SDHC_SIZE, 1);
+    ON_ERR_PUSH_RETURN(err, LIB_ERR_CAP_RETYPE);
+
+    source_addr = get_phys_addr(dev_frame);
+    err = cap_retype(child_dev_frame2, dev_frame, IMX8X_GIC_DIST_BASE - source_addr, ObjType_DevFrame, IMX8X_GIC_DIST_SIZE, 1);
+    ON_ERR_PUSH_RETURN(err, LIB_ERR_CAP_RETYPE);
+
+    struct capref irq = (struct capref) {
+        .cnode = child_taskcn,
+        .slot = TASKCN_SLOT_IRQ
+    };
+    err = cap_copy(irq, cap_irq);
+    ON_ERR_PUSH_RETURN(err, LIB_ERR_CAP_COPY);
+
+    err = spawn_invoke_dispatcher(si);
+    ON_ERR_RETURN(err);
+
+    if (ret_si != NULL) {
+        *ret_si = si;
+    }
+
+    return SYS_ERR_OK;
+}

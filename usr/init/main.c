@@ -174,11 +174,8 @@ static errval_t init_foreign_core(void){
 static errval_t init_sdhc_block_driver(void)
 {
     errval_t err;
-    domainid_t pid;
     struct spawninfo *sdhc_si;
-
-    err = spawn_new_domain("sdhc_block_driver", 0, NULL, &pid, NULL_CAP, NULL_CAP, &sdhc_si);
-
+    err = spawn_sdhc_driver("sdhc_block_driver", &sdhc_si);
     return err;
 }
 

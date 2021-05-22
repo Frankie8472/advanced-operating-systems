@@ -52,6 +52,7 @@ static void armv8_set_registers(void *arch_load_info,
  * \param taskcn References to Level 2 CNodes to initialize.
  * \param basepagecn
  * \param pagecn
+ * \param argcn
  * \param alloc0
  * \param alloc1
  * \param alloc2
@@ -62,6 +63,7 @@ errval_t setup_c_space(struct capref cnode_l1,
                        struct cnoderef *taskcn,
                        struct cnoderef *basepagecn,
                        struct cnoderef *pagecn,
+                       struct cnoderef *argcn,
                        struct cnoderef *alloc0,
                        struct cnoderef *alloc1,
                        struct cnoderef *alloc2)
@@ -87,6 +89,9 @@ errval_t setup_c_space(struct capref cnode_l1,
 
     err = cnode_create_foreign_l2(cnode_l1, ROOTCN_SLOT_PAGECN, pagecn);
     ON_ERR_PUSH_RETURN(err, SPAWN_ERR_CREATE_PAGECN);
+
+    err = cnode_create_foreign_l2(cnode_l1, ROOTCN_SLOT_ARGCN, argcn);
+    ON_ERR_PUSH_RETURN(err, SPAWN_ERR_CREATE_ARGCN);
 
     err = cnode_create_foreign_l2(cnode_l1, ROOTCN_SLOT_SLOT_ALLOC0, alloc0);
     ON_ERR_PUSH_RETURN(err, SPAWN_ERR_CREATE_SLOTALLOC_CNODE);
@@ -120,12 +125,14 @@ errval_t spawn_setup_dispatcher(int argc, const char *const *argv, struct spawni
     struct cnoderef taskcn;
     struct cnoderef basepagecn;
     struct cnoderef pagecn;
+    struct cnoderef argcn;
 
     struct cnoderef alloc0;
     struct cnoderef alloc1;
     struct cnoderef alloc2;
 
-    err = setup_c_space(cnode_child_l1, &taskcn, &basepagecn, &pagecn, &alloc0, &alloc1, &alloc2);
+    err = setup_c_space(cnode_child_l1, &taskcn, &basepagecn, &pagecn, &argcn, &alloc0, &alloc1, &alloc2);
+    ON_ERR_RETURN(err);
 
     // endpoint to itself in child cspace
     struct capref child_ep_cap = (struct capref) {
