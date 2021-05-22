@@ -43,7 +43,7 @@ size_t aos_dc_bytes_available(struct aos_dc_ringbuffer *buf);
 
 
 errval_t aos_dc_init_lmp(struct aos_datachan *dc, size_t buffer_length);
-errval_t aos_dc_init_ump(struct aos_datachan *dc, size_t buffer_length);
+errval_t aos_dc_init_ump(struct aos_datachan *dc, size_t buffer_length, lvaddr_t ump_page, size_t ump_page_size, bool first_half);
 errval_t aos_dc_free(struct aos_datachan *dc);
 
 

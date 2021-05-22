@@ -233,7 +233,12 @@ void handle_spawn_extended(struct aos_rpc *rpc, struct aos_rpc_varbytes request,
         }
         else {
             struct aos_rpc* core_rpc = get_core_channel(core_id);
-            debug_printf("redir\n");
+            if (core_rpc == NULL) {
+                *new_pid = COREID_INVALID;
+                debug_printf("AASDFASDF\n");
+                return;
+            }
+
             aos_rpc_call(core_rpc, INIT_IFACE_SPAWN_EXTENDED, request, core_id, spawner_ep, new_pid);
             return;
         }
@@ -264,7 +269,7 @@ void handle_spawn_extended(struct aos_rpc *rpc, struct aos_rpc_varbytes request,
     domainid_t pid;
     errval_t err = spawn_new_domain(name, argc, argv, &pid, spawner_ep, NULL_CAP, NULL);
     if (err_is_fail(err)) {
-        *new_pid = -1;
+        *new_pid = MOD_NOT_FOUND;
         return;
     }
     *new_pid = pid;

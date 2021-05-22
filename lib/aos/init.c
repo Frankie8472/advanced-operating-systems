@@ -151,7 +151,7 @@ void barrelfish_libc_glue_init(void)
     // XXX: FIXME: Check whether we can use the proper kernel serial, and what we need for that
     // TODO: change these to use the user-space serial driver if possible
     // TODO: set these functions
-    if (init_domain) {
+    if (init_domain || 0) {
         _libc_terminal_read_func = syscall_terminal_read;
         _libc_terminal_write_func = syscall_terminal_write;
         _libc_exit_func = libc_exit;

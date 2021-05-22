@@ -289,7 +289,6 @@ errval_t lmp_endpoint_register(struct lmp_endpoint *ep, struct waitset *ws,
     ep->seen = ep->k.delivered;
 
     if (lmp_endpoint_can_recv(ep)) { // trigger immediately
-        // debug_printf("Got here\n");
         err = waitset_chan_trigger_closure_disabled(ws, &ep->waitset_state,
                                                     closure, handle);
     } else {

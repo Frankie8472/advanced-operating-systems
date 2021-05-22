@@ -201,7 +201,7 @@ errval_t aos_rpc_free(struct aos_rpc *rpc)
         lmp_chan_destroy(&rpc->channel.lmp);
     }
     else if (rpc->backend == AOS_RPC_UMP) {
-        // TODO: implement
+        ump_chan_destroy(&rpc->channel.ump);
     }
 
     return SYS_ERR_OK;

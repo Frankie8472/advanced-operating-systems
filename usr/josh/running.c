@@ -11,8 +11,9 @@ void on_process_input(void *arg) {
     size_t recvd;
     do {
         err = aos_dc_receive_available(&prog->process_out, sizeof buffer, buffer, &recvd);
-        if (recvd > 0)
+        if (recvd > 0) {
             err = aos_dc_send(&stdout_chan, recvd, buffer);
+        }
     } while(recvd > 0);
 
     if (aos_dc_is_closed(&prog->process_out)) {

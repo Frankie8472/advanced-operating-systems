@@ -123,73 +123,107 @@ errval_t init_dispatcher_rpcs(void)
     // Setting up stdout endpoint
 
 
+    struct capability spawner_ep;
+    invoke_cap_identify(spawner_ep_cap, &spawner_ep);
 
-    // setup stdin
-    struct capref stdin_epcap;
-    struct lmp_endpoint *stdin_endpoint;
-    err = endpoint_create(LMP_RECV_LENGTH * 8, &stdin_epcap, &stdin_endpoint);
-    err = aos_dc_init_lmp(&stdin_chan, 1024);
-    stdin_chan.channel.lmp.endpoint = stdin_endpoint;
-    stdin_chan.channel.lmp.local_cap = stdin_epcap;
-
+    if (spawner_ep.type == ObjType_EndPointLMP) {
+        // we have received an lmp spawner ep capability
+        // we proceed by initializing all spawner/io communication
+        // over lmp
 
 
-    // setting up dispatcher rpc
-    err = aos_rpc_init_lmp(&dispatcher_rpc, NULL_CAP, spawner_ep_cap, NULL, NULL);
-    if (err_is_fail(err)) {
-        DEBUG_ERR(err, "Error establishing connection with memory server! aborting!");
-        abort();
-    }
+        // setup stdin
+        struct capref stdin_epcap;
+        struct lmp_endpoint *stdin_endpoint;
+        err = endpoint_create(LMP_RECV_LENGTH * 8, &stdin_epcap, &stdin_endpoint);
+        err = aos_dc_init_lmp(&stdin_chan, 1024);
+        stdin_chan.channel.lmp.endpoint = stdin_endpoint;
+        stdin_chan.channel.lmp.local_cap = stdin_epcap;
 
-    //initialize_dispatcher_handlers(&dispatcher_rpc);
 
 
-    initialize_dispatcher_handlers(&dispatcher_rpc);
-
-    struct capref real_stdout_ep_cap = stdout_ep_cap;
-
-    struct capability disp_rpc_ep;
-    invoke_cap_identify(dispatcher_rpc.channel.lmp.remote_cap, &disp_rpc_ep);
-    if (disp_rpc_ep.type == ObjType_EndPointLMP) {
-        debug_printf("binding spawner\n");
-        struct capref new_stdout;
-        err = aos_rpc_call(&dispatcher_rpc, DISP_IFACE_BINDING, dispatcher_rpc.channel.lmp.local_cap, stdin_epcap, &new_stdout);
-        if (!capref_is_null(new_stdout)) {
-            real_stdout_ep_cap = new_stdout;
-        }
+        // setting up dispatcher rpc
+        err = aos_rpc_init_lmp(&dispatcher_rpc, NULL_CAP, spawner_ep_cap, NULL, NULL);
         if (err_is_fail(err)) {
-            debug_printf("error binding to spawner endpoint\n");
+            DEBUG_ERR(err, "Error establishing connection with memory server! aborting!");
+            abort();
         }
-    }
-    else {
 
-    }
-
-    aos_dc_init_lmp(&stdout_chan, 64);
-
-    struct capability stdout_cap;
-    invoke_cap_identify(real_stdout_ep_cap, &stdout_cap);
-    if (stdout_cap.type == ObjType_EndPointLMP) {
-        stdout_chan.channel.lmp.remote_cap = real_stdout_ep_cap;
-    }
-    else if (stdout_cap.type == ObjType_Frame) {
-        debug_printf("FRAME Stdout\n");
-        stdout_chan.channel.lmp.remote_cap = real_stdout_ep_cap;
-    }
-    else {
-        stdout_chan.channel.lmp.remote_cap = NULL_CAP;
-    }
+        //initialize_dispatcher_handlers(&dispatcher_rpc);
 
 
-    /*struct capability rem_cap;
-    invoke_cap_identify(dispatcher_rpc.channel.lmp.remote_cap, &rem_cap);
-    if (rem_cap.type == ObjType_EndPointLMP) {
-        debug_printf("initiating!\n");
-        err = aos_rpc_call(&dispatcher_rpc, AOS_RPC_INITIATE, dispatcher_rpc.channel.lmp.local_cap);
+        initialize_dispatcher_handlers(&dispatcher_rpc);
+
+        struct capref real_stdout_ep_cap = stdout_ep_cap;
+
+        struct capability disp_rpc_ep;
+        invoke_cap_identify(dispatcher_rpc.channel.lmp.remote_cap, &disp_rpc_ep);
+        if (disp_rpc_ep.type == ObjType_EndPointLMP) {
+            debug_printf("binding spawner\n");
+            struct capref new_stdout;
+            err = aos_rpc_call(&dispatcher_rpc, DISP_IFACE_BINDING, dispatcher_rpc.channel.lmp.local_cap, stdin_epcap, &new_stdout);
+            if (!capref_is_null(new_stdout)) {
+                real_stdout_ep_cap = new_stdout;
+            }
+            if (err_is_fail(err)) {
+                debug_printf("error binding to spawner endpoint\n");
+            }
+        }
+        else {
+
+        }
+
+        aos_dc_init_lmp(&stdout_chan, 64);
+
+        struct capability stdout_cap;
+        invoke_cap_identify(real_stdout_ep_cap, &stdout_cap);
+        if (stdout_cap.type == ObjType_EndPointLMP) {
+            stdout_chan.channel.lmp.remote_cap = real_stdout_ep_cap;
+        }
+        else if (stdout_cap.type == ObjType_Frame) {
+            debug_printf("FRAME Stdout\n");
+            stdout_chan.channel.lmp.remote_cap = real_stdout_ep_cap;
+        }
+        else {
+            stdout_chan.channel.lmp.remote_cap = NULL_CAP;
+        }
+
+
+        /*struct capability rem_cap;
+        invoke_cap_identify(dispatcher_rpc.channel.lmp.remote_cap, &rem_cap);
+        if (rem_cap.type == ObjType_EndPointLMP) {
+            debug_printf("initiating!\n");
+            err = aos_rpc_call(&dispatcher_rpc, AOS_RPC_INITIATE, dispatcher_rpc.channel.lmp.local_cap);
+        }
+        else {
+            debug_printf("not calling!\n");
+        }*/
+
+
+
+        return SYS_ERR_OK;
+
     }
-    else {
-        debug_printf("not calling!\n");
-    }*/
+    else if (spawner_ep.type == ObjType_Frame) {
+        void *comm_frame;
+        err = paging_map_frame_complete(get_current_paging_state(), &comm_frame, spawner_ep_cap, NULL, NULL);
+
+        size_t block_size = get_size(&spawner_ep) / 4;
+
+        void *disp_rpc_frame = comm_frame;
+        void *stdin_frame = comm_frame + block_size;
+        void *stdout_frame = comm_frame + 2 * block_size;
+
+        err = aos_rpc_init_ump_default(&dispatcher_rpc, (lvaddr_t) disp_rpc_frame, block_size, 0);
+        ON_ERR_RETURN(err);
+
+        err = aos_dc_init_ump(&stdout_chan, 64, (lvaddr_t) stdout_frame, block_size, 0);
+        ON_ERR_RETURN(err);
+        err = aos_dc_init_ump(&stdin_chan, 64, (lvaddr_t) stdin_frame, block_size, 0);
+        ON_ERR_RETURN(err);
+        
+        debug_printf("Initted ump comm\n");
+    }
 
 
 

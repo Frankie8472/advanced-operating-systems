@@ -12,6 +12,7 @@ enum shell_state {
 
 struct running_program
 {
+    domainid_t domainid;
     struct aos_datachan process_out;
     struct aos_datachan process_in;
     struct aos_rpc process_disprpc;
