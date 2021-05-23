@@ -52,7 +52,8 @@ extern int yydebug;
     SEMICOLON = 258,
     DOUBLE_QUOT = 259,
     AT_SIGN = 260,
-    STRING = 261
+    EQUALS = 261,
+    STRING = 262
   };
 #endif
 
@@ -66,7 +67,7 @@ union YYSTYPE
     char *string;
     struct josh_line *line;
 
-#line 70 "josh.tab.h"
+#line 71 "josh.tab.h"
 
 };
 typedef union YYSTYPE YYSTYPE;

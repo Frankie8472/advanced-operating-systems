@@ -123,7 +123,8 @@ extern int yydebug;
     SEMICOLON = 258,
     DOUBLE_QUOT = 259,
     AT_SIGN = 260,
-    STRING = 261
+    EQUALS = 261,
+    STRING = 262
   };
 #endif
 
@@ -137,7 +138,7 @@ union YYSTYPE
     char *string;
     struct josh_line *line;
 
-#line 141 "josh.tab.c"
+#line 142 "josh.tab.c"
 
 };
 typedef union YYSTYPE YYSTYPE;
@@ -459,7 +460,7 @@ union yyalloc
 #define YYLAST   6
 
 /* YYNTOKENS -- Number of terminals.  */
-#define YYNTOKENS  7
+#define YYNTOKENS  8
 /* YYNNTS -- Number of nonterminals.  */
 #define YYNNTS  4
 /* YYNRULES -- Number of rules.  */
@@ -468,7 +469,7 @@ union yyalloc
 #define YYNSTATES  11
 
 #define YYUNDEFTOK  2
-#define YYMAXUTOK   261
+#define YYMAXUTOK   262
 
 
 /* YYTRANSLATE(TOKEN-NUM) -- Symbol number corresponding to TOKEN-NUM
@@ -506,14 +507,14 @@ static const yytype_int8 yytranslate[] =
        2,     2,     2,     2,     2,     2,     2,     2,     2,     2,
        2,     2,     2,     2,     2,     2,     2,     2,     2,     2,
        2,     2,     2,     2,     2,     2,     1,     2,     3,     4,
-       5,     6
+       5,     6,     7
 };
 
 #if YYDEBUG
   /* YYRLINE[YYN] -- Source line where rule number YYN was defined.  */
 static const yytype_int8 yyrline[] =
 {
-       0,    27,    27,    31,    35,    40,    48,    56,    64
+       0,    28,    28,    32,    36,    41,    49,    57,    65
 };
 #endif
 
@@ -523,7 +524,7 @@ static const yytype_int8 yyrline[] =
 static const char *const yytname[] =
 {
   "$end", "error", "$undefined", "SEMICOLON", "DOUBLE_QUOT", "AT_SIGN",
-  "STRING", "$accept", "line", "part_line", "destination", YY_NULLPTR
+  "EQUALS", "STRING", "$accept", "line", "part_line", "destination", YY_NULLPTR
 };
 #endif
 
@@ -532,11 +533,11 @@ static const char *const yytname[] =
    (internal) symbol number NUM (which must be that of a token).  */
 static const yytype_int16 yytoknum[] =
 {
-       0,   256,   257,   258,   259,   260,   261
+       0,   256,   257,   258,   259,   260,   261,   262
 };
 # endif
 
-#define YYPACT_NINF (-5)
+#define YYPACT_NINF (-6)
 
 #define yypact_value_is_default(Yyn) \
   ((Yyn) == YYPACT_NINF)
@@ -550,8 +551,8 @@ static const yytype_int16 yytoknum[] =
      STATE-NUM.  */
 static const yytype_int8 yypact[] =
 {
-      -4,    -2,    -5,     5,    -3,     0,    -5,    -5,    -5,    -5,
-      -5
+      -4,    -5,    -6,     5,    -3,    -1,    -6,    -6,    -6,    -6,
+      -6
 };
 
   /* YYDEFACT[STATE-NUM] -- Default reduction number in state STATE-NUM.
@@ -566,7 +567,7 @@ static const yytype_int8 yydefact[] =
   /* YYPGOTO[NTERM-NUM].  */
 static const yytype_int8 yypgoto[] =
 {
-      -5,    -5,    -5,    -5
+      -6,    -6,    -6,    -6
 };
 
   /* YYDEFGOTO[NTERM-NUM].  */
@@ -580,26 +581,26 @@ static const yytype_int8 yydefgoto[] =
      number is the opposite.  If YYTABLE_NINF, syntax error.  */
 static const yytype_int8 yytable[] =
 {
-       8,     1,     2,     9,     6,     7,    10
+       8,     1,     6,     2,     9,     7,    10
 };
 
 static const yytype_int8 yycheck[] =
 {
-       3,     5,     6,     6,     6,     0,     6
+       3,     5,     7,     7,     7,     0,     7
 };
 
   /* YYSTOS[STATE-NUM] -- The (internal number of the) accessing
      symbol of state STATE-NUM.  */
 static const yytype_int8 yystos[] =
 {
-       0,     5,     6,     8,     9,    10,     6,     0,     3,     6,
-       6
+       0,     5,     7,     9,    10,    11,     7,     0,     3,     7,
+       7
 };
 
   /* YYR1[YYN] -- Symbol number of symbol that rule YYN derives.  */
 static const yytype_int8 yyr1[] =
 {
-       0,     7,     8,     8,     8,     9,     9,     9,    10
+       0,     8,     9,     9,     9,    10,    10,    10,    11
 };
 
   /* YYR2[YYN] -- Number of symbols on the right hand side of rule YYN.  */
@@ -1301,73 +1302,73 @@ yyreduce:
   switch (yyn)
     {
   case 2:
-#line 27 "josh.y"
+#line 28 "josh.y"
     {
         parsed_line = NULL;
     }
-#line 1309 "josh.tab.c"
+#line 1310 "josh.tab.c"
     break;
 
   case 3:
-#line 31 "josh.y"
+#line 32 "josh.y"
               {
         parsed_line = (yyvsp[0].line);
     }
-#line 1317 "josh.tab.c"
+#line 1318 "josh.tab.c"
     break;
 
   case 4:
-#line 35 "josh.y"
+#line 36 "josh.y"
                         {
         parsed_line = (yyvsp[-1].line);
     }
-#line 1325 "josh.tab.c"
+#line 1326 "josh.tab.c"
     break;
 
   case 5:
-#line 40 "josh.y"
+#line 41 "josh.y"
                        {
         (yyval.line) = malloc(sizeof(struct josh_line));
         array_list_init(&(yyval.line)->args, sizeof(char *));
-        (yyval.line)->cmd = (yyvsp[0].string);
         (yyval.line)->destination = (yyvsp[-1].string);
+        (yyval.line)->cmd = (yyvsp[0].string);
         //debug_printf("string\n");
     }
-#line 1337 "josh.tab.c"
+#line 1338 "josh.tab.c"
     break;
 
   case 6:
-#line 48 "josh.y"
+#line 49 "josh.y"
            {
-        struct josh_line *new_line = malloc(sizeof(struct josh_line));
-        array_list_init(&new_line->args, sizeof(char *));
-        new_line->cmd = (yyvsp[0].string);
-        (yyval.line) = new_line;
+        (yyval.line) = malloc(sizeof(struct josh_line));
+        array_list_init(&(yyval.line)->args, sizeof(char *));
+        (yyval.line)->destination = NULL;
+        (yyval.line)->cmd = (yyvsp[0].string);
         //debug_printf("string\n");
     }
-#line 1349 "josh.tab.c"
+#line 1350 "josh.tab.c"
     break;
 
   case 7:
-#line 56 "josh.y"
+#line 57 "josh.y"
                      {
         (yyval.line) = (yyvsp[-1].line);
         array_list_append(&(yyval.line)->args, &(yyvsp[0].string));
         //debug_printf("multi-string: %s\n", $2);
     }
-#line 1359 "josh.tab.c"
+#line 1360 "josh.tab.c"
     break;
 
   case 8:
-#line 64 "josh.y"
+#line 65 "josh.y"
                    {
         (yyval.string) = (yyvsp[0].string);
     }
-#line 1367 "josh.tab.c"
+#line 1368 "josh.tab.c"
     break;
 
 
-#line 1371 "josh.tab.c"
+#line 1372 "josh.tab.c"
 
       default: break;
     }
@@ -1599,7 +1600,7 @@ yyreturn:
 #endif
   return yyresult;
 }
-#line 70 "josh.y"
+#line 71 "josh.y"
 
 
 int yyerror(const char *s) {

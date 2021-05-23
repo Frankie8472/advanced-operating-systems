@@ -16,6 +16,7 @@
 %token <token> SEMICOLON
 %token <token> DOUBLE_QUOT
 %token <token> AT_SIGN
+%token <token> EQUALS
 %token <string> STRING
 %type <line> part_line
 %type <line> line

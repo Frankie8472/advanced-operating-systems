@@ -26,5 +26,6 @@
 [ \t\n]           ;
 ";"               return SEMICOLON;
 "@"               return AT_SIGN;
-([^ \t\n;@])+              { yylval.string = strdup(yytext); return STRING; }
+"="               return EQUALS;
+([^ \t\n;@#\"=])+              { yylval.string = strdup(yytext); return STRING; }
 %%
