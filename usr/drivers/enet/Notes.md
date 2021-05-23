@@ -1,5 +1,8 @@
 # Notes 'n Commands 'n Stuff
 
+## Notes
+somehow, ping only works from the debian-laptop
+
 ## Commands
 - arping
   `sudo arping -I enp2s0 10.0.2.1 -S 127.0.0.1`
