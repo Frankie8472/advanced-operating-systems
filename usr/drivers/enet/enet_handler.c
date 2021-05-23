@@ -13,6 +13,7 @@
 #include <netutil/ip.h>
 #include <netutil/icmp.h>
 #include <netutil/htons.h>
+#include <netutil/checksum.h>
 
 #include <collections/hash_table.h>
 
@@ -45,15 +46,15 @@ static struct region_entry* get_region(struct enet_queue* q, regionid_t rid)
 }
 
 static void print_ip_packet(struct ip_hdr *ih) {
-    ENET_DEBUG("======== IP  PACKET ========\n");
-    ENET_DEBUG("version - %d\n", ih->v_hl & 0x0f);
-    ENET_DEBUG("header length - %d\n", ih->v_hl & 0xf0);
+    IP_DEBUG("======== IP  PACKET ========\n");
+    IP_DEBUG("version - %d\n", IPH_V(ih));
+    IP_DEBUG("header length - %d\n", IPH_HL(ih));
     // TODO: tos
-    ENET_DEBUG("length - %d\n", ntohs(ih->len));
-    ENET_DEBUG("id - %d\n", ntohs(ih->id));
-    ENET_DEBUG("offset - %d\n", ntohs(ih->offset));
-    ENET_DEBUG("ttl - %d\n", ih->ttl);
-    ENET_DEBUG("protocol - %d\n", ih->proto);
+    IP_DEBUG("length - %d\n", ntohs(ih->len));
+    IP_DEBUG("id - %d\n", ntohs(ih->id));
+    IP_DEBUG("offset - %d\n", ntohs(ih->offset));
+    IP_DEBUG("ttl - %d\n", ih->ttl);
+    IP_DEBUG("protocol - %d\n", ih->proto);
     ENET_DEBUG_UI32_AS_IP("src:", ntohl(ih->src));
     ENET_DEBUG_UI32_AS_IP("dest:", ntohl(ih->dest));
 }
@@ -195,28 +196,122 @@ errval_t handle_ARP(struct enet_queue* q, struct devq_buf* buf,
     return SYS_ERR_OK;
 }
 
+static errval_t icmp_echo_handle(
+    struct enet_queue* q, struct devq_buf* buf,
+    struct icmp_echo_hdr *h, struct enet_driver_state* st,
+    lvaddr_t original_header) {
+    // extract some info
+    errval_t err = SYS_ERR_OK;
+    uint16_t id = ntohs(h->id);
+    ICMP_DEBUG("id - %d\n", id);
+    uint16_t seqno = ntohs(h->seqno);
+    ICMP_DEBUG("seqno - %d\n", seqno);
+
+    // send reply
+    struct devq_buf repl;
+    err = get_free_buf(st->send_qstate, &repl);
+    if (err_is_fail(err)) {
+        ICMP_DEBUG("un4ble 2 get free buffer\n");
+        return err;
+    }
+
+    struct region_entry *entry = get_region(st->txq, repl.rid);
+    lvaddr_t raddr = (lvaddr_t) entry->mem.vbase + repl.offset + repl.valid_data;
+    struct eth_hdr *oeh = (struct eth_hdr *) original_header;
+    struct eth_hdr *reh = (struct eth_hdr *) raddr;
+
+    // set src / dst of eth header
+    memcpy(&reh->src, &oeh->dst, 6);
+    memcpy(&reh->dst, &oeh->src, 6);
+    reh->type = oeh->type;
+
+    // set ip-header
+    struct ip_hdr *oih = (struct ip_hdr *) ((char *) oeh + ETH_HLEN);
+    struct ip_hdr *rih = (struct ip_hdr *) ((char *) reh + ETH_HLEN);
+
+
+    IPH_VHL_SET(rih, 4, 5);  // NOTE: not sure but otpimistic i guess?
+    rih->tos = oih->tos;
+    // NOTE: len
+    rih->len = oih->len;
+    rih->id = oih->id;
+    /* rih->id |= htons(0x4000); */
+    rih->offset = htons(0x4000);
+    rih->ttl = oih->ttl;
+    rih->proto = oih->proto;
+    rih->src = oih->dest;
+    rih->dest = oih->src;
+
+    // set icmp-header
+    struct icmp_echo_hdr *och = (struct icmp_echo_hdr *) ((char *) oih + IP_HLEN);
+    struct icmp_echo_hdr *rch = (struct icmp_echo_hdr *) ((char *) rih + IP_HLEN);
+    rch->type = ICMP_ER;
+    rch->code = och->code;
+    // NOTE: chksum
+    rch->chksum = 0;
+    rch->id = och->id;
+    rch->seqno = och->seqno;
+    // TODO: maybe just use memcpy for the entire icmp-part?
+
+    // payload
+    memcpy((void *) ((char *) rch) + ICMP_HLEN, (void *) ((char *) och) + ICMP_HLEN,
+           ntohs(oih->len) - ICMP_HLEN - IP_HLEN);
+
+    rch->chksum = (inet_checksum((char *) rch, ntohs(oih->len) - IP_HLEN));
+
+    // IP chksum
+    rih->chksum = 0;
+    rih->chksum = (inet_checksum((void *) rih, IP_HLEN));
+    /* rih->chksum = htons(inet_checksum((void *) rch, ntohs(oih->len) - IP_HLEN)); */
+
+    repl.valid_length = ETH_HLEN + IP_HLEN + htons(rih->len) - IP_HLEN;
+
+    dmb();
+
+    ICMP_DEBUG("=========== SENDING REPLYYY\n");
+    enqueue_buf(st->send_qstate, &repl);
+
+    return err;
+}
+
+static errval_t handle_ICMP(struct enet_queue* q, struct devq_buf* buf,
+                            struct icmp_echo_hdr *h, struct enet_driver_state* st,
+                            lvaddr_t original_header) {
+    errval_t err = SYS_ERR_OK;
+
+    switch (ICMPH_TYPE(h)) {
+    case ICMP_ECHO:
+        ICMP_DEBUG("handling ICMP Echo request\n");
+        return icmp_echo_handle(q, buf, h, st, original_header);
+    default:
+        ICMP_DEBUG("unaccounted ICMP type %d\n", ICMPH_TYPE(h));
+        return LIB_ERR_NOT_IMPLEMENTED;
+    }
+
+    return err;
+}
+
 // TODO: error-handling, checksum
 errval_t handle_IP(struct enet_queue* q, struct devq_buf* buf,
                    lvaddr_t vaddr, struct enet_driver_state* st) {
-    errval_t err = SYS_ERR_OK;
-    ENET_DEBUG("handling IP packet\n");
+    errval_t err;
+    IP_DEBUG("handling IP packet\n");
     struct ip_hdr *header = (struct ip_hdr*) ((char *) vaddr + ETH_HLEN);
     print_ip_packet(header);
 
-    // TODO
     switch (header->proto) {
     case IP_PROTO_ICMP:
+        ICMP_DEBUG("got ICMP packet\n");
+        struct icmp_echo_hdr *eh = (struct icmp_echo_hdr *)
+            ((char *) header + IP_HLEN);
+        err = handle_ICMP(q, buf, eh, st, vaddr);
         break;
     case IP_PROTO_IGMP:
-        break;
     case IP_PROTO_UDP:
-        break;
     case IP_PROTO_UDPLITE:
-        break;
     case IP_PROTO_TCP:
-        break;
     default:
-        break;
+        return LIB_ERR_NOT_IMPLEMENTED;
     }
 
     return err;
@@ -233,11 +328,11 @@ errval_t handle_packet(struct enet_queue* q, struct devq_buf* buf,
 
     switch (htons(ETH_TYPE(header))) {
     case ETH_TYPE_ARP:
-        ENET_DEBUG("Got an ARP packet!\n");
+        ETHARP_DEBUG("Got an ARP packet!\n");
         handle_ARP(q, buf, vaddr, st);
         break;
     case ETH_TYPE_IP:
-        ENET_DEBUG("Got an IP packet!\n");
+        IP_DEBUG("Got an IP packet!\n");
         handle_IP(q, buf, vaddr, st);
         break;
     default:
