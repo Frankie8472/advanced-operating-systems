@@ -1,15 +1,24 @@
 
-
--- bison :: String -> String -> HRule
--- bison src dest =
---     Rule [ Str "bison ",
---            In Str BuildTree src,
---            Out "josh.tab.c" ]
-
+let flex src dest = Rule [ Str "flex ",
+                           Str " -o ",
+                           Out "armv8" dest,
+                           In SrcTree "armv8" src
+                         ]
+    bison src dest = Rule [ Str "bison -d ",
+                            Str " -o ",
+                            Out "armv8" dest,
+                            In SrcTree "armv8" src
+                          ]
+in
+[ flex "josh.l" "josh_lex.c" ]
+++
+[ bison "josh.y" "josh_parse.c" ]
+++
 [
     build application {
         target = "josh",
-        cFiles = [ "main.c", "ast.c", "builtins.c", "running.c", "liblinenoise_glue.c", "josh.tab.c", "lex.yy.c" ],
+        cFiles = [ "main.c", "ast.c", "builtins.c", "running.c", "liblinenoise_glue.c" ],   --    , "lex.yy.c" ],
+        generatedCFiles = [ "josh_lex.c", "josh_parse.c" ],
         addCFlags = [ -- need to ignore warnings for bison generated code
             "-Wno-implicit-function-declaration",
             "-Wno-missing-prototypes",

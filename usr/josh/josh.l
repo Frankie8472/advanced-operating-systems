@@ -3,7 +3,7 @@
 %option yylineno nounput noinput
 
 %{
-    #include "josh.tab.h"
+    #include "josh_parse.h"
 %}
 
 %x QUOT
