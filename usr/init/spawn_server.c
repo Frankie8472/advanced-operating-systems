@@ -154,10 +154,7 @@ errval_t spawn_lpuart_driver(const char *mod_name, struct spawninfo **ret_si)
 
     aos_rpc_set_interface(rpc, get_init_interface(), INIT_IFACE_N_FUNCTIONS, malloc(INIT_IFACE_N_FUNCTIONS * sizeof(void *)));
     initialize_rpc_handlers(rpc);
-
-
     struct aos_rpc *disp_rpc = &si->disp_rpc;
-
 
     aos_rpc_init_lmp(disp_rpc, NULL_CAP, NULL_CAP, NULL, NULL);
     aos_rpc_set_interface(disp_rpc, get_dispatcher_interface(), DISP_IFACE_N_FUNCTIONS, malloc(DISP_IFACE_N_FUNCTIONS * sizeof(void *)));
@@ -229,7 +226,6 @@ errval_t spawn_sdhc_driver(const char *mod_name, struct spawninfo **ret_si)
 
     aos_rpc_set_interface(rpc, get_init_interface(), INIT_IFACE_N_FUNCTIONS, malloc(INIT_IFACE_N_FUNCTIONS * sizeof(void *)));
     initialize_rpc_handlers(rpc);
-
     struct aos_rpc *disp_rpc = &si->disp_rpc;
 
     aos_rpc_init_lmp(disp_rpc, NULL_CAP, NULL_CAP, NULL, NULL);
@@ -244,32 +240,39 @@ errval_t spawn_sdhc_driver(const char *mod_name, struct spawninfo **ret_si)
 
     struct cnoderef child_taskcn = {
         .croot = get_cap_addr(si->rootcn),
-        .cnode = ROOTCN_SLOT_ADDR(ROOTCN_SLOT_TASKCN),
+        .cnode = CPTR_TASKCN_BASE,
         .level = CNODE_TYPE_OTHER
+    };
+    struct cnoderef child_argcn = {
+            .croot = get_cap_addr(si->rootcn),
+            .cnode = CPTR_ARGCN_BASE,
+            .level = CNODE_TYPE_OTHER
     };
 
     struct capref dev_frame = (struct capref) {
         .cnode = cnode_task,
         .slot = TASKCN_SLOT_DEV
     };
-    struct capref child_dev_frame = (struct capref) {
-        .cnode = child_taskcn,
-        .slot = TASKCN_SLOT_DEV
+    struct capref child_argcn_frame = (struct capref) {
+        .cnode = child_argcn,
+        .slot = ARGCN_SLOT_DEV_0
     };
-    struct capref child_dev_frame2 = (struct capref) {
+    /*
+    struct capref child_dev_frame = (struct capref) {
         .cnode = child_taskcn,
         .slot = TASKCN_SLOT_BOOTINFO
     };
-
+    */
     // write capabilities to access the sdhc driver into the child
     size_t source_addr = get_phys_addr(dev_frame);
-    err = cap_retype(child_dev_frame, dev_frame, IMX8X_SDHC2_BASE - source_addr, ObjType_DevFrame, IMX8X_SDHC_SIZE, 1);
+    err = cap_retype(child_argcn_frame, dev_frame, IMX8X_SDHC2_BASE - source_addr, ObjType_DevFrame, IMX8X_SDHC_SIZE, 1);
     ON_ERR_PUSH_RETURN(err, LIB_ERR_CAP_RETYPE);
 
+    /*
     source_addr = get_phys_addr(dev_frame);
-    err = cap_retype(child_dev_frame2, dev_frame, IMX8X_GIC_DIST_BASE - source_addr, ObjType_DevFrame, IMX8X_GIC_DIST_SIZE, 1);
+    err = cap_retype(child_dev_frame, dev_frame, IMX8X_GIC_DIST_BASE - source_addr, ObjType_DevFrame, IMX8X_GIC_DIST_SIZE, 1);
     ON_ERR_PUSH_RETURN(err, LIB_ERR_CAP_RETYPE);
-
+    */
     struct capref irq = (struct capref) {
         .cnode = child_taskcn,
         .slot = TASKCN_SLOT_IRQ

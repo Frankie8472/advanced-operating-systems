@@ -171,6 +171,7 @@ static errval_t init_foreign_core(void){
     return SYS_ERR_OK;
 }
 
+__unused
 static errval_t init_sdhc_block_driver(void)
 {
     errval_t err;

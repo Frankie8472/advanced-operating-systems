@@ -12,15 +12,14 @@ static errval_t initialize_driver(void)
 {
     errval_t err;
 
-    struct capref devframe = {
-        .cnode = cnode_root,
-        .slot = TASKCN_SLOT_DEV
+    struct capref argcn_frame = {
+        .cnode = cnode_argcn,
+        .slot = ARGCN_SLOT_DEV_0
     };
 
     void *device_frame;
-
     err = paging_map_frame_attr(get_current_paging_state(), &device_frame,
-                                get_phys_size(devframe), devframe,
+                                get_phys_size(argcn_frame), argcn_frame,
                                 DEVFRAME_ATTRIBUTES, NULL, NULL);
     ON_ERR_RETURN(err);
 
@@ -35,8 +34,26 @@ int main(int argc, char **argv) {
     errval_t err;
     err = initialize_driver();
     if (err_is_fail(err)) {
-        debug_printf("ERROR: %lu", err);
+        debug_printf("Fatal Error, could not initialize SHDC driver\n");
+        abort();
     }
-    debug_printf(">> REACHED\n");
 
+
+    struct capref tmp;
+    size_t retbytes;
+    void *addr;
+    err = frame_alloc_and_map_flags(&tmp, 512, &retbytes, &addr, VREGION_FLAGS_READ_WRITE_NOCACHE);
+    if (err_is_fail(err)) {
+        debug_printf("ERROR: Frame alloc fail\n");
+        abort();
+    }
+
+    err = sdhc_test(sdhc_driver_state, addr, get_phys_addr(tmp));
+    if (err_is_fail(err)) {
+        debug_printf("ERROR: sdhc test fail\n");
+        abort();
+    }
+
+    // TODO: free by caller
+    debug_printf(">> REACHED\n");
 }
