@@ -14,6 +14,7 @@
 #include <netutil/icmp.h>
 #include <netutil/htons.h>
 #include <netutil/checksum.h>
+#include <netutil/udp.h>
 
 #include <collections/hash_table.h>
 
@@ -291,6 +292,84 @@ static errval_t handle_ICMP(struct enet_queue* q, struct devq_buf* buf,
     return err;
 }
 
+static errval_t udp_echo(struct enet_queue* q, struct devq_buf* buf,
+                         struct udp_hdr *h, struct enet_driver_state* st,
+                         lvaddr_t original_header) {
+    errval_t err = SYS_ERR_OK;
+    
+    // send reply
+    struct devq_buf repl;
+    err = get_free_buf(st->send_qstate, &repl);
+    if (err_is_fail(err)) {
+        ICMP_DEBUG("un4ble 2 get free buffer\n");
+        return err;
+    }
+
+    struct region_entry *entry = get_region(st->txq, repl.rid);
+    lvaddr_t raddr = (lvaddr_t) entry->mem.vbase + repl.offset + repl.valid_data;
+    struct eth_hdr *oeh = (struct eth_hdr *) original_header;
+    struct eth_hdr *reh = (struct eth_hdr *) raddr;
+
+    // set src / dst of eth header
+    memcpy(&reh->src, &oeh->dst, 6);
+    memcpy(&reh->dst, &oeh->src, 6);
+    reh->type = oeh->type;
+
+    // set ip-header
+    struct ip_hdr *oih = (struct ip_hdr *) ((char *) oeh + ETH_HLEN);
+    struct ip_hdr *rih = (struct ip_hdr *) ((char *) reh + ETH_HLEN);
+
+    IPH_VHL_SET(rih, 4, 5);
+    rih->tos = oih->tos;
+    rih->len = oih->len;
+    rih->id = oih->id;
+    rih->offset = htons(0x4000);
+    rih->ttl = oih->ttl;
+    rih->proto = oih->proto;
+    rih->src = oih->dest;
+    rih->dest = oih->src;
+
+    // set UDP-data
+    struct udp_hdr *ouh = (struct udp_hdr *) ((char *) oih + IP_HLEN);
+    struct udp_hdr *ruh = (struct udp_hdr *) ((char *) rih + IP_HLEN);
+    assert(ouh == h);
+    ruh->src = ouh->dest;
+    ruh->dest = htons(123); //ouh->src;
+    ruh->len = ouh->len;
+
+    memcpy((char *) ruh + UDP_HLEN, (char *) ouh + UDP_HLEN, ntohs(ouh->len) - UDP_HLEN);
+    /* memcpy((char *) ruh + UDP_HLEN, "Did you ever hear therwerr sd\n", ntohs(ouh->len) - UDP_HLEN); */
+
+    ruh->chksum = 0;
+    ruh->chksum = inet_checksum(ruh, ntohs(ouh->len));
+
+    rih->chksum = 0;
+    rih->chksum = inet_checksum(rih, IP_HLEN);
+
+    repl.valid_length = ETH_HLEN + htons(rih->len);
+
+    dmb();
+
+    UDP_DEBUG("=========== SENDING REPLYYY\n");
+    err = enqueue_buf(st->send_qstate, &repl);
+
+    return err;
+}
+
+static errval_t handle_UDP(struct enet_queue* q, struct devq_buf* buf,
+                           struct udp_hdr *h, struct enet_driver_state* st,
+                           lvaddr_t original_header) {
+    errval_t err = SYS_ERR_OK;
+    UDP_DEBUG("handling UDP packet\n");
+    uint16_t d_p = ntohs(h->dest);
+    if (d_p == UDP_ECHO_PORT) {
+        UDP_DEBUG("calling UDP-echo server\n");
+        return udp_echo(q, buf, h, st, original_header);
+    }
+
+    return err;
+}
+
 // TODO: error-handling, checksum
 errval_t handle_IP(struct enet_queue* q, struct devq_buf* buf,
                    lvaddr_t vaddr, struct enet_driver_state* st) {
@@ -299,6 +378,7 @@ errval_t handle_IP(struct enet_queue* q, struct devq_buf* buf,
     struct ip_hdr *header = (struct ip_hdr*) ((char *) vaddr + ETH_HLEN);
     print_ip_packet(header);
 
+    IP_DEBUG("prot %d, %d, %d\n", header->proto, IP_PROTO_UDPLITE, IP_PROTO_UDP);
     switch (header->proto) {
     case IP_PROTO_ICMP:
         ICMP_DEBUG("got ICMP packet\n");
@@ -306,9 +386,14 @@ errval_t handle_IP(struct enet_queue* q, struct devq_buf* buf,
             ((char *) header + IP_HLEN);
         err = handle_ICMP(q, buf, eh, st, vaddr);
         break;
-    case IP_PROTO_IGMP:
-    case IP_PROTO_UDP:
     case IP_PROTO_UDPLITE:
+    case IP_PROTO_UDP:
+        UDP_DEBUG("handling UDP packet\n");
+        struct udp_hdr *uh = (struct udp_hdr *)
+            ((char *) header + IP_HLEN);
+        err = handle_UDP(q, buf, uh, st, vaddr);
+        break;
+    case IP_PROTO_IGMP:
     case IP_PROTO_TCP:
     default:
         return LIB_ERR_NOT_IMPLEMENTED;
