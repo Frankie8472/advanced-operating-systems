@@ -1,5 +1,7 @@
 #include "server_list.h"
 #include "process_list.h"
+#include <hashtable/hashtable.h>
+
 
 #include <aos/nameserver.h>
 
@@ -12,9 +14,9 @@
 //     struct capability cap;
 //     err = invoke_cap_identify(end_point,&cap);
 //     ON_ERR_RETURN(err);
-//     bool ump = false;
+//     bool direct = false;
 //     if(cap.type == ObjType_Frame){
-//         ump = true;
+//         direct = true;
 //     }
 
 //     debug_printf("Register with name : %s\n",name);
@@ -24,7 +26,7 @@
 //     new_server -> pid = pid; 
 //     new_server -> core_id = core_id;
 //     new_server -> end_point = &end_point;
-//     new_server -> ump = ump;
+//     new_server -> direct = direct;
 //     new_server -> properties = properties;
 //     if(servers == NULL){
 //         servers = new_server;
@@ -59,18 +61,29 @@ errval_t add_server(struct server_list* new_server){
         curr -> next = new_server;
     }
     n_servers++;
+
+
+    int failed = server_ht -> d.put_word(&server_ht ->d,new_server -> name,strlen(new_server -> name),(uintptr_t) new_server);
+    if(failed){
+        return LIB_ERR_NAMESERVICE_HASHTABLE_ERROR;
+    }
     return SYS_ERR_OK;
 }
 
 errval_t find_server_by_name(char * name, struct server_list ** ret_serv){
-    struct server_list* curr = servers;
-    for(;curr != NULL;curr = curr -> next){
-        if(!strcmp(name,curr -> name)){
-            *ret_serv = curr;
-            return SYS_ERR_OK;
-        }
+    // struct server_list* curr = servers;
+    // for(;curr != NULL;curr = curr -> next){
+    //     if(!strcmp(name,curr -> name)){
+    //         *ret_serv = curr;
+    //         return SYS_ERR_OK;
+    //     }
+    // }
+    server_ht -> d.get(&server_ht ->d,name,strlen(name),(void**) ret_serv);
+    if(!ret_serv){
+        return LIB_ERR_NAMESERVICE_UNKNOWN_NAME;
+    }else{
+        return SYS_ERR_OK;
     }
-    return LIB_ERR_NAMESERVICE_UNKNOWN_NAME;
 }
 
 bool verify_name(const char* name){
@@ -90,13 +103,16 @@ void remove_server(struct server_list* del_server){
         }
     }
     n_servers--;
+
+    server_ht -> d.remove(&server_ht -> d, del_server -> name, strlen(del_server -> name));
     free(del_server);
+
 }
 
 void print_server_list(void){
     debug_printf("================ Servers ==============================\n");
     for(struct server_list * curr = servers; curr != NULL; curr = curr -> next){
-        debug_printf("|| P: %d | C: %d | N: %s | UMP: %d |               \n", curr -> pid, curr -> core_id, curr -> name,curr -> ump);
+        debug_printf("|| P: %d | C: %d | N: %s | Direct: %d |               \n", curr -> pid, curr -> core_id, curr -> name,curr -> direct);
 
         for(int i =0 ;i < 64;++i){
             if(curr -> key[i] != NULL && curr -> value[i] != NULL){

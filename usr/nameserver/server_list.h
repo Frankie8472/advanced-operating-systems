@@ -9,12 +9,14 @@
 size_t n_servers; 
 struct server_list* servers;
 
+struct hashtable* server_ht;
+
 struct server_list {
     struct server_list* next;
     char name[SERVER_NAME_SIZE];
     domainid_t pid;
     coreid_t core_id;
-    bool ump;
+    bool direct;
     char * key[64];
     char * value[64];
 

@@ -16,7 +16,7 @@
 #include "spawn_server.h"
 #include "mem_alloc.h"
 #include "../../lib/aos/include/init.h"
-
+#include "routing.h"
 
 
 
@@ -46,7 +46,6 @@ struct terminal_state{
 };
 
 static struct terminal_state *terminal_state;
-static struct routing_entry* routing_head;
 static void *get_opaque_server_rpc_handlers[OS_IFACE_N_FUNCTIONS];
 
 
@@ -504,21 +503,20 @@ void handle_forward_ns_reg(struct aos_rpc *rpc,uintptr_t core_id,const char* nam
     }
 }
 
-void handle_server_request(struct aos_rpc * rpc, uintptr_t pid, uintptr_t core_id ,const char* server_data,uintptr_t ump, const char * return_message){
+void handle_server_request(struct aos_rpc * rpc, uintptr_t pid, uintptr_t core_id ,const char* server_data,uintptr_t direct, const char * return_message){
     debug_printf("Register with name server data: %s \n",server_data);
-    errval_t err = aos_rpc_call(get_ns_forw_rpc(),INIT_REG_SERVER,pid,core_id,server_data,ump,return_message);
+    errval_t err = aos_rpc_call(get_ns_forw_rpc(),INIT_REG_SERVER,pid,core_id,server_data,direct,return_message);
     if(err_is_fail(err)){
         DEBUG_ERR(err,"Failed to forward server request\n");
     }
 }
 
-void handle_name_lookup(struct aos_rpc *rpc, char * name,uintptr_t * core_id,uintptr_t *ump, uintptr_t *success){
+void handle_name_lookup(struct aos_rpc *rpc, char * name,uintptr_t * core_id,uintptr_t *direct, uintptr_t *success){
     
-    errval_t err = aos_rpc_call(get_ns_forw_rpc(),INIT_NAME_LOOKUP,name,core_id,ump,success);
+    errval_t err = aos_rpc_call(get_ns_forw_rpc(),INIT_NAME_LOOKUP,name,core_id,direct,success);
     if(err_is_fail(err)){
         DEBUG_ERR(err,"Failed to forward server lookup\n");
     }
-    // debug_printf("Forwarding init serverlookup result\n");
 }
 
 
@@ -556,7 +554,10 @@ void handle_multi_hop_init(struct aos_rpc *rpc,const char* name, struct capref s
         DEBUG_ERR(err,"Failed to set server interface in multi hop init\n");
     }
     re -> rpc = new_rpc;
-    add_routing_entry(re);
+    err = add_routing_entry(re);
+    if(err_is_fail(err)){
+        DEBUG_ERR(err,"Failed to add routing entry for multihop!\n");
+    }
     *init_ep_cap = new_init_ep_cap;
 }
 
@@ -587,12 +588,18 @@ void handle_client_call(struct aos_rpc *rpc,coreid_t core_id,const char* message
         extracted_message++;
 
         debug_printf("Routing to server with name %s\n",name);
-        struct routing_entry * re = get_routing_entry_by_name(name);
-        if(!re){
-            debug_printf("Server routing not found!\n");
-            // *response = '\0';
+        struct routing_entry * re;
+        err = get_routing_entry_by_name(name,&re);
+        if(err_is_fail(err)){
+            DEBUG_ERR(err,"Failed to get routing entry by name\n");
             return;
         }
+        // // struct routing_entry * re = get_routing_entry_by_name(name);
+        // if(!re){
+        //     debug_printf("Server routing not found!\n");
+        //     // *response = '\0';
+        //     return;
+        // }
 
         err = aos_rpc_call(re -> rpc,OS_IFACE_MESSAGE,extracted_message,send_cap,response,recv_cap);
         if(err_is_fail(err)){
@@ -628,10 +635,10 @@ void handle_client_call1(struct aos_rpc *rpc,coreid_t core_id,const char* messag
         extracted_message++;
 
         debug_printf("Routing to server with name %s\n",name);
-        struct routing_entry * re = get_routing_entry_by_name(name);
-        if(!re){
-            debug_printf("Server routing not found!\n");
-            // *response = '\0';
+        struct routing_entry * re;
+        err = get_routing_entry_by_name(name,&re);
+        if(err_is_fail(err)){
+            DEBUG_ERR(err,"Failed to get routing entry by name\n");
             return;
         }
 
@@ -670,10 +677,10 @@ void handle_client_call2(struct aos_rpc *rpc,coreid_t core_id,const char* messag
         extracted_message++;
 
         debug_printf("Routing to server with name %s\n",name);
-        struct routing_entry * re = get_routing_entry_by_name(name);
-        if(!re){
-            debug_printf("Server routing not found!\n");
-            // *response = '\0';
+        struct routing_entry * re;
+        err = get_routing_entry_by_name(name,&re);
+        if(err_is_fail(err)){
+            DEBUG_ERR(err,"Failed to get routing entry by name\n");
             return;
         }
         struct capref dummy_cap;
@@ -713,16 +720,44 @@ void handle_client_call3(struct aos_rpc *rpc,coreid_t core_id,const char* messag
         extracted_message++;
 
         debug_printf("Routing to server with name %s\n",name);
-        struct routing_entry * re = get_routing_entry_by_name(name);
-        if(!re){
-            debug_printf("Server routing not found!\n");
-            // *response = '\0';
+        struct routing_entry * re;
+        err = get_routing_entry_by_name(name,&re);
+        if(err_is_fail(err)){
+            DEBUG_ERR(err,"Failed to get routing entry by name\n");
             return;
         }
-
         err = aos_rpc_call(re -> rpc,OS_IFACE_MESSAGE,extracted_message,NULL_CAP,response,recv_cap);
         if(err_is_fail(err)){
             DEBUG_ERR(err,"Failed call to server ep!\n");
+        }
+    }
+}
+
+
+void handle_binding_request(struct aos_rpc * rpc,const char* name,uintptr_t src_core,uintptr_t target_core,struct capref client_ep_cap, struct capref * server_ep_cap){
+    errval_t err;
+    if(disp_get_core_id() == target_core){
+        struct routing_entry* re;
+        err = get_routing_entry_by_name(name, &re);
+        if(err_is_fail(err)){
+            DEBUG_ERR(err,"Failed to get routing entry in forwarding of binding request!\n");
+        }
+
+        err = aos_rpc_call(re -> rpc,OS_IFACE_BINDING_REQUEST,src_core,client_ep_cap,server_ep_cap);
+        if(err_is_fail(err)){
+            DEBUG_ERR(err,"Failed to forward to server listener\n");
+        }
+    }else{
+        struct aos_rpc * next_hop;
+        if(disp_get_core_id() == 0){
+            next_hop = get_core_channel(target_core);
+        }else{
+            next_hop = get_core_channel(0);
+
+        }
+        err = aos_rpc_call(next_hop,INIT_BINDING_REQUEST,name,src_core,target_core,client_ep_cap,server_ep_cap);
+        if(err_is_fail(err)){
+            DEBUG_ERR(err,"Failed to forward!\n");
         }
     }
 }
@@ -759,7 +794,7 @@ errval_t initialize_rpc_handlers(struct aos_rpc *rpc)
     aos_rpc_register_handler(rpc,INIT_CLIENT_CALL1,&handle_client_call1);
     aos_rpc_register_handler(rpc,INIT_CLIENT_CALL2,&handle_client_call2);
     aos_rpc_register_handler(rpc,INIT_CLIENT_CALL3,&handle_client_call3);
-
+    aos_rpc_register_handler(rpc,INIT_BINDING_REQUEST,&handle_binding_request);
     // aos_rpc_register_handler(rpc,AOS_RPC_REGISTER_PROCESS,&handle_init_process_register);
     // aos_rpc_register_handler(rpc,AOS_RPC_MEM_SERVER_REQ,&handle_mem_server_request);
     // aos_rpc_register_handler(rpc,AOS_RPC_GET_PROC_NAME,&handle_init_get_proc_name);
@@ -785,23 +820,4 @@ void register_core_channel_handlers(struct aos_rpc *rpc)
     aos_rpc_register_handler(rpc,AOS_RPC_BINDING_REQUEST,&handle_all_binding_request );
 }
 
-void add_routing_entry(struct routing_entry * re){
-    if(routing_head == NULL){
-        routing_head = re;
-    }else{
-        struct routing_entry * curr = routing_head;
-        for(;curr -> next != NULL;curr = curr -> next){}
-        curr -> next  = re;
-    }
-}
-
-struct routing_entry* get_routing_entry_by_name(const char* name){
-    struct routing_entry * curr = routing_head;
-    for(;curr != NULL;curr = curr -> next){
-        if(!strcmp(curr ->  name,name)){
-            return curr;
-        }
-    }
-    return NULL;
-}
 

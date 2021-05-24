@@ -484,6 +484,11 @@ static errval_t aos_rpc_call_ump(struct aos_rpc *rpc, enum aos_rpc_msg_type msg_
             errval_t err = slot_alloc(&forged);
             ON_ERR_PUSH_RETURN(err, LIB_ERR_SLOT_ALLOC);
 
+            char buffer[512];
+            debug_print_cap(buffer,512,&cap);
+            debug_printf("cap to forge: %s\n",buffer);
+
+
             err = invoke_monitor_create_cap((uint64_t *) &cap,
                                             get_cnode_addr(forged),
                                             get_cnode_level(forged),
