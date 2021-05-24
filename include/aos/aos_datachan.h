@@ -70,6 +70,10 @@ errval_t aos_dc_send(struct aos_datachan *dc, size_t bytes, const char *data);
 errval_t aos_dc_receive_available(struct aos_datachan *dc, size_t bytes, char *data, size_t *received);
 
 
+
+errval_t aos_dc_can_receive(struct aos_datachan *dc);
+
+
 /**
  * \brief receive some data
  * 

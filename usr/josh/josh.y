@@ -1,45 +1,45 @@
 %{
     #include <collections/array_list.h>
     #include "ast.h"
-    extern struct josh_line *parsed_line;
+    extern struct josh_command *parsed_line;
 %}
 
 
 %union {
     int token;
     char *string;
-    struct josh_line *line;
+    struct josh_command *command;
 }
 
-%start line
+%start command
 
 %token <token> SEMICOLON
 %token <token> DOUBLE_QUOT
 %token <token> AT_SIGN
 %token <token> EQUALS
 %token <string> STRING
-%type <line> part_line
-%type <line> line
+%type <command> part_command
+%type <command> command
 %type <string> destination
 
 %%
 
-line:
+command:
     {
         parsed_line = NULL;
     }
     |
-    part_line {
+    part_command {
         parsed_line = $1;
     }
     |
-    part_line SEMICOLON {
+    part_command SEMICOLON {
         parsed_line = $1;
     };
 
-part_line:
+part_command:
     destination STRING {
-        $$ = malloc(sizeof(struct josh_line));
+        $$ = malloc(sizeof(struct josh_command));
         array_list_init(&$$->args, sizeof(char *));
         $$->destination = $1;
         $$->cmd = $2;
@@ -47,14 +47,14 @@ part_line:
     }
     |
     STRING {
-        $$ = malloc(sizeof(struct josh_line));
+        $$ = malloc(sizeof(struct josh_command));
         array_list_init(&$$->args, sizeof(char *));
         $$->destination = NULL;
         $$->cmd = $1;
         //debug_printf("string\n");
     }
     |
-    part_line STRING {
+    part_command STRING {
         $$ = $1;
         array_list_append(&$$->args, &$2);
         //debug_printf("multi-string: %s\n", $2);

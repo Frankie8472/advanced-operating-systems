@@ -19,9 +19,7 @@ int stdin_read(char *buf, size_t len)
 
     aos_dc_receive_available(&stdin_chan, len, buf, &recvd);
     while (recvd == 0) {
-        debug_printf("hsa\n");
         event_dispatch(get_default_waitset());
-        debug_printf("hsa2\n");
         aos_dc_receive_available(&stdin_chan, len, buf, &recvd);
     }
     return recvd;

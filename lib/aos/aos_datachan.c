@@ -359,6 +359,21 @@ errval_t aos_dc_receive_available(struct aos_datachan *dc, size_t bytes, char *d
 }
 
 
+errval_t aos_dc_can_receive(struct aos_datachan *dc)
+{
+    if (aos_dc_bytes_available(&dc->buffer) > 0) {
+        return true;
+    }
+    else if (dc->backend == AOS_RPC_LMP) {
+        return lmp_chan_can_recv(&dc->channel.lmp);
+    }
+    else if (dc->backend == AOS_RPC_UMP) {
+        return ump_chan_can_receive(&dc->channel.ump);
+    }
+    return false;
+}
+
+
 errval_t aos_dc_receive(struct aos_datachan *dc, size_t bytes, char *data, size_t *received)
 {
     *received = 0;

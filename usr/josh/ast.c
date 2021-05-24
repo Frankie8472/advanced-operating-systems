@@ -1,7 +1,7 @@
 #include "ast.h"
 
 
-void josh_line_free(struct josh_line *line)
+void josh_line_free(struct josh_command *line)
 {
     if (line->cmd) {
         free(line->cmd);

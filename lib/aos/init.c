@@ -119,12 +119,14 @@ size_t aos_terminal_read(char *buf, size_t len)
 {
     errval_t err;
     size_t received;
-    bool is_available = lmp_chan_can_recv(&stdin_chan.channel.lmp);
+    bool is_available = aos_dc_can_receive(&stdin_chan);
+
     void avail(void *arg) {
         is_available = true;
     }
+
     if (!is_available) {
-        lmp_chan_register_recv(&stdin_chan.channel.lmp, get_default_waitset(), MKCLOSURE(avail, NULL));
+        aos_dc_register(&stdin_chan, get_default_waitset(), MKCLOSURE(avail, NULL));
         while(!is_available) {
             err = event_dispatch(get_default_waitset());
             if (err_is_fail(err)) {
@@ -132,7 +134,7 @@ size_t aos_terminal_read(char *buf, size_t len)
                 return 0;
             }
             if (aos_dc_is_closed(&stdin_chan)) {
-                lmp_chan_deregister_recv(&stdin_chan.channel.lmp);
+                aos_dc_deregister(&stdin_chan);
                 return -1;
             }
         }

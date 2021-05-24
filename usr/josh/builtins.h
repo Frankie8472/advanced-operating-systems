@@ -5,6 +5,6 @@
 
 int is_builtin(const char* cmd);
 
-int run_builtin(struct josh_line *line);
+int run_builtin(struct josh_command *line);
 
 #endif // JOSH_BUILTINS_H

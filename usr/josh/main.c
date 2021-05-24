@@ -12,7 +12,7 @@
 
 enum shell_state current_state;
 
-struct josh_line *parsed_line;
+struct josh_command *parsed_line;
 
 
 static errval_t call_spawn_request(const char *name, coreid_t core, struct array_list *args, struct array_list *envp, struct running_program *prog)
@@ -140,7 +140,7 @@ bool is_number(char *string)
 }
 
 
-static void spawn_program(struct josh_line *line)
+static void spawn_program(struct josh_command *line)
 {
     errval_t err;
     struct running_program program;
@@ -188,7 +188,8 @@ static void spawn_program(struct josh_line *line)
         }
     }
     else {
-
+        struct aos_rpc *rpc = &program.process_disprpc;
+        aos_rpc_set_interface(rpc, get_dispatcher_interface(), DISP_IFACE_N_FUNCTIONS, malloc(DISP_IFACE_N_FUNCTIONS * sizeof (void *)));
     }
     
     //struct capref otherep;
@@ -203,7 +204,7 @@ static void spawn_program(struct josh_line *line)
 
 
 
-static void execute_command(struct josh_line *line)
+static void execute_command(struct josh_command *line)
 {
     if (is_builtin(line->cmd)) {
         run_builtin(line);

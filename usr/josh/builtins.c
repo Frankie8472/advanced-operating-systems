@@ -7,12 +7,12 @@
 struct builtin
 {
     const char *cmd;
-    int(*handler)(struct josh_line *line);
+    int(*handler)(struct josh_command *line);
 };
 
-int handle_echo(struct josh_line *line);
-int handle_env(struct josh_line *line);
-int handle_nslist(struct josh_line *line);
+int handle_echo(struct josh_command *line);
+int handle_env(struct josh_command *line);
+int handle_nslist(struct josh_command *line);
 
 const struct builtin builtins[] = {
     { "echo", &handle_echo },
@@ -32,7 +32,7 @@ int is_builtin(const char* cmd)
 }
 
 
-int run_builtin(struct josh_line *line)
+int run_builtin(struct josh_command *line)
 {
     for (size_t i = 0; i < sizeof(builtins) / sizeof(builtins[0]); i++) {
         if (strcmp(line->cmd, builtins[i].cmd) == 0) {
@@ -43,7 +43,7 @@ int run_builtin(struct josh_line *line)
 }
 
 
-int handle_echo(struct josh_line *line)
+int handle_echo(struct josh_command *line)
 {
     for (size_t i = 0; i < line->args.length; i++) {
         char **arg = array_list_at(&line->args, i);
@@ -57,7 +57,7 @@ int handle_echo(struct josh_line *line)
 }
 
 extern char **environ;
-int handle_env(struct josh_line *line)
+int handle_env(struct josh_command *line)
 {
     for (char **ev = environ; *ev != NULL; ev++) {
         for (char *var = *ev; *var != '\0'; var++) {
@@ -75,7 +75,7 @@ int handle_env(struct josh_line *line)
 }
 
 
-int handle_nslist(struct josh_line *line)
+int handle_nslist(struct josh_command *line)
 {
     errval_t err;
     size_t pid_count;

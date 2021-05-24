@@ -1,5 +1,6 @@
 
-let flex src dest = Rule [ Str "flex ",
+let
+    flex src dest = Rule [ Str "flex ",
                            Str " -o ",
                            Out "armv8" dest,
                            In SrcTree "armv8" src

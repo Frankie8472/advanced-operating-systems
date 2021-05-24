@@ -216,12 +216,13 @@ errval_t init_dispatcher_rpcs(void)
         err = aos_rpc_init_ump_default(&dispatcher_rpc, (lvaddr_t) disp_rpc_frame, block_size, 0);
         ON_ERR_RETURN(err);
 
+
+        initialize_dispatcher_handlers(&dispatcher_rpc);
+
         err = aos_dc_init_ump(&stdout_chan, 64, (lvaddr_t) stdout_frame, block_size, 0);
         ON_ERR_RETURN(err);
         err = aos_dc_init_ump(&stdin_chan, 64, (lvaddr_t) stdin_frame, block_size, 0);
         ON_ERR_RETURN(err);
-        
-        debug_printf("Initted ump comm\n");
     }
 
 
