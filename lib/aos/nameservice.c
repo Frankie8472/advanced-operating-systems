@@ -269,8 +269,6 @@ errval_t nameservice_deregister(const char *name)
  */
 errval_t nameservice_lookup(const char *name, nameservice_chan_t *nschan)
 {
-
-
 	errval_t err;
 	bool success;
 
@@ -300,6 +298,11 @@ errval_t nameservice_lookup(const char *name, nameservice_chan_t *nschan)
 
 	*nschan = (void*) serv_con; 
 	return SYS_ERR_OK;
+}
+
+errval_t nameservice_lookup_query(const char * name,const char * query, nameservice_chan_t *nschan){
+
+	return LIB_ERR_NOT_IMPLEMENTED;
 }
 
 
