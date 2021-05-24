@@ -39,7 +39,9 @@ int main(int argc, char *argv[])
     /* look up service using name server */
     nameservice_chan_t chan;
     err = nameservice_lookup(SERVICE_NAME, &chan);
-    PANIC_IF_FAIL(err, "failed to lookup service\n");
+    if(err_is_fail(err)){
+        DEBUG_ERR(err,"Failed to lookup service!\n");
+    }
 
     debug_printf("Got the service %p. Sending request '%s'\n", chan, myrequest);
 

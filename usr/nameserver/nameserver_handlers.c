@@ -16,6 +16,7 @@ void initialize_ns_handlers(struct aos_rpc * init_rpc){
     aos_rpc_register_handler(init_rpc,INIT_REG_NAMESERVER,&handle_reg_proc);
     aos_rpc_register_handler(init_rpc,INIT_REG_SERVER,&handle_server_request);
     aos_rpc_register_handler(init_rpc,INIT_NAME_LOOKUP,&handle_server_lookup);
+    
 }
 
 void initialize_nameservice_handlers(struct aos_rpc *ns_rpc){
@@ -29,7 +30,7 @@ void initialize_nameservice_handlers(struct aos_rpc *ns_rpc){
     aos_rpc_register_handler(ns_rpc,NS_ENUM_SERVERS,&handle_enum_servers);
 }
 
-void handle_server_lookup(struct aos_rpc *rpc, char *name,uintptr_t* core_id,uintptr_t *ump,uintptr_t * success){
+void handle_server_lookup(struct aos_rpc *rpc, char *name,uintptr_t* core_id,uintptr_t *direct,uintptr_t * success){
     debug_printf("Handling server lookup\n");
     errval_t err;
     struct server_list* server;
@@ -39,12 +40,12 @@ void handle_server_lookup(struct aos_rpc *rpc, char *name,uintptr_t* core_id,uin
         *success = 0;
     }else{
         *core_id =  server -> core_id;
-        *ump  = server -> ump;
+        *direct  = server -> direct;
         *success = 1;
     }
 }
 
-void handle_server_request(struct aos_rpc * rpc, uintptr_t pid, uintptr_t core_id ,const char* server_data, uintptr_t ump, const char * return_message){
+void handle_server_request(struct aos_rpc * rpc, uintptr_t pid, uintptr_t core_id ,const char* server_data, uintptr_t direct, const char * return_message){
     errval_t err;
 
     struct server_list * new_server = (struct server_list * ) malloc(sizeof(struct server_list));
@@ -64,16 +65,16 @@ void handle_server_request(struct aos_rpc * rpc, uintptr_t pid, uintptr_t core_i
     // if(err_is_fail(err)){
     // //     DEBUG_ERR(err,"Failed to invoke cap identify on receiving server request!\n");
     // // }
-    // // bool ump = false;
-    // if(ump){
-    //     ump = true;
+    // // bool direct = false;
+    // if(direct){
+    //     direct = true;
     // }
 
     new_server -> next = NULL;
     strcpy(new_server -> name,serv_name);
     new_server -> pid = pid; 
     new_server -> core_id = core_id;
-    new_server -> ump = ump;
+    new_server -> direct = direct;
 
     free(serv_name);
 

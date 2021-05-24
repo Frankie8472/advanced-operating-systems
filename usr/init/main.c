@@ -40,16 +40,23 @@
 #include "mem_alloc.h"
 #include "rpc_server.h"
 #include "test.h"
+#include <hashtable/hashtable.h>
 
+
+#include "routing.h"
 #include <aos/kernel_cap_invocations.h>
 
 #include <process_manager_interface.h>
+
+
 
 
 // #include <aos/curdispatcher_arch.h>
 
 
 coreid_t my_core_id;
+
+
 static errval_t init_foreign_core(void){
 
     /*struct capref epcap;
@@ -80,6 +87,9 @@ static errval_t init_foreign_core(void){
 
 
     errval_t err;
+
+    
+
     set_pm_online();
 
     uint64_t *urpc_init = (uint64_t*) MON_URPC_VBASE;
@@ -168,6 +178,8 @@ static errval_t init_foreign_core(void){
 
     
     set_ns_online();
+
+    routing_ht = create_hashtable();
     return SYS_ERR_OK;
 }
 
@@ -177,6 +189,9 @@ static errval_t init_foreign_core(void){
 
 static errval_t init_name_server(void){
     errval_t err;
+
+    routing_ht = create_hashtable();
+
     struct spawninfo *ns_si = spawn_create_spawninfo();
     domainid_t *ns_pid = &ns_si -> pid;
     err = spawn_load_by_name("nameserver",ns_si,ns_pid);
@@ -373,6 +388,11 @@ static int bsp_main(int argc, char *argv[])
 
     // spawn_new_domain("nameservicetest",0,NULL,NULL,NULL_CAP,NULL_CAP,NULL);
 
+    // spawn_new_core(my_core_id + 1);
+    spawn_new_domain("server a",0,NULL,NULL,NULL_CAP,NULL_CAP,NULL);
+    // spawn_new_domain("server b",1,NULL,NULL,NULL_CAP,NULL_CAP,NULL);
+    //spawn_new_domain("server a",0,NULL,NULL,NULL_CAP,NULL_CAP,NULL);
+    //spawn_new_domain("server b",0,NULL,NULL,NULL_CAP,NULL_CAP,NULL);
     //spawn_new_core(my_core_id + 1);
     //spawn_new_domain("server a",0,NULL,NULL,NULL_CAP,NULL_CAP,NULL);
     // spawn_new_domain("server b",1,NULL,NULL,NULL_CAP,NULL_CAP,NULL);
@@ -390,8 +410,8 @@ static int bsp_main(int argc, char *argv[])
     
     //run_init_tests(my_core_id);
 
-
     
+
 
     // Grading
     grading_test_early();
