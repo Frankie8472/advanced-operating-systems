@@ -133,13 +133,14 @@ errval_t aos_rpc_init_lmp(struct aos_rpc* rpc, struct capref self_ep, struct cap
 
     const size_t default_buflen = 256;
     if (lmp_ep == NULL) {
-        err = endpoint_create(default_buflen, &rpc->channel.lmp.local_cap, &lmp_ep);
+        err = endpoint_create(default_buflen, &self_ep, &lmp_ep);
         ON_ERR_PUSH_RETURN(err, LIB_ERR_ENDPOINT_CREATE);
     }
 
 
     rpc->channel.lmp.buflen_words = default_buflen;
     rpc->channel.lmp.endpoint = lmp_ep;
+    rpc->channel.lmp.local_cap = self_ep;
 
     err = lmp_chan_alloc_recv_slot(&rpc->channel.lmp);
     ON_ERR_PUSH_RETURN(err, LIB_ERR_LMP_ALLOC_RECV_SLOT);
@@ -189,6 +190,19 @@ errval_t aos_rpc_init_ump_default(struct aos_rpc *rpc, lvaddr_t shared_page, siz
     err = ump_chan_register_recv(&rpc->channel.ump, rpc->waitset, MKCLOSURE(&aos_rpc_on_ump_message, rpc));
     //err = ump_chan_register_polling(ump_chan_get_default_poller(), &rpc->channel.ump, &aos_rpc_on_ump_message, rpc);
     ON_ERR_RETURN(err);
+
+    return SYS_ERR_OK;
+}
+
+
+errval_t aos_rpc_free(struct aos_rpc *rpc)
+{
+    if (rpc->backend == AOS_RPC_LMP) {
+        lmp_chan_destroy(&rpc->channel.lmp);
+    }
+    else if (rpc->backend == AOS_RPC_UMP) {
+        ump_chan_destroy(&rpc->channel.ump);
+    }
 
     return SYS_ERR_OK;
 }
@@ -1301,7 +1315,7 @@ static errval_t aos_rpc_unmarshall_retval_aarch64(struct aos_rpc *rpc, void **re
 static errval_t aos_rpc_unmarshall_lmp_aarch64(struct aos_rpc *rpc, void *handler, struct aos_rpc_function_binding *binding,
                                                struct lmp_msg_info *lmi)
 {
-    //debug_printf("words: %ld %ld %ld %ld\n", msg->words[0], msg->words[1], msg->words[2], msg->words[3]);
+    //debug_printf("words: %ld %ld %ld %ld\n", lmi->msg.words[0], lmi->msg.words[1], lmi->msg.words[2], lmi->msg.words[3]);
     //debug_printf("rpc = %p\n", rpc);
     struct lmp_chan *lc = &rpc->channel.lmp;
     

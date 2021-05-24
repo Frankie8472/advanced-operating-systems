@@ -7,6 +7,7 @@ struct josh_line
 {
     char *cmd;
     struct array_list args;
+    char *destination;
 };
 
 

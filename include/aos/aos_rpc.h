@@ -138,6 +138,8 @@ errval_t aos_rpc_set_interface(struct aos_rpc *rpc, struct aos_rpc_interface *in
 errval_t aos_rpc_init_lmp(struct aos_rpc *rpc, struct capref self_ep, struct capref end_ep, struct lmp_endpoint *lmp_ep, struct waitset *waitset);
 errval_t aos_rpc_init_ump_default(struct aos_rpc *rpc, lvaddr_t shared_page, size_t shared_page_size, bool first_half);
 
+errval_t aos_rpc_free(struct aos_rpc *rpc);
+
 errval_t aos_rpc_initialize_binding(struct aos_rpc_interface *interface, const char *name, int msg_type,
                                     int n_args, int n_rets, ...);
 

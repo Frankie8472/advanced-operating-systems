@@ -123,5 +123,5 @@ void handle_dereg_process(struct aos_rpc * rpc, uintptr_t pid){
         DEBUG_ERR(err,"Failed to deret process!\n");
     }
 
-    print_process_list();
+    //print_process_list();
 }

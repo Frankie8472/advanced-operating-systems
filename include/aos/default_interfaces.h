@@ -12,6 +12,9 @@ struct aos_rpc_interface * get_opaque_server_interface(void);
 
 void initialize_initiate_handler(struct aos_rpc *rpc);
 
+#define MOD_NOT_FOUND -1
+#define COREID_INVALID -2
+
 enum {
     INIT_IFACE_SPAWN = AOS_RPC_MSG_TYPE_START,
     INIT_IFACE_SPAWN_EXTENDED,      ///< same as spawn but with more 

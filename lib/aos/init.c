@@ -26,6 +26,7 @@
 #include <aos/morecore.h>
 #include <aos/paging.h>
 #include <aos/systime.h>
+#include <aos/io_channels.h>
 #include <barrelfish_kpi/domain_params.h>
 
 #include "threads_priv.h"
@@ -53,7 +54,7 @@ void libc_exit(int status)
     if(err_is_fail(err)){
         DEBUG_ERR(err,"Failed to remove self process from nameserver before exiting!\n");
     }
-    debug_printf("libc exit NYI!\n");
+    //debug_printf("libc exit NYI!\n");
 
     // close stdout
     err = aos_dc_close(&stdout_chan);
@@ -98,7 +99,7 @@ static size_t syscall_terminal_read(char * buf,size_t len)
 }
 
 
-static size_t aos_terminal_write(const char *buf, size_t len)
+size_t aos_terminal_write(const char *buf, size_t len)
 {
     errval_t err;
     if (aos_dc_send_is_connected(&stdout_chan)) {
@@ -114,7 +115,7 @@ static size_t aos_terminal_write(const char *buf, size_t len)
 }
 
 
-static size_t aos_terminal_read(char *buf, size_t len)
+size_t aos_terminal_read(char *buf, size_t len)
 {
     errval_t err;
     size_t received;
@@ -150,7 +151,7 @@ void barrelfish_libc_glue_init(void)
     // XXX: FIXME: Check whether we can use the proper kernel serial, and what we need for that
     // TODO: change these to use the user-space serial driver if possible
     // TODO: set these functions
-    if (init_domain) {
+    if (init_domain || 0) {
         _libc_terminal_read_func = syscall_terminal_read;
         _libc_terminal_write_func = syscall_terminal_write;
         _libc_exit_func = libc_exit;
@@ -249,7 +250,6 @@ errval_t barrelfish_init_onthread(struct spawn_domain_params *params)
 
     // right now we don't have the nameservice & don't need the terminal
     // and domain spanning, so we return here
-    debug_printf("Initialization ok!\n");
     return SYS_ERR_OK;
 }
 

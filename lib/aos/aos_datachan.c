@@ -98,7 +98,7 @@ errval_t aos_dc_init_lmp(struct aos_datachan *dc, size_t buffer_length)
 }
 
 
-errval_t aos_dc_init_ump(struct aos_datachan *dc, size_t buffer_length)
+errval_t aos_dc_init_ump(struct aos_datachan *dc, size_t buffer_length, lvaddr_t ump_page, size_t ump_page_size, bool first_half)
 {
     char *buffer = malloc(buffer_length);
     NULLPTR_CHECK(buffer, LIB_ERR_MALLOC_FAIL);
@@ -106,7 +106,18 @@ errval_t aos_dc_init_ump(struct aos_datachan *dc, size_t buffer_length)
     dc->backend = AOS_RPC_UMP;
     dc->is_closed = false;
 
-    return SYS_ERR_OK;
+    void *send_block;
+    void *recv_block;
+    if (first_half) {
+        send_block = (void *) ump_page;
+        recv_block = (void *) ump_page + ump_page_size / 2;
+    }
+    else {
+        send_block = (void *) ump_page + ump_page_size / 2;
+        recv_block = (void *) ump_page;
+    }
+
+    return ump_chan_init(&dc->channel.ump, send_block, ump_page_size / 2, recv_block, ump_page_size / 2);
 }
 
 
@@ -122,10 +133,10 @@ bool aos_dc_send_is_connected(struct aos_datachan *dc)
     if (dc->backend == AOS_RPC_LMP) {
         return !capref_is_null(dc->channel.lmp.remote_cap);
     }
-    else {
-        // NYI
-        return false;
+    else if (dc->backend == AOS_RPC_UMP) {
+        return dc->channel.ump.send_pane != NULL;
     }
+    return false;
 }
 
 
@@ -169,8 +180,23 @@ static errval_t aos_dc_send_lmp(struct aos_datachan *dc, size_t bytes, const cha
 
 static errval_t aos_dc_send_ump(struct aos_datachan *dc, size_t bytes, const char *data)
 {
-    DEBUG_PRINTF("NYI!");
-    return LIB_ERR_NOT_IMPLEMENTED;
+    DECLARE_MESSAGE(dc->channel.ump, msg);
+
+
+    size_t ump_bytes_length = ump_chan_get_data_len(&dc->channel.ump) * sizeof(uintptr_t);
+    size_t first_msg_length = ump_bytes_length - sizeof(uintptr_t);
+
+    msg->data[0] = bytes;
+    memcpy(&msg->data[1], data, min(first_msg_length, bytes));
+
+    while(!ump_chan_send(&dc->channel.ump, msg));
+
+    for (size_t offs = first_msg_length; offs < bytes; offs += ump_bytes_length) {
+        memcpy(&msg->data[0], data + offs, min(ump_bytes_length, bytes - offs));
+        while(!ump_chan_send(&dc->channel.ump, msg));
+    }
+
+    return SYS_ERR_OK;
 }
 
 
@@ -304,17 +330,28 @@ static errval_t aos_dc_receive_buffered(struct aos_datachan *dc, size_t bytes, c
 
 errval_t aos_dc_receive_available(struct aos_datachan *dc, size_t bytes, char *data, size_t *received)
 {
-    errval_t err;
+    errval_t err = SYS_ERR_OK;
     size_t read = aos_dc_read_from_buffer(&dc->buffer, bytes, data);
 
-    while (read < bytes && lmp_chan_can_recv(&dc->channel.lmp)) {
-        err = aos_dc_receive_one_message_lmp(dc);
-        ON_ERR_RETURN(err);
-        read += aos_dc_read_from_buffer(&dc->buffer, bytes - read, data + read);
-
+    while (read < bytes && (
+                (dc->backend == AOS_RPC_LMP &&
+                    lmp_chan_can_recv(&dc->channel.lmp))
+                    ||
+                (dc->backend == AOS_RPC_UMP &&
+                    ump_chan_can_receive(&dc->channel.ump))
+    )) {
         if (dc->is_closed) {
             break;
         }
+
+        if (dc->backend == AOS_RPC_LMP) {
+            err = aos_dc_receive_one_message_lmp(dc);
+        }
+        else if (dc->backend == AOS_RPC_UMP) {
+            err = aos_dc_receive_one_message_ump(dc);
+        }
+        ON_ERR_RETURN(err);
+        read += aos_dc_read_from_buffer(&dc->buffer, bytes - read, data + read);
     }
 
      *received = read;
@@ -410,7 +447,11 @@ errval_t aos_dc_close(struct aos_datachan *dc)
         }
     }
     else if (dc->backend == AOS_RPC_UMP) {
-        return SYS_ERR_NOT_IMPLEMENTED;
+        DECLARE_MESSAGE(dc->channel.ump, msg);
+
+        msg->data[0] = CLOSE_MESSAGE;
+
+        while(!ump_chan_send(&dc->channel.ump, msg));
     }
     return SYS_ERR_OK;
 }

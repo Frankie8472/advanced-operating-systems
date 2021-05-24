@@ -295,13 +295,13 @@ bool get_init_domain(void){
 
 
 struct aos_rpc* get_core_channel(coreid_t core_id){
-    assert(core_id < 4 && "Tried to get channel for core >= 4!");
+    //assert(core_id < 4 && "Tried to get channel for core >= 4!");
+    if (core_id >= 4) {
+        return NULL;
+    }
     dispatcher_handle_t handle = curdispatcher();
     struct dispatcher_generic* disp = get_dispatcher_generic(handle);
     struct aos_rpc *ret = disp->core_state.c.core_channels[core_id];
-    if (ret == NULL) {
-        debug_printf("Returning NULL channel\n");
-    }
     return ret;
 }
 
