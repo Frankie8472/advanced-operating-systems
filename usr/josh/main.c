@@ -2,6 +2,7 @@
 #include <aos/dispatcher_rpc.h>
 #include <aos/default_interfaces.h>
 #include <hashtable/hashtable.h>
+#include <hashtable/dictionary.h>
 
 #include <linenoise/linenoise.h>
 
@@ -11,9 +12,47 @@
 #include "builtins.h"
 #include "running.h"
 
+
+
 enum shell_state current_state;
 
 struct josh_line *parsed_line;
+
+
+struct hashtable *shell_variables;
+static char *get_variable(const char *name)
+{
+    char *variable;
+    shell_variables->d.get(&shell_variables->d, name, strlen(name), (void **) &variable);
+    return variable;
+}
+
+static void set_variable(const char *name, const char *value)
+{
+    char *existing = get_variable(name);
+    if (existing != NULL) {
+        free(existing);
+        existing = NULL;
+        shell_variables->d.remove(&shell_variables->d, name, strlen(name));
+    }
+    // copy string to take ownership kinda complicated
+    // 
+    // as I did not find a way to get the key back from the hashmap,
+    // we allocate the value and the key in one single malloc.
+    // this way, it is enough to just free the value
+    size_t valuelen = strlen(value);
+    size_t namelen = strlen(name);
+
+    char *value_and_name = malloc(valuelen + namelen + 2);
+
+    char *newval = value_and_name;
+    char *newname = value_and_name + valuelen + 1;
+
+    strncpy(newval, value, valuelen + 1);
+    strncpy(newname, name, namelen + 1);
+
+    shell_variables->d.put_word(&shell_variables->d, newname, strlen(name), (uintptr_t) newval);
+}
 
 
 static errval_t call_spawn_request(const char *name, coreid_t core, size_t argc, const char **argv, struct array_list *envp, struct running_program *prog)
@@ -204,6 +243,23 @@ static void spawn_program(const char *dest, const char *cmd, size_t argc, const 
 }
 
 
+char *evaluate_value(struct josh_value *value)
+{
+    if (value->type == JV_LITERAL) {
+        return value->val;
+    }
+    else if (value->type == JV_VARIABLE) {
+        char *envvar = getenv(value->val);
+        if (envvar) return envvar;
+        char *var = get_variable(value->val);
+        return var;
+    }
+    else {
+        printf("internal error\n");
+        return NULL;
+    }
+}
+
 
 static void execute_command(struct josh_command *command)
 {
@@ -214,15 +270,13 @@ static void execute_command(struct josh_command *command)
 
     for (size_t i = 0; i < argc; i++) {
         struct josh_value *arg = *(struct josh_value **) array_list_at(&command->args, i);
-        if (arg->type == JV_LITERAL) {
-            argv[i] = arg->val;
-        }
-        else if (arg->type == JV_VARIABLE) {
-            argv[i] = getenv(arg->val);
-        }
-        else {
-            printf("internal error\n");
-        }
+        argv[i] = evaluate_value(arg);
+
+        // create empty string if null
+        /*if (argv[i] == NULL) {
+            argv[i] = malloc(1);
+            argv[i][0] = '\0';
+        }*/
     }
 
     const char* destination = command->destination;
@@ -242,6 +296,15 @@ static void execute_command(struct josh_command *command)
     free(argv);
 }
 
+
+static void do_assignment(struct josh_assignment *assignment)
+{
+    const char *varname = assignment->varname;
+    const char *value = evaluate_value(assignment->value);
+    set_variable(varname, value);
+}
+
+
 static void process_line(void) {
     char *line = linenoise(getenv("PROMPT"));
 
@@ -259,6 +322,10 @@ static void process_line(void) {
         if (parsed_line->type == JL_COMMAND) {
             struct josh_command *command = parsed_line->command;
             execute_command(command);
+        }
+        else if (parsed_line->type == JL_ASSIGNMENT) {
+            struct josh_assignment *assignment = parsed_line->assignment;
+            do_assignment(assignment);
         }
         josh_line_free(parsed_line);
         parsed_line = NULL;
@@ -278,17 +345,11 @@ static void complete_line(const char *line, linenoiseCompletions *completions)
 
 int main(int argc, char **argv)
 {
-    //errval_t err;
-    //struct waitset *default_ws = get_default_waitset();
-    //err = event_dispatch(default_ws);
-    //err = event_dispatch(default_ws);
-    //err = event_dispatch(default_ws);
-
-    printf("Welcome to JameOS Shell\n");
-
+    shell_variables = create_hashtable();
     setenv("PROMPT", "\033[32;1mjosh\033[m $ ", 0);
     setenv("PATH", "/usr/bin:/home", 0);
 
+    printf("Welcome to JameOS Shell\n");
 
     linenoiseHistorySetMaxLen(64);
     linenoiseSetCompletionCallback(&complete_line);
@@ -297,7 +358,5 @@ int main(int argc, char **argv)
         process_line();
     }
 
-    //print_prompt();
-
-    //lmp_chan_register_recv(&stdin_chan.channel.lmp, get_default_waitset(), MKCLOSURE(on_input, &stdin_chan));
+    return 0;
 }

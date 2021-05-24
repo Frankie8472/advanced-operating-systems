@@ -27,7 +27,7 @@ in
             "-Wno-unused-function"
         ],
         addIncludes = [ "/lib" ],
-        addLibraries = [ "aos", "linenoise", "fs" ],
+        addLibraries = [ "aos", "linenoise" ],
         architectures = allArchitectures
     }
 ]
