@@ -25,7 +25,7 @@ typedef void* nameservice_chan_t;
 struct server_connection {
 	const char* name;
 	coreid_t core_id;
-	bool ump;
+	bool direct;
 	struct aos_rpc * rpc;
 	bool dead;
 };
@@ -72,7 +72,10 @@ errval_t nameservice_register(const char *name,
 	                              void *st);
 
 
-errval_t nameservice_register_properties(const char * name,nameservice_receive_handler_t recv_handler, void * st, bool ump,const char * properties);
+errval_t nameservice_register_direct(const char *name, 
+	                              nameservice_receive_handler_t recv_handler,
+	                              void *st);
+errval_t nameservice_register_properties(const char * name,nameservice_receive_handler_t recv_handler, void * st, bool direct,const char * properties);
 
 /**
  * @brief deregisters the service 'name'
@@ -107,9 +110,10 @@ errval_t nameservice_enumerate(char *query, size_t *num, char **result );
 
 
 void nameservice_reveice_handler_wrapper(struct aos_rpc * rpc,char*  message,struct capref tx_cap, char * response, struct capref* rx_cap);
+void namservice_receive_handler_wrapper_direct(struct aos_rpc *rpc, char* message,char * response);
+void nameservice_binding_request_handler(struct aos_rpc *rpc,uintptr_t remote_core_id, struct capref remote_cap, struct capref* local_cap);
 
-
-errval_t create_ump_server_ep(struct capref* server_ep,struct aos_rpc** ret_rpc);
+errval_t create_ump_server_ep(struct capref* server_ep,struct aos_rpc** ret_rpc,bool first_half);
 errval_t create_lmp_server_ep(struct capref* server_ep, struct aos_rpc** ret_rpc);
 errval_t serialize(const char * name, const char * properties,char** ret_server_data);
 errval_t deserialize_prop(const char * server_data,char *  key[],char *  value[], char**name);

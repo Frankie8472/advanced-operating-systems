@@ -12,3 +12,4 @@ errval_t init_dispatcher_rpcs(void);
 errval_t init_nameserver_rpc(char * name);
 
 #endif // LIB_AOS_DISPATCHER_RPC_H
+        

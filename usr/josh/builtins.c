@@ -1,9 +1,9 @@
 #include "builtins.h"
 #include "format.h"
 
+#include <aos/nameserver.h>
 #include <aos/aos_rpc.h>
 #include <aos/default_interfaces.h>
-
 struct builtin
 {
     const char *cmd;
@@ -12,12 +12,14 @@ struct builtin
 
 int handle_echo(struct josh_line *line);
 int handle_env(struct josh_line *line);
+int handle_pmlist(struct josh_line *line);
 int handle_nslist(struct josh_line *line);
 
 const struct builtin builtins[] = {
     { "echo", &handle_echo },
     { "env", &handle_env },
-    { "nslist", &handle_nslist },
+    { "pmlist", &handle_pmlist },
+    { "nslist", &handle_nslist}
 };
 
 
@@ -75,7 +77,7 @@ int handle_env(struct josh_line *line)
 }
 
 
-int handle_nslist(struct josh_line *line)
+int handle_pmlist(struct josh_line *line)
 {
     errval_t err;
     size_t pid_count;
@@ -102,4 +104,30 @@ int handle_nslist(struct josh_line *line)
     }
     free(pids);
     return 0;
+}
+
+
+int handle_nslist(struct josh_line *line){
+    errval_t err;
+    // char * ret_string[2000]; // MAX AMOUNT OF SERVERS
+    char ** ret_string = (char **) malloc(1024 * sizeof(char*));
+    size_t ret_size;
+    err = nameservice_enumerate("/",&ret_size,ret_string);
+    // if(err_is_ok)
+    if(err_is_fail(err) || ret_size >= 1024){
+        printf("error querying nameserver\n");
+        DEBUG_ERR(err,"");
+        return 1;
+    }
+
+    printf(JF_BOLD "%-32s # %-9"PRIuDOMAINID"\n" JF_RESET, "Servers",ret_size);
+    for(int i = 0;i < ret_size;++i){
+        printf("%s\n",ret_string[i]);
+    }
+
+
+    free(ret_string);
+
+    return 0;
+
 }

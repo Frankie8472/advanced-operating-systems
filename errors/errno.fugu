@@ -382,6 +382,8 @@ errors libaos LIB_ERR_ {
     failure NAMESERVICE_UNKNOWN_NAME "Lookup failed: unknown name",
     failure NAMESERVICE_INVALID_PROPERTY_FORMAT "Invalid property format",
     failure NAMESERVICE_INVALID_NAME "Invalid record retrieved (no iref attribute)",
+    failure NAMESERVICE_ROUTING_ERROR "Multihop routing error",
+    failure NAMESERVICE_HASHTABLE_ERROR "Hashtable operation failed",
     failure NAMESERVICE_INV_SERVER_NAME "Invalid server name",
     failure NAMESERVICE_INV_QUERY "Invalid query",
     failure NAMESERVICE_INVALID_DEREG "Invalid rights to dereg server",

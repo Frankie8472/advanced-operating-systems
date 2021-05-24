@@ -7,6 +7,7 @@
 #include <aos/paging.h>
 #include <aos/nameserver.h>
 
+
 #include <aos/waitset.h>
 #include <aos/default_interfaces.h>
 #define PANIC_IF_FAIL(err, msg)    \
@@ -66,15 +67,15 @@ int main(int argc, char *argv[])
     char buffer[512];
     strcpy(buffer,SERVICE_NAME);
     strcat(buffer,argv[1]);
-    err = nameservice_register(buffer, server_recv_handler,NULL);
+    err = nameservice_register_direct(buffer, server_recv_handler,NULL);
     PANIC_IF_FAIL(err, "failed to register...\n");
-    domainid_t my_pid;
 
     // err = aos_rpc_process_spawn(get_init_rpc(),"client",!disp_get_core_id(),&my_pid);
     // if(err_is_fail(err)){
     //     DEBUG_ERR(err,"Failed to spawn client!\n");
-    // }
-    err = aos_rpc_process_spawn(get_init_rpc(),"client",0,&my_pid);
+    // // }
+    domainid_t my_pid;
+    err = aos_rpc_process_spawn(get_init_rpc(),"client",1,&my_pid);
     if(err_is_fail(err)){
         DEBUG_ERR(err,"Failed to spawn client!\n");
     }

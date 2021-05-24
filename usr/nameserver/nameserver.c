@@ -8,6 +8,7 @@
 #include "process_list.h"
 #include "nameserver_handlers.h"
 #include "server_list.h"
+#include <hashtable/hashtable.h>
 
 
 int main(int argc, char *argv[])
@@ -22,6 +23,7 @@ int main(int argc, char *argv[])
     pl.tail = NULL;
     pl.size = 0;
 
+    server_ht = create_hashtable();
     // domainid_t my_pid;
     
     err = add_process(0,"nameserver",0,NULL);

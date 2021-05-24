@@ -63,12 +63,23 @@ errval_t nameservice_rpc(nameservice_chan_t chan, void *message, size_t bytes,
 	struct server_connection *serv_con = (struct server_connection *) chan;
 
 
-	if(serv_con -> ump){
+	if(serv_con -> direct){
 		if(!capref_is_null(tx_cap) && !capref_is_null(rx_cap)){
-			debug_printf("Trying to send or recv cap over a ump server connection!(impossible to do!)\n");
+			debug_printf("Trying to send or recv cap over a direct server connection!(impossible to do!)\n");
 			return LIB_ERR_NOT_IMPLEMENTED;
 		}
-		return LIB_ERR_NOT_IMPLEMENTED;
+
+		debug_printf("Calling!\n");
+		
+
+
+
+		debug_printf("%p\n",serv_con -> rpc);
+		err = aos_rpc_call(serv_con -> rpc,OS_IFACE_DIRECT_MESSAGE,message,(char *)*response);
+		debug_printf("Finished calling\n");
+		ON_ERR_RETURN(err);
+		*response_bytes = strlen(*response);
+		return SYS_ERR_OK;
 	}else{
 		
 		
@@ -116,11 +127,20 @@ errval_t nameservice_register(const char *name,
 	                              void *st)
 {	
 	
-	return nameservice_register_properties(name,recv_handler,st,false,"mac=44:8a:5b:d3:b8:07");
+	return nameservice_register_properties(name,recv_handler,st,false,"type=default");
 }
 
 
-errval_t nameservice_register_properties(const char * name,nameservice_receive_handler_t recv_handler, void * st, bool ump,const char * properties){
+errval_t nameservice_register_direct(const char *name, 
+	                              nameservice_receive_handler_t recv_handler,
+	                              void *st)
+{	
+	
+	return nameservice_register_properties(name,recv_handler,st,true,"type=default");
+}
+
+
+errval_t nameservice_register_properties(const char * name,nameservice_receive_handler_t recv_handler, void * st, bool direct,const char * properties){
 
 
 	errval_t err;
@@ -136,9 +156,7 @@ errval_t nameservice_register_properties(const char * name,nameservice_receive_h
 
 	char* server_data;
 	err = serialize(name,properties,&server_data);
-	// debug_printf("Here!\n");
 	ON_ERR_RETURN(err);
-	// create and add srv_entry
 	struct srv_entry* new_srv_entry = (struct srv_entry *) malloc(sizeof(struct srv_entry));
 	new_srv_entry -> name = name;
 	new_srv_entry -> recv_handler = recv_handler;
@@ -147,20 +165,21 @@ errval_t nameservice_register_properties(const char * name,nameservice_receive_h
 
 	struct aos_rpc *new_rpc;
 	struct capref server_ep;
-	if(ump){
-		err = create_ump_server_ep(&server_ep,&new_rpc);
-	}else{
-		err = create_lmp_server_ep(&server_ep,&new_rpc);
-	}
+
+
+	err = create_lmp_server_ep(&server_ep,&new_rpc);
+	
 	ON_ERR_RETURN(err);
 
 
 	char buf[512];
-	err = aos_rpc_call(get_init_rpc(),INIT_REG_SERVER,disp_get_domain_id(),disp_get_core_id(),server_data,ump,buf);
+	err = aos_rpc_call(get_init_rpc(),INIT_REG_SERVER,disp_get_domain_id(),disp_get_core_id(),server_data,direct,buf);
 	ON_ERR_RETURN(err);
 
-	if(!ump){
-		establish_init_server_con(name,new_rpc,server_ep);
+	
+	err = establish_init_server_con(name,new_rpc,server_ep);
+	if(err_is_fail(err)){
+		DEBUG_ERR(err,"Failed to init server connection with rpc server\n");
 	}
 
 	new_rpc -> serv_entry = (void*) new_srv_entry;
@@ -168,7 +187,7 @@ errval_t nameservice_register_properties(const char * name,nameservice_receive_h
 	return SYS_ERR_OK;
 }
 
-errval_t create_ump_server_ep(struct capref* server_ep,struct aos_rpc** ret_rpc){
+errval_t create_ump_server_ep(struct capref* server_ep,struct aos_rpc** ret_rpc,bool first_half){
 	errval_t err;
 	struct aos_rpc* new_rpc = (struct aos_rpc*) malloc(sizeof(struct aos_rpc));
 	err = slot_alloc(server_ep);
@@ -178,7 +197,8 @@ errval_t create_ump_server_ep(struct capref* server_ep,struct aos_rpc** ret_rpc)
 	ON_ERR_RETURN(err);
 	char *urpc_data = NULL;
 	err = paging_map_frame_complete(get_current_paging_state(), (void **) &urpc_data, *server_ep, NULL, NULL);
-	err =  aos_rpc_init_ump_default(new_rpc,(lvaddr_t) urpc_data, BASE_PAGE_SIZE,true);
+	ON_ERR_RETURN(err);
+	err =  aos_rpc_init_ump_default(new_rpc,(lvaddr_t) urpc_data, BASE_PAGE_SIZE,first_half);
 	ON_ERR_RETURN(err);
 	err = aos_rpc_set_interface(new_rpc,get_opaque_server_interface(),OS_IFACE_N_FUNCTIONS,get_opaque_server_rpc_handlers);
 	ON_ERR_RETURN(err);
@@ -205,10 +225,7 @@ errval_t create_lmp_server_ep(struct capref* server_ep, struct aos_rpc** ret_rpc
 	err = aos_rpc_set_interface(new_rpc,get_opaque_server_interface(),OS_IFACE_N_FUNCTIONS,get_opaque_server_rpc_handlers);
 	init_server_handlers(new_rpc);
 
-	// char buffer[512];
 
-	// debug_print_cap_at_capref(buffer,512,new_rpc -> channel.lmp.local_cap);
-	// debug_printf("Cap : %s\n",buffer);
 
 	*ret_rpc = new_rpc;
 	return SYS_ERR_OK;
@@ -270,28 +287,52 @@ errval_t nameservice_deregister(const char *name)
 errval_t nameservice_lookup(const char *name, nameservice_chan_t *nschan)
 {
 	errval_t err;
-	bool success;
-
-	bool ump;
+	uintptr_t success;
+	uintptr_t direct;
 	coreid_t core_id;
-	err = aos_rpc_call(get_init_rpc(),INIT_NAME_LOOKUP,name,&core_id,&ump,&success);
+	err = aos_rpc_call(get_init_rpc(),INIT_NAME_LOOKUP,name,&core_id,&direct,&success);
 	ON_ERR_RETURN(err);
 	if(!success){
 		return LIB_ERR_NAMESERVICE_UNKNOWN_NAME;
 	}
-	// ON_ERR_RETURN(err);
 
 	struct server_connection* serv_con = (struct server_connection*) malloc(sizeof(struct server_connection));
 	const char * con_name = (const char *) malloc(sizeof(strlen(name) + 1));
 	strcpy((char*)con_name,(char*)name);  
 	serv_con -> name = con_name;
 	serv_con -> core_id = core_id;
-	if(ump){
-		serv_con -> ump = true;
-		return LIB_ERR_NOT_IMPLEMENTED;
+	if(direct){
+		serv_con -> direct = true;
+		struct capref local_ep_cap;
+		struct aos_rpc * new_client_server_channel;
+		struct capref remote_cap;
+		if(serv_con -> core_id == disp_get_core_id()){
+			debug_printf("Setting up direct lmp channel!\n");
+			err = create_lmp_server_ep(&local_ep_cap,&new_client_server_channel);
+			ON_ERR_RETURN(err);
+			err = aos_rpc_call(get_init_rpc(),INIT_BINDING_REQUEST,name,disp_get_core_id(),serv_con -> core_id,local_ep_cap,&remote_cap);
+			ON_ERR_RETURN(err);
+			new_client_server_channel -> channel.lmp.remote_cap = remote_cap;
+			// serv_con-> rpc -> channel.lmp.remote_cap = remote_cap;
+		}
+		else {
+			debug_printf("Setting up direct ump channel!\n");
+			err = create_ump_server_ep(&local_ep_cap,&new_client_server_channel,true);
+			ON_ERR_RETURN(err);
+			char buffer[512];
+			debug_print_cap_at_capref(buffer,512,local_ep_cap);
+			debug_printf("Here %s\n",buffer);
+
+			err = aos_rpc_call(get_init_rpc(),INIT_BINDING_REQUEST,name,disp_get_core_id(),serv_con -> core_id,local_ep_cap,&remote_cap);
+			ON_ERR_RETURN(err);
+		}
+		serv_con -> rpc = new_client_server_channel;
+
+
+
 	}
 	else{
-		serv_con -> ump = false;
+		serv_con -> direct = false;
 		serv_con -> rpc = get_init_rpc();
 	}
 	
@@ -354,6 +395,49 @@ void nameservice_reveice_handler_wrapper(struct aos_rpc * rpc,char*  message,str
 
 }
 
+
+void namservice_receive_handler_wrapper_direct(struct aos_rpc *rpc, char* message,char * response){
+	debug_printf("Got direct message!\n");
+	struct srv_entry * se = (struct srv_entry *) rpc -> serv_entry;
+	size_t response_bytes;
+	char * response_buffer = (char * ) malloc(1024); //TODO make varstrlarger
+	se -> recv_handler(se -> st,(void *) message,strlen(message),(void*)&response_buffer,&response_bytes,NULL_CAP,NULL);
+	strcpy(response,response_buffer);
+}
+
+void nameservice_binding_request_handler(struct aos_rpc *rpc,uintptr_t remote_core_id, struct capref remote_cap, struct capref* local_cap){
+	errval_t err;
+	
+	struct aos_rpc *new_server_con;
+	if(remote_core_id == disp_get_core_id()){
+		debug_printf("handle lmp binding request!\n");
+		err = create_lmp_server_ep(local_cap,&new_server_con);
+		if(err_is_fail(err)){
+			DEBUG_ERR(err,"create server ep");
+		}
+		new_server_con -> channel.lmp.remote_cap = remote_cap;
+	}else{
+		new_server_con = (struct aos_rpc*) malloc(sizeof(struct aos_rpc));
+		debug_printf("handle ump binding request!\n");
+		char *urpc_data = NULL;
+		err = paging_map_frame_complete(get_current_paging_state(), (void **) &urpc_data, remote_cap, NULL, NULL);
+		if(err_is_fail(err)){
+			DEBUG_ERR(err,"Failed to map ump frame into VSpace\n");
+		}
+		err = aos_rpc_init_ump_default(new_server_con,(lvaddr_t) urpc_data,BASE_PAGE_SIZE,false);
+		if(err_is_fail(err)){
+			DEBUG_ERR(err,"Failed to init ump default\n");
+		}
+		err = aos_rpc_set_interface(new_server_con,get_opaque_server_interface(),OS_IFACE_N_FUNCTIONS,get_opaque_server_rpc_handlers);
+		if(err_is_fail(err)){
+			DEBUG_ERR(err,"Failed to set interface\n");
+		}
+		*local_cap = remote_cap;
+		init_server_handlers(new_server_con);
+	}
+	new_server_con -> serv_entry = rpc -> serv_entry;
+
+}
 
 
 static void remove_spaces (char* restrict str_trimmed, const char* restrict str_untrimmed)
@@ -504,6 +588,8 @@ errval_t deserialize_prop(const char * server_data,char *  key[],char *  value[]
 
 void init_server_handlers(struct aos_rpc* server_rpc){
 	aos_rpc_register_handler(server_rpc,OS_IFACE_MESSAGE,&nameservice_reveice_handler_wrapper);
+	aos_rpc_register_handler(server_rpc,OS_IFACE_BINDING_REQUEST,&nameservice_binding_request_handler);
+	aos_rpc_register_handler(server_rpc,OS_IFACE_DIRECT_MESSAGE,&namservice_receive_handler_wrapper_direct);
 }
 
 
@@ -519,7 +605,7 @@ bool name_check(const char*name){
 
 bool query_check(const char*query){
 	regex_t regex_name;
-	int reti_name = regcomp(&regex_name,"^/([a-z]|[A-Z])+([a-z]|[A-Z]|[0-9])*(/([a-z]|[A-Z])+([a-z]|[A-Z]|[0-9])*)*/$",REG_EXTENDED);
+	int reti_name = regcomp(&regex_name,"^(/([a-z]|[A-Z])+([a-z]|[A-Z]|[0-9])*)*/$",REG_EXTENDED);
 	reti_name = regexec(&regex_name,query,0,NULL,0);
 	return !reti_name;
 }
