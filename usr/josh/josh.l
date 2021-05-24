@@ -27,5 +27,6 @@
 ";"                             return SEMICOLON;
 "@"                             return AT_SIGN;
 "="                             return EQUALS;
-([^ \t\n;@#\"=])+              { yylval.string = strdup(yytext); return STRING; }
+"$"                             return DOLLAR;
+([^ \t\n;@#\"=$])+              { yylval.string = strdup(yytext); return STRING; }
 %%

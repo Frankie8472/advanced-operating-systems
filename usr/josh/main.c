@@ -1,6 +1,7 @@
 #include <aos/aos_rpc.h>
 #include <aos/dispatcher_rpc.h>
 #include <aos/default_interfaces.h>
+#include <hashtable/hashtable.h>
 
 #include <linenoise/linenoise.h>
 
@@ -12,16 +13,16 @@
 
 enum shell_state current_state;
 
-struct josh_command *parsed_line;
+struct josh_line *parsed_line;
 
 
-static errval_t call_spawn_request(const char *name, coreid_t core, struct array_list *args, struct array_list *envp, struct running_program *prog)
+static errval_t call_spawn_request(const char *name, coreid_t core, size_t argc, const char **argv, struct array_list *envp, struct running_program *prog)
 {
     errval_t err;
     size_t bytes_needed = sizeof(struct spawn_request_header);
     bytes_needed += sizeof(struct spawn_request_header) + strlen(name) + 1;
-    for (size_t i = 0; i < args->length; i++) {
-        const char *arg = *(char **) array_list_at(args, i);
+    for (size_t i = 0; i < argc; i++) {
+        const char *arg = argv[i];
         bytes_needed += sizeof(struct spawn_request_header) + strlen(arg) + 1;
     }
 
@@ -29,7 +30,7 @@ static errval_t call_spawn_request(const char *name, coreid_t core, struct array
     struct spawn_request_header *header = data;
     size_t offset = sizeof(struct spawn_request_header);
 
-    header->argc = args->length + 1;
+    header->argc = argc + 1;
     header->envc = 0;
 
     struct spawn_request_arg *arg_hdr1 = data + offset;
@@ -38,9 +39,9 @@ static errval_t call_spawn_request(const char *name, coreid_t core, struct array
     memcpy(arg_hdr1->str, name, arg_hdr1->length);
     offset += sizeof(struct spawn_request_header) + arg_hdr1->length;
 
-    for (size_t i = 0; i < args->length; i++) {
+    for (size_t i = 0; i < argc; i++) {
         struct spawn_request_arg *arg_hdr = data + offset;
-        const char *arg = *(char **) array_list_at(args, i);
+        const char *arg = argv[i];
         arg_hdr->length = strlen(arg) + 1;
         memcpy(arg_hdr->str, arg, arg_hdr->length);
         offset += sizeof(struct spawn_request_header) + arg_hdr->length;
@@ -126,7 +127,7 @@ static errval_t call_spawn_request(const char *name, coreid_t core, struct array
 }
 
 
-bool is_number(char *string)
+bool is_number(const char *string)
 {
     if (string == NULL) {
         return false;
@@ -140,30 +141,30 @@ bool is_number(char *string)
 }
 
 
-static void spawn_program(struct josh_command *line)
+static void spawn_program(const char *dest, const char *cmd, size_t argc, const char **argv)
 {
     errval_t err;
     struct running_program program;
 
     coreid_t destination_core = disp_get_core_id();
-    if (line->destination != NULL) {
-        if (is_number(line->destination)) {
-            int idest = atoi(line->destination);
+    if (dest != NULL) {
+        if (is_number(dest)) {
+            int idest = atoi(dest);
             destination_core = idest;
         }
         else {
-            printf("invalid destination '%s'\n", line->destination);
+            printf("invalid destination '%s'\n", dest);
             return;
         }
     }
 
-    err = call_spawn_request(line->cmd, destination_core, &line->args, NULL, &program);
+    err = call_spawn_request(cmd, destination_core, argc, argv, NULL, &program);
     if (err == SPAWN_ERR_FIND_MODULE) {
         if (program.domainid == COREID_INVALID) {
-            printf("spawning failed: invalid destination\n", line->cmd);
+            printf("spawning failed: invalid destination\n", cmd);
         }
         else {
-            printf("no module with name '%s' found\n", line->cmd);
+            printf("no module with name '%s' found\n", cmd);
         }
         return;
     }
@@ -204,14 +205,41 @@ static void spawn_program(struct josh_command *line)
 
 
 
-static void execute_command(struct josh_command *line)
+static void execute_command(struct josh_command *command)
 {
-    if (is_builtin(line->cmd)) {
-        run_builtin(line);
+
+    const char *cmd = command->cmd;
+    size_t argc = command->args.length;
+    char **argv = malloc(argc * sizeof(char *));
+
+    for (size_t i = 0; i < argc; i++) {
+        struct josh_value *arg = *(struct josh_value **) array_list_at(&command->args, i);
+        if (arg->type == JV_LITERAL) {
+            argv[i] = arg->val;
+        }
+        else if (arg->type == JV_VARIABLE) {
+            argv[i] = getenv(arg->val);
+        }
+        else {
+            printf("internal error\n");
+        }
+    }
+
+    const char* destination = command->destination;
+
+    if (is_builtin(cmd)) {
+        if (destination != NULL && atoi(destination) != disp_get_core_id()) {
+            printf("Can't execute shell builtins on different cores\n");
+        }
+        else {
+            run_builtin(cmd, argc, (const char **) argv);
+        }
     }
     else {
-        spawn_program(line);
+        spawn_program(destination, cmd, argc, (const char **) argv);
     }
+
+    free(argv);
 }
 
 static void process_line(void) {
@@ -228,7 +256,10 @@ static void process_line(void) {
     yy_scan_string(line);
     int errval = yyparse();
     if (errval == 0 && parsed_line != NULL) {
-        execute_command(parsed_line);
+        if (parsed_line->type == JL_COMMAND) {
+            struct josh_command *command = parsed_line->command;
+            execute_command(command);
+        }
         josh_line_free(parsed_line);
         parsed_line = NULL;
     }
@@ -256,6 +287,7 @@ int main(int argc, char **argv)
     printf("Welcome to JameOS Shell\n");
 
     setenv("PROMPT", "\033[32;1mjosh\033[m $ ", 0);
+    setenv("PATH", "/usr/bin:/home", 0);
 
 
     linenoiseHistorySetMaxLen(64);
