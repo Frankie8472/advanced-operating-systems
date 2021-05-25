@@ -1,12 +1,13 @@
 
 let
-    flex src dest = Rule [ Str "flex ",
-                           Str " -o ",
+    flex src dest = Rule [ Str "flex",
+                           Str "-o",
                            Out "armv8" dest,
                            In SrcTree "armv8" src
                          ]
-    bison src dest = Rule [ Str "bison -d ",
-                            Str " -o ",
+    bison src dest = Rule [ Str "bison -d",
+                            -- Str "-Werror",
+                            Str "-o",
                             Out "armv8" dest,
                             In SrcTree "armv8" src
                           ]
@@ -18,8 +19,9 @@ in
 [
     build application {
         target = "josh",
-        cFiles = [ "main.c", "ast.c", "builtins.c", "running.c", "liblinenoise_glue.c" ],   --    , "lex.yy.c" ],
+        cFiles = [ "main.c", "ast.c", "builtins.c", "running.c", "liblinenoise_io.c", "variables.c" ],
         generatedCFiles = [ "josh_lex.c", "josh_parse.c" ],
+
         addCFlags = [ -- need to ignore warnings for bison generated code
             "-Wno-implicit-function-declaration",
             "-Wno-missing-prototypes",

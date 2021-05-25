@@ -28,5 +28,6 @@
 "@"                             return AT_SIGN;
 "="                             return EQUALS;
 "$"                             return DOLLAR;
+"var"                           return VAR;
 ([^ \t\n;@#\"=$])+              { yylval.string = strdup(yytext); return STRING; }
 %%

@@ -1,5 +1,6 @@
 #include "builtins.h"
 #include "format.h"
+#include "variables.h"
 
 #include <aos/nameserver.h>
 #include <aos/aos_rpc.h>

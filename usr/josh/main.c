@@ -1,8 +1,6 @@
 #include <aos/aos_rpc.h>
 #include <aos/dispatcher_rpc.h>
 #include <aos/default_interfaces.h>
-#include <hashtable/hashtable.h>
-#include <hashtable/dictionary.h>
 
 #include <linenoise/linenoise.h>
 
@@ -11,48 +9,13 @@
 #include "ast.h"
 #include "builtins.h"
 #include "running.h"
+#include "variables.h"
 
 
 
 enum shell_state current_state;
 
 struct josh_line *parsed_line;
-
-
-struct hashtable *shell_variables;
-static char *get_variable(const char *name)
-{
-    char *variable;
-    shell_variables->d.get(&shell_variables->d, name, strlen(name), (void **) &variable);
-    return variable;
-}
-
-static void set_variable(const char *name, const char *value)
-{
-    char *existing = get_variable(name);
-    if (existing != NULL) {
-        free(existing);
-        existing = NULL;
-        shell_variables->d.remove(&shell_variables->d, name, strlen(name));
-    }
-    // copy string to take ownership kinda complicated
-    // 
-    // as I did not find a way to get the key back from the hashmap,
-    // we allocate the value and the key in one single malloc.
-    // this way, it is enough to just free the value
-    size_t valuelen = strlen(value);
-    size_t namelen = strlen(name);
-
-    char *value_and_name = malloc(valuelen + namelen + 2);
-
-    char *newval = value_and_name;
-    char *newname = value_and_name + valuelen + 1;
-
-    strncpy(newval, value, valuelen + 1);
-    strncpy(newname, name, namelen + 1);
-
-    shell_variables->d.put_word(&shell_variables->d, newname, strlen(name), (uintptr_t) newval);
-}
 
 
 static errval_t call_spawn_request(const char *name, coreid_t core, size_t argc, const char **argv, struct array_list *envp, struct running_program *prog)
@@ -96,7 +59,7 @@ static errval_t call_spawn_request(const char *name, coreid_t core, size_t argc,
     struct aos_rpc *init_rpc = get_init_rpc();
     uintptr_t pid;
 
-    if (core == disp_get_core_id()) {
+    if (core == disp_get_core_id() && false) {
 
         struct lmp_endpoint *lmp_ep;
         struct capref lmp_ep_cap;
@@ -208,7 +171,7 @@ static void spawn_program(const char *dest, const char *cmd, size_t argc, const 
         return;
     }
 
-    if (destination_core == disp_get_core_id()) {
+    if (destination_core == disp_get_core_id() && false) {
         aos_dc_init_lmp(&program.process_in, 1024);
         aos_dc_init_lmp(&program.process_out, 1024);
         endpoint_create(LMP_RECV_LENGTH * 64, &program.process_out.channel.lmp.local_cap, &program.process_out.channel.lmp.endpoint);
@@ -263,7 +226,6 @@ char *evaluate_value(struct josh_value *value)
 
 static void execute_command(struct josh_command *command)
 {
-
     const char *cmd = command->cmd;
     size_t argc = command->args.length;
     char **argv = malloc(argc * sizeof(char *));
@@ -273,10 +235,10 @@ static void execute_command(struct josh_command *command)
         argv[i] = evaluate_value(arg);
 
         // create empty string if null
-        /*if (argv[i] == NULL) {
+        if (argv[i] == NULL) {
             argv[i] = malloc(1);
             argv[i][0] = '\0';
-        }*/
+        }
     }
 
     const char* destination = command->destination;
@@ -301,7 +263,12 @@ static void do_assignment(struct josh_assignment *assignment)
 {
     const char *varname = assignment->varname;
     const char *value = evaluate_value(assignment->value);
-    set_variable(varname, value);
+    if (assignment->is_shell_var) {
+        set_variable(varname, value);
+    }
+    else {
+        setenv(varname, value, 1);
+    }
 }
 
 
@@ -345,7 +312,6 @@ static void complete_line(const char *line, linenoiseCompletions *completions)
 
 int main(int argc, char **argv)
 {
-    shell_variables = create_hashtable();
     setenv("PROMPT", "\033[32;1mjosh\033[m $ ", 0);
     setenv("PATH", "/usr/bin:/home", 0);
 

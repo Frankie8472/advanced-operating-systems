@@ -27,9 +27,9 @@ struct josh_value
     char *val;
 };
 
-
 struct josh_assignment
 {
+    bool is_shell_var;
     char *varname;
     struct josh_value *value;
 };
@@ -44,6 +44,9 @@ enum josh_line_type
 
 struct josh_line
 {
+    // linked list when parsing multiple lines or e.g. commands separated by ';'
+    struct josh_line *next;
+
     enum josh_line_type type;
     union {
         struct josh_assignment *assignment;
