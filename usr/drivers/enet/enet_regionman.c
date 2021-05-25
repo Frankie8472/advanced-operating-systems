@@ -60,10 +60,17 @@ errval_t dequeue_bufs(struct enet_qstate* qs) {
  * \brief Retrieve a free buffer from a qstate.
  * NOTE: atm, if the buffer is never put back into the queue, the enet
  * devq might run out of memory.
+ * also, if no free buffer is available, "dequeue_bufs" will be called
+ * make sure, this is never called on the in-queue, only the out-queue.
  */
 errval_t get_free_buf(struct enet_qstate* qs, struct devq_buf* ret) {
     if (qs->free == NULL) {
-        return DEVQ_ERR_NO_FREE_BUFFER;
+        dequeue_bufs(qs);
+
+        if (qs->free == NULL) {
+            // NOTE: could also create and add new region here if wanted
+            return DEVQ_ERR_NO_FREE_BUFFER;
+        }
     }
 
     struct dev_list* fr = qs->free;
