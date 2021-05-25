@@ -220,7 +220,35 @@ static errval_t arp_request_handle(struct enet_queue* q, struct devq_buf* buf,
 static errval_t arp_reply_handle(struct enet_queue* q, struct devq_buf* buf,
                                  struct arp_hdr *h, struct enet_driver_state* st,
                                  lvaddr_t original_header) {
-    return LIB_ERR_NOT_IMPLEMENTED;
+    errval_t err = SYS_ERR_OK;
+    // check if designated for this device
+    if (ntohl(h->ip_dst) != STATIC_ENET_IP) {
+        ETHARP_DEBUG("not for me D:\n");
+        return err;
+    }
+
+    // if for us, just save contained information
+    ETHARP_DEBUG("reply for me :D\n");
+    mac_src = eth_addr_to_u64(&h->eth_src);
+    uint32_t *ip_src_ref = malloc(sizeof(uint32_t));
+    *ip_src_ref = ntohl(h->ip_src);
+
+    uint32_t *stored = collections_hash_find(st->arp_table, mac_src);
+    if (stored) {
+        if (*stored != *ip_src_ref) {
+            ETHARP_DEBUG("updating ARP table entry\n");
+            collections_hash_delete(st->arp_table, mac_src);
+            collections_hash_insert(st->arp_table, mac_src, ip_src_ref);
+        } else {
+            ETHARP_DEBUG("ARP entry already stored\n");
+        }
+    } else {
+        // save info in arp-table
+        ETHARP_DEBUG("adding new ARP table entry\n");
+        collections_hash_insert(st->arp_table, mac_src, ip_src_ref);
+    }
+
+    return err;
 }
 
 errval_t handle_ARP(struct enet_queue* q, struct devq_buf* buf,
