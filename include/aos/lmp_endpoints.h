@@ -65,7 +65,7 @@ struct lmp_recv_msg {
 };
 
 /// Static initialiser for lmp_recv_msg
-#define LMP_RECV_MSG_INIT { .buf.buflen = LMP_MSG_LENGTH };
+#define LMP_RECV_MSG_INIT (struct lmp_recv_msg) { .buf.buflen = LMP_MSG_LENGTH };
 
 errval_t lmp_endpoint_alloc(size_t buflen, struct lmp_endpoint **retep);
 void lmp_endpoint_free(struct lmp_endpoint *ep);

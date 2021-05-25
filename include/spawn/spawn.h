@@ -27,6 +27,10 @@ struct spawninfo {
 
     // Information about the binary
     char *binary_name;     // Name of the binary
+    int argc;
+    char **argv;
+    int envc;
+    char **envp;
 
     // root cnode of the child
     struct capref rootcn;
@@ -35,6 +39,7 @@ struct spawninfo {
     struct capref dispframe_cap;
     // cap to put into the new domain's cspace in the
     // slot for the spawner_ep
+    struct lmp_endpoint *spawner_ep;
     struct capref spawner_ep_cap;
 
     lvaddr_t mapped_elf;
@@ -68,6 +73,13 @@ errval_t spawn_load_by_name_setup(char *binary_name, struct spawninfo *si);
 errval_t spawn_load_by_name(char *binary_name, struct spawninfo *si,
                             domainid_t *pid);
 
+// Do the same as spawn_load_by_name but don't start the dispatcher yet
+errval_t spawn_setup_by_name(char *binary_name, struct spawninfo *si,
+                            domainid_t *pid);
+
+// only map module
+errval_t spawn_setup_module_by_name(const char *binary_name, struct spawninfo *si);
+
 // setup cspace for a dispatcher
 errval_t setup_c_space(struct capref, struct cnoderef *, struct cnoderef *, struct cnoderef *, struct cnoderef *, struct cnoderef *, struct cnoderef *);
 
@@ -83,5 +95,6 @@ errval_t spawn_load_argv(int argc, const char *const argv[], struct spawninfo *s
 
 /// elf callback function
 errval_t allocate_elf_memory(void* state, genvaddr_t base, size_t size, uint32_t flags, void **ret);
-errval_t register_process_to_process_manager(char* binary_name,domainid_t* pid);
+
+
 #endif /* _INIT_SPAWN_H_ */

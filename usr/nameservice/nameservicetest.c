@@ -47,6 +47,12 @@ static void run_client(void)
     err = nameservice_lookup(SERVICE_NAME, &chan);
     PANIC_IF_FAIL(err, "failed to lookup service\n");
 
+
+    // err = nameservice_deregister(SERVICE_NAME);
+    // if(err_is_fail(err)){
+    //     DEBUG_ERR(err,"Faied dereg\n");
+    // }
+
     debug_printf("Got the service %p. Sending request '%s'\n", chan, myrequest);
 
     void *request = myrequest;
@@ -85,9 +91,15 @@ static void run_server(void)
     errval_t err;
 
     debug_printf("register with nameservice '%s'\n", SERVICE_NAME);
-    err = nameservice_register(SERVICE_NAME, server_recv_handler, NULL);
+    // err = nameservice_register(SERVICE_NAME, server_recv_handler, NULL);
+    err = nameservice_register_properties(SERVICE_NAME,server_recv_handler,NULL,false,"type=ethernet,speed=1GB,hello=1");
     PANIC_IF_FAIL(err, "failed to register...\n");
 
+
+    // err = nameservice_deregister(SERVICE_NAME);
+    // if(err_is_fail(err)){
+    //     DEBUG_ERR(err,"Faied dereg\n");
+    // }
     domainid_t did;
     debug_printf("spawning test binary '%s'\n", TEST_BINARY);
     err = aos_rpc_process_spawn(get_init_rpc(), TEST_BINARY " a", disp_get_core_id(), &did);
@@ -106,6 +118,22 @@ static void run_server(void)
 
 int main(int argc, char *argv[])
 {
+
+    // char * server_data;
+    // serialize("name thing","hi=1,why=2",&server_data);
+    // debug_printf("Her is server data: %s\n",server_data);
+    // char* keys[64];
+    // char* values[64];
+    // char * res_name;
+    // deserialize_prop(server_data,keys,values,&res_name);
+    // debug_printf("Here is name %s: \n",res_name);
+    // debug_printf("Here is properties : \n");
+    // for(int i = 0; i< 64;++i){
+    //     if(keys[i] != NULL  && values[i] != NULL){
+    //         debug_printf("[%s] = %s\n",keys[i],values[i]);
+    //     }
+    // }
+
     if (argc == 2) {
         debug_printf("nameservicetest: running client!\n");
         run_client();

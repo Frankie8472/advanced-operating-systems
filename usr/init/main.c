@@ -40,102 +40,21 @@
 #include "mem_alloc.h"
 #include "rpc_server.h"
 #include "test.h"
+#include <hashtable/hashtable.h>
 
+
+#include "routing.h"
 #include <aos/kernel_cap_invocations.h>
 
 #include <process_manager_interface.h>
+
+
 
 
 // #include <aos/curdispatcher_arch.h>
 
 
 coreid_t my_core_id;
-
-__unused
-static errval_t init_process_manager(void){
-    errval_t err;
-    struct spawninfo *pm_si = spawn_create_spawninfo();
-    domainid_t *pm_pid = &pm_si -> pid;
-    err = spawn_load_by_name("process_manager",pm_si,pm_pid);
-    *pm_pid = 0;
-    ON_ERR_RETURN(err);
-
-
-    struct aos_rpc *pm_rpc = &pm_si->rpc;
-    //static void *handlers[PM_IFACE_N_FUNCTIONS];
-    //aos_rpc_init(pm_rpc); TODO (RPC): initialize interface
-    initialize_initiate_handler(pm_rpc);
-    aos_rpc_set_interface(pm_rpc, get_pm_interface(), 0, NULL);
-    //initialize_rpc_handlers(pm_rpc);
-
-    debug_printf("waiting for process manager to come online...\n");
-    while(!get_pm_online()){
-        err = event_dispatch(get_default_waitset());
-        if (err_is_fail(err)) {
-            DEBUG_ERR(err, "in event_dispatch");
-            abort();
-        }
-    }
-
-
-
-    debug_printf("Process manager is online!\n");
-
-    domainid_t pid;
-    err = aos_rpc_call(pm_rpc,AOS_RPC_REGISTER_PROCESS,disp_get_core_id(),"init",&pid);
-    ON_ERR_RETURN(err);
-    disp_set_domain_id(pid);
-    //TODO: register memory server to PM
-    // err = aos_rpc_call(pm_rpc,AOS_RPC_REGISTER_PROCESS,*pm_pid,disp_get_core_id(),"process_manager");
-    // ON_ERR_RETURN(err);
-    set_pm_rpc(pm_rpc);
-    debug_printf("all finished!\n");
-
-
-    // char buf1[512];
-    // char buf2[512];
-    // debug_printf("=============================================================\n\n");
-    // debug_print_cap_at_capref(buf1,512,pm_rpc->channel.lmp.local_cap);
-    // debug_print_cap_at_capref(buf2, 512, pm_rpc -> channel.lmp.remote_cap);
-
-    return SYS_ERR_OK;
-}
-
-
-__attribute__((unused)) static errval_t init_memory_server(domainid_t *mem_pid){
-    errval_t err;
-    struct spawninfo *mem_si = spawn_create_spawninfo();
-    domainid_t *m_pid = &mem_si -> pid;
-    err = spawn_load_by_name("memory_server",mem_si,m_pid);
-    ON_ERR_RETURN(err);
-    struct aos_rpc *mem_rpc = &mem_si -> rpc;
-    // aos_rpc_init(mem_rpc); TODO (RPC): initialize interface
-    //initialize_rpc_handlers(mem_rpc);
-    struct waitset *default_ws = get_default_waitset();
-    debug_printf("waiting for memory server to come online ... \n");
-    while(!get_mem_online()){
-        err = event_dispatch(default_ws);
-        if (err_is_fail(err)) {
-            DEBUG_ERR(err, "in event_dispatch");
-            abort();
-        }
-    }
-    // err = spawn_new_domain("memory_server",&pid)
-    set_mem_rpc(mem_rpc);
-    debug_printf("Memory server online!\n");
-
-    *mem_pid = mem_si -> pid;
-    return SYS_ERR_OK;
-}
-
-
-__unused
-static void hey(void* arg) {
-    debug_printf("we were pinged!\n");
-    struct lmp_recv_buf msg;
-    lmp_endpoint_recv(arg, &msg, NULL);
-    lmp_endpoint_register(arg, get_default_waitset(), MKCLOSURE(hey, arg));
-}
 
 
 static errval_t init_foreign_core(void){
@@ -168,6 +87,9 @@ static errval_t init_foreign_core(void){
 
 
     errval_t err;
+
+    
+
     set_pm_online();
 
     uint64_t *urpc_init = (uint64_t*) MON_URPC_VBASE;
@@ -182,15 +104,13 @@ static errval_t init_foreign_core(void){
         .slot = 0,
     };
 
+
+
     err = frame_forge(bootinfo_cap, urpc_init[0], urpc_init[1], 0);
     ON_ERR_RETURN(err);
     
     err = paging_map_frame_complete(get_current_paging_state(),(void **) &bi,bootinfo_cap,NULL,NULL);
     ON_ERR_RETURN(err);
-    // if(err_is_fail(err)){
-    //     DEBUG_ERR(err,"Failed to map bootinfo struct");
-    // }
-
     assert(bi && "Boot info in appmain is NULL");
 
 
@@ -200,22 +120,12 @@ static errval_t init_foreign_core(void){
     
     ON_ERR_RETURN(err);
 
-    // const int nBenches = 100;
 
-    // for (int i = 0; i < 3; i++) {
-    //     uint64_t before = systime_now();
-    //     for (int j = 0; j < nBenches; j++) {
-    //         struct capref thrown_away;
-    //         err  = ram_alloc(&thrown_away, BASE_PAGE_SIZE);
-    //         // debug_printf("Allocated ram!\n");
-    //         if(err_is_fail(err)){
-    //             DEBUG_ERR(err,"Failed to allocate ram in benchmarkmm\n");
-    //         }
-    //     }
-    //     uint64_t end = systime_now();
 
-    //     debug_printf("measurement %d took: %ld\n", i, systime_to_ns(end - before));
-    // }
+    err = start_memory_server_thread();
+    ON_ERR_RETURN(err);
+
+    set_ns_online();
 
     struct capref mc = {
         .cnode = cnode_root,
@@ -241,16 +151,102 @@ static errval_t init_foreign_core(void){
     }
 
     init_core_channel(0, (lvaddr_t) urpc_init);
+    set_ns_forw_rpc(get_core_channel(0));
+    
+
+    struct aos_rpc* ns_rpc = (struct aos_rpc*) malloc(sizeof(struct aos_rpc));
+    struct capref ns_cap;
+    err = slot_alloc(&ns_cap);
+    ON_ERR_RETURN(err);
+    size_t urpc_cap_size;
+    err  = frame_alloc(&ns_cap,BASE_PAGE_SIZE,&urpc_cap_size);
+    ON_ERR_RETURN(err);
+    char *urpc_data = NULL;
+    err = paging_map_frame_complete(get_current_paging_state(), (void **) &urpc_data, ns_cap, NULL, NULL);
+    ON_ERR_RETURN(err);
+    err =  aos_rpc_init_ump_default(ns_rpc,(lvaddr_t) urpc_data, BASE_PAGE_SIZE,true);//take first half as ns takes second half
+    ON_ERR_RETURN(err);
+    domainid_t my_pid = urpc_init[6]; 
+
+    struct capref dummy_cap; // not useed
+    err = aos_rpc_call(get_ns_forw_rpc(),INIT_REG_NAMESERVER,disp_get_core_id(),"init",ns_cap,my_pid,&dummy_cap);
+    ON_ERR_RETURN(err);
+    err = aos_rpc_set_interface(ns_rpc,get_nameserver_interface(),0,NULL);
+    ON_ERR_RETURN(err);
+    disp_set_domain_id(my_pid);
+    set_ns_rpc(ns_rpc);
 
     
-    // disp_set_domain_id(disp_get_current_core_id() << 10);
-    domainid_t my_pid;
-    err = aos_rpc_call(get_core_channel(0),AOS_RPC_REGISTER_PROCESS,disp_get_current_core_id(),"init",&my_pid);
-    disp_set_domain_id(my_pid);
-    if(err_is_fail(err)){
-        DEBUG_ERR(err,"Failed to register new init to pm\n");
-    }
+    set_ns_online();
+
+    routing_ht = create_hashtable();
     return SYS_ERR_OK;
+}
+
+
+
+
+
+static errval_t init_name_server(void){
+    errval_t err;
+
+    routing_ht = create_hashtable();
+
+    struct spawninfo *ns_si = spawn_create_spawninfo();
+    domainid_t *ns_pid = &ns_si -> pid;
+    err = spawn_load_by_name("nameserver",ns_si,ns_pid);
+    *ns_pid = 0;
+    ON_ERR_RETURN(err);
+
+
+    struct aos_rpc *rpc  = &ns_si->rpc;
+
+    aos_rpc_set_interface(rpc, get_init_interface(), INIT_IFACE_N_FUNCTIONS, malloc(INIT_IFACE_N_FUNCTIONS * sizeof(void *)));
+    initialize_rpc_handlers(rpc);
+
+    debug_printf("waiting for name server to come online...\n");
+    while(!get_ns_online()){
+        err = event_dispatch(get_default_waitset());
+        if (err_is_fail(err)) {
+            DEBUG_ERR(err, "in event_dispatch");
+            abort();
+        }
+    }
+
+    // init
+
+    domainid_t my_pid = 1;
+    struct aos_rpc* ns_rpc = (struct aos_rpc*) malloc(sizeof(struct aos_rpc));
+    struct capref ns_cap;
+    err = slot_alloc(&ns_cap);
+    struct lmp_endpoint *name_server_ep;
+    err = endpoint_create(LMP_RECV_LENGTH, &ns_cap, &name_server_ep);
+    ON_ERR_RETURN(err);
+    err = aos_rpc_init_lmp(ns_rpc,ns_cap,NULL_CAP,name_server_ep,get_default_waitset());
+    ON_ERR_RETURN(err);
+    struct capref remote_ns_cap;
+    err = aos_rpc_call(rpc,INIT_REG_NAMESERVER,disp_get_core_id(),"init",ns_cap,my_pid,&remote_ns_cap);
+    ON_ERR_RETURN(err);
+    ns_rpc -> channel.lmp.remote_cap = remote_ns_cap;
+    err = aos_rpc_set_interface(ns_rpc,get_nameserver_interface(),0,NULL);
+    ON_ERR_RETURN(err);
+    disp_set_domain_id(my_pid);
+    set_ns_rpc(ns_rpc);
+    set_ns_forw_rpc(rpc);
+    // set_ns_online();
+
+    return SYS_ERR_OK;
+}
+
+
+
+
+__unused
+static void hey(void* arg) {
+    debug_printf("we were pinged!\n");
+    struct lmp_recv_buf msg;
+    lmp_endpoint_recv(arg, &msg, NULL);
+    lmp_endpoint_register(arg, get_default_waitset(), MKCLOSURE(hey, arg));
 }
 
 
@@ -278,6 +274,7 @@ static int bsp_main(int argc, char *argv[])
     }
 
     err = start_memory_server_thread();
+    thread_yield();
     if (err_is_fail(err)) {
         DEBUG_ERR(err, "/>/> Error: starting memory thread");
     }
@@ -287,15 +284,15 @@ static int bsp_main(int argc, char *argv[])
         DEBUG_ERR(err,"Failed to init terminal state\n");
     }
 
-    //err = init_memory_server();
-    //if(err_is_fail(err)){
-    //    DEBUG_ERR(err,"Failed to init memory state\n");
-    //}
-
-    /*err = init_process_manager();
+    err = init_name_server();
     if(err_is_fail(err)){
-        DEBUG_ERR(err,"Failed to init terminal state\n");
-    }*/
+        DEBUG_ERR(err,"Failed to start nameserver\n");
+    }
+
+
+    spawn_new_core(1);
+    spawn_new_core(2);
+    spawn_new_core(3);
 
 
     /*struct capref lmp_ep;
@@ -310,60 +307,89 @@ static int bsp_main(int argc, char *argv[])
 
     invoke_ipi_notify(ump_ep);*/
 
-
-    /* spawn_new_domain("lpuart_terminal", NULL); */
-    /* debug_printf("let's start enet\n"); */
-    /* /\* spawn_new_domain("enet", NULL); *\/ */
-    /* spawn_lpuart_driver("lpuart_terminal"); */
+    struct spawninfo *term_si;
+    spawn_lpuart_driver("lpuart_terminal", &term_si);
 
     /* domainid_t pid; */
     /* struct spawninfo *josh_si; */
 
-    /* struct capref jepcap; */
-    /* struct lmp_endpoint *jep; */
-    /* endpoint_create(LMP_RECV_LENGTH, &jepcap, &jep); */
-
-    /* spawn_new_domain("josh", &pid, jepcap, &josh_si); */
-
-
-
-    /* struct aos_rpc *josh_rpc = &josh_si->disp_rpc; */
-
-    /* aos_rpc_set_interface(josh_rpc, get_dispatcher_interface(), DISP_IFACE_N_FUNCTIONS, malloc(DISP_IFACE_N_FUNCTIONS * sizeof(void *))); */
-    /* initialize_initiate_handler(josh_rpc); */
-    /* aos_rpc_init_lmp(josh_rpc, jepcap, NULL_CAP, jep, NULL); */
-
-    
-    /* struct aos_rpc *lpuart_rpc = get_rpc_from_spawn_info(pid - 1); */
-
-
-    /* while (capref_is_null(josh_rpc->channel.lmp.remote_cap)) { */
-    /*     err = event_dispatch(get_default_waitset()); */
-    /*     if (err_is_fail(err)) { */
-    /*         DEBUG_ERR(err, "in event_dispatch"); */
-    /*         abort(); */
-    /*     } */
-    /* } */
-    /* debug_printf("getting josh in\n"); */
-
-    /* struct capref josh_in; */
-    /* aos_rpc_call(josh_rpc, DISP_IFACE_GET_STDIN, &josh_in); */
-
-    
-    /* debug_printf("got josh in\n"); */
-    /* aos_rpc_call(lpuart_rpc, DISP_IFACE_SET_STDOUT, josh_in); */
-
-    debug_printf("lets go\n");
-    spawn_enet_driver("enet");
-
-    domainid_t pid;
     struct spawninfo *enet_si;
+    debug_printf("lets go\n");
+    spawn_enet_driver("enet", enet_si);
 
-    struct capref ecap;
-    struct lmp_endpoint *eep;
-    endpoint_create(LMP_RECV_LENGTH, &ecap, &eep);
+    /* domainid_t pid; */
+    /* struct spawninfo *enet_si; */
 
-    spawn_new_domain("enet", &pid, ecap, &enet_si);
+    /* struct capref ecap; */
+    /* struct lmp_endpoint *eep; */
+    /* endpoint_create(LMP_RECV_LENGTH, &ecap, &eep); */
+
+    /* spawn_new_domain("enet", &pid, ecap, &enet_si); */
+
+    while (capref_is_null(term_si->disp_rpc.channel.lmp.remote_cap)) {
+        err = event_dispatch(get_default_waitset());
+        if (err_is_fail(err)) {
+            DEBUG_ERR(err, "in event_dispatch");
+            abort();
+        }
+    }
+    err = event_dispatch(get_default_waitset());
+    err = event_dispatch(get_default_waitset());
+
+    debug_printf("getting stdin from terminal!\n");
+
+    struct capref testep;
+    aos_rpc_call(&term_si->disp_rpc, DISP_IFACE_GET_STDIN, &testep);
+
+    debug_printf("got stdin from terminal!\n");
+
+
+    spawn_new_domain("josh", 0, NULL, &pid, NULL_CAP, testep, &josh_si);
+
+
+    while (capref_is_null(josh_si->disp_rpc.channel.lmp.remote_cap)) {
+        err = event_dispatch(get_default_waitset());
+        if (err_is_fail(err)) {
+            DEBUG_ERR(err, "in event_dispatch");
+            abort();
+        }
+    }
+    err = event_dispatch(get_default_waitset());
+    err = event_dispatch(get_default_waitset());
+
+    struct capref josh_in;
+    debug_printf("getting stdin from josh!\n");
+    aos_rpc_call(&josh_si->disp_rpc, DISP_IFACE_GET_STDIN, &josh_in);
+    debug_printf("got stdin from josh!\n");
+    aos_rpc_call(&term_si->disp_rpc, DISP_IFACE_SET_STDOUT, josh_in);
+
+
+
+    //struct aos_rpc *josh_rpc = &josh_si->disp_rpc;
+
+    /*aos_rpc_set_interface(josh_rpc, get_dispatcher_interface(), DISP_IFACE_N_FUNCTIONS, malloc(DISP_IFACE_N_FUNCTIONS * sizeof(void *)));
+    initialize_initiate_handler(josh_rpc);
+    aos_rpc_init_lmp(josh_rpc, josh_si->spawner_ep_cap, NULL_CAP, josh_si->spawner_ep, NULL);*/
+
+    //__unused
+    //struct aos_rpc *lpuart_rpc = get_rpc_from_spawn_info(pid - 1);
+
+
+    /*while (capref_is_null(josh_rpc->channel.lmp.remote_cap)) {
+        err = event_dispatch(get_default_waitset());
+        if (err_is_fail(err)) {
+            DEBUG_ERR(err, "in event_dispatch");
+            abort();
+        }
+    }
+    debug_printf("getting josh in\n");
+
+
+    struct capref josh_in;
+    aos_rpc_call(josh_rpc, DISP_IFACE_GET_STDIN, &josh_in);
+
+    debug_printf("got josh in\n");
+    //aos_rpc_call(lpuart_rpc, DISP_IFACE_SET_STDOUT, josh_in);*/
 
 
     /*for (int i = 0; i < 20; i++) {
@@ -373,49 +399,34 @@ static int bsp_main(int argc, char *argv[])
         }
     }*/
 
-    //spawn_new_domain("client",NULL);
-    //spawn_new_domain("client",NULL);
-    // spawn_new_domain("client",NULL);
-    // spawn_new_domain("client",NULL);
+  
+
+    // spawn_new_domain("nameservicetest",0,NULL,NULL,NULL_CAP,NULL_CAP,NULL);
+
+    // spawn_new_core(my_core_id + 1);
+    //spawn_new_domain("server a",0,NULL,NULL,NULL_CAP,NULL_CAP,NULL);
+    // spawn_new_domain("server b",1,NULL,NULL,NULL_CAP,NULL_CAP,NULL);
+    //spawn_new_domain("server a",0,NULL,NULL,NULL_CAP,NULL_CAP,NULL);
+    //spawn_new_domain("server b",0,NULL,NULL,NULL_CAP,NULL_CAP,NULL);
     //spawn_new_core(my_core_id + 1);
-    //spawn_new_core(my_core_id + 2);
-    //spawn_new_core(my_core_id + 3);
+    //spawn_new_domain("server a",0,NULL,NULL,NULL_CAP,NULL_CAP,NULL);
+    // spawn_new_domain("server b",1,NULL,NULL,NULL_CAP,NULL_CAP,NULL);
+    // spawn_new_domain("server c",0,NULL,NULL,NULL_CAP,NULL_CAP,NULL);
+    // spawn_new_domain("server d",0,NULL,NULL,NULL_CAP,NULL_CAP,NULL);
+    // spawn_new_core(my_core_id + 2);
+    // spawn_new_core(my_core_id + 3);
+
 
     // 
     
     //run_init_tests(my_core_id);
 
     
-
-    // char * name;
-    // err = aos_rpc_process_get_name(get_pm_rpc(),0,&name);
-    // if(err_is_fail(err)){
-    //     DEBUG_ERR(err,"Failed to resolve pid name\n");
-    // }
-
-    // debug_printf("Received name for pid %d: %s\n",0,name);
-
-
-    // spawn_new_domain("memeater", NULL);
-
-
-
-    // domainid_t* pids;
-    // size_t pid_count;
-    // err = aos_rpc_process_get_all_pids(get_pm_rpc(),&pids,&pid_count);
-    // if(err_is_fail(err)){
-    //     DEBUG_ERR(err,"Failed to get all pids\n");
-    // }
-
-
-    // for(int i = 0; i < pid_count; ++i){
-    //     debug_printf("%d\n",pids[i]);
-    // }
     
-    /* run_init_tests(my_core_id); */
-
+    //run_init_tests(my_core_id);
 
     
+
 
     // Grading
     grading_test_early();
@@ -474,6 +485,9 @@ static int app_main(int argc, char *argv[])
 
     //spawn_new_domain("client", NULL, NULL_CAP, NULL);
 
+    // spawn_new_domain("memeater",NULL,NULL_CAP);
+    // spawn_new_domain("server", NULL, NULL_CAP);
+
     grading_setup_app_init(bi);
 
     grading_test_early();
@@ -519,3 +533,7 @@ int main(int argc, char *argv[])
     else
         return app_main(argc, argv);
 }
+
+
+
+
