@@ -22,6 +22,45 @@
 #include "enet_regionman.h"
 #include "enet_handler.h"
 
+__attribute__((__unused__))
+static void print_arp_table(struct enet_driver_state *st) {
+    if (collections_hash_traverse_start(st->arp_table) == -1) {
+        ENET_DEBUG("unable to print arp-table rn\n");
+        return;
+    }
+
+    ENET_DEBUG("============ ARP Table ============\n");
+    uint64_t key;
+    uint32_t *curp = collections_hash_traverse_next(st->arp_table, &key);
+    while (curp) {
+        uint32_t ip_c = *curp;
+        uint8_t ip_tbl[4];
+        
+        ip_tbl[3] = (ip_c >> 24) & 0xff;
+        ip_tbl[2] = (ip_c >> 16) & 0xff;
+        ip_tbl[1] = (ip_c >> 8) & 0xff;
+        ip_tbl[0] = ip_c & 0xff;
+
+        ENET_DEBUG("%d.%d.%d.%d --- %x:%x:%x:%x:%x:%x\n",
+                   ip_tbl[3],
+                   ip_tbl[2],
+                   ip_tbl[1],
+                   ip_tbl[0],
+                   (uint8_t) key >> 2,
+                   (uint8_t) key >> 3,
+                   (uint8_t) key >> 4,
+                   (uint8_t) key >> 5,
+                   (uint8_t) key >> 6,
+                   (uint8_t) key >> 7
+            );
+
+        curp = collections_hash_traverse_next(st->arp_table, &key);
+    }
+
+    ENET_DEBUG("===================================\n");
+    collections_hash_traverse_end(st->arp_table);
+}
+
 static void inline deb_print_mac(char *msg, struct eth_addr* mac) {
     ENET_DEBUG("%s: %x:%x:%x:%x:%x:%x\n",
                msg,
@@ -175,26 +214,35 @@ static errval_t arp_request_handle(struct enet_queue* q, struct devq_buf* buf,
     return SYS_ERR_OK;
 }
 
+// TODO
+static errval_t arp_reply_handle(struct enet_queue* q, struct devq_buf* buf,
+                                 struct arp_hdr *h, struct enet_driver_state* st,
+                                 lvaddr_t original_header) {
+    return LIB_ERR_NOT_IMPLEMENTED;
+}
+
 errval_t handle_ARP(struct enet_queue* q, struct devq_buf* buf,
                     lvaddr_t vaddr, struct enet_driver_state* st) {
+    errval_t err = SYS_ERR_OK;
     struct arp_hdr *header = (struct arp_hdr*) ((char *) vaddr + ETH_HLEN);
     print_arp_packet(header);
 
     switch (ntohs(header->opcode)) {
     case ARP_OP_REQ:
         ETHARP_DEBUG("ARP Request\n");
-        arp_request_handle(q, buf, header, st, vaddr);
+        err = arp_request_handle(q, buf, header, st, vaddr);
         break;
     case ARP_OP_REP:
         ETHARP_DEBUG("ARP Reply\n");
-        // TODO
+        err = arp_reply_handle(q, buf, header, st, vaddr);
         break;
     default:
         ETHARP_DEBUG("Unknown ARP opcode\n");
         // TODO: add errorcode to return here maybe?
         break;
     }
-    return SYS_ERR_OK;
+    /* print_arp_table(st); */
+    return err;
 }
 
 static errval_t icmp_echo_handle(
