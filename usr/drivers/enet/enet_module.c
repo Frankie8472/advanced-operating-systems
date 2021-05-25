@@ -306,7 +306,7 @@ static void enet_parse_link(struct enet_driver_state* st)
     assert(err_is_ok(err));
 
     if (status < 0) {   
-        debug_printf("ENET not capable of 1G \n");
+        ENET_DEBUG("ENET not capable of 1G \n");
         return;
     } else {
         err = enet_read_mdio(st, PHY_ID, PHY_CTRL1000_CMD, &status);
@@ -323,9 +323,9 @@ static void enet_parse_link(struct enet_driver_state* st)
             lpa &= lpa2;
             if (lpa & (PHY_LPA_100FULL | PHY_LPA_100HALF)) {
                 if (lpa & PHY_LPA_100FULL) {
-                    debug_printf("LINK 100 Mbit/s FULL duplex \n");
+                    ENET_DEBUG("LINK 100 Mbit/s FULL duplex \n");
                 } else {
-                    debug_printf("LINK 100 Mbit/s half\n");
+                    ENET_DEBUG("LINK 100 Mbit/s half\n");
                 }
             }
         }
@@ -343,13 +343,13 @@ static errval_t enet_phy_startup(struct enet_driver_state* st)
     assert(err_is_ok(err));
 
     if (mii_reg & PHY_STATUS_LSTATUS) {
-        debug_printf("LINK already UP\n");
+        ENET_DEBUG("LINK already UP\n");
         return SYS_ERR_OK;
     }
     
     if (!(mii_reg & PHY_STATUS_ANEG_COMP)) {
 
-        debug_printf("[enet] Starting autonegotiation \n");
+        ENET_DEBUG("[enet] Starting autonegotiation \n");
         while(!(mii_reg & PHY_STATUS_ANEG_COMP))  {
             err = enet_read_mdio(st, PHY_ID, PHY_STATUS_CMD, &mii_reg);
             assert(err_is_ok(err));
@@ -572,7 +572,7 @@ static errval_t enet_probe(struct enet_driver_state* st)
 
     err = enet_init_phy(st);
     if (err_is_fail(err))  {
-        debug_printf("Failed PHY reset\n");
+        ENET_DEBUG("Failed PHY reset\n");
         return err;
     }   
 
@@ -602,7 +602,7 @@ static void print_packet(struct enet_queue* q, struct devq_buf* buf) {
 int main(int argc, char *argv[]) {
     errval_t err;
 
-    debug_printf("Enet driver started \n");
+    ENET_DEBUG("Enet driver started \n");
     struct enet_driver_state * st = (struct enet_driver_state*)
         calloc(1, sizeof(struct enet_driver_state));
     assert(st != NULL);
@@ -654,19 +654,19 @@ int main(int argc, char *argv[]) {
         return err;
     }
 
-    debug_printf("Enet driver init done \n");
+    ENET_DEBUG("Enet driver init done \n");
     
-    debug_printf("Creating devqs \n");
+    ENET_DEBUG("Creating devqs \n");
    
     err = enet_rx_queue_create(&st->rxq, st->d);
     if (err_is_fail(err)) {
-        debug_printf("Failed creating RX devq \n");
+        ENET_DEBUG("Failed creating RX devq \n");
         return err;
     }
 
     err = enet_tx_queue_create(&st->txq, st->d);
     if (err_is_fail(err)) {
-        debug_printf("Failed creating RX devq \n");
+        ENET_DEBUG("Failed creating RX devq \n");
         return err;
     }
 
@@ -725,7 +725,7 @@ int main(int argc, char *argv[]) {
                            &buf.length, &buf.valid_data, &buf.valid_length,
                            &buf.flags);
         if (err_is_ok(err)) {
-            debug_printf("Received Packet of size %lu \n", buf.valid_length);
+            ENET_DEBUG("Received Packet of size %lu \n", buf.valid_length);
             handle_packet(st->rxq, &buf, st);
             /* print_packet(st->rxq, &buf); */
             err = devq_enqueue((struct devq*) st->rxq, buf.rid, buf.offset,
