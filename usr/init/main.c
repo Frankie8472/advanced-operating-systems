@@ -310,12 +310,12 @@ static int bsp_main(int argc, char *argv[])
     struct spawninfo *term_si;
     spawn_lpuart_driver("lpuart_terminal", &term_si);
 
-    /* domainid_t pid; */
-    /* struct spawninfo *josh_si; */
+    domainid_t pid;
+    struct spawninfo *josh_si;
 
     struct spawninfo *enet_si;
     debug_printf("lets go\n");
-    spawn_enet_driver("enet", enet_si);
+    spawn_enet_driver("enet", &enet_si);
 
     /* domainid_t pid; */
     /* struct spawninfo *enet_si; */
