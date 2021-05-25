@@ -334,14 +334,12 @@ static errval_t udp_echo(struct enet_queue* q, struct devq_buf* buf,
     struct udp_hdr *ruh = (struct udp_hdr *) ((char *) rih + IP_HLEN);
     assert(ouh == h);
     ruh->src = ouh->dest;
-    ruh->dest = htons(123); //ouh->src;
+    ruh->dest = ouh->src;
     ruh->len = ouh->len;
-
     memcpy((char *) ruh + UDP_HLEN, (char *) ouh + UDP_HLEN, ntohs(ouh->len) - UDP_HLEN);
-    /* memcpy((char *) ruh + UDP_HLEN, "Did you ever hear therwerr sd\n", ntohs(ouh->len) - UDP_HLEN); */
 
+    // NOTE: it appears, the only way to get this to work is by not setting the checksum
     ruh->chksum = 0;
-    ruh->chksum = inet_checksum(ruh, ntohs(ouh->len));
 
     rih->chksum = 0;
     rih->chksum = inet_checksum(rih, IP_HLEN);

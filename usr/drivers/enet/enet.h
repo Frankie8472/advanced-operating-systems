@@ -28,7 +28,7 @@ void inline ENET_DEBUG_UI32_AS_IP(char *msg, uint32_t ip) {}
 #endif
 
 #define STATIC_ENET_IP 0x0a000201  // ip address of enet interface -> 10.0.2.1
-#define UDP_ECHO_PORT 66  // static port of udp echo-server
+#define UDP_ECHO_PORT 2521  // TODO: use morse-code here
 
 #define ENET_PROMISC
 
