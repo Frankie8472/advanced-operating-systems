@@ -13,7 +13,7 @@
   {
     target = "sdhc_block_driver",
     cFiles = [ "main.c" ],
-    addLibraries = [ "aos", "sdhc" ],
+    addLibraries = [ "aos", "sdhc", "fs" ],
     architectures = allArchitectures
   }
 ]

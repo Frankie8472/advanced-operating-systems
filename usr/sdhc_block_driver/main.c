@@ -1,6 +1,7 @@
 #include <aos/aos.h>
 #include <aos/aos_rpc.h>
 #include <drivers/sdhc.h>
+#include <fs/fatfs.h>
 
 const int DEVFRAME_ATTRIBUTES = KPI_PAGING_FLAGS_READ
                                 | KPI_PAGING_FLAGS_WRITE
@@ -39,20 +40,11 @@ int main(int argc, char **argv) {
     }
 
 
-    struct capref tmp;
-    size_t retbytes;
-    void *addr;
-    err = frame_alloc_and_map_flags(&tmp, 512, &retbytes, &addr, VREGION_FLAGS_READ_WRITE_NOCACHE);
-    if (err_is_fail(err)) {
-        debug_printf("ERROR: Frame alloc fail\n");
-        abort();
-    }
+    struct fat32_fs fs;
+    initFat32Partition(sdhc_driver_state, &fs);
 
-    err = sdhc_test(sdhc_driver_state, addr, get_phys_addr(tmp));
-    if (err_is_fail(err)) {
-        debug_printf("ERROR: sdhc test fail\n");
-        abort();
-    }
+    debug_printf(">> %d\n", fs.bpb.bytsPerSec);
+    debug_printf(">> %x\n", fs.fsi.leadSig);
 
     // TODO: free by caller
     debug_printf(">> REACHED\n");
