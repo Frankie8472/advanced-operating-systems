@@ -50,6 +50,7 @@ struct fatfs_bpb
     char volLab[11];            ///< volume label, matches the 11-byte colume label recorded in the root dir
     char filSysType[8];         ///< always set to the string ”FAT32 ”
 } __attribute__((packed));
+static_assert(sizeof(struct fatfs_bpb) == 90);
 
 /**
  * \brief fsInfo struct (508 Bytes)
@@ -63,6 +64,7 @@ struct fs_info
     uint32_t nxt_Free;          ///< cluster number at which the driver should start looking for free clusters
     uint8_t reserved2[12];      ///< Always set to the string ”FAT32 ”
 } __attribute__((packed));
+static_assert(sizeof(struct fs_info) == 508);
 
 /**
  * \brief fat32 short dir entry (32 Bytes)
@@ -80,6 +82,7 @@ struct fatfs_short_dirent
     uint16_t fstClusLow;        ///< low word of this entry's first cluster number
     uint32_t fileSize;          ///< file's size in bytes
 } __attribute__((packed));
+static_assert(sizeof(struct fatfs_short_dirent) == 32);
 
 /**
  * \brief fat32 long dir entry (32 Bytes)
@@ -95,6 +98,7 @@ struct fatfs_long_dirent
     uint16_t fstClusLo;         ///< must be 0 - artifact of the FAT "first cluster"
     char name3[4];              ///< characters 12-13 of the long-name sub-component in this dir entry
 } __attribute__((packed));
+static_assert(sizeof(struct fatfs_long_dirent) == 32);
 
 struct fat32_fs
 {

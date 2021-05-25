@@ -67,10 +67,101 @@ errval_t initFat32Partition(struct sdhc_s *sdhc_driver_state, struct fat32_fs *f
     ON_ERR_RETURN(err);
 
     memcpy(&fs->fsi, fs->buf_va, sizeof(struct fs_info));
-    debug_printf(">> %hu\n", fs->bpb.fsInfo);
-    debug_printf(">> %lu\n", sizeof(struct fs_info));
-    debug_printf(">> %d\n", fs->fsi.leadSig);
-    assert(41615252 == fs->fsi.leadSig && "Error: Not an fsinfo sector");
+    assert(0x41615252 == fs->fsi.leadSig && "Error: Not an fsinfo sector");
+
+    debug_printf(">> bytes per sector: %d\n", fs->bpb.bytsPerSec);
+    debug_printf(">> sector per cluster: %d\n", fs->bpb.secPerClus);
+
+    debug_printf(">> FATSector: %d\n", fs->fat_sector);
+    debug_printf(">> DATASector: %d\n", fs->data_sector);
+    debug_printf(">> RootDirSector: %d\n", fs->rootDir_sector);
+
+    err = sdhc_read_block(sdhc_driver_state, fs->rootDir_sector, get_phys_addr(fs->buf_cap));
+    ON_ERR_RETURN(err);
+    for (int i = 0; i < 10; i++) {
+        struct fatfs_short_dirent dir;
+        memcpy(&dir, fs->buf_va+32*i, sizeof(struct fatfs_short_dirent));
+
+        /*
+        debug_printf(">> %hhu\n", dir.ord);
+        debug_printf(">> %s\n", dir.name1);
+        debug_printf(">> %s\n", dir.name2);
+        debug_printf(">> %s\n", dir.name3);
+        debug_printf(">> %hhu\n", dir.attr);
+        debug_printf(">> %hhu\n", dir.type);
+        */
+
+        debug_printf(">> Name:  %s\n", dir.name);
+        debug_printf(">> Attr:  0x%x\n", dir.attr);
+        debug_printf(">> cTime: %hhu\n", dir.crtTimeTenth);
+        debug_printf(">> size:  %u\n", dir.fileSize);
+        debug_printf(">> hi:    %hu\n", dir.fstClusHi);
+        debug_printf(">> lo:    %hu\n", dir.fstClusLow);
+        debug_printf(">> <<\n");
+    }
+
+    err = sdhc_read_block(sdhc_driver_state, fs->data_sector + (3-2) * fs->bpb.secPerClus, get_phys_addr(fs->buf_cap));
+    ON_ERR_RETURN(err);
+
+    debug_printf("================= \n");
+    for (int i = 0; i < 10; i++) {
+        struct fatfs_short_dirent dir;
+        memcpy(&dir, fs->buf_va+32*i, sizeof(struct fatfs_short_dirent));
+
+        /*
+        debug_printf(">> %hhu\n", dir.ord);
+        debug_printf(">> %s\n", dir.name1);
+        debug_printf(">> %s\n", dir.name2);
+        debug_printf(">> %s\n", dir.name3);
+        debug_printf(">> %hhu\n", dir.attr);
+        debug_printf(">> %hhu\n", dir.type);
+        */
+
+        debug_printf(">> Name:  %s\n", dir.name);
+        debug_printf(">> Attr:  0x%x\n", dir.attr);
+        debug_printf(">> cTime: %hhu\n", dir.crtTimeTenth);
+        debug_printf(">> size:  %u\n", dir.fileSize);
+        debug_printf(">> hi:    %hu\n", dir.fstClusHi);
+        debug_printf(">> lo:    %hu\n", dir.fstClusLow);
+        debug_printf(">> <<\n");
+    }
+
+    err = sdhc_read_block(sdhc_driver_state, fs->data_sector + (4-2) * fs->bpb.secPerClus, get_phys_addr(fs->buf_cap));
+    ON_ERR_RETURN(err);
+
+    debug_printf("================= \n");
+    for (int i = 0; i < 10; i++) {
+        struct fatfs_short_dirent dir;
+        memcpy(&dir, fs->buf_va+32*i, sizeof(struct fatfs_short_dirent));
+
+        /*
+        debug_printf(">> %hhu\n", dir.ord);
+        debug_printf(">> %s\n", dir.name1);
+        debug_printf(">> %s\n", dir.name2);
+        debug_printf(">> %s\n", dir.name3);
+        debug_printf(">> %hhu\n", dir.attr);
+        debug_printf(">> %hhu\n", dir.type);
+        */
+
+        debug_printf(">> Name:  %s\n", dir.name);
+        debug_printf(">> Attr:  0x%x\n", dir.attr);
+        debug_printf(">> cTime: %hhu\n", dir.crtTimeTenth);
+        debug_printf(">> size:  %u\n", dir.fileSize);
+        debug_printf(">> hi:    %hu\n", dir.fstClusHi);
+        debug_printf(">> lo:    %hu\n", dir.fstClusLow);
+        debug_printf(">> <<\n");
+    }
+
+    err = sdhc_read_block(sdhc_driver_state, fs->fat_sector, get_phys_addr(fs->buf_cap));
+    ON_ERR_RETURN(err);
+
+    uint32_t fatentry;
+    for (int i = 0; i < 30; i++) {
+        fatentry = *(uint32_t *) (fs->buf_va+i*sizeof(uint32_t));
+        debug_printf(">> fatentry %d: %x\n", i, fatentry);
+    }
+
+
 
     return err;
 }

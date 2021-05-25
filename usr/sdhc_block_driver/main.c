@@ -46,10 +46,6 @@ int main(int argc, char **argv) {
     err = sdhc_read_block(sdhc_driver_state, fs.rootDir_sector, get_phys_addr(fs.buf_cap));
     ON_ERR_RETURN(err);
 
-    struct fatfs_short_dirent root;
-    memcpy(&root, fs.buf_va, sizeof(struct fatfs_short_dirent));
-
-    debug_printf(">> %s\n", root.name);
 
     // TODO: free by caller
     debug_printf(">> REACHED\n");
