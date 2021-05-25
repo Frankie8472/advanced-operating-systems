@@ -280,6 +280,8 @@ errval_t lmp_endpoint_register(struct lmp_endpoint *ep, struct waitset *ws,
 {
     errval_t err;
 
+    
+
     dispatcher_handle_t handle = disp_disable();
     struct dispatcher_generic *dp = get_dispatcher_generic(handle);
 

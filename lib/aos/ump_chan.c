@@ -3,7 +3,7 @@
 #include <aos/aos.h>
 #include <aos/dispatcher_arch.h>
 #include <aos/waitset.h>
-#include "waitset_chan_priv.h"
+#include <aos/waitset_chan.h>
 
 /**
  * \brief Like ump_chan_init, just with (maybe) a different msg_size than UMP_MSG_SIZE
@@ -22,9 +22,8 @@ errval_t ump_chan_init_size(struct ump_chan *chan, size_t msg_size,
     chan->recv_pane = recv_buf;
     chan->recv_pane_size = recv_buf_size;
     chan->recv_buf_index = 0;
-    
-    chan->waitset_state.chantype = CHANTYPE_UMP_IN;
-    chan->waitset_state.state = CHAN_UNREGISTERED;
+
+    waitset_chanstate_init(&chan->waitset_state, CHANTYPE_UMP_IN);
     chan->waitset_state.arg = chan;
 
     return SYS_ERR_OK;
@@ -59,6 +58,13 @@ errval_t ump_chan_init(struct ump_chan *chan,
     return ump_chan_init_size(chan, UMP_MSG_SIZE,
                               send_buf, send_buf_size,
                               recv_buf, recv_buf_size);
+}
+
+
+errval_t ump_chan_destroy(struct ump_chan *chan)
+{
+    waitset_chanstate_destroy(&chan->waitset_state);
+    return SYS_ERR_OK;
 }
 
 /**
@@ -150,15 +156,13 @@ bool ump_chan_poll_once(struct ump_chan *chan, struct ump_msg *recv)
 
 errval_t ump_chan_register_recv(struct ump_chan *chan, struct waitset *ws, struct event_closure closure)
 {
-    errval_t err;
+    return waitset_chan_register_polled(ws, &chan->waitset_state, closure);
+}
 
-    dispatcher_handle_t handle = disp_disable();
 
-    err = waitset_chan_register_polled_disabled(ws, &chan->waitset_state, closure, handle);
-
-    disp_enable(handle);
-
-    return err;
+errval_t ump_chan_deregister_recv(struct ump_chan *chan)
+{
+    return waitset_chan_deregister(&chan->waitset_state);
 }
 
 

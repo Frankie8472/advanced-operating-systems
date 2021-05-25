@@ -15,9 +15,8 @@
 #include "rpc_server.h"
 #include "spawn_server.h"
 #include "mem_alloc.h"
-
 #include "../../lib/aos/include/init.h"
-
+#include "routing.h"
 
 
 
@@ -47,6 +46,8 @@ struct terminal_state{
 };
 
 static struct terminal_state *terminal_state;
+static void *get_opaque_server_rpc_handlers[OS_IFACE_N_FUNCTIONS];
+
 
 errval_t init_terminal_state(void)
 {
@@ -113,12 +114,14 @@ errval_t init_core_channel(coreid_t coreid, lvaddr_t urpc_frame)
     errval_t err;
 
     err = SYS_ERR_OK;
+    aos_rpc_set_interface(rpc,get_init_interface(),INIT_IFACE_N_FUNCTIONS,malloc(INIT_IFACE_N_FUNCTIONS * sizeof(void *)));
+    initialize_rpc_handlers(rpc);
     //err = aos_rpc_init(rpc); TODO (RPC): set intercore interface
     ON_ERR_PUSH_RETURN(err, LIB_ERR_RPC_INIT);
     aos_rpc_init_ump_default(rpc, urpc_frame, BASE_PAGE_SIZE, coreid < disp_get_core_id());
     ON_ERR_PUSH_RETURN(err, LIB_ERR_RPC_INIT);
 
-    register_core_channel_handlers(rpc);
+    // register_core_channel_handlers(rpc);
 
 
     set_core_channel(coreid,rpc);
@@ -126,6 +129,20 @@ errval_t init_core_channel(coreid_t coreid, lvaddr_t urpc_frame)
     return SYS_ERR_OK;
 }
 
+
+/**
+ * \brief handler function for send number rpc call
+ */
+void handle_send_number(struct aos_rpc *r, uintptr_t number) {
+    debug_printf("recieved number: %ld\n", number);
+}
+
+/**
+ * \brief handler function for send string rpc call
+ */
+void handle_send_string(struct aos_rpc *r, const char *string) {
+    debug_printf("recieved string: %s\n", string);
+}
 
 /**
  * \brief handler function for putchar rpc call
@@ -148,7 +165,8 @@ void handle_getchar(struct aos_rpc *r, uintptr_t *c) {
  * \brief handler function for ram alloc rpc call
  */
 void handle_request_ram(struct aos_rpc *r, uintptr_t size, uintptr_t alignment, struct capref *cap, uintptr_t *ret_size) {
-    //debug_printf("handle_request_ram\n");
+    // debug_printf("handle_request_ram\n");
+    //TODO: error here?!
     errval_t err = ram_alloc_aligned(cap, size, alignment);
     if (err_is_fail(err)) {
         DEBUG_ERR(err, "Error in remote ram allocation!\n");
@@ -170,7 +188,7 @@ void handle_spawn(struct aos_rpc *old_rpc, const char *name, uintptr_t core_id, 
     uintptr_t current_core_id = disp_get_core_id();
     if(core_id == current_core_id) {
         domainid_t pid;
-        errval_t err = spawn_new_domain(name, &pid, NULL_CAP, NULL);
+        errval_t err = spawn_new_domain(name, 0, NULL, &pid, NULL_CAP, NULL_CAP, NULL);
         if (err_is_fail(err)) {
             DEBUG_ERR(err, "Failed to spawn new domain\n");
         }
@@ -180,7 +198,7 @@ void handle_spawn(struct aos_rpc *old_rpc, const char *name, uintptr_t core_id, 
         errval_t err;
         struct aos_rpc* ump_chan = get_core_channel(0);
         assert(ump_chan && "NO U!");
-        err = aos_rpc_call(ump_chan, AOS_RPC_FOREIGN_SPAWN, name, core_id, new_pid);
+        err = aos_rpc_call(ump_chan, INIT_IFACE_SPAWN, name, core_id, new_pid);
         if(err_is_fail(err)){
             DEBUG_ERR(err,"Failed to call aos rpc in spawn handler for foreign core\n");
         }
@@ -196,7 +214,7 @@ void handle_spawn(struct aos_rpc *old_rpc, const char *name, uintptr_t core_id, 
             *new_pid = 0;
             return;
         }
-        err = aos_rpc_call(ump_chan, AOS_RPC_FOREIGN_SPAWN, name, core_id, new_pid);
+        err = aos_rpc_call(ump_chan, INIT_IFACE_SPAWN, name, core_id, new_pid);
         if(err_is_fail(err)){
             DEBUG_ERR(err,"Failed to call aos rpc in spawn handler for foreign core\n");
         }
@@ -205,36 +223,86 @@ void handle_spawn(struct aos_rpc *old_rpc, const char *name, uintptr_t core_id, 
 }
 
 
-void handle_service_on(struct aos_rpc *r, uintptr_t service){
-    debug_printf("Handle pm online\n");
-    switch(service){
-        case PROCESS_MANAGER: 
-            set_pm_online();
-            break;
-        case MEMORY_SERVER:
-            set_mem_online();
-            break;
-        default:
-            debug_printf("Invalid parameter to turn on service\n");
+void handle_spawn_extended(struct aos_rpc *rpc, struct aos_rpc_varbytes request, uintptr_t core_id, struct capref spawner_ep, uintptr_t *new_pid)
+{
+    coreid_t current_core_id = disp_get_core_id();
+    if (core_id != current_core_id) {
+        if (current_core_id != 0) {
+            // TODO
+        }
+        else {
+            struct aos_rpc* core_rpc = get_core_channel(core_id);
+            if (core_rpc == NULL) {
+                *new_pid = COREID_INVALID;
+                return;
+            }
+
+            aos_rpc_call(core_rpc, INIT_IFACE_SPAWN_EXTENDED, request, core_id, spawner_ep, new_pid);
+            return;
+        }
     }
+
+
+    struct spawn_request_header *header = (struct spawn_request_header *) request.bytes;
+    int argc = header->argc;
+    char **argv = malloc(argc * sizeof(char *));
+    memset(argv, 0, argc * sizeof(char *));
+
+    size_t offset = sizeof(struct spawn_request_header);
+
+    for (int i = 0; i < argc; i++) {
+        struct spawn_request_arg *arg_hdr = (struct spawn_request_arg *) (request.bytes + offset);
+        argv[i] = malloc(arg_hdr->length);
+        memcpy(argv[i], arg_hdr->str, arg_hdr->length);
+        offset += sizeof(struct spawn_request_arg) + arg_hdr->length;
+    }
+
+    if (argc <= 0) {
+        debug_printf("error, no name supplied\n");
+        return;
+    }
+
+    const char *name = argv[0];
+
+    domainid_t pid;
+    errval_t err = spawn_new_domain(name, argc, argv, &pid, spawner_ep, NULL_CAP, NULL);
+    if (err_is_fail(err)) {
+        *new_pid = MOD_NOT_FOUND;
+        return;
+    }
+    *new_pid = pid;
+}
+
+
+void handle_ns_on(struct aos_rpc *r){
+    set_ns_online();
+}
+
+
+//TODO get rid
+void handle_service_on(struct aos_rpc *r, uintptr_t service){
+    debug_printf("Handle nameserver online\n");
 }
 
 void handle_foreign_spawn(struct aos_rpc *origin_rpc, const char *name, uintptr_t core_id, uintptr_t *new_pid)
-{
-    debug_printf("WE SPAWN: %s, %ld\n", name, core_id);
-    struct spawninfo *si = spawn_create_spawninfo();
+{   
 
-    struct aos_rpc *rpc = &si->rpc;
-    //aos_rpc_init(rpc); // TODO (RPC): set interface
-    //initialize_rpc_handlers(rpc);
 
-    domainid_t *pid = &si->pid;
-    spawn_load_by_name((char*) name, si, pid);
-    *new_pid = *pid;
-    errval_t errr = lmp_chan_register_recv(&rpc->channel.lmp, get_default_waitset(), MKCLOSURE(&aos_rpc_on_lmp_message, &rpc));
-    if (err_is_fail(errr) && errr == LIB_ERR_CHAN_ALREADY_REGISTERED) {
-        // not too bad, already registered
-    }
+
+    // debug_printf("WE SPAWN: %s, %ld\n", name, core_id);
+    // struct spawninfo *si = spawn_create_spawninfo();
+
+    // struct aos_rpc *rpc = &si->rpc;
+    // //aos_rpc_init(rpc); // TODO (RPC): set interface
+    // //initialize_rpc_handlers(rpc);
+
+    // domainid_t *pid = &si->pid;
+    // spawn_load_by_name((char*) name, si, pid);
+    // *new_pid = *pid;
+    // errval_t errr = lmp_chan_register_recv(&rpc->channel.lmp, get_default_waitset(), MKCLOSURE(&aos_rpc_on_lmp_message, &rpc));
+    // if (err_is_fail(errr) && errr == LIB_ERR_CHAN_ALREADY_REGISTERED) {
+    //     // not too bad, already registered
+    // }
 }
 
 
@@ -275,13 +343,7 @@ void handle_init_process_register(struct aos_rpc *r,uintptr_t core_id,const char
 }
 
 
-void handle_mem_server_request(struct aos_rpc *r, struct capref client_cap, struct capref * server_cap){
-    errval_t err;
-    err = aos_rpc_call(get_mem_rpc(),AOS_RPC_MEM_SERVER_REQ,client_cap,server_cap);
-    if(err_is_fail(err)){
-        DEBUG_ERR(err,"Failed to relay memory server request\n");
-    }
-}
+
 
 
 void handle_init_get_proc_name(struct aos_rpc *r, uintptr_t pid, char *name){
@@ -431,6 +493,274 @@ void handle_all_binding_request(struct aos_rpc *r, uintptr_t pid, uintptr_t core
     }
 }
 
+
+
+void handle_forward_ns_reg(struct aos_rpc *rpc,uintptr_t core_id,const char* name,struct capref proc_ep_cap, uintptr_t pid, struct capref* ns_ep_cap){
+
+    errval_t err = aos_rpc_call(get_ns_forw_rpc(),INIT_REG_NAMESERVER,core_id,name,proc_ep_cap,pid,ns_ep_cap);
+    if(err_is_fail(err)){
+        DEBUG_ERR(err,"Failed to forward ns reg!\n");
+    }
+}
+
+void handle_server_request(struct aos_rpc * rpc, uintptr_t pid, uintptr_t core_id ,const char* server_data,uintptr_t direct, const char * return_message){
+    debug_printf("Register with name server data: %s \n",server_data);
+    errval_t err = aos_rpc_call(get_ns_forw_rpc(),INIT_REG_SERVER,pid,core_id,server_data,direct,return_message);
+    if(err_is_fail(err)){
+        DEBUG_ERR(err,"Failed to forward server request\n");
+    }
+}
+
+void handle_name_lookup(struct aos_rpc *rpc, char * name,uintptr_t * core_id,uintptr_t *direct, uintptr_t *success){
+    
+    errval_t err = aos_rpc_call(get_ns_forw_rpc(),INIT_NAME_LOOKUP,name,core_id,direct,success);
+    if(err_is_fail(err)){
+        DEBUG_ERR(err,"Failed to forward server lookup\n");
+    }
+}
+
+
+
+void handle_multi_hop_init(struct aos_rpc *rpc,const char* name, struct capref server_ep_cap, struct capref* init_ep_cap){
+    errval_t err;
+
+
+    debug_printf("Starting init multihop stuff for %s!\n",name);
+    struct routing_entry * re = (struct routing_entry *) malloc(sizeof(struct routing_entry));
+    assert(re && "Routing entry failed!\n");
+    strcpy(re -> name,(char *) name);
+
+
+    struct aos_rpc * new_rpc = malloc(sizeof(struct aos_rpc));
+
+    struct capref new_init_ep_cap;
+    err = slot_alloc(&new_init_ep_cap);    
+    if(err_is_fail(err)){
+        DEBUG_ERR(err,"Failed to slot alloc in multihop init!\n");
+    }
+    struct lmp_endpoint * lmp_ep;
+    err = endpoint_create(256,&new_init_ep_cap,&lmp_ep);
+    if(err_is_fail(err)){
+        DEBUG_ERR(err,"Failed to create ep for multihop\n");
+    }
+    err = aos_rpc_init_lmp(new_rpc,new_init_ep_cap,server_ep_cap,lmp_ep, get_default_waitset());
+    if(err_is_fail(err)){
+        DEBUG_ERR(err,"Failed to register waitset on rpc\n");
+    }
+
+    err = aos_rpc_set_interface(new_rpc,get_opaque_server_interface(),OS_IFACE_N_FUNCTIONS,get_opaque_server_rpc_handlers);
+
+    if(err_is_fail(err)){
+        DEBUG_ERR(err,"Failed to set server interface in multi hop init\n");
+    }
+    re -> rpc = new_rpc;
+    err = add_routing_entry(re);
+    if(err_is_fail(err)){
+        DEBUG_ERR(err,"Failed to add routing entry for multihop!\n");
+    }
+    *init_ep_cap = new_init_ep_cap;
+}
+
+
+
+void handle_client_call(struct aos_rpc *rpc,coreid_t core_id,const char* message,struct capref send_cap,char* response, struct capref *recv_cap){
+    debug_printf("handling client call!\n");
+    errval_t err;
+    coreid_t curr_core = disp_get_core_id();
+    if(core_id != curr_core){
+        struct aos_rpc* fw_rpc;
+        if(curr_core == 0){ fw_rpc = get_core_channel(core_id);}
+        else{fw_rpc = get_core_channel(0);}
+        assert(fw_rpc && "Core channel not online!");
+        err = aos_rpc_call(get_core_channel(0),INIT_CLIENT_CALL,core_id,message,send_cap,response,recv_cap);
+        if(err_is_fail(err)){DEBUG_ERR(err,"Failed forward!");}
+    }else {
+
+
+        char name[1024];
+        size_t n_index = 0;
+        char * extracted_message = (char *) message;
+        while(*extracted_message != '\0' && *extracted_message != '?'){
+            name[n_index] = *extracted_message++;
+            n_index++;
+        }
+        name[n_index] = '\0';
+        extracted_message++;
+
+        debug_printf("Routing to server with name %s\n",name);
+        struct routing_entry * re;
+        err = get_routing_entry_by_name(name,&re);
+        if(err_is_fail(err)){
+            DEBUG_ERR(err,"Failed to get routing entry by name\n");
+            return;
+        }
+        // // struct routing_entry * re = get_routing_entry_by_name(name);
+        // if(!re){
+        //     debug_printf("Server routing not found!\n");
+        //     // *response = '\0';
+        //     return;
+        // }
+
+        err = aos_rpc_call(re -> rpc,OS_IFACE_MESSAGE,extracted_message,send_cap,response,recv_cap);
+        if(err_is_fail(err)){
+            DEBUG_ERR(err,"Failed call to server ep!\n");
+        }
+    }
+}
+
+
+
+void handle_client_call1(struct aos_rpc *rpc,coreid_t core_id,const char* message,struct capref send_cap,char* response){
+    debug_printf("handling client call! 1\n");
+    errval_t err;
+    coreid_t curr_core = disp_get_core_id();
+    if(core_id != curr_core){
+        struct aos_rpc* fw_rpc;
+        if(curr_core == 0){ fw_rpc = get_core_channel(core_id);}
+        else{fw_rpc = get_core_channel(0);}
+        assert(fw_rpc && "Core channel not online!");
+        err = aos_rpc_call(get_core_channel(0),INIT_CLIENT_CALL1,core_id,message,send_cap,response);
+        if(err_is_fail(err)){DEBUG_ERR(err,"Failed forward!");}
+    }else {
+
+
+        char name[1024];
+        size_t n_index = 0;
+        char * extracted_message = (char *) message;
+        while(*extracted_message != '\0' && *extracted_message != '?'){
+            name[n_index] = *extracted_message++;
+            n_index++;
+        }
+        name[n_index] = '\0';
+        extracted_message++;
+
+        debug_printf("Routing to server with name %s\n",name);
+        struct routing_entry * re;
+        err = get_routing_entry_by_name(name,&re);
+        if(err_is_fail(err)){
+            DEBUG_ERR(err,"Failed to get routing entry by name\n");
+            return;
+        }
+
+        struct capref dummy_cap;
+        err = aos_rpc_call(re -> rpc,OS_IFACE_MESSAGE,extracted_message,send_cap,response,&dummy_cap);
+        if(err_is_fail(err)){
+            DEBUG_ERR(err,"Failed call to server ep!\n");
+        }
+    }
+}
+
+
+
+void handle_client_call2(struct aos_rpc *rpc,coreid_t core_id,const char* message,char* response){
+    debug_printf("handling client call 2!\n");
+    errval_t err;
+    coreid_t curr_core = disp_get_core_id();
+    if(core_id != curr_core){
+        struct aos_rpc* fw_rpc;
+        if(curr_core == 0){ fw_rpc = get_core_channel(core_id);}
+        else{fw_rpc = get_core_channel(0);}
+        assert(fw_rpc && "Core channel not online!");
+        err = aos_rpc_call(get_core_channel(0),INIT_CLIENT_CALL2,core_id,message,response);
+        if(err_is_fail(err)){DEBUG_ERR(err,"Failed forward!");}
+    }else {
+
+        // debug_printf("Client call 2\n");
+        char name[1024];
+        size_t n_index = 0;
+        char * extracted_message = (char *) message;
+        while(*extracted_message != '\0' && *extracted_message != '?'){
+            name[n_index] = *extracted_message++;
+            n_index++;
+        }
+        name[n_index] = '\0';
+        extracted_message++;
+
+        debug_printf("Routing to server with name %s\n",name);
+        struct routing_entry * re;
+        err = get_routing_entry_by_name(name,&re);
+        if(err_is_fail(err)){
+            DEBUG_ERR(err,"Failed to get routing entry by name\n");
+            return;
+        }
+        struct capref dummy_cap;
+        // debug_printf("em : %lx, response: %lx\n",extracted_message,response);
+        err = aos_rpc_call(re -> rpc,OS_IFACE_MESSAGE,extracted_message,NULL_CAP,response,&dummy_cap);
+        // debug_printf("em : %lx, response: %lx\n",extracted_message,response);
+        // debug_printf("Got response : %s\n",response);
+        if(err_is_fail(err)){
+            DEBUG_ERR(err,"Failed call to server ep!\n");
+        }
+    }
+}
+
+
+void handle_client_call3(struct aos_rpc *rpc,coreid_t core_id,const char* message, char* response, struct capref *recv_cap){
+    debug_printf("handling client call 3!\n");
+    errval_t err;
+    coreid_t curr_core = disp_get_core_id();
+    if(core_id != curr_core){
+        struct aos_rpc* fw_rpc;
+        if(curr_core == 0){ fw_rpc = get_core_channel(core_id);}
+        else{fw_rpc = get_core_channel(0);}
+        assert(fw_rpc && "Core channel not online!");
+        err = aos_rpc_call(get_core_channel(0),INIT_CLIENT_CALL3,core_id,message,response,recv_cap);
+        if(err_is_fail(err)){DEBUG_ERR(err,"Failed forward!");}
+    }else {
+
+
+        char name[1024];
+        size_t n_index = 0;
+        char * extracted_message = (char *) message;
+        while(*extracted_message != '\0' && *extracted_message != '?'){
+            name[n_index] = *extracted_message++;
+            n_index++;
+        }
+        name[n_index] = '\0';
+        extracted_message++;
+
+        debug_printf("Routing to server with name %s\n",name);
+        struct routing_entry * re;
+        err = get_routing_entry_by_name(name,&re);
+        if(err_is_fail(err)){
+            DEBUG_ERR(err,"Failed to get routing entry by name\n");
+            return;
+        }
+        err = aos_rpc_call(re -> rpc,OS_IFACE_MESSAGE,extracted_message,NULL_CAP,response,recv_cap);
+        if(err_is_fail(err)){
+            DEBUG_ERR(err,"Failed call to server ep!\n");
+        }
+    }
+}
+
+
+void handle_binding_request(struct aos_rpc * rpc,const char* name,uintptr_t src_core,uintptr_t target_core,struct capref client_ep_cap, struct capref * server_ep_cap){
+    errval_t err;
+    if(disp_get_core_id() == target_core){
+        struct routing_entry* re;
+        err = get_routing_entry_by_name(name, &re);
+        if(err_is_fail(err)){
+            DEBUG_ERR(err,"Failed to get routing entry in forwarding of binding request!\n");
+        }
+
+        err = aos_rpc_call(re -> rpc,OS_IFACE_BINDING_REQUEST,src_core,client_ep_cap,server_ep_cap);
+        if(err_is_fail(err)){
+            DEBUG_ERR(err,"Failed to forward to server listener\n");
+        }
+    }else{
+        struct aos_rpc * next_hop;
+        if(disp_get_core_id() == 0){
+            next_hop = get_core_channel(target_core);
+        }else{
+            next_hop = get_core_channel(0);
+
+        }
+        err = aos_rpc_call(next_hop,INIT_BINDING_REQUEST,name,src_core,target_core,client_ep_cap,server_ep_cap);
+        if(err_is_fail(err)){
+            DEBUG_ERR(err,"Failed to forward!\n");
+        }
+    }
+}
 /**
  * \brief initialize all handlers for rpc calls
  * 
@@ -440,28 +770,37 @@ void handle_all_binding_request(struct aos_rpc *r, uintptr_t pid, uintptr_t core
  * the lmp recieve handler.
  */
 errval_t initialize_rpc_handlers(struct aos_rpc *rpc)
-{
-    aos_rpc_register_handler(rpc,AOS_RPC_SERVICE_ON,&handle_service_on);
+{   
+
+    //STANDARD INTERFACE (MOSTLY FOR TESTS + MEMEATER)
+    void handle_roundtrip(struct aos_rpc *r) { return; }
     aos_rpc_register_handler(rpc, AOS_RPC_INITIATE, &handle_initiate);
     aos_rpc_register_handler(rpc, AOS_RPC_SEND_NUMBER, &handle_send_number);
     aos_rpc_register_handler(rpc, AOS_RPC_SEND_STRING, &handle_send_string);
-
-    aos_rpc_register_handler(rpc, AOS_RPC_REQUEST_RAM, &handle_request_ram);
-
-    aos_rpc_register_handler(rpc, AOS_RPC_PROC_SPAWN_REQUEST, &handle_spawn);
-
     aos_rpc_register_handler(rpc, AOS_RPC_PUTCHAR, &handle_putchar);
     aos_rpc_register_handler(rpc, AOS_RPC_GETCHAR, &handle_getchar);
-
-    void handle_roundtrip(struct aos_rpc *r) { return; }
     aos_rpc_register_handler(rpc, AOS_RPC_ROUNDTRIP, &handle_roundtrip);
-    aos_rpc_register_handler(rpc,AOS_RPC_REGISTER_PROCESS,&handle_init_process_register);
-    aos_rpc_register_handler(rpc,AOS_RPC_MEM_SERVER_REQ,&handle_mem_server_request);
 
-    aos_rpc_register_handler(rpc,AOS_RPC_GET_PROC_NAME,&handle_init_get_proc_name);
-    aos_rpc_register_handler(rpc,AOS_RPC_GET_PROC_LIST,&handle_init_get_proc_list);
-    aos_rpc_register_handler(rpc, AOS_RPC_GET_PROC_CORE,&handle_init_get_core_id);
-    aos_rpc_register_handler(rpc,AOS_RPC_BINDING_REQUEST,&handle_all_binding_request);
+
+    //INIT INTERFACE (MOSTLY FORWARDING)
+    aos_rpc_register_handler(rpc, INIT_IFACE_SPAWN, &handle_spawn);
+    aos_rpc_register_handler(rpc, INIT_IFACE_SPAWN_EXTENDED, &handle_spawn_extended);
+    aos_rpc_register_handler(rpc, INIT_NAMESERVER_ON, &handle_ns_on);
+    aos_rpc_register_handler(rpc,INIT_REG_NAMESERVER,&handle_forward_ns_reg);
+    aos_rpc_register_handler(rpc,INIT_REG_SERVER,&handle_server_request);
+    aos_rpc_register_handler(rpc,INIT_NAME_LOOKUP,&handle_name_lookup);
+    aos_rpc_register_handler(rpc,INIT_MULTI_HOP_CON,&handle_multi_hop_init);
+    aos_rpc_register_handler(rpc,INIT_CLIENT_CALL,&handle_client_call);
+    aos_rpc_register_handler(rpc,INIT_CLIENT_CALL1,&handle_client_call1);
+    aos_rpc_register_handler(rpc,INIT_CLIENT_CALL2,&handle_client_call2);
+    aos_rpc_register_handler(rpc,INIT_CLIENT_CALL3,&handle_client_call3);
+    aos_rpc_register_handler(rpc,INIT_BINDING_REQUEST,&handle_binding_request);
+    // aos_rpc_register_handler(rpc,AOS_RPC_REGISTER_PROCESS,&handle_init_process_register);
+    // aos_rpc_register_handler(rpc,AOS_RPC_MEM_SERVER_REQ,&handle_mem_server_request);
+    // aos_rpc_register_handler(rpc,AOS_RPC_GET_PROC_NAME,&handle_init_get_proc_name);
+    // aos_rpc_register_handler(rpc,AOS_RPC_GET_PROC_LIST,&handle_init_get_proc_list);
+    // aos_rpc_register_handler(rpc, AOS_RPC_GET_PROC_CORE,&handle_init_get_core_id);
+    // aos_rpc_register_handler(rpc,AOS_RPC_BINDING_REQUEST,&handle_all_binding_request);
     return SYS_ERR_OK;
 }
 
@@ -479,7 +818,6 @@ void register_core_channel_handlers(struct aos_rpc *rpc)
     aos_rpc_register_handler(rpc,AOS_RPC_GET_PROC_LIST,&handle_init_get_proc_list);
     aos_rpc_register_handler(rpc, AOS_RPC_GET_PROC_CORE,&handle_init_get_core_id);
     aos_rpc_register_handler(rpc,AOS_RPC_BINDING_REQUEST,&handle_all_binding_request );
-
 }
 
 

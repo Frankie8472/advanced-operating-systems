@@ -5,15 +5,17 @@
 bootdriver  /armv8/sbin/boot_armv8_generic
 cpudriver /armv8/sbin/cpu_imx8x
 module  /armv8/sbin/init
-module /armv8/sbin/hello nice it works
+module /armv8/sbin/hello x y z
 #module /armv8/sbin/page
 module /armv8/sbin/memeater
 module /armv8/sbin/performance_tester
 module /armv8/sbin/process_manager
-module /armv8/sbin/memory_server
 module /armv8/sbin/client
 module /armv8/sbin/server
+module /armv8/sbin/nameserver
+module /armv8/sbin/nameservicetest
 module /armv8/sbin/lpuart_terminal
 module /armv8/sbin/josh
 module /armv8/sbin/enet
+module /armv8/sbin/cat
 # newlines are important here

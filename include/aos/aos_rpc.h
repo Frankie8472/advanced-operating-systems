@@ -37,32 +37,28 @@ enum aos_rpc_backend {
  */
 typedef enum aos_rpc_msg_type {
     AOS_RPC_INITIATE = 0,
-    AOS_RPC_MSG_TYPE_START,
-
-    AOS_RPC_SEND_NUMBER, //1
+    AOS_RPC_SEND_NUMBER,
     AOS_RPC_SEND_STRING,
     AOS_RPC_SEND_VARBYTES,
-    AOS_RPC_REQUEST_RAM,
-    AOS_RPC_REQUEST_FOREIGN_RAM,
-    AOS_RPC_SETUP_PAGE,  //5
-    AOS_RPC_PROC_SPAWN_REQUEST,
-    AOS_RPC_FOREIGN_SPAWN,
     AOS_RPC_PUTCHAR,
     AOS_RPC_GETCHAR, 
+    AOS_RPC_BINDING_REQUEST,
+    AOS_RPC_ROUNDTRIP, ///< rpc call that does nothing, for benchmarking
+    AOS_RPC_MSG_TYPE_START,
+
+    AOS_RPC_REQUEST_RAM,
+    AOS_RPC_SETUP_PAGE,  
+    AOS_RPC_REQUEST_FOREIGN_RAM,
+    AOS_RPC_PROC_SPAWN_REQUEST,
+    AOS_RPC_FOREIGN_SPAWN,
     AOS_RPC_SET_READ,
     AOS_RPC_FREE_READ,
     AOS_RPC_REGISTER_PROCESS,
-    AOS_RPC_SERVICE_ON,
     AOS_RPC_GET_PROC_NAME,
     AOS_RPC_GET_PROC_LIST,
-    AOS_RPC_GET_PROC_CORE,
-    AOS_RPC_BINDING_REQUEST,
     AOS_RPC_MEM_SERVER_REQ,
-    AOS_RPC_ROUNDTRIP, ///< rpc call that does nothing, for benchmarking
-    AOS_RPC_GET_STDIN_EP,
-    AOS_RPC_SET_STDOUT_EP,
-    AOS_RPC_DEFAULT_MSG_TYPES, // needs to be last
-    AOS_RPC_MSG_TYPES_START,
+    AOS_RPC_GET_PROC_CORE,
+    AOS_RPC_MAX_MSG_TYPES, // needs to be last
 } msg_type_t;
 
 
@@ -128,8 +124,9 @@ struct aos_rpc {
         struct ump_chan ump;
     } channel;
 
-    struct aos_rpc_interface *interface;
+    const struct aos_rpc_interface *interface;
 
+    void* serv_entry;
     struct waitset *waitset;
 
     size_t n_handlers;
@@ -140,6 +137,8 @@ errval_t aos_rpc_set_interface(struct aos_rpc *rpc, struct aos_rpc_interface *in
 
 errval_t aos_rpc_init_lmp(struct aos_rpc *rpc, struct capref self_ep, struct capref end_ep, struct lmp_endpoint *lmp_ep, struct waitset *waitset);
 errval_t aos_rpc_init_ump_default(struct aos_rpc *rpc, lvaddr_t shared_page, size_t shared_page_size, bool first_half);
+
+errval_t aos_rpc_free(struct aos_rpc *rpc);
 
 errval_t aos_rpc_initialize_binding(struct aos_rpc_interface *interface, const char *name, int msg_type,
                                     int n_args, int n_rets, ...);

@@ -79,7 +79,8 @@ static errval_t add_process(coreid_t core_id,const char* name,domainid_t *pid){
 
 
 
-static void print_process_list(void){
+void print_process_list(void);
+void print_process_list(void){
     debug_printf("================ Processes ====================\n");
     for(struct process* curr = pl.head; curr != NULL; curr = curr -> next){
         debug_printf("Pid:   %d  Core:   %d  Name:   %s\n",curr -> pid, curr -> core_id, curr -> name);
@@ -97,7 +98,7 @@ static void print_process_list(void){
 
 
 static void handle_register_process(struct aos_rpc *rpc,uintptr_t core_id,const char* name,uintptr_t * pid){
-    // debug_printf("Handling process registering! nam: %s\n", name);
+    debug_printf("Handling process registering! nam: %s\n", name);
     
     errval_t err = add_process(core_id,name,(domainid_t *) pid);
     if(err_is_fail(err)){
@@ -105,7 +106,7 @@ static void handle_register_process(struct aos_rpc *rpc,uintptr_t core_id,const 
     }
     // *pid = new_pid;
     // debug_printf("Finished!\n");
-    print_process_list();
+    //print_process_list();
     return;
 
 }
@@ -209,10 +210,10 @@ int main(int argc, char *argv[])
     
     struct waitset *default_ws = get_default_waitset();
 
-    err = aos_rpc_call(init_rpc,AOS_RPC_SERVICE_ON,0);
-    if(err_is_fail(err)){
-        DEBUG_ERR(err,"Failed to call AOS_RPC_SERVICE_ON\n");
-    }
+    // err = aos_rpc_call(init_rpc,AOS_RPC_SERVICE_ON,0);
+    // if(err_is_fail(err)){
+    //     DEBUG_ERR(err,"Failed to call AOS_RPC_SERVICE_ON\n");
+    // }
 
     debug_printf("Message handler loop\n");
     while (true) {

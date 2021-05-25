@@ -15,6 +15,7 @@
 #include <spawn/argv.h>
 #include <spawn/process_manager.h>
 #include <string.h>
+#include <aos/default_interfaces.h>
 
 extern struct bootinfo *bi;
 extern coreid_t my_core_id;
@@ -100,13 +101,13 @@ errval_t setup_c_space(struct capref cnode_l1,
 }
 
 
-errval_t spawn_setup_dispatcher(int argc, const char *const argv[], struct spawninfo *si,
+errval_t spawn_setup_dispatcher(int argc, const char *const *argv, struct spawninfo *si,
                 domainid_t *pid)
 {
     errval_t err;
-    const char* name = argv[0];
-    DEBUG_PRINTF("Spawning process: %s\n", name);
-
+    // const char* name = argv[0];
+    // DEBUG_PRINTF("Spawning process: %s\n", name);
+    // debug_printf("Spawning process: %s\n",argv[0]);
     struct capref cnode_child_l1;
     struct cnoderef child_ref;
     err = cnode_create_l1(&cnode_child_l1, &child_ref);
@@ -184,11 +185,13 @@ errval_t spawn_setup_dispatcher(int argc, const char *const argv[], struct spawn
     err = cap_copy(init_ep_cap, si->cap_ep);
     ON_ERR_PUSH_RETURN(err, LIB_ERR_CAP_COPY_FAIL);
 
-    err = endpoint_create(LMP_RECV_LENGTH, &si->child_stdout_cap, &si->child_stdout);
-    ON_ERR_PUSH_RETURN(err, LIB_ERR_ENDPOINT_CREATE);
+    //err = endpoint_create(LMP_RECV_LENGTH, &si->child_stdout_cap, &si->child_stdout);
+    //ON_ERR_PUSH_RETURN(err, LIB_ERR_ENDPOINT_CREATE);
 
-    err = cap_copy(child_stdout_cap, si->child_stdout_cap);
-    ON_ERR_PUSH_RETURN(err, LIB_ERR_CAP_COPY_FAIL);
+    if (!capref_is_null(si->child_stdout_cap)) {
+        err = cap_copy(child_stdout_cap, si->child_stdout_cap);
+        ON_ERR_PUSH_RETURN(err, LIB_ERR_CAP_COPY_FAIL);
+    }
 
     err = cap_copy(mm_ep_cap, cap_mmep);
     ON_ERR_PUSH_RETURN(err, LIB_ERR_CAP_COPY_FAIL);
@@ -316,6 +319,7 @@ errval_t spawn_setup_dispatcher(int argc, const char *const argv[], struct spawn
     //disp_aarch64->generic.current;
     disp->udisp = dispaddr; // Virtual address of the dispatcher frame in child’s VSpace
     disp->disabled = 1;// Start in disabled mode
+    assert(si->binary_name);
     strncpy(disp->name, si->binary_name, DISP_NAME_LEN); // A name (for debugging)
     disabled_area->named.pc = retentry; // Set program counter (where it should start to execute)
 
@@ -337,16 +341,29 @@ errval_t spawn_setup_dispatcher(int argc, const char *const argv[], struct spawn
     aos_rpc_init_lmp(&si->rpc, cap_selfep, NULL_CAP, si->lmp_ep, NULL);
 
 
-    err = register_process_to_process_manager((char*)name, pid);
-    ON_ERR_RETURN(err);
-    disp_gen->domain_id = *pid;
 
-    if(get_mem_online()){
-        disp_gen -> core_state.c.mem_online = true;
+    if(get_ns_online()){
+        domainid_t new_pid;
+        err = aos_rpc_call(get_ns_rpc(),NS_GET_PID,&new_pid);
+        ON_ERR_RETURN(err);
+
+        disp_gen->domain_id = new_pid;
+        si -> pid = new_pid;
+        *pid = new_pid;
+    }else{
+        disp_gen-> domain_id = 0;
+        si -> pid = 0;
+        *pid = 0;
     }
+
+
     if(get_pm_online()){
         disp_gen -> core_state.c.pm_online = true;
     }
+    if(get_ns_online()){
+        disp_gen -> core_state.c.ns_online = true;
+    }
+
 
     si->dispatcher_cap = cap_dispatcher;
     si->dispframe_cap = child_dispframe;
@@ -414,8 +431,6 @@ errval_t spawn_load_argv(int argc, const char *const argv[], struct spawninfo *s
     err = spawn_setup_dispatcher(argc, argv, si, pid);
     ON_ERR_RETURN(err);
 
-    debug_printf("%s set up!\n", si->binary_name);
-
     err = spawn_invoke_dispatcher(si);
     ON_ERR_RETURN(err);
 
@@ -437,11 +452,11 @@ errval_t allocate_elf_memory(void* state, genvaddr_t base, size_t size, uint32_t
 
     int actual_flags = 0;
     if (flags & PF_R)
-        actual_flags |= VREGION_FLAGS_READ;
+        actual_flags |= KPI_PAGING_FLAGS_READ;
     if (flags & PF_W)
-        actual_flags |= VREGION_FLAGS_WRITE;
+        actual_flags |= KPI_PAGING_FLAGS_WRITE;
     if (flags & PF_X)
-        actual_flags |= VREGION_FLAGS_EXECUTE;
+        actual_flags |= KPI_PAGING_FLAGS_EXECUTE;
 
     //debug_printf("ALLOC ELF STUFF: 0x%lx -> 0x%lx\n", base, base + size);
 
@@ -496,17 +511,20 @@ static void strip_extra_spaces(char* str) {
   str[x] = '\0';
 }
 
-errval_t spawn_load_by_name_setup(char *binary_name, struct spawninfo *si)
+
+
+
+
+errval_t spawn_setup_module_by_name(const char *binary_name, struct spawninfo *si)
 {
-    errval_t err = SYS_ERR_OK;
-
-    //TODO: is bi correctly initialized by the init/usr/main.c
+    errval_t err;
     struct mem_region* mem_region = multiboot_find_module(bi, binary_name);
-
+    
     if (mem_region == NULL) {
         return SPAWN_ERR_MAP_MODULE;
     }
-    
+
+
     //this mem_region should be of type module
     assert(mem_region->mr_type == RegionType_Module);
     struct capability cap;
@@ -514,33 +532,92 @@ errval_t spawn_load_by_name_setup(char *binary_name, struct spawninfo *si)
         .cnode = cnode_module,
         .slot = mem_region->mrmod_slot
     };
-
+    err = invoke_cap_identify(child_frame, &cap);
     ON_ERR_RETURN(err);
 
     size_t mapping_size = get_size(&cap);
+    // debug_printf("capsize: %ld\n", mapping_size);
     char* elf_address;
     
-    err = paging_map_frame_attr(get_current_paging_state(), (void **) &elf_address,
+    paging_map_frame_attr(get_current_paging_state(), (void **) &elf_address,
                           mapping_size, child_frame, VREGION_FLAGS_READ_WRITE, NULL, NULL);
-    ON_ERR_RETURN(err);
 
     si->mapped_elf = (lvaddr_t) elf_address;
     si->mapped_elf_size = (size_t) mem_region->mrmod_size;
-
-    char *args_string = (char *)  multiboot_module_opts(mem_region);
-    char copy[strlen(args_string)];
-    strcpy(copy,args_string);
-    strip_extra_spaces(copy);
-
-    int argc = get_argc(copy);
-    char  const *argv[argc];
-    create_argv(copy, (char **) argv);
-
-    // set binary name to full name
-    si->binary_name = binary_name;
-
+    
     return SYS_ERR_OK;
 }
+
+errval_t spawn_setup_by_name(char *binary_name, struct spawninfo *si, domainid_t *pid)
+{
+    errval_t err = SYS_ERR_OK;
+
+
+
+    //Pretty ugly, but fixes a silent Nullptr dereference
+    int argc = get_argc(binary_name);
+    char * res[argc];
+    char cmd_line_copy[strlen(binary_name)];
+    strcpy(cmd_line_copy,binary_name);
+    create_argv(cmd_line_copy,(char **) res);
+
+    // char * name = (char *) malloc(strlen(res[0]) + 1);
+    // // strcpy(name,res[0]);
+
+    // si -> binary_name = (char*) res[0];
+    // binary_name = ;
+    //TODO: is  bi correctly initialized by the init/usr/main.c
+    err = spawn_setup_module_by_name(res[0], si);
+    ON_ERR_RETURN(err);
+
+    // debug_printf("Hello\n");
+    // debug_printf("ELF address = %lx\n", elf_address);
+    // debug_printf("%x, '%c', '%c', '%c'\n", elf_address[0], elf_address[1], elf_address[2], elf_address[3]);
+    // debug_printf("BOI\n");
+    // if()
+
+
+
+    // set binary name to full name
+
+
+    
+
+
+    if(argc > 1){
+        char *args_string = binary_name;
+        char copy[strlen(args_string)];
+        strcpy(copy,args_string);
+        strip_extra_spaces(copy);
+        argc = get_argc(copy);
+        si->argv = malloc(argc * sizeof(char *));
+        
+        create_argv(copy, (char **) si->argv);
+        si->binary_name = (char *) si->argv[0];
+    }
+    else {
+        struct mem_region* mem_region = multiboot_find_module(bi, res[0]);
+        char * args_string = (char *)  multiboot_module_opts(mem_region);
+        // debug_printf("Args string = %s\n",args_string);
+        char copy[strlen(args_string)];
+        strcpy(copy,args_string);
+        strip_extra_spaces(copy);
+
+        argc = get_argc(copy);
+        si->argv = malloc(argc * sizeof(char *));
+        create_argv(copy, (char **) si->argv);
+        si->binary_name = (char *) res[0];
+    }   
+    
+
+    return spawn_setup_dispatcher(argc, (const char *const *)si->argv , si, pid);
+}
+
+
+
+
+
+
 
 /**
  * TODO(M2): Implement this function.
@@ -560,79 +637,13 @@ errval_t spawn_load_by_name(char *binary_name, struct spawninfo *si,
     // - Get the mem_region from the multiboot image
     // - Fill in argc/argv from the multiboot command line
     // - Call spawn_load_argv
-    errval_t err = SYS_ERR_OK;
-    // debug_printf("Halli Hallo\n");
-
-    //TODO: is  bi correctly initialized by the init/usr/main.c
-    struct mem_region* mem_region = multiboot_find_module(bi, binary_name);
+    errval_t err;
     
-    if (mem_region == NULL) {
-        return SPAWN_ERR_MAP_MODULE;
-    }
-
-
+    err = spawn_setup_by_name(binary_name, si, pid);
+    ON_ERR_RETURN(err);
     
-    //this mem_region should be of type module
-    assert(mem_region->mr_type == RegionType_Module);
-    struct capability cap;
-    struct capref child_frame = {
-        .cnode = cnode_module,
-        .slot = mem_region->mrmod_slot
-    };
-    err = invoke_cap_identify(child_frame, &cap);
-    char bbb[128];
-    debug_print_cap_at_capref(bbb, 128, child_frame);
-    // debug_printf("Hello, %s\n", bbb);
-
+    err = spawn_invoke_dispatcher(si);
     ON_ERR_RETURN(err);
 
-    size_t mapping_size = get_size(&cap);
-    // debug_printf("capsize: %ld\n", mapping_size);
-    char* elf_address;
-    
-    paging_map_frame_attr(get_current_paging_state(), (void **) &elf_address,
-                          mapping_size, child_frame, VREGION_FLAGS_READ_WRITE, NULL, NULL);
-
-    // debug_printf("Hello\n");
-    si->mapped_elf = (lvaddr_t) elf_address;
-    si->mapped_elf_size = (size_t) mem_region->mrmod_size;
-    // debug_printf("ELF address = %lx\n", elf_address);
-    // debug_printf("%x, '%c', '%c', '%c'\n", elf_address[0], elf_address[1], elf_address[2], elf_address[3]);
-    // debug_printf("BOI\n");
-
-    char *args_string = (char *)  multiboot_module_opts(mem_region);
-    char copy[strlen(args_string)];
-    strcpy(copy,args_string);
-    strip_extra_spaces(copy);
-
-    int argc = get_argc(copy);
-    char  const *argv[argc];
-    create_argv(copy, (char **) argv);
-
-    // set binary name to full name
-    si->binary_name = binary_name;
-
-    return spawn_load_argv(argc, argv, si, pid);
-}
-
-
-errval_t register_process_to_process_manager(char* binary_name,domainid_t* pid){
-
-    if(!get_pm_online()){
-        debug_printf("Pm is not online!\n");
-        return SYS_ERR_OK;
-    }
-
-    errval_t err;
-    coreid_t core_id = disp_get_core_id();
-    if(core_id == 0){
-        struct aos_rpc* pm_rpc =  get_pm_rpc();
-        debug_printf("calling register process %s\n", binary_name);
-        err = aos_rpc_call(pm_rpc,AOS_RPC_REGISTER_PROCESS,core_id,binary_name,pid);
-        ON_ERR_RETURN(err);
-    }else{
-        assert(get_core_channel(0) && "UMP channel to core 0 is not present!");
-        err = aos_rpc_call(get_core_channel(0),AOS_RPC_REGISTER_PROCESS,core_id,binary_name,pid);
-    }
     return SYS_ERR_OK;
 }

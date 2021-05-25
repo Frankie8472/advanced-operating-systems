@@ -1,8 +1,8 @@
 #include <aos/aos.h>
 #include <aos/aos_rpc.h>
+#include <aos/dispatcher_rpc.h>
 #include <aos/inthandler.h>
 #include <drivers/lpuart.h>
-#include <drivers/gic_dist.h>
 #include <drivers/gic_dist.h>
 
 const int DEVFRAME_ATTRIBUTES = KPI_PAGING_FLAGS_READ
@@ -34,8 +34,8 @@ static errval_t initialize_driver(void)
     return SYS_ERR_OK;
 }
 
-extern struct aos_rpc stdout_rpc;
-static void handler(void *arg) {
+
+static void handle_interrupt(void *arg) {
     char to_get;
     errval_t err;
     while(true) {
@@ -43,12 +43,10 @@ static void handler(void *arg) {
         if (err_is_fail(err)) {
             break;
         }
-        debug_printf("enterrupt %d '%c'\n", to_get, to_get);
-        struct aos_rpc_varbytes bytes = {
-            .bytes = &to_get,
-            .length = 1
-        };
-        aos_rpc_call(&stdout_rpc, AOS_RPC_SEND_VARBYTES, bytes);
+        //debug_printf("enterrupt %d '%c'\n", to_get, to_get);
+        //printf("%c", to_get);
+        err = aos_dc_send(&stdout_chan, 1, &to_get);
+        //debug_printf("send err %d\n", err);
     }
 }
 
@@ -81,12 +79,47 @@ static errval_t setup_interrupts(void)
     err = inthandler_alloc_dest_irq_cap(IMX8X_UART3_INT, &irq_ep);
     ON_ERR_RETURN(err);
 
-    err = inthandler_setup(irq_ep, get_default_waitset(), MKCLOSURE(handler, NULL));
+    err = inthandler_setup(irq_ep, get_default_waitset(), MKCLOSURE(handle_interrupt, NULL));
     ON_ERR_RETURN(err);
 
     err = gic_dist_enable_interrupt(gic_driver_state, IMX8X_UART3_INT, 1 << disp_get_core_id(), 5);
     ON_ERR_RETURN(err);
 
+    return SYS_ERR_OK;
+}
+
+
+static void handle_input(void *arg)
+{
+    errval_t err;
+    struct aos_datachan *in = arg;
+
+    char buffer[32];
+    size_t received;
+    do {
+        err = aos_dc_receive_available(in, sizeof buffer, buffer, &received);
+        if (err_is_fail(err)) {
+            debug_printf("error handling output in lpuart driver\n");
+            return;
+        }
+        for (size_t i = 0; i < received; i++) {
+            //debug_printf("char %d '%c'\n", buffer[i], buffer[i]);
+            if (buffer[i] == '\n') {
+                //debug_printf("crlf\n");
+                lpuart_putchar(lpuart_driver_state, '\r');
+            }
+            lpuart_putchar(lpuart_driver_state, buffer[i]);
+        }
+    } while (received >= sizeof buffer);
+
+    err = lmp_chan_register_recv(&stdin_chan.channel.lmp, get_default_waitset(), MKCLOSURE(handle_input, arg));
+    ON_ERR_NO_RETURN(err);
+}
+
+
+static errval_t setup_stdin(void)
+{
+    lmp_chan_register_recv(&stdin_chan.channel.lmp, get_default_waitset(), MKCLOSURE(handle_input, &stdin_chan));
     return SYS_ERR_OK;
 }
 
@@ -102,10 +135,13 @@ int main(int argc, char **argv)
     }
 
     err = setup_interrupts();
-        if (err_is_fail(err)) {
+    if (err_is_fail(err)) {
         debug_printf("Fatal Error, could not setup interrupts\n");
         abort();
     }
+
+    err = setup_stdin();
+
 
     while (true) {
         err = event_dispatch(get_default_waitset());

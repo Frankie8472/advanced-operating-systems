@@ -1,18 +1,35 @@
 
-
-
-
-[ build application 
-    {
+let
+    flex src dest = Rule [ Str "flex",
+                           Str "-o",
+                           Out "armv8" dest,
+                           In SrcTree "armv8" src
+                         ]
+    bison src dest = Rule [ Str "bison -d",
+                            -- Str "-Werror",
+                            Str "-o",
+                            Out "armv8" dest,
+                            In SrcTree "armv8" src
+                          ]
+in
+[ flex "josh.l" "josh_lex.c" ]
+++
+[ bison "josh.y" "josh_parse.c" ]
+++
+[
+    build application {
         target = "josh",
-        cFiles = [ "main.c" ],
+        cFiles = [ "main.c", "ast.c", "builtins.c", "running.c", "liblinenoise_io.c", "variables.c" ],
+        generatedCFiles = [ "josh_lex.c", "josh_parse.c" ],
+
+        addCFlags = [ -- need to ignore warnings for bison generated code
+            "-Wno-implicit-function-declaration",
+            "-Wno-missing-prototypes",
+            "-Wno-missing-declarations",
+            "-Wno-unused-function"
+        ],
         addIncludes = [ "/lib" ],
-        addLibraries = [ "aos" ],
-      
-        -- addCFlags = [
-        --     "-Wno-redundant-decls",
-        --     "-Wno-strict-prototypes"
-        -- ],
+        addLibraries = [ "aos", "linenoise" ],
         architectures = allArchitectures
     }
 ]
