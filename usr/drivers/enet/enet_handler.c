@@ -216,7 +216,6 @@ static errval_t arp_request_handle(struct enet_queue* q, struct devq_buf* buf,
     return SYS_ERR_OK;
 }
 
-// TODO
 static errval_t arp_reply_handle(struct enet_queue* q, struct devq_buf* buf,
                                  struct arp_hdr *h, struct enet_driver_state* st,
                                  lvaddr_t original_header) {
@@ -229,7 +228,7 @@ static errval_t arp_reply_handle(struct enet_queue* q, struct devq_buf* buf,
 
     // if for us, just save contained information
     ETHARP_DEBUG("reply for me :D\n");
-    mac_src = eth_addr_to_u64(&h->eth_src);
+    uint64_t mac_src = eth_addr_to_u64(&h->eth_src);
     uint32_t *ip_src_ref = malloc(sizeof(uint32_t));
     *ip_src_ref = ntohl(h->ip_src);
 
@@ -330,7 +329,6 @@ static errval_t icmp_echo_handle(
     rch->chksum = 0;
     rch->id = och->id;
     rch->seqno = och->seqno;
-    // TODO: maybe just use memcpy for the entire icmp-part?
 
     // payload
     memcpy((void *) ((char *) rch) + ICMP_HLEN, (void *) ((char *) och) + ICMP_HLEN,
