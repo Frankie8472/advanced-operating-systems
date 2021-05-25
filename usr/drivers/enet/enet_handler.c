@@ -140,6 +140,15 @@ static inline void u64_to_eth_addr(uint64_t src, struct eth_addr* dest) {
 static errval_t arp_request_handle(struct enet_queue* q, struct devq_buf* buf,
                                    struct arp_hdr *h, struct enet_driver_state* st,
                                    lvaddr_t original_header) {
+    if (ntohl(h->ip_dst) != STATIC_ENET_IP) {
+        return SYS_ERR_OK;
+    }
+
+    ETHARP_DEBUG("is for me?\n");
+    ETHARP_DEBUG("(o--o)\n");
+    ETHARP_DEBUG("|    |\n");
+    ETHARP_DEBUG("`-><-'\n");
+
     // extract src-info
     errval_t err;
     uint64_t mac_src = eth_addr_to_u64(&h->eth_src);
@@ -161,55 +170,48 @@ static errval_t arp_request_handle(struct enet_queue* q, struct devq_buf* buf,
         collections_hash_insert(st->arp_table, mac_src, ip_src_ref);
     }
 
-    // possibly reply to it
-    if (ntohl(h->ip_dst) == STATIC_ENET_IP) {
-        ETHARP_DEBUG("is for me?\n");
-        ETHARP_DEBUG("(o--o)\n");
-        ETHARP_DEBUG("|    |\n");
-        ETHARP_DEBUG("`-><-'\n");
-
-        struct devq_buf repl;
-        err = get_free_buf(st->send_qstate, &repl);
-        if (err_is_fail(err)) {
-            ETHARP_DEBUG("could not get free buffer\n");
-            return err;
-        }
-
-        // write eth-header for reply
-        struct region_entry *entry = get_region(st->txq, repl.rid);
-        lvaddr_t raddr = (lvaddr_t) entry->mem.vbase + repl.offset + repl.valid_data;
-        char *ra2 = (char *) raddr;
-        char *oh2 = (char *) original_header;
-        memcpy(ra2, oh2 + 6, 6);
-        memcpy(ra2 + 6, oh2, 6);
-        memcpy(ra2 + 12, oh2 + 12, 2);
-
-        // write arp-header for reply
-        struct arp_hdr *ahr = (struct arp_hdr *) (ra2 + ETH_HLEN);
-        ahr->hwtype = h->hwtype;
-        ahr->proto = h->proto;
-        ahr->hwlen = h->hwlen;
-        ahr->protolen = h->protolen;
-        ahr->opcode = htons(ARP_OP_REP);
-        /* memcpy(&ahr->eth_src, &st->mac, 6); */
-        // NOTE: do I have to worry bout no/ho?
-        uint8_t* macref = (uint8_t *) &(st->mac);
-        for (int i = 0; i < 6; i++) {
-            ahr->eth_src.addr[i] = macref[5 - i];
-        }
-        ETHARP_DEBUG("IPSDF: %x\n", st->mac);
-        deb_print_mac("macbac", &ahr->eth_src);
-        ahr->ip_src = htonl(STATIC_ENET_IP);
-        memcpy(&ahr->eth_dst, &h->eth_src, 6);
-        ahr->ip_dst = h->ip_src;
-
-        repl.valid_length = ETH_HLEN + ARP_HLEN;
-
-        dmb();
-
-        ETHARP_DEBUG("=========== SENDING REPLYYY\n");
-        enqueue_buf(st->send_qstate, &repl);
+    // reply to it
+    struct devq_buf repl;
+    err = get_free_buf(st->send_qstate, &repl);
+    if (err_is_fail(err)) {
+        ETHARP_DEBUG("could not get free buffer\n");
+        return err;
     }
+
+    // write eth-header for reply
+    struct region_entry *entry = get_region(st->txq, repl.rid);
+    lvaddr_t raddr = (lvaddr_t) entry->mem.vbase + repl.offset + repl.valid_data;
+    char *ra2 = (char *) raddr;
+    char *oh2 = (char *) original_header;
+    memcpy(ra2, oh2 + 6, 6);
+    memcpy(ra2 + 6, oh2, 6);
+    memcpy(ra2 + 12, oh2 + 12, 2);
+
+    // write arp-header for reply
+    struct arp_hdr *ahr = (struct arp_hdr *) (ra2 + ETH_HLEN);
+    ahr->hwtype = h->hwtype;
+    ahr->proto = h->proto;
+    ahr->hwlen = h->hwlen;
+    ahr->protolen = h->protolen;
+    ahr->opcode = htons(ARP_OP_REP);
+    /* memcpy(&ahr->eth_src, &st->mac, 6); */
+    // NOTE: do I have to worry bout no/ho?
+    uint8_t* macref = (uint8_t *) &(st->mac);
+    for (int i = 0; i < 6; i++) {
+        ahr->eth_src.addr[i] = macref[5 - i];
+    }
+    ETHARP_DEBUG("IPSDF: %x\n", st->mac);
+    deb_print_mac("macbac", &ahr->eth_src);
+    ahr->ip_src = htonl(STATIC_ENET_IP);
+    memcpy(&ahr->eth_dst, &h->eth_src, 6);
+    ahr->ip_dst = h->ip_src;
+
+    repl.valid_length = ETH_HLEN + ARP_HLEN;
+
+    dmb();
+
+    ETHARP_DEBUG("=========== SENDING REPLYYY\n");
+    enqueue_buf(st->send_qstate, &repl);
 
     return SYS_ERR_OK;
 }
