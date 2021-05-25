@@ -45,7 +45,8 @@ errval_t initFat32Partition(struct sdhc_s *sdhc_driver_state, struct fat32_fs *f
     size_t retbytes;
     err = frame_alloc_and_map_flags(&fs->buf_cap, SDHC_BLOCK_SIZE, &retbytes, &fs->buf_va, VREGION_FLAGS_READ_WRITE_NOCACHE);
     ON_ERR_RETURN(err);
-    assert(SDHC_BLOCK_SIZE == retbytes);
+
+    assert(SDHC_BLOCK_SIZE <= retbytes && "Allocated blocksize is too small");
 
     // Read first sector
     fs->bpb_sector = 0;
@@ -61,12 +62,15 @@ errval_t initFat32Partition(struct sdhc_s *sdhc_driver_state, struct fat32_fs *f
     fs->data_sector = fs->fat_sector + fs->bpb.numFATs * fs->bpb.fatSz32;
     fs->rootDir_sector = fs->data_sector + fs->bpb.secPerClus * (fs->bpb.rootClus - 2);
 
+    // Read fsinfo sector
     err = sdhc_read_block(sdhc_driver_state, fs->fsinfo_sector, get_phys_addr(fs->buf_cap));
     ON_ERR_RETURN(err);
 
-    assert(0x41615252 == fs->fsi.leadSig && "Error: Not an fsinfo sector");
-
     memcpy(&fs->fsi, fs->buf_va, sizeof(struct fs_info));
+    debug_printf(">> %hu\n", fs->bpb.fsInfo);
+    debug_printf(">> %lu\n", sizeof(struct fs_info));
+    debug_printf(">> %d\n", fs->fsi.leadSig);
+    assert(41615252 == fs->fsi.leadSig && "Error: Not an fsinfo sector");
 
     return err;
 }
