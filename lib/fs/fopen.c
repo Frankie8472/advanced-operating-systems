@@ -105,14 +105,14 @@ static int fs_libc_open(char *path, int flags)
         if(flags & O_EXCL) {
             err = fatfs_open(mount, path, &vh);
             if(err_is_ok(err)) {
-                ramfs_close(mount, vh);
+                fatfs_close(mount, vh);
                 errno = EEXIST;
                 return -1;
             }
             assert(err_no(err) == FS_ERR_NOTFOUND);
         }
-
-        err = ramfs_create(mount, path, &vh);
+        // todo: create part
+        err = fatfs_create(mount, path, &vh);
         if (err_is_fail(err) && err == FS_ERR_EXISTS) {
             err = fatfs_open(mount, path, &vh);
         }
@@ -139,9 +139,10 @@ static int fs_libc_open(char *path, int flags)
         .handle = vh,
         .epoll_fd = -1,
     };
+
     int fd = fdtab_alloc(&e);
     if (fd < 0) {
-        ramfs_close(mount, vh);
+        fatfs_close(mount, vh);
         return -1;
     } else {
         return fd;

@@ -90,13 +90,13 @@ static_assert(sizeof(struct fatfs_short_dirent) == 32);
 struct fatfs_long_dirent
 {
     uint8_t ord;                ///< order of this entry in the seq of long dir entries
-    char name1[10];             ///< Characters 1-5 of the long-name sub-component in this dir entry
+    uint16_t name1[5];             ///< Characters 1-5 of the long-name sub-component in this dir entry
     uint8_t attr;               ///< the upper two bits of the attribute byte are reserved and should always be set to 0 when a file is created and never modified or looked at after that.
     uint8_t type;               ///< must be 0 - indicates a directory entry that is a sub-component of a long name.
     uint8_t chksum;             ///< checksum of name in the short dir entry ath the end of the long dir set
-    char name2[12];             ///< characters 6-11 of the long-name sub-component in this dir entry
+    uint16_t name2[6];             ///< characters 6-11 of the long-name sub-component in this dir entry
     uint16_t fstClusLo;         ///< must be 0 - artifact of the FAT "first cluster"
-    char name3[4];              ///< characters 12-13 of the long-name sub-component in this dir entry
+    uint16_t name3[2];              ///< characters 12-13 of the long-name sub-component in this dir entry
 } __attribute__((packed));
 static_assert(sizeof(struct fatfs_long_dirent) == 32);
 
@@ -114,9 +114,12 @@ struct fat32_fs
 };
 
 errval_t fatfs_open(void *st, const char *path, fatfs_handle_t *rethandle);
+
+errval_t fatfs_close(void *st, fatfs_handle_t inhandle);
+errval_t fatfs_create(void *st, const char *path, fatfs_handle_t *rethandle);
+
 /*
 
-errval_t ramfs_create(void *st, const char *path, ramfs_handle_t *rethandle);
 
 errval_t ramfs_remove(void *st, const char *path);
 
@@ -135,7 +138,6 @@ errval_t ramfs_stat(void *st, ramfs_handle_t inhandle, struct fs_fileinfo *info)
 errval_t ramfs_seek(void *st, ramfs_handle_t handle, enum fs_seekpos whence,
                     off_t offset);
 
-errval_t ramfs_close(void *st, ramfs_handle_t inhandle);
 
 errval_t ramfs_opendir(void *st, const char *path, ramfs_handle_t *rethandle);
 
