@@ -638,6 +638,7 @@ int main(int argc, char *argv[]) {
     ENET_DEBUG("malloct\n");
     enet_initialize(st->d, (void *) st->d_vaddr);
     collections_hash_create(&st->arp_table, free);
+    collections_hash_create(&st->inv_table, free);
     ENET_DEBUG("==============================> BP1\n");
 
     assert(st->d != NULL);

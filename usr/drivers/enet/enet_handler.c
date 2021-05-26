@@ -129,6 +129,8 @@ static errval_t arp_request_handle(struct enet_queue* q, struct devq_buf* buf,
     uint64_t mac_src = eth_addr_to_u64(&h->eth_src);
     uint32_t *ip_src_ref = malloc(sizeof(uint32_t));
     *ip_src_ref = ntohl(h->ip_src);
+    uint64_t *mac_src_ref = malloc(sizeof(uint64_t));
+    *mac_src_ref = mac_src;
 
     uint32_t *stored = collections_hash_find(st->arp_table, mac_src);
     if (stored) {
@@ -136,6 +138,8 @@ static errval_t arp_request_handle(struct enet_queue* q, struct devq_buf* buf,
             ETHARP_DEBUG("updating ARP table entry\n");
             collections_hash_delete(st->arp_table, mac_src);
             collections_hash_insert(st->arp_table, mac_src, ip_src_ref);
+            collections_hash_delete(st->inv_table, *ip_src_ref);
+            collections_hash_insert(st->arp_table, *ip_src_ref, mac_src_ref);
         } else {
             ETHARP_DEBUG("ARP entry already stored\n");
         }
@@ -143,6 +147,7 @@ static errval_t arp_request_handle(struct enet_queue* q, struct devq_buf* buf,
         // save info in arp-table
         ETHARP_DEBUG("adding new ARP table entry\n");
         collections_hash_insert(st->arp_table, mac_src, ip_src_ref);
+        collections_hash_insert(st->arp_table, *ip_src_ref, mac_src_ref);
     }
 
     // reply to it
@@ -206,6 +211,8 @@ static errval_t arp_reply_handle(struct enet_queue* q, struct devq_buf* buf,
     uint64_t mac_src = eth_addr_to_u64(&h->eth_src);
     uint32_t *ip_src_ref = malloc(sizeof(uint32_t));
     *ip_src_ref = ntohl(h->ip_src);
+    uint64_t *mac_src_ref = malloc(sizeof(uint64_t));
+    *mac_src_ref = mac_src;
 
     uint32_t *stored = collections_hash_find(st->arp_table, mac_src);
     if (stored) {
@@ -213,6 +220,8 @@ static errval_t arp_reply_handle(struct enet_queue* q, struct devq_buf* buf,
             ETHARP_DEBUG("updating ARP table entry\n");
             collections_hash_delete(st->arp_table, mac_src);
             collections_hash_insert(st->arp_table, mac_src, ip_src_ref);
+            collections_hash_delete(st->inv_table, *ip_src_ref);
+            collections_hash_insert(st->arp_table, *ip_src_ref, mac_src_ref);
         } else {
             ETHARP_DEBUG("ARP entry already stored\n");
         }
@@ -220,6 +229,7 @@ static errval_t arp_reply_handle(struct enet_queue* q, struct devq_buf* buf,
         // save info in arp-table
         ETHARP_DEBUG("adding new ARP table entry\n");
         collections_hash_insert(st->arp_table, mac_src, ip_src_ref);
+        collections_hash_insert(st->arp_table, *ip_src_ref, mac_src_ref);
     }
 
     return err;
