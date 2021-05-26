@@ -22,6 +22,8 @@
 %token <token> AT_SIGN
 %token <token> EQUALS
 %token <token> DOLLAR
+%right <token> PIPE
+%token <token> GREATER_THAN LESS_THAN
 %token <token> VAR
 %token <string> STRING
 %type <command> command
@@ -29,6 +31,7 @@
 %type <line> line
 %type <assignment> assignment
 %type <string> destination
+
 
 %%
 
@@ -86,6 +89,8 @@ command:
         array_list_init(&$$->args, sizeof(struct josh_value *));
         $$->destination = $1;
         $$->cmd = $2;
+        $$->piped_into = NULL;
+        $$->file_redir = NULL;
     }
     |
     STRING {
@@ -93,12 +98,27 @@ command:
         array_list_init(&$$->args, sizeof(struct josh_value *));
         $$->destination = NULL;
         $$->cmd = $1;
+        $$->piped_into = NULL;
+        $$->file_redir = NULL;
     }
     |
     command value {
         $$ = $1;
         array_list_append(&$$->args, &$2);
         //debug_printf("multi-string: %s\n", $2);
+    }
+    |
+    command PIPE command {
+        $$ = $1;
+        $$->piped_into = $3;
+    }
+    |
+    command GREATER_THAN STRING {
+        $$ = $1;
+        if ($$->file_redir) {
+            free($$->file_redir);
+        }
+        $$->file_redir = $3;
     }
     ;
 

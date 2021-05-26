@@ -76,9 +76,14 @@ errval_t init_dispatcher_rpcs(void)
         .slot = TASKCN_SLOT_SPAWNER_EP
     };
     __unused
-    struct capref stdout_ep_cap = {
+    struct capref stdout_cap = {
         .cnode = cnode_task,
-        .slot = TASKCN_SLOT_STDOUT_EP
+        .slot = TASKCN_SLOT_STDOUT_CAP
+    };
+
+    struct capref stdin_cap = {
+        .cnode = cnode_task,
+        .slot = TASKCN_SLOT_STDIN_CAP
     };
 
 
@@ -154,7 +159,7 @@ errval_t init_dispatcher_rpcs(void)
 
         initialize_dispatcher_handlers(&dispatcher_rpc);
 
-        struct capref real_stdout_ep_cap = stdout_ep_cap;
+        struct capref real_stdout_ep_cap = stdout_cap;
 
         struct capability disp_rpc_ep;
         invoke_cap_identify(dispatcher_rpc.channel.lmp.remote_cap, &disp_rpc_ep);
@@ -174,14 +179,14 @@ errval_t init_dispatcher_rpcs(void)
 
         aos_dc_init_lmp(&stdout_chan, 64);
 
-        struct capability stdout_cap;
-        invoke_cap_identify(real_stdout_ep_cap, &stdout_cap);
-        if (stdout_cap.type == ObjType_EndPointLMP) {
+        struct capability stdout_c;
+        invoke_cap_identify(real_stdout_ep_cap, &stdout_c);
+        if (stdout_c.type == ObjType_EndPointLMP) {
             stdout_chan.channel.lmp.remote_cap = real_stdout_ep_cap;
         }
-        else if (stdout_cap.type == ObjType_Frame) {
+        else if (stdout_c.type == ObjType_Frame) {
             debug_printf("FRAME Stdout\n");
-            stdout_chan.channel.lmp.remote_cap = real_stdout_ep_cap;
+            debug_printf("NYI, assomption wrong\n");
         }
         else {
             stdout_chan.channel.lmp.remote_cap = NULL_CAP;
@@ -204,24 +209,38 @@ errval_t init_dispatcher_rpcs(void)
 
     }
     else if (spawner_ep.type == ObjType_Frame) {
-        void *comm_frame;
-        err = paging_map_frame_complete(get_current_paging_state(), &comm_frame, spawner_ep_cap, NULL, NULL);
+        void *frame;
+        err = paging_map_frame_complete(get_current_paging_state(), &frame, spawner_ep_cap, NULL, NULL);
 
-        size_t block_size = get_size(&spawner_ep) / 4;
+        size_t block_size = get_size(&spawner_ep);
 
-        void *disp_rpc_frame = comm_frame;
-        void *stdin_frame = comm_frame + block_size;
-        void *stdout_frame = comm_frame + 2 * block_size;
-
-        err = aos_rpc_init_ump_default(&dispatcher_rpc, (lvaddr_t) disp_rpc_frame, block_size, 0);
+        err = aos_rpc_init_ump_default(&dispatcher_rpc, (lvaddr_t) frame, block_size, 0);
         ON_ERR_RETURN(err);
-
 
         initialize_dispatcher_handlers(&dispatcher_rpc);
+    }
+    
+    struct capability oc;
+    invoke_cap_identify(stdout_cap, &oc);
+    if (oc.type == ObjType_Frame) {
+        void *frame;
+        err = paging_map_frame_complete(get_current_paging_state(), &frame, stdout_cap, NULL, NULL);
 
-        err = aos_dc_init_ump(&stdout_chan, 64, (lvaddr_t) stdout_frame, block_size, 0);
+        size_t block_size = get_size(&oc);
+
+        err = aos_dc_init_ump(&stdout_chan, 64, (lvaddr_t) frame, block_size, 0);
         ON_ERR_RETURN(err);
-        err = aos_dc_init_ump(&stdin_chan, 64, (lvaddr_t) stdin_frame, block_size, 0);
+    }
+
+    struct capability ic;
+    invoke_cap_identify(stdin_cap, &ic);
+    if (ic.type == ObjType_Frame) {
+        void *frame;
+        err = paging_map_frame_complete(get_current_paging_state(), &frame, stdin_cap, NULL, NULL);
+
+        size_t block_size = get_size(&ic);
+
+        err = aos_dc_init_ump(&stdin_chan, 64, (lvaddr_t) frame, block_size, 1);
         ON_ERR_RETURN(err);
     }
 

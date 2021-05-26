@@ -134,7 +134,11 @@ errval_t spawn_setup_dispatcher(int argc, const char *const *argv, struct spawni
     };
     struct capref child_stdout_cap = (struct capref) {
         .cnode = taskcn,
-        .slot = TASKCN_SLOT_STDOUT_EP
+        .slot = TASKCN_SLOT_STDOUT_CAP
+    };
+    struct capref child_stdin_cap = (struct capref) {
+        .cnode = taskcn,
+        .slot = TASKCN_SLOT_STDIN_CAP
     };
     struct capref child_dispatcher = (struct capref) {
         .cnode = taskcn,
@@ -190,6 +194,10 @@ errval_t spawn_setup_dispatcher(int argc, const char *const *argv, struct spawni
 
     if (!capref_is_null(si->child_stdout_cap)) {
         err = cap_copy(child_stdout_cap, si->child_stdout_cap);
+        ON_ERR_PUSH_RETURN(err, LIB_ERR_CAP_COPY_FAIL);
+    }
+    if (!capref_is_null(si->child_stdin_cap)) {
+        err = cap_copy(child_stdin_cap, si->child_stdin_cap);
         ON_ERR_PUSH_RETURN(err, LIB_ERR_CAP_COPY_FAIL);
     }
 

@@ -48,6 +48,14 @@ void josh_command_free(struct josh_command *cmd)
         free(cmd->destination);
         cmd->destination = NULL;
     }
+    if (cmd->piped_into) {
+        josh_command_free(cmd->piped_into);
+        cmd->destination = NULL;
+    }
+    if (cmd->file_redir) {
+        free(cmd->file_redir);
+        cmd->file_redir = NULL;
+    }
     for (size_t i = 0; i < cmd->args.length; i++) {
         struct josh_value *arg = *(struct josh_value **) array_list_at(&cmd->args, i);
         free(arg);

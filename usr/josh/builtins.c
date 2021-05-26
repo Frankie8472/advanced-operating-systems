@@ -57,7 +57,6 @@ int handle_echo(size_t argc, const char **argv)
             printf(" ");
         }
     }
-    printf("\n ");
     return 0;
 }
 

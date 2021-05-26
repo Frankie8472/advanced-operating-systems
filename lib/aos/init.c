@@ -141,6 +141,7 @@ size_t aos_terminal_read(char *buf, size_t len)
     }
 
     err = aos_dc_receive_available(&stdin_chan, len, buf, &received);
+    aos_dc_deregister(&stdin_chan);
     return received;
 }
 

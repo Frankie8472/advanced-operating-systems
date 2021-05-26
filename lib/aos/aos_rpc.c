@@ -484,9 +484,9 @@ static errval_t aos_rpc_call_ump(struct aos_rpc *rpc, enum aos_rpc_msg_type msg_
             errval_t err = slot_alloc(&forged);
             ON_ERR_PUSH_RETURN(err, LIB_ERR_SLOT_ALLOC);
 
-            char buffer[512];
-            debug_print_cap(buffer,512,&cap);
-            debug_printf("cap to forge: %s\n",buffer);
+            //char buffer[512];
+            //debug_print_cap(buffer,512,&cap);
+            //debug_printf("cap to forge: %s\n",buffer);
 
 
             err = invoke_monitor_create_cap((uint64_t *) &cap,
@@ -656,13 +656,16 @@ static errval_t aos_rpc_unmarshall_ump_simple_aarch64(struct aos_rpc *rpc, void 
 
     typedef uintptr_t ui;
     ui arg[8] = { 0 }; // Upper bound so only writes in register
+    ui stack_args[16] = { 0 };
     ui ret[8] = { 0 };
-    errval_t (*h8)(struct aos_rpc*, ui, ui, ui, ui, ui, ui, ui, ui) = handler;
-
+    errval_t (*hd)(struct aos_rpc*, ui, ui, ui, ui, ui, ui, ui,
+                                ui, ui, ui, ui, ui, ui, ui, ui,
+                                ui, ui, ui, ui, ui, ui, ui, ui) = handler;
     // index into msg
     int word_ind = 1;
 
     int a_pos = 0;
+    int a_stack_pos = 0;
     int ret_pos = 0;
     struct capref retcap;
     char argstring[4096]; // very dangerous
@@ -673,11 +676,31 @@ static errval_t aos_rpc_unmarshall_ump_simple_aarch64(struct aos_rpc *rpc, void 
     struct aos_rpc_varbytes argbytes = { .length = sizeof abytes, .bytes = abytes };
     struct aos_rpc_varbytes retbytes = { .length = sizeof rbytes, .bytes = rbytes };
 
+    void argword(ui aw) {
+        if (a_pos < 7 && a_stack_pos == 0) {
+            arg[a_pos++] = aw;
+        }
+        else {
+            stack_args[a_stack_pos++] = aw;
+        }
+    }
+    void argdoubleword(ui x1, ui x2) {
+        if (a_pos < 6 && a_stack_pos == 0) {
+            arg[a_pos++] = x1;
+            arg[a_pos++] = x2;
+        }
+        else {
+            stack_args[a_stack_pos++] = x1;
+            stack_args[a_stack_pos++] = x2;
+        }
+    }
+
+
     for (int i = 0; i < binding->n_args; i++) {
 
         switch(binding->args[i]) {
         case AOS_RPC_WORD: {
-            arg[a_pos++] = pull_word_ump(uc, msg, &word_ind);
+            argword(pull_word_ump(uc, msg, &word_ind));
         }
         break;
         case AOS_RPC_CAPABILITY: {
@@ -705,9 +728,10 @@ static errval_t aos_rpc_unmarshall_ump_simple_aarch64(struct aos_rpc *rpc, void 
                                             forged.slot, !disp_get_core_id()); // TODO: set owner correctly
             ON_ERR_PUSH_RETURN(err, LIB_ERR_MONITOR_CAP_SEND);
 
-            arg[a_pos++] = (forged.cnode.croot) | (((ui) forged.cnode.cnode) << 32);
-            arg[a_pos++] = (forged.cnode.level) | (((ui) forged.slot) << 32);
-            
+            uintptr_t x1 = (forged.cnode.croot) | (((ui) forged.cnode.cnode) << 32);
+            uintptr_t x2 = (forged.cnode.level) | (((ui) forged.slot) << 32);
+            argdoubleword(x1, x2);
+
         }
         break;
         case AOS_RPC_VARSTR: {
@@ -717,7 +741,7 @@ static errval_t aos_rpc_unmarshall_ump_simple_aarch64(struct aos_rpc *rpc, void 
                 uintptr_t piece = pull_word_ump(uc, msg, &word_ind);
                 memcpy(argstring + j, &piece, min(sizeof(uintptr_t), length - j));
             }
-            arg[a_pos++] = (ui) &argstring;
+            argword((ui) &argstring);
         }
         break;
         case AOS_RPC_VARBYTES: {
@@ -728,8 +752,9 @@ static errval_t aos_rpc_unmarshall_ump_simple_aarch64(struct aos_rpc *rpc, void 
                 uintptr_t piece = pull_word_ump(uc, msg, &word_ind);
                 memcpy(argbytes.bytes + j, &piece, min(sizeof(uintptr_t), length - j));
             }
-            memcpy(&arg[a_pos], &argbytes, sizeof argbytes);
-            a_pos += sizeof argbytes / sizeof(uintptr_t);
+            uintptr_t av[2];
+            memcpy(av, &argbytes, sizeof argbytes);
+            argdoubleword(av[0], av[1]);
         }
         break;
         default:
@@ -744,30 +769,30 @@ static errval_t aos_rpc_unmarshall_ump_simple_aarch64(struct aos_rpc *rpc, void 
 
         switch(binding->rets[i]) {
         case AOS_RPC_WORD: {
-            arg[a_pos++] = (ui) &ret[ret_pos++];
+            argword((ui) &ret[ret_pos++]);
         }
         break;
         case AOS_RPC_SHORTSTR: {
-            arg[a_pos++] = (ui) &ret[ret_pos];
+            argword((ui) &ret[ret_pos]);
             ret_pos += 4;
         }
         break;
         case AOS_RPC_CAPABILITY: {
             if (retcap_used) return LIB_ERR_NOT_IMPLEMENTED; // error, sending multiple caps nyi
-            arg[a_pos++] = (ui) &retcap;
+            argword((ui) &retcap);
             retcap_used = true;
         }
         break;
         case AOS_RPC_STR: {
-            arg[a_pos++] = (ui) &retstring; // todo replace with scratch space
+            argword((ui) &retstring); // todo replace with scratch space
         }
         break;
         case AOS_RPC_VARSTR: {
-            arg[a_pos++] = (ui) &retstring; // todo replace with scratch space
+            argword((ui) &retstring); // todo replace with scratch space
         }
         break;
         case AOS_RPC_VARBYTES: {
-            arg[a_pos++] = (ui) &retbytes; // todo replace with scratch space
+            argword((ui) &retbytes); // todo replace with scratch space
         }
         break;
 
@@ -776,12 +801,17 @@ static errval_t aos_rpc_unmarshall_ump_simple_aarch64(struct aos_rpc *rpc, void 
             break;
         }
 
-        if (a_pos >= 7) {
+        if (a_pos > 7) {
             return LIB_ERR_SLAB_ALLOC_FAIL; // todo
         }
     }
 
-    h8(rpc, arg[0], arg[1], arg[2], arg[3], arg[4], arg[5], arg[6], arg[7]);
+    hd(rpc, arg[0], arg[1], arg[2], arg[3], arg[4], arg[5], arg[6],
+       stack_args[0], stack_args[1], stack_args[2], stack_args[3],
+       stack_args[4], stack_args[5], stack_args[6], stack_args[7],
+       stack_args[8], stack_args[9], stack_args[10], stack_args[11],
+       stack_args[12], stack_args[13], stack_args[14], stack_args[15]);
+    
 
     // send response
     DECLARE_MESSAGE(rpc->channel.ump, response);
@@ -1326,6 +1356,8 @@ static errval_t aos_rpc_unmarshall_lmp_aarch64(struct aos_rpc *rpc, void *handle
     
     typedef uintptr_t ui;
     ui arg[7] = { 0 }; // Upper bound so only writes in register
+    ui stack_args[16] = { 0 };
+
     ui ret[4] = { 0 };
     
     char argstring[1024]; // TODO maybe move that into some scratch area in the rpc struct
@@ -1338,27 +1370,50 @@ static errval_t aos_rpc_unmarshall_lmp_aarch64(struct aos_rpc *rpc, void *handle
     
 
     struct capref retcap = NULL_CAP;
-    errval_t (*h7)(struct aos_rpc*, ui, ui, ui, ui, ui, ui, ui) = handler;
+    errval_t (*hd)(struct aos_rpc*, ui, ui, ui, ui, ui, ui, ui,
+                                ui, ui, ui, ui, ui, ui, ui, ui,
+                                ui, ui, ui, ui, ui, ui, ui, ui) = handler;
     int a_pos = 0;
+    int a_stack_pos = 0;
     int ret_pos = 0;
+
+    void argword(ui aw) {
+        if (a_pos < 7 && a_stack_pos == 0) {
+            arg[a_pos++] = aw;
+        }
+        else {
+            stack_args[a_stack_pos++] = aw;
+        }
+    }
+    void argdoubleword(ui x1, ui x2) {
+        if (a_pos < 6 && a_stack_pos == 0) {
+            arg[a_pos++] = x1;
+            arg[a_pos++] = x2;
+        }
+        else {
+            stack_args[a_stack_pos++] = x1;
+            stack_args[a_stack_pos++] = x2;
+        }
+    }
     
     for (int i = 0; i < binding->n_args; i++) {
         switch (binding->args[i]) {
         
         case AOS_RPC_WORD: {
-            arg[a_pos++] = pull_word_lmp(lc, lmi);
+            argword(pull_word_lmp(lc, lmi));
         }
         break;
 
         case AOS_RPC_CAPABILITY: {
             struct capref recv_cap = pull_cap_lmp(lc, lmi);
-            arg[a_pos++] = ((ui) recv_cap.cnode.croot) | (((ui) recv_cap.cnode.cnode) << 32);
-            arg[a_pos++] = ((ui) recv_cap.cnode.level) | (((ui) recv_cap.slot) << 32);
+            uintptr_t x1 = ((ui) recv_cap.cnode.croot) | (((ui) recv_cap.cnode.cnode) << 32);
+            uintptr_t x2 = ((ui) recv_cap.cnode.level) | (((ui) recv_cap.slot) << 32);
+            argdoubleword(x1, x2);
         }
         break;
 
         case AOS_RPC_STR: {
-            arg[a_pos++] = ((ui) binding->buf_page_remote) + pull_word_lmp(lc, lmi);
+            argword(((ui) binding->buf_page_remote) + pull_word_lmp(lc, lmi));
         }
         break;
 
@@ -1370,7 +1425,7 @@ static errval_t aos_rpc_unmarshall_lmp_aarch64(struct aos_rpc *rpc, void *handle
                 uintptr_t piece = pull_word_lmp(lc, lmi);
                 memcpy(argstring + j, &piece, sizeof(uintptr_t));
             }
-            arg[a_pos++] = (ui) &argstring;
+            argword((ui) &argstring);
         }
         break;
         case AOS_RPC_VARBYTES: {
@@ -1381,8 +1436,9 @@ static errval_t aos_rpc_unmarshall_lmp_aarch64(struct aos_rpc *rpc, void *handle
                 uintptr_t piece = pull_word_lmp(lc, lmi);
                 memcpy(argbytes.bytes + j, &piece, sizeof(uintptr_t));
             }
-            memcpy(&arg[a_pos], &argbytes, sizeof argbytes);
-            a_pos += sizeof argbytes / sizeof(uintptr_t);
+            uintptr_t aws[2];
+            memcpy(aws, &argbytes, sizeof argbytes);
+            argdoubleword(aws[0], aws[1]);
         }
         break;
 
@@ -1390,30 +1446,30 @@ static errval_t aos_rpc_unmarshall_lmp_aarch64(struct aos_rpc *rpc, void *handle
             debug_printf("unknown argument: %d \n", binding->args[i]);
             break;
         }
-        if (a_pos >= 7) {
+        if (a_pos > 7) {
             return LIB_ERR_SLAB_ALLOC_FAIL; // todo
         }
     }
     for (int i = 0; i < binding->n_rets; i++) {
         switch (binding->rets[i]) {
             case AOS_RPC_WORD: {
-                arg[a_pos++] = (ui) &ret[ret_pos++];
+                argword((ui) &ret[ret_pos++]);
             }
             break;
 
             case AOS_RPC_CAPABILITY: {
-                arg[a_pos++] = (ui) &retcap;
+                argword((ui) &retcap);
             }
             break;
 
             case AOS_RPC_VARSTR: {
-                arg[a_pos++] = (ui) &retstring;
+                argword((ui) &retstring);
                 // TODO err check if used twice
             }
             break;
 
             case AOS_RPC_VARBYTES: {
-                arg[a_pos++] = (ui) &retbytes;
+                argword((ui) &retbytes);
                 // TODO err check if used twice
             }
             break;
@@ -1422,14 +1478,18 @@ static errval_t aos_rpc_unmarshall_lmp_aarch64(struct aos_rpc *rpc, void *handle
             debug_printf("response type not handled\n");
             break;
         }
-        if (a_pos >= 7) {
+        if (a_pos > 7) {
             return LIB_ERR_SLAB_ALLOC_FAIL; // todo
         }
     }
 
     //debug_printf("rpc, handler, n_rets: %p, %p %d\n", rpc, h7, binding->n_rets);
     //debug_printf("calling handler %d with %d retargs: %s\n", binding->msg_type, binding->n_rets, binding->binding_name);
-    h7(rpc, arg[0], arg[1], arg[2], arg[3], arg[4], arg[5], arg[6]);
+    hd(rpc, arg[0], arg[1], arg[2], arg[3], arg[4], arg[5], arg[6],
+       stack_args[0], stack_args[1], stack_args[2], stack_args[3],
+       stack_args[4], stack_args[5], stack_args[6], stack_args[7],
+       stack_args[8], stack_args[9], stack_args[10], stack_args[11],
+       stack_args[12], stack_args[13], stack_args[14], stack_args[15]);
 
     lmi->word_index = 1;
     lmi->msg.words[0] = binding->msg_type | AOS_RPC_RETURN_BIT;

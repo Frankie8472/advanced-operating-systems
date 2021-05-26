@@ -13,12 +13,17 @@ enum shell_state {
 struct running_program
 {
     domainid_t domainid;
+
+    struct capref out_cap;
     struct aos_datachan process_out;
+
+    struct capref in_cap;
     struct aos_datachan process_in;
+
     struct aos_rpc process_disprpc;
 };
 
 
-void process_running(struct running_program *prog);
+void display_running_process(struct running_program *input_receiver, struct aos_datachan *to_print);
 
 #endif // JOSH_RUNNING_H
