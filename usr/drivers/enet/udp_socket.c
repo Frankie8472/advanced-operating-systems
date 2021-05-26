@@ -19,9 +19,22 @@
 
 #include <collections/hash_table.h>
 
-/* #include "enet_regionman.h" */
-/* #include "enet_handler.h" */
+#include "enet_regionman.h"
+#include "enet_handler.h"
 #include "enet.h"
+
+// NOTE: defined in other thingy too but nis
+static struct region_entry* get_region(struct enet_queue* q, regionid_t rid)
+{
+    struct region_entry* entry = q->regions;
+    while (entry != NULL) {
+        if (entry->rid == rid) {
+            return entry;
+        }
+        entry = entry->next;
+    }
+    return NULL;
+}
 
 /* /\** */
 /*  * \brief given an id and a driver state, retrieve the corresponding udp socket. */
@@ -151,6 +164,13 @@ struct aos_udp_socket* create_udp_socket(struct enet_driver_state *st,
  */
 errval_t udp_socket_send(struct enet_driver_state *st, uint16_t port,
                          void *data, uint16_t len) {
+    static uint16_t generic_id = 5555;  // NOTE: maybe store in socket obj instead
+    // possibly truncate len
+    if (len > UDP_SOCK_MAX_LEN)
+        len = UDP_SOCK_MAX_LEN;
+    const uint16_t eth_tot_len = len + ETH_HLEN + IP_HLEN + UDP_HLEN;
+
+    errval_t err;
     struct aos_udp_socket *sock = get_socket_from_port(st, port);
     if (sock == NULL) {
         return ENET_ERR_NO_SOCKET;
@@ -160,9 +180,59 @@ errval_t udp_socket_send(struct enet_driver_state *st, uint16_t port,
     struct devq_buf repl;
     err = get_free_buf(st->send_qstate, &repl);
     if (err_is_fail(err)) {
-        ICMP_DEBUG("un4ble 2 get free buffer\n");
+        UDP_DEBUG("un4ble 2 get free buffer\n");
         return err;
     }
 
-    return LIB_ERR_NOT_IMPLEMENTED;
+    struct region_entry *entry = get_region(st->txq, repl.rid);
+    lvaddr_t maddr = (lvaddr_t) entry->mem.vbase + repl.offset + repl.valid_data;
+    struct eth_hdr *meh = (struct eth_hdr *) maddr;
+    uint64_t *mac_tgt = collections_hash_find(st->inv_table, sock->ip_dest);
+
+    if (mac_tgt == NULL) {
+        return ENET_ERR_ARP_UNKNOWN;
+    }
+
+    // write ETH header
+    UDP_DEBUG("writing ETH header\n");
+    u64_to_eth_addr(*mac_tgt, &meh->dst);
+    uint8_t* macref = (uint8_t *) &(st->mac);
+    for (int i = 0; i < 6; i++) {
+        meh->src.addr[i] = macref[5 - i];
+    }
+    meh->type = htons(ETH_TYPE_IP);
+
+    // write IP header
+    UDP_DEBUG("writing IP header\n");
+    struct ip_hdr *mih = (struct ip_hdr *) ((char *) meh + ETH_HLEN);
+    IPH_VHL_SET(mih, 4, 5);
+    mih->tos = 0;  // ?
+    mih->len = htons(eth_tot_len - ETH_HLEN);
+    mih->id = ++generic_id;
+    mih->offset = 0;
+    mih->ttl = 64;
+    mih->proto = IP_PROTO_UDP;
+    mih->src = htonl(STATIC_ENET_IP);
+    mih->dest = htonl(sock->ip_dest);
+    mih->chksum = 0;
+    mih->chksum = inet_checksum(mih, IP_HLEN);
+
+    // write UDP header
+    UDP_DEBUG("writing UDP header\n");
+    struct udp_hdr *muh = (struct udp_hdr *) ((char *) mih + IP_HLEN);
+    muh->src = htons(port);
+    muh->dest = htons(sock->f_port);
+    muh->len = htons(len);
+    muh->chksum = 0;
+
+    // copy payload
+    UDP_DEBUG("writing payload\n");
+    memcpy((char *) muh + UDP_HLEN, data, len);
+
+    dmb();
+
+    UDP_DEBUG("=========== SENDING MESSAGE\n");
+    err = enqueue_buf(st->send_qstate, &repl);
+
+    return err;
 }

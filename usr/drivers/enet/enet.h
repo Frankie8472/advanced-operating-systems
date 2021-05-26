@@ -149,6 +149,8 @@ errval_t handle_packet(struct enet_queue* q, struct devq_buf* buf,
 // UDP Socket functions
 /* struct aos_udp_socket* get_socket_from_id(struct enet_driver_state *st, */
 /*                                           uint64_t socket_id); */
+#define UDP_SOCK_MAX_LEN (2048 - UDP_HLEN - IP_HLEN - ETH_HLEN)
+
 struct aos_udp_socket* get_socket_from_port(struct enet_driver_state *st,
                                             uint32_t port);
 errval_t udp_socket_append_message(struct aos_udp_socket *s, void *data,
