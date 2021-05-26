@@ -107,10 +107,11 @@ struct aos_udp_socket {
     uint32_t ip_dest;
     uint16_t f_port;  // foreign port
     uint16_t l_port;  // local port
-    uint8_t listen_only;  // non-zero if socket is only for listening
+    /* uint8_t listen_only;  // non-zero if socket is only for listening */
 
     struct udp_recv_elem *receive_buffer;
-    uint64_t sock_id;
+    struct udp_recv_elem *last_elem;
+    /* uint64_t sock_id; */
 
     struct aos_udp_socket* next;
 };
@@ -133,12 +134,23 @@ struct enet_driver_state {
     collections_hash_table* arp_table;  // arp-related state
     struct enet_qstate* send_qstate;  // regionman for send-queue
 
-    struct aos_udp_socket *sockets;
+    struct aos_udp_socket *sockets;  // TODO: hash-set
 };
 
 // UDP Socket functions
-errval_t socket_send_udp(uint64_t socket_id, void *data, uint16_t len,
-                         struct enet_driver_state *st);
+/* struct aos_udp_socket* get_socket_from_id(struct enet_driver_state *st, */
+/*                                           uint64_t socket_id); */
+struct aos_udp_socket* get_socket_from_port(struct enet_driver_state *st,
+                                            uint32_t port);
+errval_t udp_socket_append_message(struct aos_udp_socket *s, void *data,
+                                   uint32_t len);
+errval_t udp_socket_teardown(struct enet_driver_state *st,
+                             struct aos_udp_socket *socket);
+struct aos_udp_socket* create_udp_socket(struct enet_driver_state *st,
+                                         uint32_t ip_dest, uint16_t f_port,
+                                         uint16_t l_port);
+errval_t udp_socket_send(struct enet_driver_state *st, uint16_t port,
+                         void *data, uint16_t len);
 
 #define ENET_HASH_BITS 6
 #define ENET_CRC32_POLY 0xEDB88320
