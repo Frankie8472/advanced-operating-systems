@@ -429,7 +429,7 @@ static errval_t handle_UDP(struct enet_queue* q, struct devq_buf* buf,
     // check if it belongs to an existing socket
     struct aos_udp_socket *socket = get_socket_from_port(st, d_p);
     if (socket == NULL) {
-        UDP_DEBUG("no listening socket found\n");
+        UDP_DEBUG("no listening socket found on port %d\n", d_p);
         return err;
     }
 

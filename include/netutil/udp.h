@@ -4,7 +4,7 @@
 #include <netutil/ip.h>
 
 
-// #define UDP_DEBUG_OPTION 1
+#define UDP_DEBUG_OPTION 1
 
 #if defined(UDP_DEBUG_OPTION)
 #define UDP_DEBUG(x...) debug_printf("[ip] " x);
