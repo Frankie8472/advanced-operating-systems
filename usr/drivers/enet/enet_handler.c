@@ -433,8 +433,9 @@ static errval_t handle_UDP(struct enet_queue* q, struct devq_buf* buf,
         return err;
     }
 
+    struct ip_hdr *iihh = (struct ip_hdr*) ((char *) original_header + ETH_HLEN);
     char *payload = (char *) h + UDP_HLEN;
-    err = udp_socket_append_message(socket, (void *) payload, ntohs(h->len) - UDP_HLEN);
+    err = udp_socket_append_message(socket, ntohs(h->src), ntohl(iihh->src), (void *) payload, ntohs(h->len) - UDP_HLEN);
 
     return err;
 }

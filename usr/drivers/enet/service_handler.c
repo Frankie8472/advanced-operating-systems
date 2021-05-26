@@ -30,6 +30,30 @@
         USER_PANIC_ERR(err, msg);               \
     }
 
+static void udp_receive_handler_ns(struct enet_driver_state* st,
+                                   struct udp_service_message *msg,
+                                   void **response, size_t *response_bytes,
+                                   struct aos_udp_socket *sock) {
+    struct udp_recv_elem *ure = udp_socket_receive(sock);
+    if (ure == NULL) {
+        *response = NULL;
+        *response_bytes = 0;
+        return;
+    }
+
+    size_t mln = sizeof(struct udp_msg) + ure->len * sizeof(char);
+    struct udp_msg *rm = malloc(mln);
+    rm->f_port = ure->f_port;
+    rm->len = ure->len;
+    rm->ip = ure->ip_addr;
+    memcpy(rm->data, ure->data, ure->len);
+
+    free(ure->data);
+    free(ure);
+    *response = (void *) rm;
+    *response_bytes = mln;
+}
+
 static void server_recv_handler(void *stptr, void *message,
                                 size_t bytes,
                                 void **response, size_t *response_bytes,
@@ -40,7 +64,6 @@ static void server_recv_handler(void *stptr, void *message,
     struct enet_driver_state *st = (struct enet_driver_state *) stptr;
     struct udp_service_message *msg = (struct udp_service_message *) message;
     struct aos_udp_socket *sock;
-    uint16_t mln;
     struct udp_socket_create_info *usci;
 
     switch (msg->type) {
@@ -55,8 +78,8 @@ static void server_recv_handler(void *stptr, void *message,
             *response = NULL;
             *response_bytes = 0;
         } else {
-            *response = udp_socket_receive(sock, &mln);
-            *response_bytes = mln;
+            udp_receive_handler_ns(st, msg, response, response_bytes,
+                                   sock);
         }
         break;
     case CREATE:  // TODO: reporting
@@ -68,6 +91,12 @@ static void server_recv_handler(void *stptr, void *message,
     case DESTROY:
         sock = get_socket_from_port(st, msg->port);
         udp_socket_teardown(st, sock);
+        break;
+    case SEND_TO:
+        err = udp_socket_send_to(st, msg->port, msg->data, msg->len, msg->ip, msg->tgt_port);
+        *response = (void *) err;
+        response_bytes = 0;
+        break;
         break;
     }
 }

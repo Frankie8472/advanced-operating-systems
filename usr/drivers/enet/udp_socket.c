@@ -70,16 +70,18 @@ struct aos_udp_socket* get_socket_from_port(struct enet_driver_state *st,
  * NOTE: the length should already be adjusted for the udp-header length
  * it should only describe the payload-length, without any headers.
  */
-errval_t udp_socket_append_message(struct aos_udp_socket *s, void *data,
-                                   uint32_t len) {
+errval_t udp_socket_append_message(struct aos_udp_socket *s, uint16_t f_port, uint32_t ip,
+                                   void *data, uint32_t len) {
     errval_t err = SYS_ERR_OK;
 
     struct udp_recv_elem *im = malloc(sizeof(struct udp_recv_elem));
-    void *ip = malloc(sizeof(char) * len);
-    im->data = ip;
+    void *msg_ptr = malloc(sizeof(char) * len);
+    im->data = msg_ptr;
     im->len = len;
     im->next = NULL;
-    memcpy(ip, data, len);
+    im->f_port = f_port;
+    im->ip_addr = ip;
+    memcpy(msg_ptr, data, len);
 
     struct udp_recv_elem *prev_last = s->last_elem;
     if (prev_last) {
@@ -92,9 +94,8 @@ errval_t udp_socket_append_message(struct aos_udp_socket *s, void *data,
     return err;
 }
 
-void *udp_socket_receive(struct aos_udp_socket *s, uint16_t *len) {
+struct udp_recv_elem *udp_socket_receive(struct aos_udp_socket *s) {
     if (s->receive_buffer == NULL) {
-        *len = 0;
         return NULL;
     }
 
@@ -104,9 +105,7 @@ void *udp_socket_receive(struct aos_udp_socket *s, uint16_t *len) {
         s->last_elem = NULL;
     }
 
-    *len = res->len;
-    free(res);
-    return res->data;
+    return res;
 }
 
 /**
@@ -240,6 +239,82 @@ errval_t udp_socket_send(struct enet_driver_state *st, uint16_t port,
     struct udp_hdr *muh = (struct udp_hdr *) ((char *) mih + IP_HLEN);
     muh->src = htons(port);
     muh->dest = htons(sock->f_port);
+    muh->len = htons(len);
+    muh->chksum = 0;
+
+    // copy payload
+    UDP_DEBUG("writing payload\n");
+    memcpy((char *) muh + UDP_HLEN, data, len);
+
+    dmb();
+
+    UDP_DEBUG("=========== SENDING MESSAGE\n");
+    err = enqueue_buf(st->send_qstate, &repl);
+
+    return err;
+}
+
+errval_t udp_socket_send_to(struct enet_driver_state *st, uint16_t port,
+                            void *data, uint16_t len, uint32_t ip_to,
+                            uint16_t port_to) {
+    static uint16_t generic_id = 5555;  // NOTE: maybe store in socket obj instead
+    // possibly truncate len
+    if (len > UDP_SOCK_MAX_LEN)
+        len = UDP_SOCK_MAX_LEN;
+    const uint16_t eth_tot_len = len + ETH_HLEN + IP_HLEN + UDP_HLEN;
+
+    errval_t err;
+    struct aos_udp_socket *sock = get_socket_from_port(st, port);
+    if (sock == NULL) {
+        return ENET_ERR_NO_SOCKET;
+    }
+
+    // get packet
+    struct devq_buf repl;
+    err = get_free_buf(st->send_qstate, &repl);
+    if (err_is_fail(err)) {
+        UDP_DEBUG("un4ble 2 get free buffer\n");
+        return err;
+    }
+
+    struct region_entry *entry = get_region(st->txq, repl.rid);
+    lvaddr_t maddr = (lvaddr_t) entry->mem.vbase + repl.offset + repl.valid_data;
+    struct eth_hdr *meh = (struct eth_hdr *) maddr;
+    uint64_t *mac_tgt = collections_hash_find(st->inv_table, sock->ip_dest);
+
+    if (mac_tgt == NULL) {
+        return ENET_ERR_ARP_UNKNOWN;
+    }
+
+    // write ETH header
+    UDP_DEBUG("writing ETH header\n");
+    u64_to_eth_addr(*mac_tgt, &meh->dst);
+    uint8_t* macref = (uint8_t *) &(st->mac);
+    for (int i = 0; i < 6; i++) {
+        meh->src.addr[i] = macref[5 - i];
+    }
+    meh->type = htons(ETH_TYPE_IP);
+
+    // write IP header
+    UDP_DEBUG("writing IP header\n");
+    struct ip_hdr *mih = (struct ip_hdr *) ((char *) meh + ETH_HLEN);
+    IPH_VHL_SET(mih, 4, 5);
+    mih->tos = 0;  // ?
+    mih->len = htons(eth_tot_len - ETH_HLEN);
+    mih->id = ++generic_id;
+    mih->offset = 0;
+    mih->ttl = 64;
+    mih->proto = IP_PROTO_UDP;
+    mih->src = htonl(STATIC_ENET_IP);
+    mih->dest = htonl(ip_to);
+    mih->chksum = 0;
+    mih->chksum = inet_checksum(mih, IP_HLEN);
+
+    // write UDP header
+    UDP_DEBUG("writing UDP header\n");
+    struct udp_hdr *muh = (struct udp_hdr *) ((char *) mih + IP_HLEN);
+    muh->src = htons(port);
+    muh->dest = htons(port_to);
     muh->len = htons(len);
     muh->chksum = 0;
 

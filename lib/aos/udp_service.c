@@ -72,7 +72,33 @@ errval_t aos_socket_send(struct aos_socket *sockref, void *data, uint16_t len) {
     return (errval_t) response;
 }
 
-void *aos_socket_receive(struct aos_socket *sockref, size_t *len) {
+errval_t aos_socket_send_to(struct aos_socket *sockref, void *data, uint16_t len,
+                            uint32_t ip, uint16_t port) {
+    size_t msgsize = sizeof(struct udp_service_message) + len * sizeof(char);
+    struct udp_service_message *usm = malloc(msgsize);
+
+    usm->type = SEND_TO;
+    usm->port = sockref->l_port;
+    usm->len = len;
+    usm->ip = ip;
+    usm->tgt_port = port;
+    memcpy((void *) usm->data, data, len);
+
+    void *response;
+    size_t response_bytes;
+
+    errval_t err = nameservice_rpc(sockref->_nschan, (void *) usm, msgsize,
+                                   &response, &response_bytes,
+                                   NULL_CAP, NULL_CAP);
+
+    if (err_is_fail(err)) {
+        return err;
+    }
+
+    return (errval_t) response;
+}
+
+struct udp_msg *aos_socket_receive(struct aos_socket *sockref) {
     size_t msgsize = sizeof(struct udp_service_message);
     struct udp_service_message *usm = malloc(msgsize);
 
@@ -91,6 +117,5 @@ void *aos_socket_receive(struct aos_socket *sockref, size_t *len) {
         return NULL;
     }
 
-    *len = response_bites;
     return response;
 }

@@ -98,6 +98,8 @@ struct enet_queue {
 // struct to represent a single udp packet in a receive-buffer
 struct udp_recv_elem {
     void *data;
+    uint16_t f_port;
+    uint32_t ip_addr;
     uint16_t len;
     struct udp_recv_elem *next;
 };
@@ -153,9 +155,9 @@ errval_t handle_packet(struct enet_queue* q, struct devq_buf* buf,
 
 struct aos_udp_socket* get_socket_from_port(struct enet_driver_state *st,
                                             uint16_t port);
-errval_t udp_socket_append_message(struct aos_udp_socket *s, void *data,
-                                   uint32_t len);
-void *udp_socket_receive(struct aos_udp_socket *s, uint16_t *len);
+errval_t udp_socket_append_message(struct aos_udp_socket *s, uint16_t f_port, uint32_t ip,
+                                   void *data, uint32_t len);
+struct udp_recv_elem *udp_socket_receive(struct aos_udp_socket *s);
 errval_t udp_socket_teardown(struct enet_driver_state *st,
                              struct aos_udp_socket *socket);
 struct aos_udp_socket* create_udp_socket(struct enet_driver_state *st,
@@ -163,6 +165,9 @@ struct aos_udp_socket* create_udp_socket(struct enet_driver_state *st,
                                          uint16_t l_port);
 errval_t udp_socket_send(struct enet_driver_state *st, uint16_t port,
                          void *data, uint16_t len);
+errval_t udp_socket_send_to(struct enet_driver_state *st, uint16_t port,
+                            void *data, uint16_t len, uint32_t ip_to,
+                            uint16_t port_to);
 
 // service handler
 void name_server_initialize(struct enet_driver_state *st);
