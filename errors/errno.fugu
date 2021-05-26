@@ -1395,7 +1395,7 @@ errors sata ENET_ERR_ {
     failure MDIO_WRITE        "Timeout while trying to write to MDIO",
     failure MDIO_READ        "Timeout while trying to reading from MDIO",
     failure NO_SOCKET        "No UDP socket with that port was found",
-    failure ARP_UNKNOWN       "Unable to obtain target MAC through ARP table",
+    failure ARP_UNKNOWN      "Unable to obtain target MAC through ARP table",
 };
 
 // errors LPUART driver
