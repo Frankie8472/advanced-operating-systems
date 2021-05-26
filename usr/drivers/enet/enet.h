@@ -95,6 +95,23 @@ struct enet_queue {
     struct region_entry* regions;
 };
 
+// struct to represent a single udp packet in a receive-buffer
+struct udp_recv_elem {
+    void *data;
+    uint16_t len;
+    struct udp_recv_elem *next;
+};
+
+// NOTE: all numbers (ip, ports,...) are in host-byte-order
+struct aos_udp_socket {
+    uint32_t ip_dest;
+    uint16_t f_port;  // foreign port
+    uint16_t l_port;  // local port
+    uint8_t listen_only;  // non-zero if socket is only for listening
+
+    struct udp_recv_elem *receive_buffer;
+};
+
 struct enet_driver_state {
     struct bfdriver_instance *bfi;
     struct capref regs;
