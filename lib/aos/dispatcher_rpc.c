@@ -219,7 +219,7 @@ errval_t init_dispatcher_rpcs(void)
 
         initialize_dispatcher_handlers(&dispatcher_rpc);
     }
-    
+
     struct capability oc;
     invoke_cap_identify(stdout_cap, &oc);
     if (oc.type == ObjType_Frame) {

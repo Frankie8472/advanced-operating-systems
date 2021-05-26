@@ -364,6 +364,9 @@ errval_t aos_dc_can_receive(struct aos_datachan *dc)
     if (aos_dc_bytes_available(&dc->buffer) > 0) {
         return true;
     }
+    if (aos_dc_is_closed(dc)) {
+        return false;
+    }
     else if (dc->backend == AOS_RPC_LMP) {
         return lmp_chan_can_recv(&dc->channel.lmp);
     }

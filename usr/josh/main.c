@@ -150,7 +150,7 @@ static errval_t call_spawn_request(const char *name, coreid_t core, size_t argc,
         if (!has_foreign_in || true) {
             void *stdin_addr;
             err = paging_map_frame_complete(get_current_paging_state(), &stdin_addr, prog->out_cap, NULL, NULL);
-            err = aos_dc_init_ump(&prog->process_out, 1024, (lvaddr_t) stdin_addr, BASE_PAGE_SIZE, 1);
+            err = aos_dc_init_ump(&prog->process_out, 64, (lvaddr_t) stdin_addr, BASE_PAGE_SIZE, 1);
             ON_ERR_RETURN(err);
         }
         else {
@@ -160,7 +160,7 @@ static errval_t call_spawn_request(const char *name, coreid_t core, size_t argc,
         if (!has_foreign_out || true) {
             void *stdout_addr;
             err = paging_map_frame_complete(get_current_paging_state(), &stdout_addr, prog->in_cap, NULL, NULL);
-            err = aos_dc_init_ump(&prog->process_in, 1024, (lvaddr_t) stdout_addr, BASE_PAGE_SIZE, 0);
+            err = aos_dc_init_ump(&prog->process_in, 64, (lvaddr_t) stdout_addr, BASE_PAGE_SIZE, 0);
             ON_ERR_RETURN(err);
         }
     }
