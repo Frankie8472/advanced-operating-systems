@@ -375,7 +375,7 @@ static errval_t udp_echo(struct enet_queue* q, struct devq_buf* buf,
     struct devq_buf repl;
     err = get_free_buf(st->send_qstate, &repl);
     if (err_is_fail(err)) {
-        ICMP_DEBUG("un4ble 2 get free buffer\n");
+        UDP_DEBUG("un4ble 2 get free buffer\n");
         return err;
     }
 
@@ -434,10 +434,20 @@ static errval_t handle_UDP(struct enet_queue* q, struct devq_buf* buf,
     errval_t err = SYS_ERR_OK;
     UDP_DEBUG("handling UDP packet\n");
     uint16_t d_p = ntohs(h->dest);
-    if (d_p == UDP_ECHO_PORT) {
+    if (d_p == UDP_ECHO_PORT) {  // TODO: outsource
         UDP_DEBUG("calling UDP-echo server\n");
         return udp_echo(q, buf, h, st, original_header);
     }
+
+    // check if it belongs to an existing socket
+    struct aos_udp_socket *socket = get_socket_from_port(st, d_p);
+    if (socket == NULL) {
+        UDP_DEBUG("no listening socket found\n");
+        return err;
+    }
+
+    char *payload = (char *) h + UDP_HLEN;
+    err = udp_socket_append_message(socket, (void *) payload, ntohs(h->len) - UDP_HLEN);
 
     return err;
 }
