@@ -55,7 +55,7 @@ static struct region_entry* get_region(struct enet_queue* q, regionid_t rid)
  * \return reference to the according udp socket, NULL if none could be found
  */
 struct aos_udp_socket* get_socket_from_port(struct enet_driver_state *st,
-                                            uint32_t port) {
+                                            uint16_t port) {
     for (struct aos_udp_socket *i = st->sockets; i; i = i->next) {
         if (i->l_port == port)
             return i;
@@ -90,6 +90,23 @@ errval_t udp_socket_append_message(struct aos_udp_socket *s, void *data,
         s->last_elem = im;
     }
     return err;
+}
+
+void *udp_socket_receive(struct aos_udp_socket *s, uint16_t *len) {
+    if (s->receive_buffer == NULL) {
+        *len = 0;
+        return NULL;
+    }
+
+    struct udp_recv_elem *res = s->receive_buffer;
+    s->receive_buffer = res->next;
+    if (s->last_elem == res) {
+        s->last_elem = NULL;
+    }
+
+    *len = res->len;
+    free(res);
+    return res->data;
 }
 
 /**
@@ -127,7 +144,8 @@ errval_t udp_socket_teardown(struct enet_driver_state *st,
 
 /**
  * \brief create a new udp-socket with given souce-port, destination-ip/port
- * on the provided driver-state.
+ * on the provided driver-state. The created socket will already be inserted
+ * into `st`.
  * \return reference to the new socket, if it was created. If it was not
  * created (presumably because a port with the same local port already exists),
  * return NULL instead.

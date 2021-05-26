@@ -19,6 +19,7 @@
 #include <devif/queue_interface_backend.h>
 #include <devif/backends/net/enet_devif.h>
 #include <aos/aos.h>
+#include <aos/nameserver.h>
 #include <aos/deferred.h>
 #include <driverkit/driverkit.h>
 #include <dev/imx8x/enet_dev.h>
@@ -723,6 +724,9 @@ int main(int argc, char *argv[]) {
         qstate_append_free(st->send_qstate, curn);
     }
 
+    // initialize nameserver
+    name_server_initialize(st);
+
     struct devq_buf buf;
     while(true) {
         err = devq_dequeue((struct devq*) st->rxq, &buf.rid, &buf.offset,
@@ -738,6 +742,7 @@ int main(int argc, char *argv[]) {
             assert(err_is_ok(err));
         } else {  // NOTE: maybe compare against DEVQ_ERR_QUEUE_EMPTY
             thread_yield();
+            /* event_dispatch(get_default_waitset()); */
         }
     }
 }

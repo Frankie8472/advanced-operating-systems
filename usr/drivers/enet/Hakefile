@@ -27,7 +27,8 @@
                 "enet_module.c",
                 "enet_regionman.c",
                 "enet_handler.c",
-                "udp_socket.c"
+                "udp_socket.c",
+                "service_handler.c"
             ],
     mackerelDevices = ["imx8x/enet"],
     addLibraries = libDeps ["devif_backend_enet", "netutil"],

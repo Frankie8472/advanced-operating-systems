@@ -152,9 +152,10 @@ errval_t handle_packet(struct enet_queue* q, struct devq_buf* buf,
 #define UDP_SOCK_MAX_LEN (2048 - UDP_HLEN - IP_HLEN - ETH_HLEN)
 
 struct aos_udp_socket* get_socket_from_port(struct enet_driver_state *st,
-                                            uint32_t port);
+                                            uint16_t port);
 errval_t udp_socket_append_message(struct aos_udp_socket *s, void *data,
                                    uint32_t len);
+void *udp_socket_receive(struct aos_udp_socket *s, uint16_t *len);
 errval_t udp_socket_teardown(struct enet_driver_state *st,
                              struct aos_udp_socket *socket);
 struct aos_udp_socket* create_udp_socket(struct enet_driver_state *st,
@@ -162,6 +163,9 @@ struct aos_udp_socket* create_udp_socket(struct enet_driver_state *st,
                                          uint16_t l_port);
 errval_t udp_socket_send(struct enet_driver_state *st, uint16_t port,
                          void *data, uint16_t len);
+
+// service handler
+void name_server_initialize(struct enet_driver_state *st);
 
 #define ENET_HASH_BITS 6
 #define ENET_CRC32_POLY 0xEDB88320
