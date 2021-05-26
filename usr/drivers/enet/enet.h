@@ -132,10 +132,19 @@ struct enet_driver_state {
     struct capref tx_mem;  // send memcap
 
     collections_hash_table* arp_table;  // arp-related state
+    collections_hash_table* inv_table;  // inverse arp-table: ip 2 mac
     struct enet_qstate* send_qstate;  // regionman for send-queue
 
     struct aos_udp_socket *sockets;  // TODO: hash-set
 };
+
+// ETH handler functions
+errval_t handle_ARP(struct enet_queue* q, struct devq_buf* buf,
+                    lvaddr_t vaddr, struct enet_driver_state* st);
+errval_t handle_IP(struct enet_queue* q, struct devq_buf* buf,
+                   lvaddr_t vaddr, struct enet_driver_state* st);
+errval_t handle_packet(struct enet_queue* q, struct devq_buf* buf,
+                       struct enet_driver_state* st);
 
 // UDP Socket functions
 /* struct aos_udp_socket* get_socket_from_id(struct enet_driver_state *st, */
