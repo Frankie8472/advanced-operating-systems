@@ -74,8 +74,7 @@ static void server_recv_handler(void *stptr, void *message,
 
 void name_server_initialize(struct enet_driver_state *st) {
     errval_t err;
-    debug_printf("let's try\n");
-    err = nameservice_register_properties("/ethernet", server_recv_handler, (void *) st, true,
+    err = nameservice_register_properties(ENET_SERVICE_NAME, server_recv_handler, (void *) st, true,
                                           "type=ethernet,mac=TODO,bugs=0xffff");
     PANIC_IF_FAIL(err, "failed to register...\n");
 }
