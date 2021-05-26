@@ -110,6 +110,9 @@ struct aos_udp_socket {
     uint8_t listen_only;  // non-zero if socket is only for listening
 
     struct udp_recv_elem *receive_buffer;
+    uint64_t sock_id;
+
+    struct aos_udp_socket* next;
 };
 
 struct enet_driver_state {
@@ -129,7 +132,13 @@ struct enet_driver_state {
 
     collections_hash_table* arp_table;  // arp-related state
     struct enet_qstate* send_qstate;  // regionman for send-queue
+
+    struct aos_udp_socket *sockets;
 };
+
+// UDP Socket functions
+errval_t socket_send_udp(uint64_t socket_id, void *data, uint16_t len,
+                         struct enet_driver_state *st);
 
 #define ENET_HASH_BITS 6
 #define ENET_CRC32_POLY 0xEDB88320

@@ -550,6 +550,8 @@ static errval_t enet_init(struct enet_driver_state* st)
         return err;
     }
 
+    st->sockets = NULL;
+
     return err;
 }
 
