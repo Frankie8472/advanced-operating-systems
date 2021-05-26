@@ -184,7 +184,7 @@ bool is_number(const char *string)
 }
 
 
-static void spawn_program(const char *dest, const char *cmd, size_t argc, const char **argv, struct running_program *prog)
+static errval_t spawn_program(const char *dest, const char *cmd, size_t argc, const char **argv, struct running_program *prog)
 {
     errval_t err;
 
@@ -196,7 +196,7 @@ static void spawn_program(const char *dest, const char *cmd, size_t argc, const 
         }
         else {
             printf("invalid destination '%s'\n", dest);
-            return;
+            return SPAWN_ERR_FIND_MODULE;
         }
     }
 
@@ -208,7 +208,7 @@ static void spawn_program(const char *dest, const char *cmd, size_t argc, const 
         else {
             printf("no module with name '%s' found\n", cmd);
         }
-        return;
+        return SPAWN_ERR_FIND_MODULE;
     }
 
     if (destination_core == disp_get_core_id() && false) {
@@ -219,6 +219,7 @@ static void spawn_program(const char *dest, const char *cmd, size_t argc, const 
         aos_rpc_set_interface(rpc, get_dispatcher_interface(), DISP_IFACE_N_FUNCTIONS, malloc(DISP_IFACE_N_FUNCTIONS * sizeof (void *)));
     }
 
+    return SYS_ERR_OK;
 }
 
 
@@ -242,7 +243,7 @@ char *evaluate_value(struct josh_value *value)
 
 static void execute_command(struct josh_command *command)
 {
-    errval_t err;
+    errval_t err = SYS_ERR_OK;
 
     struct josh_command *c = command;
     size_t n_programs = 0;
@@ -253,8 +254,6 @@ static void execute_command(struct josh_command *command)
 
     struct running_program *programs = malloc(n_programs * sizeof(struct running_program));
     memset(programs, 0, n_programs * sizeof(struct running_program));
-
-
 
     struct capref out_before = NULL_CAP;
     for (size_t i = 0; i < n_programs; i++) {
@@ -299,11 +298,19 @@ static void execute_command(struct josh_command *command)
             }
         }
         else {
-            spawn_program(destination, cmd, argc, (const char **) argv, &programs[j]);
+            err = spawn_program(destination, cmd, argc, (const char **) argv, &programs[j]);
+            if (err_is_fail(err)) {
+                free(argv);
+                break;
+            }
         }
 
         free(argv);
         command = command->piped_into;
+    }
+
+    if (err_is_fail(err)) {
+        return; // TODO: stop leaking memory & other resources
     }
 
     display_running_process(&programs[0], &programs[n_programs - 1].process_out);

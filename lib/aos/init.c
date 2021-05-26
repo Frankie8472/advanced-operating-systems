@@ -134,6 +134,7 @@ size_t aos_terminal_read(char *buf, size_t len)
         while(!is_available) {
             err = event_dispatch(get_default_waitset());
             if (err_is_fail(err)) {
+                aos_dc_deregister(&stdin_chan);
                 debug_printf("Error in event_dispatch\n");
                 return 0;
             }

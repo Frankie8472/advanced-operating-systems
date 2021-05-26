@@ -17,6 +17,5 @@ int main(int argc, char *argv[])
         fwrite(buffer, 1, read, stdout);
         fflush(stdout);
     } while (read > 0);
-
     return 0;
 }
