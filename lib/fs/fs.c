@@ -9,6 +9,7 @@
 #include <fs/fs.h>
 #include <fs/dirent.h>
 #include <fs/ramfs.h>
+#include <fs/fatfs.h>
 
 #include "fs_internal.h"
 
@@ -35,8 +36,8 @@ errval_t filesystem_init(void)
 
     /* TODO: Filesystem project: hook up your init code here */
 
-    ramfs_mount_t st = NULL;
-    err = ramfs_mount("/", &st);
+    fatfs_mount_t st = NULL;
+    err = fatfs_mount("/", &st);
     if (err_is_fail(err)) {
         return err;
     }

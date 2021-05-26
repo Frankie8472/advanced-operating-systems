@@ -20,6 +20,7 @@
 #include <fs/fs.h>
 #include <fs/dirent.h>
 #include <fs/ramfs.h>
+#include <fs/fatfs.h>
 #include "fs_internal.h"
 
 
@@ -48,6 +49,7 @@ static struct fdtab_entry fdtab[MAX_FD] = {
     },
 };
 
+__unused
 static int fdtab_alloc(struct fdtab_entry *h)
 {
     for (int fd = MIN_FD; fd < MAX_FD; fd++) {
@@ -64,6 +66,7 @@ static int fdtab_alloc(struct fdtab_entry *h)
     return -1;
 }
 
+__unused
 static struct fdtab_entry *fdtab_get(int fd)
 {
     static struct fdtab_entry invalid = {
@@ -79,6 +82,7 @@ static struct fdtab_entry *fdtab_get(int fd)
     }
 }
 
+__unused
 static void fdtab_free(int fd)
 {
     assert(fd >= MIN_FD && fd < MAX_FD);
@@ -92,14 +96,14 @@ static void fdtab_free(int fd)
 //XXX: flags are ignored...
 static int fs_libc_open(char *path, int flags)
 {
-    ramfs_handle_t vh;
+    fatfs_handle_t vh;
     errval_t err;
 
     // If O_CREAT was given, we use ramfsfs_create()
     if(flags & O_CREAT) {
         // If O_EXCL was also given, we check whether we can open() first
         if(flags & O_EXCL) {
-            err = ramfs_open(mount, path, &vh);
+            err = fatfs_open(mount, path, &vh);
             if(err_is_ok(err)) {
                 ramfs_close(mount, vh);
                 errno = EEXIST;
@@ -110,11 +114,11 @@ static int fs_libc_open(char *path, int flags)
 
         err = ramfs_create(mount, path, &vh);
         if (err_is_fail(err) && err == FS_ERR_EXISTS) {
-            err = ramfs_open(mount, path, &vh);
+            err = fatfs_open(mount, path, &vh);
         }
     } else {
         // Regular open()
-        err = ramfs_open(mount, path, &vh);
+        err = fatfs_open(mount, path, &vh);
     }
 
     if (err_is_fail(err)) {

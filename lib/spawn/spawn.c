@@ -505,7 +505,7 @@ errval_t spawn_setup_module_by_name(const char *binary_name, struct spawninfo *s
 {
     errval_t err;
     struct mem_region* mem_region = multiboot_find_module(bi, binary_name);
-    
+
     if (mem_region == NULL) {
         return SPAWN_ERR_MAP_MODULE;
     }
@@ -539,11 +539,10 @@ errval_t spawn_setup_by_name(char *binary_name, struct spawninfo *si, domainid_t
     errval_t err = SYS_ERR_OK;
 
 
-
     //Pretty ugly, but fixes a silent Nullptr dereference
     int argc = get_argc(binary_name);
     char * res[argc];
-    char cmd_line_copy[strlen(binary_name)];
+    char cmd_line_copy[strlen(binary_name)+1];
     strcpy(cmd_line_copy,binary_name);
     create_argv(cmd_line_copy,(char **) res);
 

@@ -44,9 +44,10 @@
 #include <aos/kernel_cap_invocations.h>
 
 #include <process_manager_interface.h>
+#include <fs/fs.h>
 
 
-// #include <aos/curdispatcher_arch.h>
+    // #include <aos/curdispatcher_arch.h>
 
 
 coreid_t my_core_id;
@@ -172,18 +173,11 @@ static errval_t init_foreign_core(void){
 }
 
 __unused
-static errval_t init_sdhc_block_driver(void)
+static errval_t init_filesystemserver(void)
 {
     errval_t err;
-    struct spawninfo *sdhc_si;
-    err = spawn_sdhc_driver("sdhc_block_driver", &sdhc_si);
-    return err;
-}
-
-__unused
-static errval_t init_fs_fat32_driver(void)
-{
-    errval_t err;
+    struct spawninfo *fs_si;
+    err = spawn_filesystem("filesystemserver", &fs_si);
     return err;
 }
 
@@ -404,8 +398,8 @@ static int bsp_main(int argc, char *argv[])
     
     //run_init_tests(my_core_id);
 
-    debug_printf(">> Start sdhc block driver\n");
-    init_sdhc_block_driver();
+    debug_printf(">> Start filesystem server\n");
+    init_filesystemserver();
 
     // Grading
     grading_test_early();

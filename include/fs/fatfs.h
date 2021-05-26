@@ -13,8 +13,8 @@
 #include <fs/fs.h>
 #include <drivers/sdhc.h>
 
-//typedef void *ramfs_handle_t;
-//typedef void *ramfs_mount_t;
+typedef void *fatfs_handle_t;
+typedef void *fatfs_mount_t;
 
 /**
  * \brief BPB of the fat32fs (90 Bytes)
@@ -113,9 +113,8 @@ struct fat32_fs
     uint16_t rootDir_sector;
 };
 
-errval_t initFat32Partition(struct sdhc_s *sdhc_driver_state, struct fat32_fs *fs);
+errval_t fatfs_open(void *st, const char *path, fatfs_handle_t *rethandle);
 /*
-errval_t ramfs_open(void *st, const char *path, ramfs_handle_t *rethandle);
 
 errval_t ramfs_create(void *st, const char *path, ramfs_handle_t *rethandle);
 
@@ -148,7 +147,6 @@ errval_t ramfs_closedir(void *st, ramfs_handle_t dhandle);
 errval_t ramfs_mkdir(void *st, const char *path);
 
 errval_t ramfs_rmdir(void *st, const char *path);
+*/
+errval_t fatfs_mount(const char *uri, fatfs_mount_t *retst);
 
-errval_t ramfs_mount(const char *uri, ramfs_mount_t *retst);
-
-#endif FS_RAMFS_H_ */

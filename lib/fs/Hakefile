@@ -19,6 +19,7 @@
         "ramfs.c",
         "dirent.c",
         "fatfs.c"
-    ]
+    ],
+    addLibraries = libDeps [ "aos", "sdhc" ]
   }
 ]

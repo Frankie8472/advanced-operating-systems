@@ -216,7 +216,7 @@ errval_t spawn_lpuart_driver(const char *mod_name, struct spawninfo **ret_si)
     return SYS_ERR_OK;
 }
 
-errval_t spawn_sdhc_driver(const char *mod_name, struct spawninfo **ret_si)
+errval_t spawn_filesystem(const char *mod_name, struct spawninfo **ret_si)
 {
     errval_t err;
     struct spawninfo *si = spawn_create_spawninfo();
@@ -236,7 +236,8 @@ errval_t spawn_sdhc_driver(const char *mod_name, struct spawninfo **ret_si)
 
     si->spawner_ep_cap = disp_rpc->channel.lmp.local_cap;
 
-    spawn_setup_by_name((char*) mod_name, si, pid);
+    err = spawn_setup_by_name((char*) mod_name, si, pid);
+    ON_ERR_RETURN(err);
 
     struct cnoderef child_taskcn = {
         .croot = get_cap_addr(si->rootcn),
@@ -263,6 +264,7 @@ errval_t spawn_sdhc_driver(const char *mod_name, struct spawninfo **ret_si)
         .slot = TASKCN_SLOT_BOOTINFO
     };
     */
+
     // write capabilities to access the sdhc driver into the child
     size_t source_addr = get_phys_addr(dev_frame);
     err = cap_retype(child_argcn_frame, dev_frame, IMX8X_SDHC2_BASE - source_addr, ObjType_DevFrame, IMX8X_SDHC_SIZE, 1);

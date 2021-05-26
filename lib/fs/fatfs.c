@@ -36,9 +36,79 @@
                                 DEBUG_ATTR_ARCHIVE))
 
 /**
+ * @brief an entry in the fatfs
+ */
+struct fatfs_dirent
+{
+    char *name;                     ///< name of the file or directory
+    size_t size;                    ///< the size of the direntry in bytes or files
+    //size_t refcount;                ///< reference count for open handles
+    struct fatfs_dirent *parent;    ///< parent directory
+
+    uint32_t cluster_start_sector;
+    uint32_t sector;
+    uint32_t byte;
+
+    struct fatfs_dirent *next;      ///< parent directory
+    struct fatfs_dirent *prev;      ///< parent directory
+
+    bool is_dir;                    ///< flag indication this is a dir
+
+    union {
+        void *data;                 ///< file data pointer
+        struct fatfs_dirent *dir;   ///< directory pointer
+    };
+};
+
+struct fatfs_mount {
+    struct fatfs_dirent *root;
+    struct fat32_fs *fs;
+    struct sdhc_s *ds;
+};
+
+/**
+ * @brief a handle to the open
+ */
+struct fatfs_handle
+{
+    struct fs_handle common; // wasdas
+    char *path;
+    bool isdir;
+    struct fatfs_dirent *dirent;
+
+    off_t file_pos;
+    struct fatfs_dirent *dir_pos;
+};
+
+const int DEVFRAME_ATTRIBUTES = KPI_PAGING_FLAGS_READ
+                                | KPI_PAGING_FLAGS_WRITE
+                                | KPI_PAGING_FLAGS_NOCACHE;
+
+static errval_t initialize_sdhc_driver(struct sdhc_s **ds)
+{
+    errval_t err;
+
+    struct capref argcn_frame = {
+        .cnode = cnode_argcn,
+        .slot = ARGCN_SLOT_DEV_0
+    };
+
+    void *device_frame;
+    err = paging_map_frame_attr(get_current_paging_state(), &device_frame,
+                                get_phys_size(argcn_frame), argcn_frame,
+                                DEVFRAME_ATTRIBUTES, NULL, NULL);
+    ON_ERR_RETURN(err);
+
+    err = sdhc_init(ds, device_frame);
+    ON_ERR_RETURN(err);
+
+    return SYS_ERR_OK;
+}
+
+/**
  * \brief Retrieves all info concerning this fat32 partition
  */
-errval_t initFat32Partition(struct sdhc_s *sdhc_driver_state, struct fat32_fs *fs) {
+static errval_t initialize_fat32_partition(struct sdhc_s *ds, struct fat32_fs *fs) {
     errval_t err;
 
     // setup buffer communication page
@@ -50,7 +120,7 @@ errval_t initFat32Partition(struct sdhc_s *sdhc_driver_state, struct fat32_fs *f
 
     // Read first sector
     fs->bpb_sector = 0;
-    err = sdhc_read_block(sdhc_driver_state, fs->bpb_sector, get_phys_addr(fs->buf_cap));
+    err = sdhc_read_block(ds, fs->bpb_sector, get_phys_addr(fs->buf_cap));
     ON_ERR_RETURN(err);
 
     memcpy(&fs->bpb, fs->buf_va, sizeof(struct fatfs_bpb));
@@ -63,33 +133,34 @@ errval_t initFat32Partition(struct sdhc_s *sdhc_driver_state, struct fat32_fs *f
     fs->rootDir_sector = fs->data_sector + fs->bpb.secPerClus * (fs->bpb.rootClus - 2);
 
     // Read fsinfo sector
-    err = sdhc_read_block(sdhc_driver_state, fs->fsinfo_sector, get_phys_addr(fs->buf_cap));
+    err = sdhc_read_block(ds, fs->fsinfo_sector, get_phys_addr(fs->buf_cap));
     ON_ERR_RETURN(err);
 
     memcpy(&fs->fsi, fs->buf_va, sizeof(struct fs_info));
     assert(0x41615252 == fs->fsi.leadSig && "Error: Not an fsinfo sector");
 
-    debug_printf(">> bytes per sector: %d\n", fs->bpb.bytsPerSec);
-    debug_printf(">> sector per cluster: %d\n", fs->bpb.secPerClus);
+    debug_printf(">> Bytes per Sector: %d\n", fs->bpb.bytsPerSec);
+    debug_printf(">> Sector per Cluster: %d\n", fs->bpb.secPerClus);
 
     debug_printf(">> FATSector: %d\n", fs->fat_sector);
     debug_printf(">> DATASector: %d\n", fs->data_sector);
     debug_printf(">> RootDirSector: %d\n", fs->rootDir_sector);
 
+    /*
     err = sdhc_read_block(sdhc_driver_state, fs->rootDir_sector, get_phys_addr(fs->buf_cap));
     ON_ERR_RETURN(err);
     for (int i = 0; i < 10; i++) {
         struct fatfs_short_dirent dir;
         memcpy(&dir, fs->buf_va+32*i, sizeof(struct fatfs_short_dirent));
 
-        /*
+
         debug_printf(">> %hhu\n", dir.ord);
         debug_printf(">> %s\n", dir.name1);
         debug_printf(">> %s\n", dir.name2);
         debug_printf(">> %s\n", dir.name3);
         debug_printf(">> %hhu\n", dir.attr);
         debug_printf(">> %hhu\n", dir.type);
-        */
+
 
         debug_printf(">> Name:  %s\n", dir.name);
         debug_printf(">> Attr:  0x%x\n", dir.attr);
@@ -100,7 +171,7 @@ errval_t initFat32Partition(struct sdhc_s *sdhc_driver_state, struct fat32_fs *f
         debug_printf(">> <<\n");
     }
 
-    err = sdhc_read_block(sdhc_driver_state, fs->data_sector + (3-2) * fs->bpb.secPerClus, get_phys_addr(fs->buf_cap));
+    err = sdhc_read_block(ds, fs->data_sector + (3-2) * fs->bpb.secPerClus, get_phys_addr(fs->buf_cap));
     ON_ERR_RETURN(err);
 
     debug_printf("================= \n");
@@ -108,14 +179,14 @@ errval_t initFat32Partition(struct sdhc_s *sdhc_driver_state, struct fat32_fs *f
         struct fatfs_short_dirent dir;
         memcpy(&dir, fs->buf_va+32*i, sizeof(struct fatfs_short_dirent));
 
-        /*
+
         debug_printf(">> %hhu\n", dir.ord);
         debug_printf(">> %s\n", dir.name1);
         debug_printf(">> %s\n", dir.name2);
         debug_printf(">> %s\n", dir.name3);
         debug_printf(">> %hhu\n", dir.attr);
         debug_printf(">> %hhu\n", dir.type);
-        */
+
 
         debug_printf(">> Name:  %s\n", dir.name);
         debug_printf(">> Attr:  0x%x\n", dir.attr);
@@ -130,25 +201,9 @@ errval_t initFat32Partition(struct sdhc_s *sdhc_driver_state, struct fat32_fs *f
     ON_ERR_RETURN(err);
 
     debug_printf("================= \n");
-    for (int i = 0; i < 10; i++) {
-        struct fatfs_short_dirent dir;
-        memcpy(&dir, fs->buf_va+32*i, sizeof(struct fatfs_short_dirent));
-
-        /*
-        debug_printf(">> %hhu\n", dir.ord);
-        debug_printf(">> %s\n", dir.name1);
-        debug_printf(">> %s\n", dir.name2);
-        debug_printf(">> %s\n", dir.name3);
-        debug_printf(">> %hhu\n", dir.attr);
-        debug_printf(">> %hhu\n", dir.type);
-        */
-
-        debug_printf(">> Name:  %s\n", dir.name);
-        debug_printf(">> Attr:  0x%x\n", dir.attr);
-        debug_printf(">> cTime: %hhu\n", dir.crtTimeTenth);
-        debug_printf(">> size:  %u\n", dir.fileSize);
-        debug_printf(">> hi:    %hu\n", dir.fstClusHi);
-        debug_printf(">> lo:    %hu\n", dir.fstClusLow);
+    for (int i = 0; i < 1; i++) {
+        debug_printf(">> Filesize: %lu\n", strlen((char *) fs->buf_va));
+        debug_printf(">> Content: %s\n", (uint8_t *) fs->buf_va);
         debug_printf(">> <<\n");
     }
 
@@ -156,10 +211,21 @@ errval_t initFat32Partition(struct sdhc_s *sdhc_driver_state, struct fat32_fs *f
     ON_ERR_RETURN(err);
 
     uint32_t fatentry;
-    for (int i = 0; i < 30; i++) {
+    for (int i = 0; i < 10; i++) {
         fatentry = *(uint32_t *) (fs->buf_va+i*sizeof(uint32_t));
         debug_printf(">> fatentry %d: %x\n", i, fatentry);
     }
+
+    err = sdhc_read_block(sdhc_driver_state, fs->data_sector + (7-2) * fs->bpb.secPerClus, get_phys_addr(fs->buf_cap));
+    ON_ERR_RETURN(err);
+
+    debug_printf("================= \n");
+    for (int i = 0; i < 1; i++) {
+        debug_printf(">> Filesize: %lu\n", strlen((char *) fs->buf_va));
+        debug_printf(">> Content: %s\n", (uint8_t *) fs->buf_va);
+        debug_printf(">> <<\n");
+    }
+    */
 
 
 
@@ -179,72 +245,141 @@ void updateNextFreeCluster(void) {
 
 }*/
 
-/**
- * @brief an entry in the ramfs
- *//*
-
-struct ramfs_dirent
+__unused
+static struct fatfs_handle *handle_open(struct fatfs_dirent *d)
 {
-    char *name;                     ///< name of the file or directoyr
-    size_t size;                    ///< the size of the direntry in bytes or files
-    size_t refcount;                ///< reference count for open handles
-    struct ramfs_dirent *parent;    ///< parent directory
-
-    struct ramfs_dirent *next;      ///< parent directory
-    struct ramfs_dirent *prev;      ///< parent directory
-
-    bool is_dir;                    ///< flag indicationg this is a dir
-
-    union {
-        void *data;                 ///< file data pointer
-        struct ramfs_dirent *dir;   ///< directory pointer
-    };
-};
-
-*/
-/**
- * @brief a handle to the open
- *//*
-
-struct ramfs_handle
-{
-    struct fs_handle common;
-    char *path;
-    bool isdir;
-    struct ramfs_dirent *dirent;
-    union {
-        off_t file_pos;
-        struct ramfs_dirent *dir_pos;
-    };
-};
-
-struct ramfs_mount {
-    struct ramfs_dirent *root;
-};
-
-static struct ramfs_handle *handle_open(struct ramfs_dirent *d)
-{
-    struct ramfs_handle *h = calloc(1, sizeof(*h));
+    struct fatfs_handle *h = calloc(1, sizeof(*h));
     if (h == NULL) {
         return NULL;
     }
 
-    d->refcount++;
+    //d->refcount++;
     h->isdir = d->is_dir;
     h->dirent = d;
 
     return h;
 }
 
-static inline void handle_close(struct ramfs_handle *h)
+__unused
+static inline void handle_close(struct fatfs_handle *h)
 {
-    assert(h->dirent->refcount > 0);
-    h->dirent->refcount--;
+    //assert(h->dirent->refcount > 0);
+    //h->dirent->refcount--;
     free(h->path);
     free(h);
 }
 
+__unused
+static errval_t find_dirent(struct fatfs_mount *mount, struct fatfs_dirent *root, const char *name,
+                            struct fatfs_dirent **ret_de)
+{
+    if (!root->is_dir) {
+        return FS_ERR_NOTDIR;
+    }
 
+    struct fatfs_dirent *d = root->dir;
+
+    while(d) {
+        if (strcmp(d->name, name) == 0) {
+            *ret_de = d;
+            return SYS_ERR_OK;
+        }
+
+        d = d->next;
+    }
+
+    return FS_ERR_NOTFOUND;
+}
+
+__unused
+static errval_t resolve_path(struct fatfs_mount *mount, const char *path,
+                             struct fatfs_handle **ret_fh)
+{
+    errval_t err;
+
+    struct fatfs_dirent *root = mount->root;
+
+    // skip leading /
+    size_t pos = 0;
+    if (path[0] == FS_PATH_SEP) {
+        pos++;
+    }
+
+    struct fatfs_dirent *next_dirent;
+
+    while (path[pos] != '\0') {
+        char *nextsep = strchr(&path[pos], FS_PATH_SEP);
+        size_t nextlen;
+        if (nextsep == NULL) {
+            nextlen = strlen(&path[pos]);
+        } else {
+            nextlen = nextsep - &path[pos];
+        }
+
+        char pathbuf[nextlen + 1];
+        memcpy(pathbuf, &path[pos], nextlen);
+        pathbuf[nextlen] = '\0';
+
+        err = find_dirent(mount, root, pathbuf, &next_dirent);
+        if (err_is_fail(err)) {
+            debug_printf("Error: Directory/File not found");
+            return err;
+        }
+
+        if (!next_dirent->is_dir && nextsep != NULL) {
+            return FS_ERR_NOTDIR;
+        }
+
+        root = next_dirent;
+        if (nextsep == NULL) {
+            break;
+        }
+
+        pos += nextlen + 1;
+    }
+
+    /* create the handle */
+
+    if (ret_fh) {
+        struct fatfs_handle *fh = handle_open(root);
+        if (fh == NULL) {
+            return LIB_ERR_MALLOC_FAIL;
+        }
+
+        fh->path = strdup(path);
+        //fh->common.mount = root;
+
+        *ret_fh = fh;
+    }
+
+    return SYS_ERR_OK;
+}
+
+__unused
+errval_t fatfs_open(void *st, const char *path, fatfs_handle_t *rethandle)
+{
+    errval_t err;
+
+    struct fatfs_mount *mount = st;
+
+    struct fatfs_handle *handle;
+    err = resolve_path(mount, path, &handle);
+    if (err_is_fail(err)) {
+        return err;
+    }
+
+    if (handle->isdir) {
+        handle_close(handle);
+        return FS_ERR_NOTFILE;
+    }
+
+    *rethandle = handle;
+
+    return SYS_ERR_OK;
+}
+
+
+/*
 static void dirent_remove(struct ramfs_dirent *entry)
 {
     if (entry->prev == NULL) {
@@ -309,111 +444,6 @@ static struct ramfs_dirent *dirent_create(const char *name, bool is_dir)
     d->name = strdup(name);
 
     return d;
-}
-
-static errval_t find_dirent(struct ramfs_dirent *root, const char *name,
-                            struct ramfs_dirent **ret_de)
-{
-    if (!root->is_dir) {
-        return FS_ERR_NOTDIR;
-    }
-
-    struct ramfs_dirent *d = root->dir;
-
-    while(d) {
-        if (strcmp(d->name, name) == 0) {
-            *ret_de = d;
-            return SYS_ERR_OK;
-        }
-
-        d = d->next;
-    }
-
-    return FS_ERR_NOTFOUND;
-}
-
-static errval_t resolve_path(struct ramfs_dirent *root, const char *path,
-                             struct ramfs_handle **ret_fh)
-{
-    errval_t err;
-
-    // skip leading /
-    size_t pos = 0;
-    if (path[0] == FS_PATH_SEP) {
-        pos++;
-    }
-
-    struct ramfs_dirent *next_dirent;
-
-    while (path[pos] != '\0') {
-        char *nextsep = strchr(&path[pos], FS_PATH_SEP);
-        size_t nextlen;
-        if (nextsep == NULL) {
-            nextlen = strlen(&path[pos]);
-        } else {
-            nextlen = nextsep - &path[pos];
-        }
-
-        char pathbuf[nextlen + 1];
-        memcpy(pathbuf, &path[pos], nextlen);
-        pathbuf[nextlen] = '\0';
-
-        err = find_dirent(root, pathbuf, &next_dirent);
-        if (err_is_fail(err)) {
-            return err;
-        }
-
-        if (!next_dirent->is_dir && nextsep != NULL) {
-            return FS_ERR_NOTDIR;
-        }
-
-        root = next_dirent;
-        if (nextsep == NULL) {
-            break;
-        }
-
-        pos += nextlen + 1;
-    }
-
-    */
-/* create the handle *//*
-
-
-    if (ret_fh) {
-        struct ramfs_handle *fh = handle_open(root);
-        if (fh == NULL) {
-            return LIB_ERR_MALLOC_FAIL;
-        }
-
-        fh->path = strdup(path);
-        //fh->common.mount = root;
-
-        *ret_fh = fh;
-    }
-
-    return SYS_ERR_OK;
-}
-
-errval_t ramfs_open(void *st, const char *path, ramfs_handle_t *rethandle)
-{
-    errval_t err;
-
-    struct ramfs_mount *mount = st;
-
-    struct ramfs_handle *handle;
-    err = resolve_path(mount->root, path, &handle);
-    if (err_is_fail(err)) {
-        return err;
-    }
-
-    if (handle->isdir) {
-        handle_close(handle);
-        return FS_ERR_NOTFILE;
-    }
-
-    *rethandle = handle;
-
-    return SYS_ERR_OK;
 }
 
 errval_t ramfs_create(void *st, const char *path, ramfs_handle_t *rethandle)
@@ -830,39 +860,59 @@ errval_t ramfs_rmdir(void *st, const char *path)
     return err;
 }
 
-
-errval_t ramfs_mount(const char *uri, ramfs_mount_t *retst)
+*/
+errval_t fatfs_mount(const char *path, fatfs_mount_t *retst)
 {
+    /* Setup channel and connect ot service */
+    /* TODO: setup channel to init for multiboot files */
 
-    */
-/* Setup channel and connect ot service *//*
+    errval_t err;
 
-    */
-/* TODO: setup channel to init for multiboot files *//*
+    // Init driver state
+    struct sdhc_s *ds;
+    err = initialize_sdhc_driver(&ds);
+    if (err_is_fail(err)) {
+        free(ds);
+        debug_printf("Fatal Error, could not initialize SHDC driver\n");
+        abort();
+    }
 
+    // Init fat32 filesystem state
+    struct fat32_fs *fs = calloc(1, sizeof(struct fat32_fs));
+    if (fs == NULL) {
+        free(ds);
+        return LIB_ERR_MALLOC_FAIL;
+    }
+    initialize_fat32_partition(ds, fs);
 
-    struct ramfs_mount *mount = calloc(1, sizeof(struct ramfs_mount));
+    // Create mount point root
+    struct fatfs_mount *mount = calloc(1, sizeof(struct fatfs_mount));
     if (mount == NULL) {
+        free(ds);
+        free(fs);
         return LIB_ERR_MALLOC_FAIL;
     }
 
-    struct ramfs_dirent *ramfs_root;
-
-    ramfs_root = calloc(1, sizeof(*ramfs_root));
-    if (ramfs_root == NULL) {
-        free(ramfs_mount);
+    struct fatfs_dirent *fatfs_root;
+    fatfs_root = calloc(1, sizeof(*fatfs_root));
+    if (fatfs_root == NULL) {
+        free(ds);
+        free(fs);
+        free(mount);
         return LIB_ERR_MALLOC_FAIL;
     }
 
-    ramfs_root->size = 0;
-    ramfs_root->is_dir = true;
-    ramfs_root->name = "/";
-    ramfs_root->parent = NULL;
+    fatfs_root->size = 0;
+    fatfs_root->is_dir = true;
+    fatfs_root->name = "/";
+    fatfs_root->parent = NULL;
+    fatfs_root->cluster_start_sector = fs->rootDir_sector;
+    fatfs_root->sector = fs->rootDir_sector;
+    fatfs_root->byte = 0;
 
-    mount->root = ramfs_root;
+    mount->root = fatfs_root;
 
     *retst = mount;
 
     return SYS_ERR_OK;
 }
-*/
