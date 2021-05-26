@@ -592,7 +592,8 @@ static errval_t enet_probe(struct enet_driver_state* st)
 __attribute__((unused))
 static void print_packet(struct enet_queue* q, struct devq_buf* buf) {
     struct region_entry *entry = get_region(q, buf->rid);
-    char* pkt = (char*) entry->mem.vbase + buf->offset + buf->valid_data;
+    __attribute__((unused))
+        char* pkt = (char*) entry->mem.vbase + buf->offset + buf->valid_data;
     for (int i = 0; i < buf->valid_length; i++) {
         ENET_DEBUG("byte %d = %x\n", i, pkt[i]);
     }

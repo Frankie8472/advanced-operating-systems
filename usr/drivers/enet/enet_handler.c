@@ -280,10 +280,8 @@ static errval_t icmp_echo_handle(
     lvaddr_t original_header) {
     // extract some info
     errval_t err = SYS_ERR_OK;
-    uint16_t id = ntohs(h->id);
-    ICMP_DEBUG("id - %d\n", id);
-    uint16_t seqno = ntohs(h->seqno);
-    ICMP_DEBUG("seqno - %d\n", seqno);
+    ICMP_DEBUG("id - %d\n", ntohs(h->id));
+    ICMP_DEBUG("seqno - %d\n", ntohs(h->seqno));
 
     // send reply
     struct devq_buf repl;
