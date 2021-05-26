@@ -166,6 +166,7 @@ static errval_t arp_request_handle(struct enet_queue* q, struct devq_buf* buf,
     memcpy(ra2, oh2 + 6, 6);
     memcpy(ra2 + 6, oh2, 6);
     memcpy(ra2 + 12, oh2 + 12, 2);
+    char *tmp = ra2 + 6;
 
     // write arp-header for reply
     struct arp_hdr *ahr = (struct arp_hdr *) (ra2 + ETH_HLEN);
@@ -179,6 +180,7 @@ static errval_t arp_request_handle(struct enet_queue* q, struct devq_buf* buf,
     uint8_t* macref = (uint8_t *) &(st->mac);
     for (int i = 0; i < 6; i++) {
         ahr->eth_src.addr[i] = macref[5 - i];
+        tmp[i] = macref[5 - i];
     }
     ETHARP_DEBUG("IPSDF: %x\n", st->mac);
     deb_print_mac("macbac", &ahr->eth_src);
