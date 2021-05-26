@@ -33,6 +33,14 @@ int main(int argc, char *argv[])
     if (err_is_fail(err)){
         return EXIT_FAILURE;
     }
+    debug_printf(">> OPEN FILE\n");
+    FILE* f = fopen("/ASDF.TXT", "r");
+    char ret[8];
+    fread(ret, 1, 8, f);
+    debug_printf(">> CONTENT: %s\n", ret);
+    debug_printf(">> CLOSE FILE\n");
+    fclose(f);
+    debug_printf(">> DONE\n");
 
     return EXIT_SUCCESS;
 }

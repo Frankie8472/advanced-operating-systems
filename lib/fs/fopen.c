@@ -99,7 +99,7 @@ static int fs_libc_open(char *path, int flags)
     fatfs_handle_t vh;
     errval_t err;
 
-    // If O_CREAT was given, we use ramfsfs_create()
+    // If O_CREAT was given, we use fatfsfs_create()
     if(flags & O_CREAT) {
         // If O_EXCL was also given, we check whether we can open() first
         if(flags & O_EXCL) {
@@ -158,9 +158,9 @@ static int fs_libc_read(int fd, void *buf, size_t len)
     switch(e->type) {
     case FDTAB_TYPE_FILE:
     {
-        ramfs_handle_t fh = e->handle;
+        fatfs_handle_t fh = e->handle;
         assert(e->handle);
-        err = ramfs_read(mount, fh, buf, len, &retlen);
+        err = fatfs_read(mount, fh, buf, len, &retlen);
         if (err_is_fail(err)) {
             return -1;
         }
@@ -185,7 +185,7 @@ static int fs_libc_write(int fd, void *buf, size_t len)
     switch(e->type) {
     case FDTAB_TYPE_FILE:
     {
-        ramfs_handle_t fh = e->handle;
+        fatfs_handle_t fh = e->handle;
         errval_t err = ramfs_write(mount, fh, buf, len, &retlen);
         if (err_is_fail(err)) {
             return -1;
@@ -207,10 +207,10 @@ static int fs_libc_close(int fd)
         return -1;
     }
 
-    ramfs_handle_t fh = e->handle;
+    fatfs_handle_t fh = e->handle;
     switch(e->type) {
     case FDTAB_TYPE_FILE:
-        err = ramfs_close(mount, fh);
+        err = fatfs_close(mount, fh);
         if (err_is_fail(err)) {
             return -1;
         }
@@ -226,7 +226,7 @@ static int fs_libc_close(int fd)
 static off_t fs_libc_lseek(int fd, off_t offset, int whence)
 {
     struct fdtab_entry *e = fdtab_get(fd);
-    ramfs_handle_t fh = e->handle;
+    fatfs_handle_t fh = e->handle;
     switch(e->type) {
     case FDTAB_TYPE_FILE:
     {
@@ -257,7 +257,7 @@ static off_t fs_libc_lseek(int fd, off_t offset, int whence)
             return -1;
         }
 
-        err = ramfs_tell(mount, fh, &retpos);
+        err = fatfs_tell(mount, fh, &retpos);
         if(err_is_fail(err)) {
             return -1;
         }
@@ -276,7 +276,7 @@ static errval_t fs_rm(const char *path){ return ramfs_remove(mount, path); }
 static errval_t fs_opendir(const char *path, fs_dirhandle_t *h){ return ramfs_opendir(mount, path, h); }
 static errval_t fs_readdir(fs_dirhandle_t h, char **name) { return ramfs_dir_read_next(mount, h, name, NULL); }
 static errval_t fs_closedir(fs_dirhandle_t h) { return ramfs_closedir(mount, h); }
-static errval_t fs_fstat(fs_dirhandle_t h, struct fs_fileinfo *b) { return ramfs_stat(mount, h, b); }
+static errval_t fs_fstat(fs_dirhandle_t h, struct fs_fileinfo *b) { return fatfs_stat(mount, h, b); }
 
 typedef int   fsopen_fn_t(char *, int);
 typedef int   fsread_fn_t(int, void *buf, size_t);

@@ -113,27 +113,37 @@ struct fat32_fs
     uint16_t rootDir_sector;
 };
 
+struct fatfs_mount {
+    struct fatfs_dirent *root;
+    struct fat32_fs *fs;
+    struct sdhc_s *ds;
+};
+
 errval_t fatfs_open(void *st, const char *path, fatfs_handle_t *rethandle);
 
 errval_t fatfs_close(void *st, fatfs_handle_t inhandle);
 errval_t fatfs_create(void *st, const char *path, fatfs_handle_t *rethandle);
+
+errval_t fatfs_read(void *st, fatfs_handle_t handle, void *buffer, uint32_t bytes,
+                    size_t *bytes_read);
+
+errval_t fatfs_tell(void *st, fatfs_handle_t handle, size_t *pos);
+
+errval_t fatfs_stat(void *st, fatfs_handle_t inhandle, struct fs_fileinfo *info);
+
 
 /*
 
 
 errval_t ramfs_remove(void *st, const char *path);
 
-errval_t ramfs_read(void *st, ramfs_handle_t handle, void *buffer, size_t bytes,
-                    size_t *bytes_read);
 
 errval_t ramfs_write(void *st, ramfs_handle_t handle, const void *buffer,
                      size_t bytes, size_t *bytes_written);
 
 errval_t ramfs_truncate(void *st, ramfs_handle_t handle, size_t bytes);
 
-errval_t ramfs_tell(void *st, ramfs_handle_t handle, size_t *pos);
 
-errval_t ramfs_stat(void *st, ramfs_handle_t inhandle, struct fs_fileinfo *info);
 
 errval_t ramfs_seek(void *st, ramfs_handle_t handle, enum fs_seekpos whence,
                     off_t offset);
