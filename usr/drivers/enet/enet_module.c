@@ -735,6 +735,8 @@ int main(int argc, char *argv[]) {
                                buf.length, buf.valid_data, buf.valid_length,
                                buf.flags);
             assert(err_is_ok(err));
+        } else {  // NOTE: maybe compare against DEVQ_ERR_QUEUE_EMPTY
+            thread_yield();
         }
     }
 }
