@@ -131,6 +131,12 @@ errval_t fatfs_tell(void *st, fatfs_handle_t handle, size_t *pos);
 
 errval_t fatfs_stat(void *st, fatfs_handle_t inhandle, struct fs_fileinfo *info);
 
+errval_t fatfs_write(void *st, fatfs_handle_t handle, const void *buffer,
+                     size_t bytes, size_t *bytes_written);
+
+errval_t fatfs_seek(void *st, fatfs_handle_t handle, enum fs_seekpos whence,
+                    off_t offset);
+
 
 /*
 
@@ -138,27 +144,26 @@ errval_t fatfs_stat(void *st, fatfs_handle_t inhandle, struct fs_fileinfo *info)
 errval_t ramfs_remove(void *st, const char *path);
 
 
-errval_t ramfs_write(void *st, ramfs_handle_t handle, const void *buffer,
-                     size_t bytes, size_t *bytes_written);
 
 errval_t ramfs_truncate(void *st, ramfs_handle_t handle, size_t bytes);
 
 
 
-errval_t ramfs_seek(void *st, ramfs_handle_t handle, enum fs_seekpos whence,
-                    off_t offset);
 
 
-errval_t ramfs_opendir(void *st, const char *path, ramfs_handle_t *rethandle);
 
-errval_t ramfs_dir_read_next(void *st, ramfs_handle_t inhandle, char **retname,
-                             struct fs_fileinfo *info);
 
-errval_t ramfs_closedir(void *st, ramfs_handle_t dhandle);
-
-errval_t ramfs_mkdir(void *st, const char *path);
 
 errval_t ramfs_rmdir(void *st, const char *path);
 */
+
+errval_t fatfs_opendir(void *st, const char *path, fatfs_handle_t *rethandle);
+
+errval_t fatfs_dir_read_next(void *st, fatfs_handle_t inhandle, char **retname,
+                             struct fs_fileinfo *info);
+
+errval_t fatfs_closedir(void *st, fatfs_handle_t dhandle);
+
+errval_t fatfs_mkdir(void *st, const char *path);
 errval_t fatfs_mount(const char *uri, fatfs_mount_t *retst);
 

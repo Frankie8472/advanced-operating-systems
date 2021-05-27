@@ -152,7 +152,7 @@ static int fs_libc_open(char *path, int flags)
 static int fs_libc_read(int fd, void *buf, size_t len)
 {
     errval_t err;
-
+    debug_printf(">> REACHHHHH %d\n", len);
     struct fdtab_entry *e = fdtab_get(fd);
     size_t retlen = 0;
     switch(e->type) {
@@ -270,11 +270,11 @@ static off_t fs_libc_lseek(int fd, off_t offset, int whence)
     }
 }
 
-static errval_t fs_mkdir(const char *path){ return ramfs_mkdir(mount, path);}
+static errval_t fs_mkdir(const char *path){ return fatfs_mkdir(mount, path);}
 static errval_t fs_rmdir(const char *path){ return ramfs_rmdir(mount, path); }
 static errval_t fs_rm(const char *path){ return ramfs_remove(mount, path); }
-static errval_t fs_opendir(const char *path, fs_dirhandle_t *h){ return ramfs_opendir(mount, path, h); }
-static errval_t fs_readdir(fs_dirhandle_t h, char **name) { return ramfs_dir_read_next(mount, h, name, NULL); }
+static errval_t fs_opendir(const char *path, fs_dirhandle_t *h){ return fatfs_opendir(mount, path, h); }
+static errval_t fs_readdir(fs_dirhandle_t h, char **name) { return fatfs_dir_read_next(mount, h, name, NULL); }
 static errval_t fs_closedir(fs_dirhandle_t h) { return ramfs_closedir(mount, h); }
 static errval_t fs_fstat(fs_dirhandle_t h, struct fs_fileinfo *b) { return fatfs_stat(mount, h, b); }
 
