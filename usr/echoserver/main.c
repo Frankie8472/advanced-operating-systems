@@ -34,6 +34,7 @@ int main(int argc, char **argv) {
         break;
     }
 
+    aos_socket_teardown(&sock);
     free(in);
     return EXIT_SUCCESS;
 }
