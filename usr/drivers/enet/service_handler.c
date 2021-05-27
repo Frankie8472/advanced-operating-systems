@@ -111,7 +111,7 @@ static void arp_tbl_handler_ns(struct enet_driver_state* st,
             sprintf(&res[ri + tmp], " ");
         }
         ri += 16;
-        ri += sprintf(&res[ri], "     ");
+        ri += sprintf(&res[ri], "  ");
         ri += sprintf(&res[ri], "%x:%x:%x:%x:%x:%x\n",
                       (uint8_t) key >> 2,
                       (uint8_t) key >> 3,
