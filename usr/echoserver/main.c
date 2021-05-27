@@ -4,18 +4,24 @@
 #include <aos/aos.h>
 #include <aos/nameserver.h>
 #include <aos/udp_service.h>
-#define PORT 184
 #define MK_IP(a,b,c,d) (((a)<<24)|((b)<<16)|((c)<<8)|(d))
 
 int main(int argc, char **argv) {
+    if (argc != 2) {
+        printf("invalid number of arguments! EXIT\n");
+        return EXIT_SUCCESS;
+    }
+
+    int port = atoi(argv[1]);
+
     errval_t err;
-    printf("starting echo-server on port %d\n", PORT);
+    printf("starting echo-server on port %d\n", port);
 
     struct aos_socket sock;
-    err = aos_socket_initialize(&sock, 0, 0, PORT);
+    err = aos_socket_initialize(&sock, 0, 0, port);
     if (err_is_fail(err)) {
         printf("unable to initialize socket\n");
-        return 1;
+        return EXIT_SUCCESS;
     }
 
     /* uint32_t tip = MK_IP(192, 168, 1, 34); */
