@@ -33,7 +33,7 @@ void on_console_input(void *arg) {
     do {
         err = aos_dc_receive_available(&stdin_chan, sizeof buffer, buffer, &recvd);
         if (recvd > 0) {
-            if (buffer[0] == 3) { // Ctrl+C
+            if (!prog->is_builtin && buffer[0] == 3) { // Ctrl+C
                 aos_rpc_call(&prog->process_disprpc, DISP_IFACE_TERMINATE);
             }
             if (buffer[0] == 4) { // Ctrl+D

@@ -50,7 +50,7 @@ void josh_command_free(struct josh_command *cmd)
     }
     if (cmd->piped_into) {
         josh_command_free(cmd->piped_into);
-        cmd->destination = NULL;
+        cmd->piped_into = NULL;
     }
     if (cmd->file_redir) {
         free(cmd->file_redir);
