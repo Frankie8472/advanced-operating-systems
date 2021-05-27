@@ -164,6 +164,7 @@ errval_t udp_socket_teardown(struct enet_driver_state *st,
 struct aos_udp_socket* create_udp_socket(struct enet_driver_state *st,
                                          uint32_t ip_dest, uint16_t f_port,
                                          uint16_t l_port);
+errval_t arp_request(struct enet_driver_state *st, uint32_t ip_to);
 errval_t udp_socket_send(struct enet_driver_state *st, uint16_t port,
                          void *data, uint16_t len);
 errval_t udp_socket_send_to(struct enet_driver_state *st, uint16_t port,

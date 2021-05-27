@@ -170,6 +170,54 @@ struct aos_udp_socket* create_udp_socket(struct enet_driver_state *st,
 }
 
 /**
+ * \brief send an arp-request for the target ip-address.
+ */
+errval_t arp_request(struct enet_driver_state *st, uint32_t ip_to) {
+    errval_t err = SYS_ERR_OK;
+    struct devq_buf requ;
+    err = get_free_buf(st->send_qstate, &requ);
+    if (err_is_fail(err)) {
+        ETHARP_DEBUG("could not get free buffer\n");
+        return err;
+    }
+
+    // write eth-header for request
+    struct region_entry *entry = get_region(st->txq, requ.rid);
+    lvaddr_t raddr = (lvaddr_t) entry->mem.vbase + requ.offset + requ.valid_data;
+    char *ra2 = (char *) raddr;
+    memset(ra2 + 6, 0, 6);  // leave dest-mac empty -> dk
+    ((struct eth_hdr *) ra2)->type = htons(ETH_TYPE_ARP);
+    char *tmp = ra2;
+
+    // write arp-header for request
+    struct arp_hdr *ahr = (struct arp_hdr *) (ra2 + ETH_HLEN);
+    ahr->hwtype = htons(ARP_HW_TYPE_ETH);
+    ahr->proto = htons(ARP_PROT_IP);
+    ahr->hwlen = 0;  // ?
+    ahr->protolen = 0;  // ?
+    ahr->opcode = htons(ARP_OP_REQ);
+
+    uint8_t* macref = (uint8_t *) &(st->mac);
+    for (int i = 0; i < 6; i++) {
+        ahr->eth_src.addr[i] = macref[5 - i];
+        tmp[i] = macref[5 - i];
+    }
+
+    ahr->ip_src = htonl(STATIC_ENET_IP);
+    memset(&ahr->eth_dst, 0xff, 6);
+    ahr->ip_dst = htonl(ip_to);
+
+    requ.valid_length = ETH_HLEN + ARP_HLEN;
+
+    dmb();
+
+    ETHARP_DEBUG("=========== SENDING REQUEST\n");
+    enqueue_buf(st->send_qstate, &requ);
+
+    return SYS_ERR_OK;
+}
+
+/**
  * \brief send a UDP message over the provided port.
  * \param port outgoing port of the message.
  * NOTE: since only one connection per port is allowed, this
@@ -207,7 +255,10 @@ errval_t udp_socket_send(struct enet_driver_state *st, uint16_t port,
     uint64_t *mac_tgt = collections_hash_find(st->inv_table, sock->ip_dest);
 
     if (mac_tgt == NULL) {
-        return ENET_ERR_ARP_UNKNOWN;
+        UDP_DEBUG("but...where (not to)? %d\n", sock->ip_dest);
+        print_arp_table(st);
+        err = arp_request(st, sock->ip_dest);
+        return err_is_fail(err) ? err : ENET_ERR_ARP_UNKNOWN;
     }
 
     // write ETH header
@@ -289,7 +340,8 @@ errval_t udp_socket_send_to(struct enet_driver_state *st, uint16_t port,
     if (mac_tgt == NULL) {
         UDP_DEBUG("but...where? %d\n", ip_to);
         print_arp_table(st);
-        return ENET_ERR_ARP_UNKNOWN;
+        err = arp_request(st, ip_to);
+        return err_is_fail(err) ? err : ENET_ERR_ARP_UNKNOWN;
     }
 
     // write ETH header
