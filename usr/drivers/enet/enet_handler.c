@@ -22,8 +22,7 @@
 #include "enet_regionman.h"
 #include "enet_handler.h"
 
-__attribute__((__unused__))
-static void print_arp_table(struct enet_driver_state *st) {
+void print_arp_table(struct enet_driver_state *st) {
     if (collections_hash_traverse_start(st->arp_table) == -1) {
         ENET_DEBUG("unable to print arp-table rn\n");
         return;
@@ -35,7 +34,7 @@ static void print_arp_table(struct enet_driver_state *st) {
     while (curp) {
         uint32_t ip_c = *curp;
         uint8_t ip_tbl[4];
-        
+
         ip_tbl[3] = (ip_c >> 24) & 0xff;
         ip_tbl[2] = (ip_c >> 16) & 0xff;
         ip_tbl[1] = (ip_c >> 8) & 0xff;
