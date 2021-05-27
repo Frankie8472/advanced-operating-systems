@@ -177,7 +177,9 @@ static void server_recv_handler(void *stptr, void *message,
     case DESTROY:
         HAN_DEBUG("kill it -.-\n");
         sock = get_socket_from_port(st, msg->port);
-        udp_socket_teardown(st, sock);
+        err = udp_socket_teardown(st, sock);
+        *response_bytes = sizeof(errval_t);
+        *response = &err;
         break;
     case SEND_TO:
         HAN_DEBUG("Send iiit (to) \n");

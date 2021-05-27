@@ -46,4 +46,6 @@ errval_t aos_socket_send_to(struct aos_socket *sockref, void *data, uint16_t len
 
 errval_t aos_socket_receive(struct aos_socket *sockref, struct udp_msg *retptr);
 
+errval_t aos_socket_teardown(struct aos_socket *sockref);
+
 void aos_arp_table_get(char *rtptr);

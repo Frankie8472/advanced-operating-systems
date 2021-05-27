@@ -130,6 +130,28 @@ errval_t aos_socket_receive(struct aos_socket *sockref, struct udp_msg *retptr) 
     return SYS_ERR_OK;
 }
 
+errval_t aos_socket_teardown(struct aos_socket *sockref) {
+    errval_t *erref = malloc(sizeof(errval_t));
+    size_t msgsize = sizeof(struct udp_service_message);
+    struct udp_service_message *usm = malloc(msgsize);
+
+    usm->type = DESTROY;
+    usm->port = sockref->l_port;
+
+    void *response = erref;
+    size_t response_botes;
+
+    errval_t err = nameservice_rpc(sockref->_nschan, (void *) usm, msgsize,
+                                   &response, &response_botes,
+                                   NULL_CAP, NULL_CAP);
+    free(usm);
+
+    err = err_is_fail(err) ? err : *erref;
+
+    free(erref);
+    return err;
+}
+
 /**
  * \brief retrieve a string describing the device's current arp-table
  */
