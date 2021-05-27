@@ -38,6 +38,9 @@
         USER_PANIC_ERR(err, msg);               \
     }
 
+static struct udp_msg *repl_msg;
+static char arp_tbl[2048];
+
 static void udp_receive_handler_ns(struct enet_driver_state* st,
                                    struct udp_service_message *msg,
                                    void **response, size_t *response_bytes,
@@ -69,7 +72,7 @@ static void udp_receive_handler_ns(struct enet_driver_state* st,
             );
 
     size_t mln = sizeof(struct udp_msg) + ure->len * sizeof(char);
-    struct udp_msg *rm = malloc(mln);
+    struct udp_msg *rm = repl_msg;
     rm->f_port = ure->f_port;
     rm->len = ure->len;
     rm->ip = ure->ip_addr;
@@ -88,7 +91,7 @@ static void arp_tbl_handler_ns(struct enet_driver_state* st,
     if (collections_hash_traverse_start(st->arp_table) == -1) {
         // TODO: error!
     }
-    char *res = malloc(1024 * sizeof(char));
+    char *res = arp_tbl;
     int ri = 0;  // index into res
     uint64_t key;
     uint32_t *curp = collections_hash_traverse_next(st->arp_table, &key);
@@ -134,13 +137,12 @@ static void server_recv_handler(void *stptr, void *message,
                                 struct capref rx_cap, struct capref *tx_cap)
 {
     HAN_DEBUG("enet-nameserver-handler-called-debug-print-statement-reached-message\n");
-    errval_t err;
+    static errval_t err;
     struct enet_driver_state *st = (struct enet_driver_state *) stptr;
     struct udp_service_message *msg = (struct udp_service_message *) message;
     struct aos_udp_socket *sock;
     struct udp_socket_create_info *usci;
-
-    HAN_DEBUG("==================== BP1\n");
+    void *ptr;
 
     switch (msg->type) {
     case SEND:
@@ -160,13 +162,16 @@ static void server_recv_handler(void *stptr, void *message,
                                    sock);
         }
         break;
-    case CREATE:  // TODO: reporting
-        HAN_DEBUG("==================== BP2\n");
+    case CREATE:
+        HAN_DEBUG("Create\n");
         usci = (struct udp_socket_create_info *) msg->data;
-        create_udp_socket(st, usci->ip_dest, usci->f_port, msg->port);
+        ptr = create_udp_socket(st, usci->ip_dest, usci->f_port, msg->port);
         HAN_DEBUG("==================== BP3\n");
-        *response = NULL;
-        *response_bytes = 0;
+
+        *response_bytes = sizeof(errval_t);
+
+        err = ptr ? SYS_ERR_OK : LIB_ERR_NOT_IMPLEMENTED;
+        *response = &err;
         HAN_DEBUG("==================== BP4\n");
         break;
     case DESTROY:
@@ -199,4 +204,6 @@ void name_server_initialize(struct enet_driver_state *st) {
     err = nameservice_register_properties(ENET_SERVICE_NAME, server_recv_handler, (void *) st, true,
                                           "type=ethernet,mac=TODO,bugs=0xffff");
     PANIC_IF_FAIL(err, "failed to register...\n");
+
+    repl_msg = malloc(sizeof(struct udp_msg) + 2048 * sizeof(char));
 }
