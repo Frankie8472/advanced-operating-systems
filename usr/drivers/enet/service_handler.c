@@ -25,6 +25,14 @@
 #include "enet_handler.h"
 #include "enet.h"
 
+#define HANDLER_DEBUG_OPTION 1
+
+#if defined(HANDLER_DEBUG_OPTION)
+#define HAN_DEBUG(x...) debug_printf("[handler] " x);
+#else
+#define HAN_DEBUG(fmt, ...) ((void)0)
+#endif
+
 #define PANIC_IF_FAIL(err, msg)                 \
     if (err_is_fail(err)) {                     \
         USER_PANIC_ERR(err, msg);               \
