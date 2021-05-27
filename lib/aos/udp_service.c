@@ -9,6 +9,7 @@
  */
 errval_t aos_socket_initialize(struct aos_socket *sockref,
                                uint32_t ip_dest, uint16_t f_port, uint16_t l_port) {
+    errval_t *erref = malloc(sizeof(errval_t));
     errval_t err;
     err = nameservice_lookup(ENET_SERVICE_NAME, &sockref->_nschan);
     if (err_is_fail(err)) {
@@ -27,21 +28,23 @@ errval_t aos_socket_initialize(struct aos_socket *sockref,
     usci->f_port = f_port;
     usci->ip_dest = ip_dest;
 
-    void *response;
+    void *response = (void *) erref;
     size_t response_bytes;
 
     err = nameservice_rpc(sockref->_nschan, (void *) usm, msgsize,
                           &response, &response_bytes,
                           NULL_CAP, NULL_CAP);
-
-    if (err_is_fail(err)) {
-        return err;
-    }
+    free(usm);
 
     sockref->ip_dest = ip_dest;
     sockref->f_port = f_port;
     sockref->l_port = l_port;
 
+    if (!err_is_fail(err)) {
+        err = *erref;
+    }
+
+    free(erref);
     return err;
 }
 
@@ -49,6 +52,7 @@ errval_t aos_socket_initialize(struct aos_socket *sockref,
  * \brief send data over an aos_socket
  */
 errval_t aos_socket_send(struct aos_socket *sockref, void *data, uint16_t len) {
+    errval_t *erref = malloc(sizeof(errval_t));
     size_t msgsize = sizeof(struct udp_service_message) + len * sizeof(char);
     struct udp_service_message *usm = malloc(msgsize);
 
@@ -58,22 +62,25 @@ errval_t aos_socket_send(struct aos_socket *sockref, void *data, uint16_t len) {
     memcpy((void *) usm->data, data, len);
 
 
-    void *response;
+    void *response = (void *) erref;
     size_t response_bytes;
 
     errval_t err = nameservice_rpc(sockref->_nschan, (void *) usm, msgsize,
                                    &response, &response_bytes,
                                    NULL_CAP, NULL_CAP);
+    free(usm);
 
-    if (err_is_fail(err)) {
-        return err;
+    if (!err_is_fail(err)) {
+        err = *erref;
     }
 
-    return (errval_t) response;
+    free(erref);
+    return err;
 }
 
 errval_t aos_socket_send_to(struct aos_socket *sockref, void *data, uint16_t len,
                             uint32_t ip, uint16_t port) {
+    errval_t *erref = malloc(sizeof(errval_t));
     size_t msgsize = sizeof(struct udp_service_message) + len * sizeof(char);
     struct udp_service_message *usm = malloc(msgsize);
 
@@ -84,21 +91,23 @@ errval_t aos_socket_send_to(struct aos_socket *sockref, void *data, uint16_t len
     usm->tgt_port = port;
     memcpy((void *) usm->data, data, len);
 
-    void *response;
+    void *response = (void *) erref;
     size_t response_bytes;
 
     errval_t err = nameservice_rpc(sockref->_nschan, (void *) usm, msgsize,
                                    &response, &response_bytes,
                                    NULL_CAP, NULL_CAP);
+    free(usm);
 
-    if (err_is_fail(err)) {
-        return err;
+    if (!err_is_fail(err)) {
+        err = *erref;
     }
 
-    return (errval_t) response;
+    free(erref);
+    return err;
 }
 
-struct udp_msg *aos_socket_receive(struct aos_socket *sockref) {
+errval_t aos_socket_receive(struct aos_socket *sockref, struct udp_msg *retptr) {
     size_t msgsize = sizeof(struct udp_service_message);
     struct udp_service_message *usm = malloc(msgsize);
 
@@ -106,18 +115,19 @@ struct udp_msg *aos_socket_receive(struct aos_socket *sockref) {
     usm->port = sockref->l_port;
     usm->len = 0;
 
-    void *response;
+    void *response = retptr;
     size_t response_bites;
 
     errval_t err = nameservice_rpc(sockref->_nschan, (void *) usm, msgsize,
                                    &response, &response_bites,
                                    NULL_CAP, NULL_CAP);
+    free(usm);
 
     if (err_is_fail(err) || response_bites == 0) {
-        return NULL;
+        return LIB_ERR_NOT_IMPLEMENTED;
     }
 
-    return response;
+    return SYS_ERR_OK;
 }
 
 /**
@@ -137,9 +147,9 @@ void aos_arp_table_get(char *rtptr) {
     err = nameservice_rpc(_nschan, (void *) usm, strlen((char *) usm),
                                    &response, &response_butes,
                                    NULL_CAP, NULL_CAP);
+    free(usm);
+
     if (err_is_fail(err)) {
         DEBUG_ERR(err, "failed to do the nameservice rpc\n");
     }
-
-    return;
 }
