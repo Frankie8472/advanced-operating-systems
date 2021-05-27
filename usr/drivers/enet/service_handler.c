@@ -148,8 +148,8 @@ static void server_recv_handler(void *stptr, void *message,
     case SEND:
         HAN_DEBUG("Send iiiiit\n");
         err = udp_socket_send(st, msg->port, msg->data, msg->len);
-        *response = (void *) err;
-        response_bytes = 0;
+        *response = &err;
+        *response_bytes = sizeof(errval_t);
         break;
     case RECV:
         HAN_DEBUG("Give plz\n");
