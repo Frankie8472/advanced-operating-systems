@@ -54,25 +54,70 @@ static void udp_receive_handler_ns(struct enet_driver_state* st,
     *response_bytes = mln;
 }
 
+__unused
+static void arp_tbl_handler_ns(struct enet_driver_state* st,
+                              struct udp_service_message *msg,
+                              void **response, size_t *response_bytes,
+                              struct aos_udp_socket *sock) {
+    if (collections_hash_traverse_start(st->arp_table) == -1) {
+        // TODO: error!
+    }
+    char *res = malloc(1024 * sizeof(char));
+    int ri = 0;  // index into res
+    uint64_t key;
+    uint32_t *curp = collections_hash_traverse_next(st->arp_table, &key);
+
+    while (curp) {
+        uint32_t ip_c = *curp;
+        uint8_t ip_tbl[4];
+
+        ip_tbl[3] = (ip_c >> 24) & 0xff;
+        ip_tbl[2] = (ip_c >> 16) & 0xff;
+        ip_tbl[1] = (ip_c >> 8) & 0xff;
+        ip_tbl[0] = ip_c & 0xff;
+
+        ri += sprintf(res, "%d.%d.%d.%d --- %x:%x:%x:%x:%x:%x\n",
+                      ip_tbl[3],
+                      ip_tbl[2],
+                      ip_tbl[1],
+                      ip_tbl[0],
+                      (uint8_t) key >> 2,
+                      (uint8_t) key >> 3,
+                      (uint8_t) key >> 4,
+                      (uint8_t) key >> 5,
+                      (uint8_t) key >> 6,
+                      (uint8_t) key >> 7);
+        res[ri++] = '\n';
+    }
+    res[ri++] = '\0';
+
+    *response = res;
+    *response_bytes = ri;
+}
+
 static void server_recv_handler(void *stptr, void *message,
                                 size_t bytes,
                                 void **response, size_t *response_bytes,
                                 struct capref rx_cap, struct capref *tx_cap)
 {
-    debug_printf("enet-nameserver-handler-called-debug-print-statement-reached-message\n");
+    HAN_DEBUG("enet-nameserver-handler-called-debug-print-statement-reached-message\n");
     errval_t err;
     struct enet_driver_state *st = (struct enet_driver_state *) stptr;
     struct udp_service_message *msg = (struct udp_service_message *) message;
     struct aos_udp_socket *sock;
     struct udp_socket_create_info *usci;
 
+    HAN_DEBUG("==================== BP1\n");
+
     switch (msg->type) {
     case SEND:
+        HAN_DEBUG("Send iiiiit\n");
         err = udp_socket_send(st, msg->port, msg->data, msg->len);
         *response = (void *) err;
         response_bytes = 0;
         break;
     case RECV:
+        HAN_DEBUG("Give plz\n");
         sock = get_socket_from_port(st, msg->port);
         if (sock == NULL) {
             *response = NULL;
@@ -83,20 +128,34 @@ static void server_recv_handler(void *stptr, void *message,
         }
         break;
     case CREATE:  // TODO: reporting
+        HAN_DEBUG("==================== BP2\n");
         usci = (struct udp_socket_create_info *) msg->data;
         create_udp_socket(st, usci->ip_dest, usci->f_port, msg->port);
+        HAN_DEBUG("==================== BP3\n");
         *response = NULL;
         *response_bytes = 0;
+        HAN_DEBUG("==================== BP4\n");
         break;
     case DESTROY:
+        HAN_DEBUG("kill it -.-\n");
         sock = get_socket_from_port(st, msg->port);
         udp_socket_teardown(st, sock);
         break;
     case SEND_TO:
+        HAN_DEBUG("Send iiit (to) \n");
         err = udp_socket_send_to(st, msg->port, msg->data, msg->len, msg->ip, msg->tgt_port);
-        *response = (void *) err;
-        response_bytes = 0;
+        if (err_is_fail(err)) {
+            DEBUG_ERR(err, "oh no :(");
+        }
+        HAN_DEBUG("write repl\n");
+        /* *response = (void *) err; */
+        *response = NULL;  // TODO: error report sending
+        *response_bytes = 0;
         break;
+    case ARP_TBL:
+        /* TODO */
+        arp_tbl_handler_ns(st, msg, response, response_bytes,
+                                 sock);
         break;
     }
 }

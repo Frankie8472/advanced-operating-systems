@@ -44,6 +44,6 @@ errval_t aos_socket_send(struct aos_socket *sockref, void *data, uint16_t len);
 errval_t aos_socket_send_to(struct aos_socket *sockref, void *data, uint16_t len,
                             uint32_t ip, uint16_t port);
 
-char *aos_arp_table_get(struct aos_socket *sockref);
+char *aos_arp_table_get(void);
 
 struct udp_msg *aos_socket_receive(struct aos_socket *sockref);

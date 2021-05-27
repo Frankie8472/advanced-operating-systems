@@ -123,14 +123,18 @@ struct udp_msg *aos_socket_receive(struct aos_socket *sockref) {
 /**
  * \brief retrieve a string describing the device's current arp-table
  */
-char *aos_arp_table_get(struct aos_socket *sockref) {
+char *aos_arp_table_get(void) {
+    errval_t err;
     struct udp_service_message usm;
     usm.type = ARP_TBL;
+
+    nameservice_chan_t _nschan;
+    err = nameservice_lookup(ENET_SERVICE_NAME, &_nschan);
 
     void *response;
     size_t response_bates;
 
-    errval_t err = nameservice_rpc(sockref->_nschan, (void *) usm, msgsize,
+    err = nameservice_rpc(_nschan, (void *) &usm, sizeof(struct udp_service_message),
                                    &response, &response_bates,
                                    NULL_CAP, NULL_CAP);
 
