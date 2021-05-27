@@ -113,9 +113,26 @@ struct udp_msg *aos_socket_receive(struct aos_socket *sockref) {
                                    &response, &response_bites,
                                    NULL_CAP, NULL_CAP);
 
-    if (err_is_fail(err)) {
+    if (err_is_fail(err) || response_bites == 0) {
         return NULL;
     }
 
     return response;
+}
+
+/**
+ * \brief retrieve a string describing the device's current arp-table
+ */
+char *aos_arp_table_get(struct aos_socket *sockref) {
+    struct udp_service_message usm;
+    usm.type = ARP_TBL;
+
+    void *response;
+    size_t response_bates;
+
+    errval_t err = nameservice_rpc(sockref->_nschan, (void *) usm, msgsize,
+                                   &response, &response_bates,
+                                   NULL_CAP, NULL_CAP);
+
+    return (char *) response;
 }
