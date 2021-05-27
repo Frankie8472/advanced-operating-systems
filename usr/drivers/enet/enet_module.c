@@ -742,7 +742,11 @@ int main(int argc, char *argv[]) {
             assert(err_is_ok(err));
         } else {  // NOTE: maybe compare against DEVQ_ERR_QUEUE_EMPTY
             /* thread_yield(); */
-            event_dispatch(get_default_waitset());
+            err = event_dispatch_non_block(get_default_waitset());
+            if (err == LIB_ERR_NO_EVENT) {
+                thread_yield();
+            } else {
+            }
         }
     }
 }
