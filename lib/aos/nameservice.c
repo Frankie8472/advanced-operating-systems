@@ -402,7 +402,10 @@ void namservice_receive_handler_wrapper_direct(struct aos_rpc *rpc, char* messag
 	size_t response_bytes;
 	char * response_buffer = (char * ) malloc(1024); //TODO make varstrlarger
 	se -> recv_handler(se -> st,(void *) message,strlen(message),(void*)&response_buffer,&response_bytes,NULL_CAP,NULL);
-	strcpy(response,response_buffer);
+  debug_printf("cp d str\n");
+  memcpy(response, response_buffer, response_bytes);
+	/* strcpy(response,response_buffer); */
+  debug_printf("cpd d str\n");
 }
 
 void nameservice_binding_request_handler(struct aos_rpc *rpc,uintptr_t remote_core_id, struct capref remote_cap, struct capref* local_cap){

@@ -888,7 +888,6 @@ static errval_t aos_rpc_call_lmp(struct aos_rpc *rpc, enum aos_rpc_msg_type msg_
     size_t buf_page_offset = 0;
 
 
-
     if (rpc->lmp_server_mode) {
         push_cap_lmp(lc, &lmi, rpc->channel.lmp.local_cap);
     }
