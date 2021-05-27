@@ -34,12 +34,19 @@ int main(int argc, char *argv[])
         return EXIT_FAILURE;
     }
     debug_printf(">> OPEN FILE\n");
-    FILE* f = fopen("/ASDF.TXT", "r");
-    char ret[8];
-    fread(ret, 1, 8, f);
-    debug_printf(">> CONTENT: %s\n", ret);
-    debug_printf(">> CLOSE FILE\n");
-    fclose(f);
+    //FILE* f = fopen("/ASDF.TXT", "r");
+    FILE* f = fopen("/LONG.TXT", "r");
+    if (f != 0x0) {
+        debug_printf(">> READ FILE 0x%x\n", f);
+        char ret[20];
+        fread(ret, 1, 19, f);
+        ret[19] = '\0';
+        debug_printf(">> CONTENT: %s\n", ret);
+        debug_printf(">> CLOSE FILE\n");
+        fclose(f);
+    } else {
+        debug_printf(">> FILE NOT FOUND\n");
+    }
     debug_printf(">> DONE\n");
 
     return EXIT_SUCCESS;

@@ -218,7 +218,6 @@ static errval_t find_dirent(struct fatfs_mount *mount, struct fatfs_dirent *root
     struct fatfs_dirent *d = root;
     struct fatfs_dirent *nd = calloc(1, sizeof(*nd));
     bool long_name = false;
-
     uint32_t current_cluster = d->cluster;
     uint32_t start_sector = d->sector;
     while(current_cluster != 0xffffff8 && current_cluster != 0xfffffff) {
@@ -253,7 +252,8 @@ static errval_t find_dirent(struct fatfs_mount *mount, struct fatfs_dirent *root
                     if (long_name) {
                         long_name = false;
                     }
-                    if (strcmp(name, dirname) != 0){
+                    debug_printf(">> Compare names: %s <> %s || %d\n", name, dirname, strcmp(name, dirname));
+                    if (strcmp(name, dirname) == 0){
                         nd->name = dir.name;
                         nd->size = dir.fileSize;
                         nd->parent = root;
@@ -296,7 +296,6 @@ static errval_t resolve_path(struct fatfs_mount *mount, const char *path,
     }
 
     struct fatfs_dirent *next_dirent;
-
     while (path[pos] != '\0') {
         char *nextsep = strchr(&path[pos], FS_PATH_SEP);
         size_t nextlen;
@@ -305,7 +304,6 @@ static errval_t resolve_path(struct fatfs_mount *mount, const char *path,
         } else {
             nextlen = nextsep - &path[pos];
         }
-
         char pathbuf[nextlen + 1];
         memcpy(pathbuf, &path[pos], nextlen);
         pathbuf[nextlen] = '\0';
@@ -314,10 +312,12 @@ static errval_t resolve_path(struct fatfs_mount *mount, const char *path,
         char fat32name[11];
         pathname_to_fat32name(pathbuf, fat32name);
 
+        debug_printf(">> Before find_dirent: %s\n", fat32name);
         err = find_dirent(mount, root, fat32name, &next_dirent);
+        debug_printf(">> After find_dirent\n");
 
         if (err_is_fail(err)) {
-            debug_printf("Error: Directory/File not found");
+            debug_printf("Error: Directory/File not found\n");
             return err;
         }
 
@@ -359,14 +359,16 @@ errval_t fatfs_open(void *st, const char *path, fatfs_handle_t *rethandle)
 
     struct fatfs_handle *handle;
 
+    debug_printf(">> Before resolve\n");
     err = resolve_path(mount, path, &handle);
-
+    debug_printf(">> After resolve\n");
     if (err_is_fail(err)) {
         return err;
     }
 
     if (handle->isdir) {
         handle_close(handle);
+        debug_printf(">> NOT A FILE\n");
         return FS_ERR_NOTFILE;
     }
 
@@ -559,7 +561,6 @@ errval_t fatfs_read(void *st, fatfs_handle_t handle, void *buffer, uint32_t byte
     struct fatfs_handle *h = handle;
     struct fatfs_mount *mount = st;
     errval_t err;
-
     if (h->isdir) {
         return FS_ERR_NOTFILE;
     }
@@ -1031,57 +1032,63 @@ errval_t fatfs_mount(const char *path, fatfs_mount_t *retst)
 
     *retst = mount;
 
+    return SYS_ERR_OK;
+
     debug_printf("==========TESTING==========\n");
     debug_printf(">>> Print ROOT\n");
-    err = sdhc_read_block(ds, fs->rootDir_sector, get_phys_addr(fs->buf_cap));
-    ON_ERR_RETURN(err);
-    uint8_t *current = fs->buf_va;
-    for (int i = 0; i < 16; i++) {
-        current += i * 32;
-        if (((current[11] & ATTR_LONG_NAME_MASK) == ATTR_LONG_NAME)
-            && (current[0] != 0xE5)) {
-            struct fatfs_long_dirent dir;
-            memcpy(&dir, current, sizeof(struct fatfs_short_dirent));
-            debug_printf(">> ord:   %hhu\n", dir.ord);
-            debug_printf(">> name1: %ls\n", dir.name1);
-            debug_printf(">> attr:  %hhu\n", dir.attr);
-            debug_printf(">> type:  %hhu\n", dir.type);
-            debug_printf(">> chsm:  %hhu\n", dir.chksum);
-            debug_printf(">> name2: %ls\n", dir.name2);
-            debug_printf(">> lo:    %hu\n", dir.fstClusLo);
-            debug_printf(">> name3: %ls\n", dir.name3);
-        //} else if (current[0] == 0xE5 || current[11] == 0x0) {
-            // Do nothing
-        } else {
-            struct fatfs_short_dirent dir;
-            memcpy(&dir, current, sizeof(struct fatfs_short_dirent));
-            debug_printf(">> name:  %s\n", dir.name);
-//            debug_printf(">> name:  %x\n", dir.name[0]);
-//            debug_printf(">> name:  %x\n", dir.name[1]);
-//            debug_printf(">> name:  %x\n", dir.name[2]);
-//            debug_printf(">> name:  %x\n", dir.name[3]);
-//            debug_printf(">> name:  %x\n", dir.name[4]);
-//            debug_printf(">> name:  %x\n", dir.name[5]);
-//            debug_printf(">> name:  %x\n", dir.name[6]);
-//            debug_printf(">> name:  %x\n", dir.name[7]);
-//            debug_printf(">> name:  %x\n", dir.name[8]);
-//            debug_printf(">> name:  %x\n", dir.name[9]);
-//            debug_printf(">> name:  %x\n", dir.name[10]);
+    debug_printf(">>> RootDirSec: %d\n", fs->rootDir_sector);
+    debug_printf(">>> RootClus: %d\n", fs->bpb.rootClus);
+    uint8_t *current;
+    for (int j = 0; j < fs->bpb.secPerClus; j++) {
+        err = sdhc_read_block(ds, fs->rootDir_sector + j, get_phys_addr(fs->buf_cap));
+        ON_ERR_RETURN(err);
+        current = fs->buf_va;
+        for (int i = 0; i < 16; i++) {
+            current += i * 32;
+            if (((current[11] & ATTR_LONG_NAME_MASK) == ATTR_LONG_NAME)
+                && (current[0] != 0xE5)) {
+                struct fatfs_long_dirent dir;
+                memcpy(&dir, current, sizeof(struct fatfs_short_dirent));
+                debug_printf(">> ord:   %hhu\n", dir.ord);
+                debug_printf(">> name1: %ls\n", dir.name1);
+                debug_printf(">> attr:  %hhu\n", dir.attr);
+                debug_printf(">> type:  %hhu\n", dir.type);
+                debug_printf(">> chsm:  %hhu\n", dir.chksum);
+                debug_printf(">> name2: %ls\n", dir.name2);
+                debug_printf(">> lo:    %hu\n", dir.fstClusLo);
+                debug_printf(">> name3: %ls\n", dir.name3);
+            } else if (current[0] == 0xE5 || current[11] == 0x0) {
+                // Do nothing
+            } else {
+                struct fatfs_short_dirent dir;
+                memcpy(&dir, current, sizeof(struct fatfs_short_dirent));
+                debug_printf(">> name:  %s\n", dir.name);
+                //            debug_printf(">> name:  %x\n", dir.name[0]);
+                //            debug_printf(">> name:  %x\n", dir.name[1]);
+                //            debug_printf(">> name:  %x\n", dir.name[2]);
+                //            debug_printf(">> name:  %x\n", dir.name[3]);
+                //            debug_printf(">> name:  %x\n", dir.name[4]);
+                //            debug_printf(">> name:  %x\n", dir.name[5]);
+                //            debug_printf(">> name:  %x\n", dir.name[6]);
+                //            debug_printf(">> name:  %x\n", dir.name[7]);
+                //            debug_printf(">> name:  %x\n", dir.name[8]);
+                //            debug_printf(">> name:  %x\n", dir.name[9]);
+                //            debug_printf(">> name:  %x\n", dir.name[10]);
 
-            debug_printf(">> attr:  0x%x\n", dir.attr);
-            debug_printf(">> ntRes: 0x%x\n", dir.ntRes);
-            debug_printf(">> cTime: %hhu\n", dir.crtTimeTenth);
-            debug_printf(">> hi:    %hu\n", dir.fstClusHi);
-            debug_printf(">> wTime: %hu\n", dir.wrtTime);
-            debug_printf(">> wDate: %hu\n", dir.wrtDate);
-            debug_printf(">> lo:    %hu\n", dir.fstClusLow);
-            debug_printf(">> size:  %u\n", dir.fileSize);
+                debug_printf(">> attr:  0x%x\n", dir.attr);
+                debug_printf(">> ntRes: 0x%x\n", dir.ntRes);
+                debug_printf(">> cTime: %hhu\n", dir.crtTimeTenth);
+                debug_printf(">> hi:    %hu\n", dir.fstClusHi);
+                debug_printf(">> wTime: %hu\n", dir.wrtTime);
+                debug_printf(">> wDate: %hu\n", dir.wrtDate);
+                debug_printf(">> lo:    %hu\n", dir.fstClusLow);
+                debug_printf(">> size:  %u\n", dir.fileSize);
+            }
+
+            debug_printf(">> <<\n");
         }
-
-        debug_printf(">> <<\n");
     }
-
-    err = sdhc_read_block(ds, fs->data_sector + (3-2) * fs->bpb.secPerClus, get_phys_addr(fs->buf_cap));
+    err = sdhc_read_block(ds, fs->data_sector + (5-2) * fs->bpb.secPerClus, get_phys_addr(fs->buf_cap));
     ON_ERR_RETURN(err);
 
     debug_printf(">>> Print FOLDER\n");
