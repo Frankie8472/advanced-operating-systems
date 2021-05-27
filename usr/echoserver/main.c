@@ -20,11 +20,11 @@ int main(int argc, char **argv) {
 
     /* uint32_t tip = MK_IP(192, 168, 1, 34); */
     /* aos_socket_send_to(&sock, "hello im here", 13, tip, 8888); */
-    struct udp_msg *in;
+    struct udp_msg *in = malloc(sizeof(struct udp_msg) + 2048 * sizeof(char));
     while (1) {
-        in = aos_socket_receive(&sock);
+        err = aos_socket_receive(&sock, in);
 
-        if (in == NULL) {
+        if (err_is_fail(err)) {
             continue;
         }
 
@@ -33,5 +33,7 @@ int main(int argc, char **argv) {
 
         break;
     }
-    return 0;
+
+    free(in);
+    return EXIT_SUCCESS;
 }
