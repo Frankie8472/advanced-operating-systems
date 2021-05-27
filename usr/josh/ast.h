@@ -13,6 +13,10 @@ struct josh_command
     char *cmd;
     struct array_list args;
     char *destination;
+
+    // possible redirects, cannot both be non-null
+    struct josh_command *piped_into;
+    char *file_redir;
 };
 
 enum josh_value_type

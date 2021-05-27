@@ -80,7 +80,8 @@ static void handle_binding(struct aos_rpc *r, struct capref ep, struct capref re
 }
 
 
-errval_t spawn_new_domain(const char *mod_name, int argc, char **argv, domainid_t *new_pid, struct capref spawner_ep, struct capref child_stdout_cap, struct spawninfo **ret_si)
+errval_t spawn_new_domain(const char *mod_name, int argc, char **argv, domainid_t *new_pid,
+                          struct capref spawner_ep, struct capref child_stdout_cap, struct capref child_stdin_cap, struct spawninfo **ret_si)
 {
     errval_t err;
     struct spawninfo *si = spawn_create_spawninfo();
@@ -105,6 +106,7 @@ errval_t spawn_new_domain(const char *mod_name, int argc, char **argv, domainid_
     }
 
     si->child_stdout_cap = child_stdout_cap;
+    si->child_stdin_cap = child_stdin_cap;
     //initialize_rpc_handlers(rpc);
     if (argv == NULL || argc == 0) {
         err = spawn_load_by_name((char*) mod_name, si, pid);
