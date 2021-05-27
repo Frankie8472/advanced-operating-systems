@@ -257,6 +257,7 @@ errval_t udp_socket_send(struct enet_driver_state *st, uint16_t port,
 errval_t udp_socket_send_to(struct enet_driver_state *st, uint16_t port,
                             void *data, uint16_t len, uint32_t ip_to,
                             uint16_t port_to) {
+    UDP_DEBUG("sending to\n");
     static uint16_t generic_id = 5555;  // NOTE: maybe store in socket obj instead
     // possibly truncate len
     if (len > UDP_SOCK_MAX_LEN)
@@ -269,6 +270,8 @@ errval_t udp_socket_send_to(struct enet_driver_state *st, uint16_t port,
         return ENET_ERR_NO_SOCKET;
     }
 
+    UDP_DEBUG("found socket\n");
+
     // get packet
     struct devq_buf repl;
     err = get_free_buf(st->send_qstate, &repl);
@@ -277,12 +280,15 @@ errval_t udp_socket_send_to(struct enet_driver_state *st, uint16_t port,
         return err;
     }
 
+    UDP_DEBUG("getting buf and so on\n");
     struct region_entry *entry = get_region(st->txq, repl.rid);
     lvaddr_t maddr = (lvaddr_t) entry->mem.vbase + repl.offset + repl.valid_data;
     struct eth_hdr *meh = (struct eth_hdr *) maddr;
     uint64_t *mac_tgt = collections_hash_find(st->inv_table, sock->ip_dest);
 
     if (mac_tgt == NULL) {
+        UDP_DEBUG("but...where? %d\n", ip_to);
+        print_arp_table(st);
         return ENET_ERR_ARP_UNKNOWN;
     }
 

@@ -25,7 +25,7 @@
 #include "enet_handler.h"
 #include "enet.h"
 
-#define HANDLER_DEBUG_OPTION 1
+// #define HANDLER_DEBUG_OPTION 1
 
 #if defined(HANDLER_DEBUG_OPTION)
 #define HAN_DEBUG(x...) debug_printf("[handler] " x);
@@ -48,6 +48,25 @@ static void udp_receive_handler_ns(struct enet_driver_state* st,
         *response_bytes = 0;
         return;
     }
+        HAN_DEBUG(
+            "*******************************************\n"
+            "*******************************************\n"
+            "*******************************************\n"
+            "*******************************************\n"
+            "*******************************************\n"
+            "*******************************************\n"
+            "*******************************************\n"
+            "*******************************************\n"
+            "*******************************************\n"
+            "*******************************************\n"
+            "*******************************************\n"
+            "*******************************************\n"
+            "*******************************************\n"
+            "*******************************************\n"
+            "*******************************************\n"
+            "*******************************************\n"
+            "*******************************************\n"
+            );
 
     size_t mln = sizeof(struct udp_msg) + ure->len * sizeof(char);
     struct udp_msg *rm = malloc(mln);
@@ -62,7 +81,6 @@ static void udp_receive_handler_ns(struct enet_driver_state* st,
     *response_bytes = mln;
 }
 
-__unused
 static void arp_tbl_handler_ns(struct enet_driver_state* st,
                               struct udp_service_message *msg,
                               void **response, size_t *response_bytes,
@@ -84,19 +102,26 @@ static void arp_tbl_handler_ns(struct enet_driver_state* st,
         ip_tbl[1] = (ip_c >> 8) & 0xff;
         ip_tbl[0] = ip_c & 0xff;
 
-        ri += sprintf(res, "%d.%d.%d.%d --- %x:%x:%x:%x:%x:%x\n",
-                      ip_tbl[3],
-                      ip_tbl[2],
-                      ip_tbl[1],
-                      ip_tbl[0],
+        int tmp = sprintf(&res[ri], "%d.%d.%d.%d",
+                          ip_tbl[3],
+                          ip_tbl[2],
+                          ip_tbl[1],
+                          ip_tbl[0]);
+        for (; tmp < 16; tmp++) {
+            sprintf(&res[ri + tmp], " ");
+        }
+        ri += 16;
+        ri += sprintf(&res[ri], "     ");
+        ri += sprintf(&res[ri], "%x:%x:%x:%x:%x:%x\n",
                       (uint8_t) key >> 2,
                       (uint8_t) key >> 3,
                       (uint8_t) key >> 4,
                       (uint8_t) key >> 5,
                       (uint8_t) key >> 6,
                       (uint8_t) key >> 7);
-        res[ri++] = '\n';
+        curp = collections_hash_traverse_next(st->arp_table, &key);
     }
+    collections_hash_traverse_end(st->arp_table);
     res[ri++] = '\0';
 
     *response = res;
@@ -161,7 +186,8 @@ static void server_recv_handler(void *stptr, void *message,
         *response_bytes = 0;
         break;
     case ARP_TBL:
-        /* TODO */
+        HAN_DEBUG("ARP table\n");
+        print_arp_table(st);
         arp_tbl_handler_ns(st, msg, response, response_bytes,
                                  sock);
         break;
