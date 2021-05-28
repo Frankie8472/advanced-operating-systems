@@ -7,6 +7,7 @@
 #include <ctype.h>
 #include <regex.h>
 #include <aos/aos.h>
+#include <aos/deferred.h>
 #include <aos/waitset.h>
 #include <aos/nameserver.h>
 #include <aos/aos_rpc.h>
@@ -30,13 +31,25 @@ struct srv_entry {
 	const char *name;
 	nameservice_receive_handler_t *recv_handler;
 	void *st;
+	struct periodic_event liveness_checker;
 };
+
+
 
 struct nameservice_chan 
 {
 	struct aos_rpc rpc;
 	char *name;
 };
+
+
+static void liveness_checker(void* name){
+	// debug_printf("Liveness checker: %s\n",name);
+	errval_t err = aos_rpc_call(get_ns_rpc(),NS_LIVENESS_CHECK,(const char*) name);
+	if(err_is_fail(err)){
+		DEBUG_ERR(err,"Failed to send liveness check");
+	}
+}
 
 
 
@@ -115,7 +128,7 @@ errval_t nameservice_rpc(nameservice_chan_t chan, void *message, size_t bytes,
 		
 		ON_ERR_RETURN(err);
 		*response_bytes = strlen(*response);
-		rx_cap = response_cap;
+		cap_copy(rx_cap,response_cap);
 		// debug_printf("Response: %s\n",(char*) *response);
 
 	}
@@ -174,6 +187,7 @@ errval_t nameservice_register_properties(const char * name,nameservice_receive_h
 	new_srv_entry -> recv_handler = recv_handler;
 	new_srv_entry -> st = st;
 
+	periodic_event_create(&new_srv_entry -> liveness_checker,get_default_waitset(),NS_LIVENESS_INTERVAL,MKCLOSURE(liveness_checker,(void*) new_srv_entry -> name));
 
 	struct aos_rpc *new_rpc;
 	struct capref server_ep;
@@ -190,9 +204,10 @@ errval_t nameservice_register_properties(const char * name,nameservice_receive_h
 
 	
 	err = establish_init_server_con(name,new_rpc,server_ep);
-	if(err_is_fail(err)){
-		DEBUG_ERR(err,"Failed to init server connection with rpc server\n");
-	}
+	ON_ERR_RETURN(err);
+	// if(err_is_fail(err)){
+	// 	DEBUG_ERR(err,"Failed to init server connection with rpc server\n");
+	// }
 
 	new_rpc -> serv_entry = (void*) new_srv_entry;
 
@@ -636,6 +651,8 @@ errval_t nameservice_get_props(const char* name, char ** response){
 	*response = realloc(response_buf,strlen(response_buf));
 	return SYS_ERR_OK;
 }
+
+
 
 
 

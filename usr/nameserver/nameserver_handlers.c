@@ -29,6 +29,7 @@ void initialize_nameservice_handlers(struct aos_rpc *ns_rpc){
     aos_rpc_register_handler(ns_rpc,NS_ENUM_SERVERS,&handle_enum_servers);
     aos_rpc_register_handler(ns_rpc,NS_NAME_LOOKUP,&handle_server_lookup);
     aos_rpc_register_handler(ns_rpc,NS_GET_SERVER_PROPS,&handle_get_props);
+    aos_rpc_register_handler(ns_rpc,NS_LIVENESS_CHECK,&handle_liveness_check);
 }
 
 void handle_server_lookup(struct aos_rpc *rpc, char *name,uintptr_t* core_id,uintptr_t *direct,uintptr_t * success){
@@ -50,27 +51,16 @@ void handle_server_request(struct aos_rpc * rpc, uintptr_t pid, uintptr_t core_i
     errval_t err;
 
     struct server_list * new_server = (struct server_list * ) malloc(sizeof(struct server_list));
-    // struct capref new_server_ep_cap;
 
     // serve
     char* serv_name = (char *) malloc(SERVER_NAME_SIZE * sizeof(char));
-    // debug_printf("Got here!\n");
     err  = deserialize_prop(server_data,new_server -> key,new_server -> value,(char**) &serv_name,&new_server -> n_properties);
     if(err_is_fail(err)){
         DEBUG_ERR(err,"Failed to deserialize sever request\n");
     }
 
 
-    // struct capability cap;
-    // err = invoke_cap_identify(server_ep_cap,&cap);
-    // ON_ERR_RETURN(err);
-    // if(err_is_fail(err)){
-    // //     DEBUG_ERR(err,"Failed to invoke cap identify on receiving server request!\n");
-    // // }
-    // // bool direct = false;
-    // if(direct){
-    //     direct = true;
-    // }
+
 
     new_server -> next = NULL;
     strcpy(new_server -> name,serv_name);
@@ -80,14 +70,7 @@ void handle_server_request(struct aos_rpc * rpc, uintptr_t pid, uintptr_t core_i
     new_server -> marked = false;
     free(serv_name);
 
-    // err = slot_alloc(&new_server -> end_point);
-    // if(err_is_fail(err)){
-    //     DEBUG_ERR(err,"Failed to slot alloc in handler server request\n");
-    // }
-    // err = cap_copy(new_server -> end_point,server_ep_cap);
-    // if(err_is_fail(err)){
-    //     DEBUG_ERR(err,"Faild cap copy in server request handler\n");
-    // }
+
 
     err = add_server(new_server);
     if(err_is_fail(err)){
@@ -161,4 +144,21 @@ void handle_get_props(struct aos_rpc *rpc,const char* name, char * response){
         }
     }
     
+}
+
+void handle_liveness_check(struct aos_rpc *rpc, const char* name){
+    struct server_list *server;
+    errval_t err; 
+    err = find_server_by_name((char*)name,&server);
+    if(err_is_fail(err)){
+        DEBUG_ERR(err,"Failed to find server: %s\n",name);
+    }
+    domainid_t check_pid;
+    err = find_process_by_rpc(rpc,&check_pid);
+    if(err_is_fail(err)){
+        DEBUG_ERR(err,"Failed to find process by rpc for liveness check\n");
+    }
+    if(server -> pid == check_pid){
+        server -> marked = false;
+    }
 }
