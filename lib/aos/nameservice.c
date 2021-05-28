@@ -83,7 +83,7 @@ struct nameservice_chan
 
 
 static void liveness_checker(void* name){
-	debug_printf("Liveness checker: %s\n",name);
+	// debug_printf("Liveness checker: %s\n",name);
 	errval_t err = aos_rpc_call(get_ns_rpc(),NS_LIVENESS_CHECK,(const char*) name);
 	if(err_is_fail(err)){
 		DEBUG_ERR(err,"Failed to send liveness check");
@@ -429,13 +429,17 @@ errval_t nameservice_lookup_with_prop(const char *name,char * properties, namese
 	if(err_is_fail(err)){
 		DEBUG_ERR(err,"Failed to serialize query\n");
 	}
-	err = aos_rpc_call(get_ns_rpc(),NS_LOOKUP_PROP,query_with_prop,&core_id,&direct,&success);
-	ON_ERR_RETURN(err);
+	// char * server_name = malloc(SERVER_NAME_SIZE);
+	char server_name[SERVER_NAME_SIZE];
+	err = aos_rpc_call(get_ns_rpc(),NS_LOOKUP_PROP,query_with_prop,&core_id,&direct,&success,server_name);
+	// char * re_server_name = realloc(server_name,strlen(server_name));
+	debug_printf("Server name: %s\n",server_name);
+
 	if(!success){
 		return LIB_ERR_NAMESERVICE_UNKNOWN_NAME;
 	}
 
-	err = nameservice_create_nshan(name,direct,core_id,nschan);
+	err = nameservice_create_nshan(server_name,direct,core_id,nschan);
 	ON_ERR_RETURN(err);
 	return SYS_ERR_OK;
 

@@ -137,7 +137,7 @@ static void initialize_interfaces(void)
     aos_rpc_initialize_binding(&name_server_interface,"server lookup",NS_NAME_LOOKUP,1, 3, AOS_RPC_VARSTR,AOS_RPC_WORD,AOS_RPC_WORD,AOS_RPC_WORD);
 
 
-    aos_rpc_initialize_binding(&name_server_interface,"server lookup with prop",NS_LOOKUP_PROP,1, 3, AOS_RPC_VARSTR,AOS_RPC_WORD,AOS_RPC_WORD,AOS_RPC_WORD);
+    aos_rpc_initialize_binding(&name_server_interface,"server lookup with prop",NS_LOOKUP_PROP,1, 4, AOS_RPC_VARSTR,AOS_RPC_WORD,AOS_RPC_WORD,AOS_RPC_WORD,AOS_RPC_VARSTR);
 
     aos_rpc_initialize_binding(&name_server_interface,"server prop request", NS_GET_SERVER_PROPS,1,1,AOS_RPC_VARSTR,AOS_RPC_VARSTR);
 

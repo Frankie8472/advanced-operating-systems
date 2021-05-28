@@ -48,7 +48,8 @@ void handle_server_lookup(struct aos_rpc *rpc, char *name,uintptr_t* core_id,uin
     }
 }
 
-void handle_server_lookup_with_prop(struct aos_rpc *rpc, char *query,uintptr_t* core_id,uintptr_t *direct,uintptr_t * success){
+void handle_server_lookup_with_prop(struct aos_rpc *rpc, char *query,uintptr_t* core_id,uintptr_t *direct,uintptr_t * success, char * response_name){
+    debug_printf("Handling lookup with props!\n");
     errval_t err;
     char * keys[N_PROPERTIES];
     char * values[N_PROPERTIES];
@@ -71,7 +72,11 @@ void handle_server_lookup_with_prop(struct aos_rpc *rpc, char *query,uintptr_t* 
     }
     *direct = server -> direct;
     *core_id = server -> core_id;
+    char buffer[SERVER_NAME_SIZE];
+    strcpy(buffer,server->name);
+    response_name = buffer;
     *success = 1;
+    debug_printf("%s\n",response_name);
 
 
 }
