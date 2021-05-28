@@ -28,9 +28,9 @@ struct server_list {
 
 errval_t add_server(struct server_list* new_server);
 errval_t find_server_by_name(char * name, struct server_list ** ret_serv);
+errval_t find_server_by_name_and_property(const char * name, char*  keys[],char*  values[],size_t prop_size,struct server_list ** ret_serv);
 void find_servers_by_prefix(const char* name, char* response, size_t * resp_size);
-bool verify_name(const char* name); // TODO 
-
+bool property_match(struct server_list* server, char *  keys[],char* values[], size_t prop_size);
 void remove_server(struct server_list* del_server);
 void print_server_list(void);
 bool prefix_match(char* name, char* server_name);

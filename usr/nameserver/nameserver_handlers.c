@@ -27,6 +27,7 @@ void initialize_nameservice_handlers(struct aos_rpc *ns_rpc){
     aos_rpc_register_handler(ns_rpc,NS_DEREG_SERVER,&handle_dereg_server);
     aos_rpc_register_handler(ns_rpc,NS_ENUM_SERVERS,&handle_enum_servers);
     aos_rpc_register_handler(ns_rpc,NS_NAME_LOOKUP,&handle_server_lookup);
+    aos_rpc_register_handler(ns_rpc,NS_LOOKUP_PROP,&handle_server_lookup_with_prop);
     aos_rpc_register_handler(ns_rpc,NS_GET_SERVER_PROPS,&handle_get_props);
     aos_rpc_register_handler(ns_rpc,NS_LIVENESS_CHECK,&handle_liveness_check);
     aos_rpc_register_handler(ns_rpc,NS_REG_SERVER,&handle_reg_server);
@@ -45,6 +46,34 @@ void handle_server_lookup(struct aos_rpc *rpc, char *name,uintptr_t* core_id,uin
         *direct  = server -> direct;
         *success = 1;
     }
+}
+
+void handle_server_lookup_with_prop(struct aos_rpc *rpc, char *query,uintptr_t* core_id,uintptr_t *direct,uintptr_t * success){
+    errval_t err;
+    char * keys[N_PROPERTIES];
+    char * values[N_PROPERTIES];
+    char * name;
+    size_t prop_size;
+    err = deserialize_prop(query,keys,values,&name,&prop_size);
+    if(err_is_fail(err)){
+        DEBUG_ERR(err,"Failed to deserialize sever request\n");
+        *success = 0;
+        return;
+    }
+
+
+    struct server_list* server;
+    err = find_server_by_name_and_property(name,keys,values,prop_size,&server);
+    if(err_is_fail(err)){
+        DEBUG_ERR(err,"Failed to find server with matching query: %s\n",query);
+        *success = 0;
+        return;
+    }
+    *direct = server -> direct;
+    *core_id = server -> core_id;
+    *success = 1;
+
+
 }
 
 void handle_reg_server(struct aos_rpc * rpc, uintptr_t pid, uintptr_t core_id ,const char* server_data, uintptr_t direct,  char * return_message){

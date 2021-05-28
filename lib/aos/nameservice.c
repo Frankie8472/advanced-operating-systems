@@ -23,17 +23,55 @@
 static void *get_opaque_server_rpc_handlers[OS_IFACE_N_FUNCTIONS];
 // * server_table = create_hashtable();
 
-
-
-
-
 struct srv_entry {
+	struct srv_entry* next;
 	const char *name;
 	nameservice_receive_handler_t *recv_handler;
 	void *st;
 	struct periodic_event liveness_checker;
 	struct aos_rpc main_handler;
 };
+
+
+static struct srv_entry* server_entries;
+
+static void add_server(struct srv_entry* srv_entry){
+	struct srv_entry* curr = server_entries; 
+	if(curr == NULL){
+		server_entries = srv_entry;
+	}
+	else{
+		for(;curr -> next != NULL; curr = curr -> next){}
+		curr -> next = srv_entry;
+	}
+}
+
+static void remove_server(const char *name){
+	struct srv_entry* curr = server_entries;  
+	errval_t err;
+	if(!strcmp(curr -> name, name)){
+		server_entries = curr -> next;
+		err = periodic_event_cancel(&curr -> liveness_checker);
+		if(err_is_fail(err)){
+			DEBUG_ERR(err,"Failed to cancel liveness checker!\n");
+		}
+		free(curr);
+	}
+	else{
+		for(;curr -> next != NULL;curr = curr -> next){
+			if((!strcmp(curr -> next -> name, name))){
+				struct srv_entry* temp = curr -> next;
+				curr -> next = temp -> next;
+				err = periodic_event_cancel(&temp -> liveness_checker);
+				if(err_is_fail(err)){
+					DEBUG_ERR(err,"Failed to cancel liveness checker!\n");
+				}
+				free(temp);
+			}
+		}
+	}
+}
+
 
 
 
@@ -45,7 +83,7 @@ struct nameservice_chan
 
 
 static void liveness_checker(void* name){
-	// debug_printf("Liveness checker: %s\n",name);
+	debug_printf("Liveness checker: %s\n",name);
 	errval_t err = aos_rpc_call(get_ns_rpc(),NS_LIVENESS_CHECK,(const char*) name);
 	if(err_is_fail(err)){
 		DEBUG_ERR(err,"Failed to send liveness check");
@@ -218,7 +256,7 @@ errval_t nameservice_register_properties(const char * name,nameservice_receive_h
 	}
 
 	new_srv_entry -> main_handler.serv_entry = (void*) new_srv_entry;
-
+	add_server(new_srv_entry);
 	return SYS_ERR_OK;
 }
 
@@ -325,6 +363,7 @@ errval_t nameservice_deregister(const char *name)
 		DEBUG_ERR(err,"Failed to call dereg server!\n");
 	}
 	if(success){
+		remove_server(name);
 		return SYS_ERR_OK;
 	}
 	else {
@@ -353,6 +392,58 @@ errval_t nameservice_lookup(const char *name, nameservice_chan_t *nschan)
 		return LIB_ERR_NAMESERVICE_UNKNOWN_NAME;
 	}
 
+	err = nameservice_create_nshan(name,direct,core_id,nschan);
+	ON_ERR_RETURN(err);
+	return SYS_ERR_OK;
+
+}
+
+
+/**
+ * @brief creates a channel to the a server with the same prefix as name and has 	all the properites in properties
+ *
+ * @param name  name to lookup
+
+ * @param properties propert
+
+ * @param chan  pointer to the chan representation to send messages to the service
+ *
+ * @return  SYS_ERR_OK on success, errval on failure
+ */
+
+
+errval_t nameservice_lookup_with_prop(const char *name,char * properties, nameservice_chan_t *nschan)
+{
+	errval_t err;
+	uintptr_t success;
+	uintptr_t direct;
+	coreid_t core_id;
+	if(!query_check(name)){
+		return LIB_ERR_NAMESERVICE_INV_QUERY;
+	}
+	if(!property_check(properties)){
+		return LIB_ERR_NAMESERVICE_INVALID_PROPERTY_FORMAT;
+	}
+	char* query_with_prop;
+	err = serialize(name,properties,&query_with_prop);
+	if(err_is_fail(err)){
+		DEBUG_ERR(err,"Failed to serialize query\n");
+	}
+	err = aos_rpc_call(get_ns_rpc(),NS_LOOKUP_PROP,query_with_prop,&core_id,&direct,&success);
+	ON_ERR_RETURN(err);
+	if(!success){
+		return LIB_ERR_NAMESERVICE_UNKNOWN_NAME;
+	}
+
+	err = nameservice_create_nshan(name,direct,core_id,nschan);
+	ON_ERR_RETURN(err);
+	return SYS_ERR_OK;
+
+}
+
+
+errval_t nameservice_create_nshan(const char *name,bool direct , coreid_t core_id, nameservice_chan_t * nschan){
+	errval_t err;
 	struct server_connection* serv_con = (struct server_connection*) malloc(sizeof(struct server_connection));
 	const char * con_name = (const char *) malloc(sizeof(strlen(name) + 1));
 	strcpy((char*)con_name,(char*)name);  

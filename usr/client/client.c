@@ -38,7 +38,8 @@ int main(int argc, char *argv[])
 
     /* look up service using name server */
     nameservice_chan_t chan;
-    err = nameservice_lookup(SERVICE_NAME, &chan);
+    // err = nameservice_lookup(SERVICE_NAME, &chan);
+    err = nameservice_lookup_with_prop("/","type=ethernet",&chan);
     if(err_is_fail(err)){
         DEBUG_ERR(err,"Failed to lookup service!\n");
     }

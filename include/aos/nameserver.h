@@ -97,6 +97,22 @@ errval_t nameservice_deregister(const char *name);
 errval_t nameservice_lookup(const char *name, nameservice_chan_t *chan);
 
 
+
+/**
+ * @brief creates a channel to the a server with the same prefix as name and has 	all the properites in properties
+ *
+ * @param name  name to lookup
+
+ * @param properties propert
+
+ * @param chan  pointer to the chan representation to send messages to the service
+ *
+ * @return  SYS_ERR_OK on success, errval on failure
+ */
+
+
+errval_t nameservice_lookup_with_prop(const char *name,char * properties, nameservice_chan_t *nschan);
+
 /**
  * @brief enumerates all entries that match an query (prefix match)
  * 
@@ -118,6 +134,7 @@ errval_t nameservice_get_props(const char* name, char ** response);
 void nameservice_reveice_handler_wrapper(struct aos_rpc * rpc,char*  message,struct capref tx_cap, char * response, struct capref* rx_cap);
 void namservice_receive_handler_wrapper_direct(struct aos_rpc *rpc, struct aos_rpc_varbytes  message,struct aos_rpc_varbytes * response);
 void nameservice_binding_request_handler(struct aos_rpc *rpc,uintptr_t remote_core_id, struct capref remote_cap, struct capref* local_cap);
+errval_t nameservice_create_nshan(const char *name,bool direct , coreid_t core_id, nameservice_chan_t * nschan);
 
 errval_t create_ump_server_ep(struct capref* server_ep,struct aos_rpc** ret_rpc,bool first_half);
 errval_t create_lmp_server_ep(struct capref* server_ep, struct aos_rpc** ret_rpc);
