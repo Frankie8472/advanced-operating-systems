@@ -103,7 +103,7 @@ errval_t nameservice_rpc(nameservice_chan_t chan, void *message, size_t bytes,
 		}
 		ON_ERR_RETURN(err);
 		*response_bytes = strlen(*response);
-
+		*rx_cap = response_cap;
 		// debug_printf("Response: %s\n",(char*) *response);
 
 	}
