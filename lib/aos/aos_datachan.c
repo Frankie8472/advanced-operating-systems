@@ -364,6 +364,9 @@ errval_t aos_dc_can_receive(struct aos_datachan *dc)
     if (aos_dc_bytes_available(&dc->buffer) > 0) {
         return true;
     }
+    if (aos_dc_is_closed(dc)) {
+        return false;
+    }
     else if (dc->backend == AOS_RPC_LMP) {
         return lmp_chan_can_recv(&dc->channel.lmp);
     }
@@ -418,7 +421,7 @@ errval_t aos_dc_receive_all(struct aos_datachan *dc, size_t bytes, char *data)
 errval_t aos_dc_register(struct aos_datachan *dc, struct waitset *ws, struct event_closure closure)
 {
     if (dc->backend == AOS_RPC_LMP) {
-        return lmp_endpoint_register(dc->channel.lmp.endpoint, ws, closure);
+        return lmp_chan_register_recv(&dc->channel.lmp, ws, closure);
     }
     else if (dc->backend == AOS_RPC_UMP) {
         return ump_chan_register_recv(&dc->channel.ump, ws, closure);
@@ -429,7 +432,7 @@ errval_t aos_dc_register(struct aos_datachan *dc, struct waitset *ws, struct eve
 errval_t aos_dc_deregister(struct aos_datachan *dc)
 {
     if (dc->backend == AOS_RPC_LMP) {
-        return lmp_endpoint_deregister(dc->channel.lmp.endpoint);
+        return lmp_chan_deregister_recv(&dc->channel.lmp);
     }
     else if (dc->backend == AOS_RPC_UMP) {
         return ump_chan_deregister_recv(&dc->channel.ump);

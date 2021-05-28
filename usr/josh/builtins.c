@@ -1,5 +1,6 @@
 #include "builtins.h"
 #include "format.h"
+#include "variables.h"
 
 #include <aos/nameserver.h>
 #include <aos/aos_rpc.h>
@@ -7,18 +8,21 @@
 struct builtin
 {
     const char *cmd;
-    int(*handler)(struct josh_command *line);
+    int(*handler)(size_t argc, const char **argv, struct aos_datachan *out);
 };
 
-
-int handle_echo(struct josh_command *line);
-int handle_env(struct josh_command *line);
-int handle_pmlist(struct josh_command *line);
-int handle_nslist(struct josh_command *line);
+int handle_echo(size_t argc, const char **argv, struct aos_datachan *out);
+int handle_clear(size_t argc, const char **argv, struct aos_datachan *out);
+int handle_env(size_t argc, const char **argv, struct aos_datachan *out);
+int handle_time(size_t argc, const char **argv, struct aos_datachan *out);
+int handle_pmlist(size_t argc, const char **argv, struct aos_datachan *out);
+int handle_nslist(size_t argc, const char **argv, struct aos_datachan *out);
 
 const struct builtin builtins[] = {
     { "echo", &handle_echo },
+    { "clear", &handle_clear },
     { "env", &handle_env },
+    { "time", &handle_time },
     { "pmlist", &handle_pmlist },
     { "nslist", &handle_nslist}
 };
@@ -35,32 +39,39 @@ int is_builtin(const char* cmd)
 }
 
 
-int run_builtin(struct josh_command *line)
+int run_builtin(const char *cmd, size_t argc, const char **argv, struct aos_datachan *out)
 {
     for (size_t i = 0; i < sizeof(builtins) / sizeof(builtins[0]); i++) {
-        if (strcmp(line->cmd, builtins[i].cmd) == 0) {
-            return builtins[i].handler(line);
+        if (strcmp(cmd, builtins[i].cmd) == 0) {
+            return builtins[i].handler(argc, argv, out);
         }
     }
     return 1;
 }
 
 
-int handle_echo(struct josh_command *line)
+int handle_echo(size_t argc, const char **argv, struct aos_datachan *out)
 {
-    for (size_t i = 0; i < line->args.length; i++) {
-        char **arg = array_list_at(&line->args, i);
-        printf("%s", *arg);
-        if (i < line->args.length - 1) {
-            printf(" ");
+    for (size_t i = 0; i < argc; i++) {
+        const char *arg = argv[i];
+        aos_dc_send(out, strlen(arg), arg);
+        if (i < argc - 1) {
+            aos_dc_send(out, 1, " ");
         }
     }
-    printf("\n ");
+    return 0;
+}
+
+
+int handle_clear(size_t argc, const char **argv, struct aos_datachan *out)
+{
+    const char code[] = "\033[H\033[2J\033[3J";
+    aos_dc_send(out, sizeof code - 1, code);
     return 0;
 }
 
 extern char **environ;
-int handle_env(struct josh_command *line)
+int handle_env(size_t argc, const char **argv, struct aos_datachan *out)
 {
     for (char **ev = environ; *ev != NULL; ev++) {
         for (char *var = *ev; *var != '\0'; var++) {
@@ -78,8 +89,13 @@ int handle_env(struct josh_command *line)
 }
 
 
+int handle_time(size_t argc, const char **argv, struct aos_datachan *out)
+{
+    return 0;
+}
 
-int handle_pmlist(struct josh_command *line)
+
+int handle_pmlist(size_t argc, const char **argv, struct aos_datachan *out)
 {
     errval_t err;
     size_t pid_count;
@@ -109,7 +125,7 @@ int handle_pmlist(struct josh_command *line)
 }
 
 
-int handle_nslist(struct josh_command *line){
+int handle_nslist(size_t argc, const char **argv, struct aos_datachan *out){
     // nslist "/hello/" "type=ethernet,speed="
     errval_t err;
     // char * ret_string[2000]; // MAX AMOUNT OF SERVERS

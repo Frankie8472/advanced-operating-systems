@@ -27,5 +27,10 @@
 ";"                             return SEMICOLON;
 "@"                             return AT_SIGN;
 "="                             return EQUALS;
-([^ \t\n;@#\"=])+              { yylval.string = strdup(yytext); return STRING; }
+"$"                             return DOLLAR;
+"|"                             return PIPE;
+">"                             return GREATER_THAN;
+"<"                             return LESS_THAN;
+"var"                           return VAR;
+([^ \t\n;@#\"=$\|<>])+          { yylval.string = strdup(yytext); return STRING; }
 %%
