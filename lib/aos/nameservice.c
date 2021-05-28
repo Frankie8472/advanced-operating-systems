@@ -32,6 +32,7 @@ struct srv_entry {
 	nameservice_receive_handler_t *recv_handler;
 	void *st;
 	struct periodic_event liveness_checker;
+	struct aos_rpc main_handler;
 };
 
 
@@ -182,6 +183,12 @@ errval_t nameservice_register_properties(const char * name,nameservice_receive_h
 	char* server_data;
 	err = serialize(name,properties,&server_data);
 	ON_ERR_RETURN(err);
+	char buf[512];
+	err = aos_rpc_call(get_ns_rpc(),NS_REG_SERVER,disp_get_domain_id(),disp_get_core_id(),server_data,direct,buf);
+	if(err_is_fail(err) || strlen(buf) >= 1){
+		debug_printf("%s\n",buf);
+		return err;
+	}
 	struct srv_entry* new_srv_entry = (struct srv_entry *) malloc(sizeof(struct srv_entry));
 	new_srv_entry -> name = name;
 	new_srv_entry -> recv_handler = recv_handler;
@@ -189,27 +196,28 @@ errval_t nameservice_register_properties(const char * name,nameservice_receive_h
 
 	periodic_event_create(&new_srv_entry -> liveness_checker,get_default_waitset(),NS_LIVENESS_INTERVAL,MKCLOSURE(liveness_checker,(void*) new_srv_entry -> name));
 
-	struct aos_rpc *new_rpc;
+	// struct aos_rpc *new_rpc;
 	struct capref server_ep;
 
 
-	err = create_lmp_server_ep(&server_ep,&new_rpc);
+	err = create_lmp_server_ep_with_struct_aos_rpc(&server_ep,&new_srv_entry -> main_handler);
 	
 	ON_ERR_RETURN(err);
 
 
-	char buf[512];
-	err = aos_rpc_call(get_init_rpc(),INIT_REG_SERVER,disp_get_domain_id(),disp_get_core_id(),server_data,direct,buf);
-	ON_ERR_RETURN(err);
+
 
 	
-	err = establish_init_server_con(name,new_rpc,server_ep);
-	ON_ERR_RETURN(err);
-	// if(err_is_fail(err)){
-	// 	DEBUG_ERR(err,"Failed to init server connection with rpc server\n");
-	// }
+	err = establish_init_server_con(name,&new_srv_entry -> main_handler,server_ep);
+	// ON_ERR_RETURN(err);
+	if(err_is_fail(err)){
+		nameservice_deregister(name);
+		free(new_srv_entry);
+		// free(new_rpc);
+		DEBUG_ERR(err,"Failed to init server connection with rpc server\n");
+	}
 
-	new_rpc -> serv_entry = (void*) new_srv_entry;
+	new_srv_entry -> main_handler.serv_entry = (void*) new_srv_entry;
 
 	return SYS_ERR_OK;
 }
@@ -255,6 +263,28 @@ errval_t create_lmp_server_ep(struct capref* server_ep, struct aos_rpc** ret_rpc
 
 
 	*ret_rpc = new_rpc;
+	return SYS_ERR_OK;
+}
+
+
+errval_t create_lmp_server_ep_with_struct_aos_rpc(struct capref* server_ep, struct aos_rpc* new_rpc){
+	errval_t err;
+	err = slot_alloc(server_ep);
+	ON_ERR_RETURN(err);
+	// struct aos_rpc* new_rpc = (struct aos_rpc*) malloc(sizeof(struct aos_rpc));
+	// new_rpc -> lmp_server_mode  = true; // NOTE: unsure?
+	struct lmp_endpoint * lmp_ep;
+	err = endpoint_create(256,server_ep,&lmp_ep);
+	ON_ERR_RETURN(err);
+	err = aos_rpc_init_lmp(new_rpc,*server_ep,NULL_CAP,lmp_ep, get_default_waitset());
+	ON_ERR_RETURN(err);
+
+	err = aos_rpc_set_interface(new_rpc,get_opaque_server_interface(),OS_IFACE_N_FUNCTIONS,get_opaque_server_rpc_handlers);
+	init_server_handlers(new_rpc);
+
+
+
+	// *ret_rpc = new_rpc;
 	return SYS_ERR_OK;
 }
 

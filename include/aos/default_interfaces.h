@@ -20,7 +20,6 @@ enum {
     INIT_IFACE_SPAWN_EXTENDED,      ///< same as spawn but with more 
     INIT_NAMESERVER_ON,
     INIT_REG_NAMESERVER,
-    INIT_REG_SERVER,
     INIT_CLIENT_CALL,
     INIT_CLIENT_CALL1,
     INIT_CLIENT_CALL2,

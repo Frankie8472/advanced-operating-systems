@@ -127,7 +127,7 @@ errval_t get_properties_size(char * properties,size_t * size);
 errval_t establish_init_server_con(const char* name,struct aos_rpc* server_rpc, struct capref local_cap);
 errval_t nameservice_lookup_query(const char * name,const char * query, nameservice_chan_t *nschan);
 void init_server_handlers(struct aos_rpc* server_rpc);
-
+errval_t create_lmp_server_ep_with_struct_aos_rpc(struct capref* server_ep, struct aos_rpc* new_rpc);
 bool name_check(const char*name);
 bool property_check(const char * properties);
 bool query_check(const char*query);

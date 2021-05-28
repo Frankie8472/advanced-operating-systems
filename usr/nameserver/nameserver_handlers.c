@@ -14,7 +14,6 @@ void *name_server_rpc_handlers[NS_IFACE_N_FUNCTIONS];
 
 void initialize_ns_handlers(struct aos_rpc * init_rpc){
     aos_rpc_register_handler(init_rpc,INIT_REG_NAMESERVER,&handle_reg_proc);
-    aos_rpc_register_handler(init_rpc,INIT_REG_SERVER,&handle_server_request);
     
 }
 
@@ -30,6 +29,7 @@ void initialize_nameservice_handlers(struct aos_rpc *ns_rpc){
     aos_rpc_register_handler(ns_rpc,NS_NAME_LOOKUP,&handle_server_lookup);
     aos_rpc_register_handler(ns_rpc,NS_GET_SERVER_PROPS,&handle_get_props);
     aos_rpc_register_handler(ns_rpc,NS_LIVENESS_CHECK,&handle_liveness_check);
+    aos_rpc_register_handler(ns_rpc,NS_REG_SERVER,&handle_reg_server);
 }
 
 void handle_server_lookup(struct aos_rpc *rpc, char *name,uintptr_t* core_id,uintptr_t *direct,uintptr_t * success){
@@ -47,7 +47,7 @@ void handle_server_lookup(struct aos_rpc *rpc, char *name,uintptr_t* core_id,uin
     }
 }
 
-void handle_server_request(struct aos_rpc * rpc, uintptr_t pid, uintptr_t core_id ,const char* server_data, uintptr_t direct, const char * return_message){
+void handle_reg_server(struct aos_rpc * rpc, uintptr_t pid, uintptr_t core_id ,const char* server_data, uintptr_t direct,  char * return_message){
     errval_t err;
 
     struct server_list * new_server = (struct server_list * ) malloc(sizeof(struct server_list));
@@ -74,9 +74,11 @@ void handle_server_request(struct aos_rpc * rpc, uintptr_t pid, uintptr_t core_i
 
     err = add_server(new_server);
     if(err_is_fail(err)){
+        return_message = "Non-unique name!\n";
         DEBUG_ERR(err,"Failed to add new server!\n");
     }
 
+    *return_message = '\0';
     print_server_list();
 }
 

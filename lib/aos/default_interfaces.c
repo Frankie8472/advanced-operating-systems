@@ -53,7 +53,7 @@ static void initialize_interfaces(void)
 
     aos_rpc_initialize_binding(&init_interface, "reg_prc", INIT_REG_NAMESERVER, 4, 1, AOS_RPC_WORD, AOS_RPC_VARSTR,AOS_RPC_CAPABILITY,AOS_RPC_WORD,AOS_RPC_CAPABILITY);
     
-    aos_rpc_initialize_binding(&init_interface, "reg_server", INIT_REG_SERVER, 4, 1,AOS_RPC_WORD,AOS_RPC_WORD, AOS_RPC_VARSTR,AOS_RPC_WORD, AOS_RPC_VARSTR);
+
 
 
 
@@ -139,6 +139,8 @@ static void initialize_interfaces(void)
     aos_rpc_initialize_binding(&name_server_interface,"server prop request", NS_GET_SERVER_PROPS,1,1,AOS_RPC_VARSTR,AOS_RPC_VARSTR);
 
     aos_rpc_initialize_binding(&name_server_interface,"Server liveness check", NS_LIVENESS_CHECK,1,0,AOS_RPC_VARSTR);
+
+    aos_rpc_initialize_binding(&name_server_interface,"Register server", NS_REG_SERVER, 4, 1,AOS_RPC_WORD,AOS_RPC_WORD, AOS_RPC_VARSTR,AOS_RPC_WORD, AOS_RPC_VARSTR);
 
 
 
