@@ -34,7 +34,7 @@ int main(int argc, char *argv[])
     debug_printf("Client\n");
 
 
-  
+    
 
     /* look up service using name server */
     nameservice_chan_t chan;
@@ -68,9 +68,15 @@ int main(int argc, char *argv[])
     // char * name;
     // err = aos_rpc_process_get_name(aos_rpc_get_process_channel(),1,&name);
 
-
-
-
+    // char buffer[512];
+    // err = aos_rpc_call(get_ns_rpc(),NS_GET_SERVER_PROPS,SERVICE_NAME,buffer);
+    debug_printf("Properties :");
+    char* props;
+    err = nameservice_get_props(SERVICE_NAME,&props);
+    if(err_is_fail(err)){
+        DEBUG_ERR(err,"Failed to get props!\n");
+    }
+    debug_printf("%s",props);
     //   domainid_t * pids;
     // size_t pid_size;
     // err = aos_rpc_process_get_all_pids(aos_rpc_get_process_channel(),&pids,&pid_size);

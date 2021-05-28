@@ -512,13 +512,7 @@ void handle_server_request(struct aos_rpc * rpc, uintptr_t pid, uintptr_t core_i
     }
 }
 
-void handle_name_lookup(struct aos_rpc *rpc, char * name,uintptr_t * core_id,uintptr_t *direct, uintptr_t *success){
-    
-    errval_t err = aos_rpc_call(get_ns_forw_rpc(),INIT_NAME_LOOKUP,name,core_id,direct,success);
-    if(err_is_fail(err)){
-        DEBUG_ERR(err,"Failed to forward server lookup\n");
-    }
-}
+
 
 
 
@@ -789,7 +783,6 @@ errval_t initialize_rpc_handlers(struct aos_rpc *rpc)
     aos_rpc_register_handler(rpc, INIT_NAMESERVER_ON, &handle_ns_on);
     aos_rpc_register_handler(rpc,INIT_REG_NAMESERVER,&handle_forward_ns_reg);
     aos_rpc_register_handler(rpc,INIT_REG_SERVER,&handle_server_request);
-    aos_rpc_register_handler(rpc,INIT_NAME_LOOKUP,&handle_name_lookup);
     aos_rpc_register_handler(rpc,INIT_MULTI_HOP_CON,&handle_multi_hop_init);
     aos_rpc_register_handler(rpc,INIT_CLIENT_CALL,&handle_client_call);
     aos_rpc_register_handler(rpc,INIT_CLIENT_CALL1,&handle_client_call1);

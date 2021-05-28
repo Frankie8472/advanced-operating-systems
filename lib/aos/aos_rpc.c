@@ -516,11 +516,13 @@ static errval_t aos_rpc_call_ump(struct aos_rpc *rpc, enum aos_rpc_msg_type msg_
             size_t len = pull_word_ump(&rpc->channel.ump, response, &ret_offs);
 
             struct aos_rpc_varbytes *ret = (struct aos_rpc_varbytes *) retptrs[i];
+            
             for (size_t j = 0; j < len; j += 8) {
                 uintptr_t word = pull_word_ump(&rpc->channel.ump, response, &ret_offs);
                 int word_len = min(sizeof(uintptr_t), len - j);
                 memcpy(ret + j, &word, word_len);
             }
+            // debug_printf("Here!!!!!!!!: %c,%c\n",(char * )ret -> bytes);
         }
         break;
         default:

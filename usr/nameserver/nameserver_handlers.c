@@ -15,7 +15,6 @@ void *name_server_rpc_handlers[NS_IFACE_N_FUNCTIONS];
 void initialize_ns_handlers(struct aos_rpc * init_rpc){
     aos_rpc_register_handler(init_rpc,INIT_REG_NAMESERVER,&handle_reg_proc);
     aos_rpc_register_handler(init_rpc,INIT_REG_SERVER,&handle_server_request);
-    aos_rpc_register_handler(init_rpc,INIT_NAME_LOOKUP,&handle_server_lookup);
     
 }
 
@@ -28,6 +27,8 @@ void initialize_nameservice_handlers(struct aos_rpc *ns_rpc){
 
     aos_rpc_register_handler(ns_rpc,NS_DEREG_SERVER,&handle_dereg_server);
     aos_rpc_register_handler(ns_rpc,NS_ENUM_SERVERS,&handle_enum_servers);
+    aos_rpc_register_handler(ns_rpc,NS_NAME_LOOKUP,&handle_server_lookup);
+    aos_rpc_register_handler(ns_rpc,NS_GET_SERVER_PROPS,&handle_get_props);
 }
 
 void handle_server_lookup(struct aos_rpc *rpc, char *name,uintptr_t* core_id,uintptr_t *direct,uintptr_t * success){
@@ -53,7 +54,8 @@ void handle_server_request(struct aos_rpc * rpc, uintptr_t pid, uintptr_t core_i
 
     // serve
     char* serv_name = (char *) malloc(SERVER_NAME_SIZE * sizeof(char));
-    err  = deserialize_prop(server_data,new_server -> key,new_server -> value,(char**) &serv_name);
+    // debug_printf("Got here!\n");
+    err  = deserialize_prop(server_data,new_server -> key,new_server -> value,(char**) &serv_name,&new_server -> n_properties);
     if(err_is_fail(err)){
         DEBUG_ERR(err,"Failed to deserialize sever request\n");
     }
@@ -75,7 +77,7 @@ void handle_server_request(struct aos_rpc * rpc, uintptr_t pid, uintptr_t core_i
     new_server -> pid = pid; 
     new_server -> core_id = core_id;
     new_server -> direct = direct;
-
+    new_server -> marked = false;
     free(serv_name);
 
     // err = slot_alloc(&new_server -> end_point);
@@ -141,3 +143,22 @@ void handle_enum_servers(struct aos_rpc *rpc,const char* name, char * response, 
 
 
 
+void handle_get_props(struct aos_rpc *rpc,const char* name, char * response){
+    debug_printf("here!\n");
+    struct server_list *server;
+    errval_t err = find_server_by_name((char*) name,&server);
+    if(err_is_fail(err)){
+        DEBUG_ERR(err,"Failed to find server\n");
+        *response = '\0';
+        return;
+    }
+    for(size_t i = 0; i < server -> n_properties;++i){
+        strcat(response,server -> key[i]);
+        strcat(response,"=");
+        strcat(response,server -> value[i]);
+        if(i != server -> n_properties - 1){
+            strcat(response,",");
+        }
+    }
+    
+}

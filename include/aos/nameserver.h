@@ -12,9 +12,9 @@
 
 
 
-#define PROPERTY_MAX_SIZE 512
+#define PROPERTY_MAX_SIZE 128
 #define SERVER_NAME_SIZE 128
-
+#define N_PROPERTIES 64
 
 
 
@@ -108,15 +108,22 @@ errval_t nameservice_lookup(const char *name, nameservice_chan_t *chan);
 errval_t nameservice_enumerate(char *query, size_t *num, char **result );
 
 
+/**
+ * @brief get properties of a server, caller is responseible for free pointer
+ * 
+ * @param name     servername
+ * @param reponse	pointer to pointer, which will be filled in with single 					string of properties
+ */
+errval_t nameservice_get_props(const char* name, char ** response);
 
 void nameservice_reveice_handler_wrapper(struct aos_rpc * rpc,char*  message,struct capref tx_cap, char * response, struct capref* rx_cap);
-void namservice_receive_handler_wrapper_direct(struct aos_rpc *rpc, char* message,char * response);
+void namservice_receive_handler_wrapper_direct(struct aos_rpc *rpc, struct aos_rpc_varbytes  message,struct aos_rpc_varbytes * response);
 void nameservice_binding_request_handler(struct aos_rpc *rpc,uintptr_t remote_core_id, struct capref remote_cap, struct capref* local_cap);
 
 errval_t create_ump_server_ep(struct capref* server_ep,struct aos_rpc** ret_rpc,bool first_half);
 errval_t create_lmp_server_ep(struct capref* server_ep, struct aos_rpc** ret_rpc);
 errval_t serialize(const char * name, const char * properties,char** ret_server_data);
-errval_t deserialize_prop(const char * server_data,char *  key[],char *  value[], char**name);
+errval_t deserialize_prop(const char * server_data,char *  key[],char *  value[], char**name,size_t * property_size);
 errval_t get_properties_size(char * properties,size_t * size);
 errval_t establish_init_server_con(const char* name,struct aos_rpc* server_rpc, struct capref local_cap);
 errval_t nameservice_lookup_query(const char * name,const char * query, nameservice_chan_t *nschan);

@@ -74,15 +74,26 @@ errval_t nameservice_rpc(nameservice_chan_t chan, void *message, size_t bytes,
 
 
 
-		debug_printf("%p\n",serv_con -> rpc);
-		err = aos_rpc_call(serv_con -> rpc,OS_IFACE_DIRECT_MESSAGE,message,(char *)*response);
+		// debug_printf("%p\n",serv_con -> rpc);
+		struct aos_rpc_varbytes resp_varbytes;
+		struct aos_rpc_varbytes msg_varbytes;
+		msg_varbytes.length = bytes;
+		msg_varbytes.bytes = (char* ) message;
+		// memcpy(*&msg_varbytes.bytes,message,bytes);
+
+		err = aos_rpc_call(serv_con -> rpc,OS_IFACE_DIRECT_MESSAGE,msg_varbytes,&resp_varbytes);
 		debug_printf("Finished calling\n");
 		ON_ERR_RETURN(err);
-		*response_bytes = strlen(*response);
+		*response_bytes = resp_varbytes.length;
+		*response = (void * ) malloc(resp_varbytes.length);
+		debug_printf("Accessing : %lx,%lx\n",*response,resp_varbytes.bytes);
+		debug_printf("Here %c\n",(char*)resp_varbytes.bytes);
+		// memcpy(*response,resp_varbytes.bytes,resp_varbytes.length);
+		// memcpy(*repsponse,resp_varbytes.bytes,resp_varbytes)
 		return SYS_ERR_OK;
 	}else{
 		
-		
+		debug_printf("Here\n");
 		struct capref response_cap;
 		slot_alloc(&response_cap);
 		char * payload = (char * ) malloc(bytes + strlen(serv_con -> name) + 2);
@@ -90,8 +101,8 @@ errval_t nameservice_rpc(nameservice_chan_t chan, void *message, size_t bytes,
 		strcat(payload,"?");
 		strcat(payload,(char * ) message);
 		// debug_printf("Client call with core: %d message: %s\n",serv_con -> core_id,message );
-
 		if(capref_is_null(rx_cap) && capref_is_null(tx_cap)){ //no ret no senc cap
+			// debug_printf("Here : %lx\n",response);
 			err = aos_rpc_call(serv_con -> rpc,INIT_CLIENT_CALL2,serv_con -> core_id,payload,(char *) *response);
 		}else if(capref_is_null(rx_cap)){ // no ret cap
 			err = aos_rpc_call(serv_con -> rpc,INIT_CLIENT_CALL1,serv_con -> core_id,payload,tx_cap,(char *) *response);
@@ -101,9 +112,10 @@ errval_t nameservice_rpc(nameservice_chan_t chan, void *message, size_t bytes,
 		}else{
 			err = aos_rpc_call(serv_con -> rpc,INIT_CLIENT_CALL,serv_con -> core_id,payload,tx_cap,(char *) *response,&response_cap);
 		}
+		
 		ON_ERR_RETURN(err);
 		*response_bytes = strlen(*response);
-		*rx_cap = response_cap;
+		rx_cap = response_cap;
 		// debug_printf("Response: %s\n",(char*) *response);
 
 	}
@@ -290,7 +302,7 @@ errval_t nameservice_lookup(const char *name, nameservice_chan_t *nschan)
 	uintptr_t success;
 	uintptr_t direct;
 	coreid_t core_id;
-	err = aos_rpc_call(get_init_rpc(),INIT_NAME_LOOKUP,name,&core_id,&direct,&success);
+	err = aos_rpc_call(get_ns_rpc(),NS_NAME_LOOKUP,name,&core_id,&direct,&success);
 	ON_ERR_RETURN(err);
 	if(!success){
 		return LIB_ERR_NAMESERVICE_UNKNOWN_NAME;
@@ -396,13 +408,15 @@ void nameservice_reveice_handler_wrapper(struct aos_rpc * rpc,char*  message,str
 }
 
 
-void namservice_receive_handler_wrapper_direct(struct aos_rpc *rpc, char* message,char * response){
+void namservice_receive_handler_wrapper_direct(struct aos_rpc *rpc, struct aos_rpc_varbytes message,struct aos_rpc_varbytes * response){
 	debug_printf("Got direct message!\n");
+	// struct aos_rpc_varbytes response;
 	struct srv_entry * se = (struct srv_entry *) rpc -> serv_entry;
-	size_t response_bytes;
-	char * response_buffer = (char * ) malloc(1024); //TODO make varstrlarger
-	se -> recv_handler(se -> st,(void *) message,strlen(message),(void*)&response_buffer,&response_bytes,NULL_CAP,NULL);
-	strcpy(response,response_buffer);
+	// size_t response_bytes;
+	// char * response_buffer = (char * ) malloc(1024); //TODO make varstrlarger
+	se -> recv_handler(se -> st,(void *) message.bytes,message.length,(void*)&response -> bytes,&response -> length,NULL_CAP,NULL);
+	debug_printf("%s,%d\n",response -> bytes,response -> length);
+	// strcpy(response,response_buffer);
 }
 
 void nameservice_binding_request_handler(struct aos_rpc *rpc,uintptr_t remote_core_id, struct capref remote_cap, struct capref* local_cap){
@@ -512,7 +526,7 @@ errval_t serialize(const char * name, const char * properties,char** ret_server_
 }
 
 
-errval_t deserialize_prop(const char * server_data,char *  key[],char *  value[], char**name){
+errval_t deserialize_prop(const char * server_data,char *  key[],char *  value[], char**name,size_t * property_size){
 	
 	size_t map_index = 0;
 	size_t key_index = 0;
@@ -520,7 +534,8 @@ errval_t deserialize_prop(const char * server_data,char *  key[],char *  value[]
 	bool is_key = true;
 	bool is_name = false;
 	size_t name_index = 0;
-
+	// *property_size = 0;
+	size_t count_props = 0;
 	char * extract_name = (char * ) malloc(PROPERTY_MAX_SIZE);
 	while(*server_data != ','){
 		if(*server_data == '='){
@@ -548,6 +563,9 @@ errval_t deserialize_prop(const char * server_data,char *  key[],char *  value[]
 	while(true){
 		
 		if(is_key){
+			if(key_index >= PROPERTY_MAX_SIZE){
+				goto end_fail;
+			}
 			if(*server_data == '='){
 				*(key_res + (key_index++))= '\0';
 				// key[map_index] = (char*) realloc(key_res,key_index);
@@ -562,14 +580,19 @@ errval_t deserialize_prop(const char * server_data,char *  key[],char *  value[]
 				*(key_res + (key_index++))= *server_data++;
 			}
 		}else{
+			if(value_index >= PROPERTY_MAX_SIZE){
+				goto end_fail;
+			}
 			if(*server_data == ',' || *server_data == '\0'){
 				*(value_res + (value_index++)) = '\0';
+	
 				// key[map_index++] = (char*) realloc(value_res,value_index);
+				count_props++;
 				value[map_index++] = value_res;
 				value_res = malloc(PROPERTY_MAX_SIZE);
 				value_index = 0;
 				is_key=true;
-				if(*server_data == '\0'){return SYS_ERR_OK;}
+				if(*server_data == '\0'){goto end;}
 				server_data++;
 			}else{
 				// debug_printf("%c\n",*server_data);
@@ -578,11 +601,21 @@ errval_t deserialize_prop(const char * server_data,char *  key[],char *  value[]
 			}
 		}
 	}
-
-	// free(key_res);
-	// free(value_res);
-
+	free(key_res);
+	free(value_res);
 	return SYS_ERR_OK;
+
+end:
+	free(key_res);
+	free(value_res);
+	*property_size = count_props;
+	// debug_printf("Got here\n");
+	
+	return SYS_ERR_OK;
+end_fail:
+	free(key_res);
+	free(value_res);
+	return LIB_ERR_NAMESERVICE_INVALID_PROPERTY_FORMAT;
 }
 
 
@@ -593,6 +626,16 @@ void init_server_handlers(struct aos_rpc* server_rpc){
 }
 
 
+
+errval_t nameservice_get_props(const char* name, char ** response){
+	errval_t err;
+	// debug_printf("jere\n");
+	char *response_buf = (char *) malloc (PROPERTY_MAX_SIZE * N_PROPERTIES);
+	err = aos_rpc_call(get_ns_rpc(),NS_GET_SERVER_PROPS,name,*response_buf);
+	ON_ERR_RETURN(err);
+	*response = realloc(response_buf,strlen(response_buf));
+	return SYS_ERR_OK;
+}
 
 
 

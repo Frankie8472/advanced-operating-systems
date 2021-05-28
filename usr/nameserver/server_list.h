@@ -17,8 +17,10 @@ struct server_list {
     domainid_t pid;
     coreid_t core_id;
     bool direct;
-    char * key[64];
-    char * value[64];
+    char * key[N_PROPERTIES];
+    char * value[N_PROPERTIES];
+    size_t n_properties;
+    bool marked;
 
 };
 
@@ -32,5 +34,5 @@ bool verify_name(const char* name); // TODO
 void remove_server(struct server_list* del_server);
 void print_server_list(void);
 bool prefix_match(char* name, char* server_name);
-
+void free_server(struct server_list* server);
 #endif
