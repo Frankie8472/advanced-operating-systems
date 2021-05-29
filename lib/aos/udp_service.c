@@ -157,11 +157,15 @@ errval_t aos_socket_teardown(struct aos_socket *sockref) {
  */
 void aos_arp_table_get(char *rtptr) {
     errval_t err;
-    struct udp_service_message *usm = malloc(sizeof(struct udp_service_message));
-    usm->type = ARP_TBL;
 
     nameservice_chan_t _nschan;
     err = nameservice_lookup(ENET_SERVICE_NAME, &_nschan);
+    if(err_is_fail(err)) {
+        rtptr[0] = 0;
+    }
+
+    struct udp_service_message *usm = malloc(sizeof(struct udp_service_message));
+    usm->type = ARP_TBL;
 
     void *response = (void *) rtptr;
     size_t response_butes;
@@ -188,6 +192,9 @@ errval_t aos_ping_send(struct aos_ping_socket *s) {
 
     usm->type = ICMP_PING_SEND;
     usm->ip = s->ip;
+    usm->port = -1;
+    usm->len = -1;
+    usm->tgt_port = -1;
 
     void *response = erref;
     size_t response_betes;
@@ -198,7 +205,7 @@ errval_t aos_ping_send(struct aos_ping_socket *s) {
     free(usm);
     err = err_is_fail(err) ? err : *erref;
     free(erref);
-    return LIB_ERR_NOT_IMPLEMENTED;
+    return err;
 }
 
 uint16_t aos_ping_recv(struct aos_ping_socket *s) {

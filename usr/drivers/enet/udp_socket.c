@@ -420,7 +420,8 @@ struct aos_icmp_socket *create_ping_socket(struct enet_driver_state *st, uint32_
     nu->id_mask = 0xf11f;  // arbitrary default
     nu->seq_sent = 0;
     nu->seq_rcv = 0;
-    nu->next = NULL;
+    nu->next = st->pings;
+    st->pings = nu;
     return nu;
 }
 

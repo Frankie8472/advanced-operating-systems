@@ -139,8 +139,10 @@ static void ping_send_handler_ns(struct enet_driver_state *st, uint32_t ip,
                                  void **response, size_t *response_bytes) {
     struct aos_icmp_socket *is = get_ping_socket(st, ip);
     if (is == NULL) {
+        debug_printf("hee\n");
         create_ping_socket(st, ip);
     }
+    debug_printf("ip is %d\n", ip);
 
     err = ping_socket_send_next(st, ip);
     *response = &err;
