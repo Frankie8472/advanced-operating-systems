@@ -21,4 +21,5 @@ module /armv8/sbin/cat
 module /armv8/sbin/xxd
 module /armv8/sbin/echoserver
 module /armv8/sbin/arp
+module /armv8/sbin/ping
 # newlines are important here
