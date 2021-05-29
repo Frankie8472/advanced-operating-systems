@@ -34,10 +34,8 @@ int main(int argc, char **argv) {
             continue;
         }
 
-        printf("RECEIVED A MESSAGE!!!! %d\n", in->ip);
+        printf("received message:\n%s", in->data);
         aos_socket_send_to(&sock, in->data, in->len, in->ip, in->f_port);
-
-        break;
     }
 
     aos_socket_teardown(&sock);

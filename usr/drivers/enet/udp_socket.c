@@ -191,7 +191,7 @@ errval_t arp_request(struct enet_driver_state *st, uint32_t ip_to) {
     char *ra2 = (char *) raddr;
     memset(ra2 + 6, 0, 6);  // leave dest-mac empty -> dk
     ((struct eth_hdr *) ra2)->type = htons(ETH_TYPE_ARP);
-    char *tmp = ra2;
+    char *tmp = ra2 + 6;
 
     // write arp-header for request
     struct arp_hdr *ahr = (struct arp_hdr *) (ra2 + ETH_HLEN);
@@ -300,6 +300,7 @@ errval_t udp_socket_send(struct enet_driver_state *st, uint16_t port,
     // copy payload
     UDP_DEBUG("writing payload\n");
     memcpy((char *) muh + UDP_HLEN, data, len);
+    repl.valid_length = eth_tot_len;
 
     dmb();
 
@@ -531,6 +532,14 @@ errval_t ping_socket_send_next(struct enet_driver_state *st, uint32_t ip) {
 
     memcpy((void *) ((char *) mieh) + ICMP_HLEN, icmp_payload,
            icmp_plen);
+    mieh->chksum = (inet_checksum((char *) mieh, icmp_plen + ICMP_HLEN));
+
+    repl.valid_length = ETH_HLEN + IP_HLEN + ICMP_HLEN + icmp_plen;
+
+    dmb();
+
+    ICMP_DEBUG("=========== SENDING REQUEST\n");
+    enqueue_buf(st->send_qstate, &repl);
 
     return err;
 }
