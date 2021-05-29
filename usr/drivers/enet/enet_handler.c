@@ -335,6 +335,26 @@ static errval_t icmp_echo_handle(
     return err;
 }
 
+static errval_t icmp_er_handle(
+    struct enet_queue* q, struct devq_buf* buf,
+    struct icmp_echo_hdr *h, struct enet_driver_state* st,
+    lvaddr_t original_header) {
+    struct ip_hdr *ih = (struct ip_hdr *) ((char *) original_header + ETH_HLEN);
+    uint32_t cor_ip = ntohl(ih->src);
+
+    struct aos_icmp_socket *is = get_ping_socket(st, cor_ip);
+    if (is == NULL) {
+        return SYS_ERR_OK;
+    }
+
+    // NOTE: checksum check not yet implemented
+    if (ntohs(h->seqno) == is->seq_sent) {
+        is->seq_rcv = is->seq_sent;
+    }
+
+    return SYS_ERR_OK;
+}
+
 static errval_t handle_ICMP(struct enet_queue* q, struct devq_buf* buf,
                             struct icmp_echo_hdr *h, struct enet_driver_state* st,
                             lvaddr_t original_header) {
@@ -344,6 +364,8 @@ static errval_t handle_ICMP(struct enet_queue* q, struct devq_buf* buf,
     case ICMP_ECHO:
         ICMP_DEBUG("handling ICMP Echo request\n");
         return icmp_echo_handle(q, buf, h, st, original_header);
+    case ICMP_ER:
+        return icmp_er_handle(q, buf, h, st, original_header);
     default:
         ICMP_DEBUG("unaccounted ICMP type %d\n", ICMPH_TYPE(h));
         return LIB_ERR_NOT_IMPLEMENTED;
@@ -431,6 +453,22 @@ static errval_t handle_UDP(struct enet_queue* q, struct devq_buf* buf,
         UDP_DEBUG("no listening socket found on port %d\n", d_p);
         return err;
     }
+
+    debug_printf(
+        "~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~\n"
+        "~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~\n"
+        "~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~\n"
+        "~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~\n"
+        "~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~\n"
+        "~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~\n"
+        "~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~\n"
+        "~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~\n"
+        "~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~\n"
+        "~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~\n"
+        "~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~\n"
+        "~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~\n"
+        "~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~\n"
+        );
 
     struct ip_hdr *iihh = (struct ip_hdr*) ((char *) original_header + ETH_HLEN);
     char *payload = (char *) h + UDP_HLEN;

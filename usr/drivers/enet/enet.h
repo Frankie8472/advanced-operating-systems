@@ -118,6 +118,15 @@ struct aos_udp_socket {
     struct aos_udp_socket* next;
 };
 
+struct aos_icmp_socket {
+    uint32_t ip;
+    uint16_t id_mask;  // for sending: id = seqno ^ mask
+    uint16_t seq_sent;
+    uint16_t seq_rcv;
+
+    struct aos_icmp_socket *next;
+};
+
 struct enet_driver_state {
     struct bfdriver_instance *bfi;
     struct capref regs;
@@ -138,6 +147,7 @@ struct enet_driver_state {
     struct enet_qstate* send_qstate;  // regionman for send-queue
 
     struct aos_udp_socket *sockets;  // TODO: hash-set
+    struct aos_icmp_socket *pings;
 };
 
 // ETH handler functions
@@ -170,6 +180,11 @@ errval_t udp_socket_send(struct enet_driver_state *st, uint16_t port,
 errval_t udp_socket_send_to(struct enet_driver_state *st, uint16_t port,
                             void *data, uint16_t len, uint32_t ip_to,
                             uint16_t port_to);
+struct aos_icmp_socket *get_ping_socket(struct enet_driver_state *st, uint32_t ip);
+struct aos_icmp_socket *create_ping_socket(struct enet_driver_state *st, uint32_t ip);
+errval_t ping_socket_teardown(struct enet_driver_state *st, uint32_t ip);
+errval_t ping_socket_send_next(struct enet_driver_state *st, uint32_t ip);
+uint16_t ping_socket_get_acked(struct enet_driver_state *st, uint32_t ip);
 
 // service handler
 void name_server_initialize(struct enet_driver_state *st);

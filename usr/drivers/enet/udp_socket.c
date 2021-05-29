@@ -23,6 +23,10 @@
 #include "enet_handler.h"
 #include "enet.h"
 
+// for icmp-packets
+static char* icmp_payload = "Thro’ the ghoul-guarded gateways of slumber";
+static const int icmp_plen = 44;
+
 // NOTE: defined in other thingy too but nis
 static struct region_entry* get_region(struct enet_queue* q, regionid_t rid)
 {
@@ -241,7 +245,7 @@ errval_t udp_socket_send(struct enet_driver_state *st, uint16_t port,
         return ENET_ERR_NO_SOCKET;
     }
 
-    // get packet
+    // get packeT
     struct devq_buf repl;
     err = get_free_buf(st->send_qstate, &repl);
     if (err_is_fail(err)) {
@@ -386,4 +390,157 @@ errval_t udp_socket_send_to(struct enet_driver_state *st, uint16_t port,
     err = enqueue_buf(st->send_qstate, &repl);
 
     return err;
+}
+
+/**
+ * \brief retrieve reference to ping socket pinging the provided ip address
+ * \return reference to a ping socket, or NULL if none could be found
+ */
+struct aos_icmp_socket *get_ping_socket(struct enet_driver_state *st, uint32_t ip) {
+    for (struct aos_icmp_socket *i = st->pings;
+         i; i = i->next) {
+        if (i->ip == ip) {
+            return i;
+        }
+    }
+    return NULL;
+}
+
+/**
+ * \brief create a new icmp-socket for the provided ip address.
+ * \return reference to the created socket, or NULL if it couldn't be created
+ */
+struct aos_icmp_socket *create_ping_socket(struct enet_driver_state *st, uint32_t ip) {
+    if (get_ping_socket(st, ip)) {
+        return NULL;
+    }
+
+    struct aos_icmp_socket *nu = malloc(sizeof(struct aos_icmp_socket));
+    nu->ip = ip;
+    nu->id_mask = 0xf11f;  // arbitrary default
+    nu->seq_sent = 0;
+    nu->seq_rcv = 0;
+    nu->next = NULL;
+    return nu;
+}
+
+/**
+ * \brief tear down the ping socket for the provided ip address
+ */
+errval_t ping_socket_teardown(struct enet_driver_state *st, uint32_t ip) {
+    struct aos_icmp_socket *prev = st->pings;
+
+    // is the socket in question first?
+    if (prev && prev->ip == ip) {
+        st->pings = prev->next;
+        free(prev);
+        return SYS_ERR_OK;
+    }
+
+    for (; prev; prev = prev->next) {
+        if (prev->next && prev->next->ip == ip) {
+            break;
+        }
+    }
+
+    if (prev) {
+        // previous socket found
+        struct aos_icmp_socket *to_kill = prev->next;
+        prev->next = to_kill->next;
+        free(to_kill);
+    }
+    return SYS_ERR_OK;
+}
+
+/**
+ * \brief send the next icmp-packet from the socket on the provided port
+ * if all sent packets have been acked, it sends the next higher one
+ * otherwise, it resends the current one
+ */
+errval_t ping_socket_send_next(struct enet_driver_state *st, uint32_t ip) {
+    // retrieve icmp-socket
+    errval_t err = SYS_ERR_OK;
+    struct aos_icmp_socket *is = get_ping_socket(st, ip);
+    if (is == NULL) {
+        return ENET_ERR_NO_SOCKET;
+    }
+
+    // check if arp known
+    uint64_t *mac_tgt = collections_hash_find(st->inv_table, ip);
+    if (mac_tgt == NULL) {
+        ICMP_DEBUG("unknown ping-destination %d\n", ip);
+        err = arp_request(st, ip);
+        return err_is_fail(err) ? err : ENET_ERR_ARP_UNKNOWN;
+    }
+
+    uint16_t seqno;
+    if (is->seq_sent == is->seq_rcv) {
+        seqno = ++is->seq_sent;
+    } else {
+        seqno = is->seq_sent;
+    }
+
+    uint16_t pkid = seqno ^ is->id_mask;
+
+    // get packet
+    struct devq_buf repl;
+    err = get_free_buf(st->send_qstate, &repl);
+    if (err_is_fail(err)) {
+        UDP_DEBUG("un4ble 2 get free buffer\n");
+        return err;
+    }
+
+    struct region_entry *entry = get_region(st->txq, repl.rid);
+    lvaddr_t maddr = (lvaddr_t) entry->mem.vbase + repl.offset + repl.valid_data;
+    struct eth_hdr *meh = (struct eth_hdr *) maddr;
+
+    // write ETH header
+    ICMP_DEBUG("writing ETH header\n");
+    u64_to_eth_addr(*mac_tgt, &meh->dst);
+    uint8_t* macref = (uint8_t *) &(st->mac);
+    for (int i = 0; i < 6; i++) {
+        meh->src.addr[i] = macref[5 - i];
+    }
+    meh->type = htons(ETH_TYPE_IP);
+
+    // write IP header
+    ICMP_DEBUG("writing IP header\n");
+    struct ip_hdr *mih = (struct ip_hdr *) ((char *) meh + ETH_HLEN);
+    IPH_VHL_SET(mih, 4, 5);
+    mih->tos = 0;  // ?
+    mih->len = htons(IP_HLEN + ICMP_HLEN + icmp_plen);
+    mih->id = htons(pkid);
+    mih->offset = 0;
+    mih->ttl = 64;
+    mih->proto = IP_PROTO_ICMP;
+    mih->src = htonl(STATIC_ENET_IP);
+    mih->dest = htonl(ip);
+    mih->chksum = 0;
+    mih->chksum = inet_checksum(mih, IP_HLEN);
+
+    // write ICMP header
+    ICMP_DEBUG("writing ICMP header\n");
+    struct icmp_echo_hdr *mieh = (struct icmp_echo_hdr *) ((char *) mih + IP_HLEN);
+    mieh->type = ICMP_ECHO;
+    mieh->code = 0;  // ?
+    mieh->chksum = 0;
+    mieh->id = htons(pkid);
+    mieh->seqno = htons(seqno);
+
+    memcpy((void *) ((char *) mieh) + ICMP_HLEN, icmp_payload,
+           icmp_plen);
+
+    return err;
+}
+
+/**
+ * \brief get the highest acked packet for the given ip's ping-socket
+ */
+uint16_t ping_socket_get_acked(struct enet_driver_state *st, uint32_t ip) {
+    struct aos_icmp_socket *is = get_ping_socket(st, ip);
+    if (is == NULL) {
+        return 0;
+    }
+
+    return is->seq_rcv;
 }

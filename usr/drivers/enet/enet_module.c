@@ -552,6 +552,7 @@ static errval_t enet_init(struct enet_driver_state* st)
     }
 
     st->sockets = NULL;
+    st->pings = NULL;
 
     return err;
 }

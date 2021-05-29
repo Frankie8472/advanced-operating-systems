@@ -25,7 +25,7 @@
 #include "enet_handler.h"
 #include "enet.h"
 
-// #define HANDLER_DEBUG_OPTION 1
+#define HANDLER_DEBUG_OPTION 1
 
 #if defined(HANDLER_DEBUG_OPTION)
 #define HAN_DEBUG(x...) debug_printf("[handler] " x);
@@ -40,6 +40,8 @@
 
 static struct udp_msg *repl_msg;
 static char arp_tbl[2048];
+static errval_t err;
+__unused static uint16_t ping_seq;
 
 static void udp_receive_handler_ns(struct enet_driver_state* st,
                                    struct udp_service_message *msg,
@@ -51,25 +53,27 @@ static void udp_receive_handler_ns(struct enet_driver_state* st,
         *response_bytes = 0;
         return;
     }
-        HAN_DEBUG(
-            "*******************************************\n"
-            "*******************************************\n"
-            "*******************************************\n"
-            "*******************************************\n"
-            "*******************************************\n"
-            "*******************************************\n"
-            "*******************************************\n"
-            "*******************************************\n"
-            "*******************************************\n"
-            "*******************************************\n"
-            "*******************************************\n"
-            "*******************************************\n"
-            "*******************************************\n"
-            "*******************************************\n"
-            "*******************************************\n"
-            "*******************************************\n"
-            "*******************************************\n"
-            );
+    HAN_DEBUG(
+        "*******************************************\n"
+        "*******************************************\n"
+        "*******************************************\n"
+        "*******************************************\n"
+        "*******************************************\n"
+        "*******************************************\n"
+        "*******************************************\n"
+        "*******************************************\n"
+        "*******************************************\n"
+        "*******************************************\n"
+        "*******************************************\n"
+        "*******************************************\n"
+        "*******************************************\n"
+        "*******************************************\n"
+        "*******************************************\n"
+        "*******************************************\n"
+        "*******************************************\n"
+        );
+
+    while (1);
 
     size_t mln = sizeof(struct udp_msg) + ure->len * sizeof(char);
     struct udp_msg *rm = repl_msg;
@@ -131,13 +135,31 @@ static void arp_tbl_handler_ns(struct enet_driver_state* st,
     *response_bytes = ri;
 }
 
+static void ping_send_handler_ns(struct enet_driver_state *st, uint32_t ip,
+                                 void **response, size_t *response_bytes) {
+    struct aos_icmp_socket *is = get_ping_socket(st, ip);
+    if (is == NULL) {
+        create_ping_socket(st, ip);
+    }
+
+    err = ping_socket_send_next(st, ip);
+    *response = &err;
+    *response_bytes = sizeof(errval_t);
+}
+
+static void ping_recv_handler_ns(struct enet_driver_state *st, uint32_t ip,
+                                 void **response, size_t *response_bytes) {
+    ping_seq = ping_socket_get_acked(st, ip);
+    *response = &ping_seq;
+    *response_bytes = sizeof(uint16_t);
+}
+
 static void server_recv_handler(void *stptr, void *message,
                                 size_t bytes,
                                 void **response, size_t *response_bytes,
                                 struct capref rx_cap, struct capref *tx_cap)
 {
     HAN_DEBUG("enet-nameserver-handler-called-debug-print-statement-reached-message\n");
-    static errval_t err;
     struct enet_driver_state *st = (struct enet_driver_state *) stptr;
     struct udp_service_message *msg = (struct udp_service_message *) message;
     struct aos_udp_socket *sock;
@@ -198,12 +220,18 @@ static void server_recv_handler(void *stptr, void *message,
         arp_tbl_handler_ns(st, msg, response, response_bytes,
                                  sock);
         break;
+    case ICMP_PING_SEND:
+        ping_send_handler_ns(st, msg->ip, response, response_bytes);
+        break;
+    case ICMP_PING_RECV:
+        ping_recv_handler_ns(st, msg->ip, response, response_bytes);
+        break;
     }
 }
 
 void name_server_initialize(struct enet_driver_state *st) {
-    errval_t err;
-    err = nameservice_register_properties(ENET_SERVICE_NAME, server_recv_handler, (void *) st, true,
+    errval_t err2;
+    err2 = nameservice_register_properties(ENET_SERVICE_NAME, server_recv_handler, (void *) st, true,
                                           "type=ethernet,mac=TODO,bugs=0xffff");
     PANIC_IF_FAIL(err, "failed to register...\n");
 
