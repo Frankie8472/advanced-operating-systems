@@ -37,7 +37,7 @@ errval_t filesystem_init(void)
     /* TODO: Filesystem project: hook up your init code here */
 
     fatfs_mount_t st = NULL;
-    err = fatfs_mount("/", &st);
+    err = fatfs_mount("/sdcard", &st);
     if (err_is_fail(err)) {
         return err;
     }

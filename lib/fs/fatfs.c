@@ -97,20 +97,6 @@ static errval_t initialize_sdhc_driver(struct sdhc_s **ds)
     return SYS_ERR_OK;
 }
 
-static void pathname_to_fat32name_dot(const char *pathname, char *fat32name)
-{
-    char *str = fat32name;
-    uint32_t limit = strlen(pathname)-1;
-    assert(limit <= 11);
-    for (int i = 0; i < 11; i++) {
-        if (i > limit) {
-            str[i] = 0x20;
-        } else {
-            str[i] = pathname[i];
-        }
-    }
-}
-
 static void pathname_to_fat32name(const char *pathname, char *fat32name)
 {
     char *str = fat32name;
@@ -181,6 +167,23 @@ static errval_t initialize_fat32_partition(struct sdhc_s *ds, struct fat32_fs *f
     return err;
 }
 
+__unused
+static errval_t set_cluster_zero(struct fatfs_mount *mount, int cluster) {
+    errval_t err;
+
+    for (int i = 0; i < 64; i++) {
+        ((uint64_t *) mount->fs->buf_va)[i] = 0;
+    }
+
+    for (int i = 0; i < mount->fs->bpb.secPerClus; i++) {
+        int sector = mount->fs->data_sector + (cluster - 2) * mount->fs->bpb.secPerClus + i;
+        err = sdhc_write_block(mount->ds, sector, get_phys_addr(mount->fs->buf_cap));
+        ON_ERR_RETURN(err);
+    }
+
+    return SYS_ERR_OK;
+}
+
 //bool isDir(struct fat32_fs *fs, void *addr) {
 
 //}
@@ -233,46 +236,51 @@ static errval_t find_dirent(struct fatfs_mount *mount, struct fatfs_dirent *root
     if (!root->is_dir) {
         return FS_ERR_NOTDIR;
     }
-
     struct fatfs_dirent *d = root;
     struct fatfs_dirent *nd = calloc(1, sizeof(*nd));
     bool long_name = false;
     uint32_t current_cluster = d->content_cluster;
+    debug_printf(">>> FIND ENTRY IN CLUSTER: %d\n", current_cluster);
     uint32_t start_sector;
     while(current_cluster != 0xffffff8 && current_cluster != 0xfffffff) {
         start_sector = mount->fs->data_sector + (current_cluster - 2) * mount->fs->bpb.secPerClus;
+        debug_printf(">>> REACHED1\n");
         for (int i = 0; i < mount->fs->bpb.secPerClus; i++) {
             uint32_t current_sector = start_sector + i;
             err = sdhc_read_block(mount->ds, (int) current_sector, get_phys_addr(mount->fs->buf_cap));
             ON_ERR_RETURN(err);
+            debug_printf(">>> REACHED2\n");
             uint8_t *current = mount->fs->buf_va;
-
             for(int j = 0; j < mount->fs->bpb.bytsPerSec; j += sizeof(struct fatfs_short_dirent)) {
                 uint8_t *new_ptr = current + j;
-
+                debug_printf(">>> REACHED3\n");
                 if (((new_ptr[11] & ATTR_LONG_NAME_MASK) == ATTR_LONG_NAME) && (new_ptr[0] != 0xE5)) {
+                    debug_printf(">>> REACHED LONG\n");
                     long_name = true;
                     struct fatfs_long_dirent dir;
                     memcpy(&dir, new_ptr, sizeof(struct fatfs_short_dirent));
                 }
                 else if (new_ptr[0] == 0xE5)
                 {
+                    debug_printf(">>> REACHED EVICTED\n");
                     // Invalidated file
                 }
                 else if (new_ptr[11] == 0x0)
                 {
                     // Not an entry
+                    debug_printf(">>> REACHED END\n");
                     return FS_ERR_NOTFOUND;
                 }
                 else // Short direntry
                 {
+                    debug_printf(">>> REACHED SHORT\n");
                     struct fatfs_short_dirent dir;
                     memcpy(&dir, new_ptr, sizeof(struct fatfs_short_dirent));
                     char *dirname = dir.name;
                     if (long_name) {
                         long_name = false;
                     }
-                    debug_printf(">> Compare names: %s <> %s || %d\n", name, dirname, memcmp(name, dirname, 11));
+                    debug_printf(">> Compare names: %.11s <> %.11s || %d\n", name, dirname, memcmp(name, dirname, 11));
                     if (memcmp(name, dirname, 11) == 0){
                         nd->name = dir.name;
                         nd->size = dir.fileSize;
@@ -308,6 +316,10 @@ static errval_t resolve_path(struct fatfs_mount *mount, const char *path,
 
     struct fatfs_dirent *root = mount->root;
 
+    if(path[0] == '\0') {
+        //return FS_ERR_NOTDIR;
+    }
+
     // skip leading /
     size_t pos = 0;
     if (path[0] == FS_PATH_SEP) {
@@ -316,6 +328,7 @@ static errval_t resolve_path(struct fatfs_mount *mount, const char *path,
 
     struct fatfs_dirent *next_dirent;
     while (path[pos] != '\0') {
+        debug_printf(">> RESOLVE PATH: %s |\n", path+pos);
         char *nextsep = strchr(&path[pos], FS_PATH_SEP);
         size_t nextlen;
         if (nextsep == NULL) {
@@ -329,16 +342,34 @@ static errval_t resolve_path(struct fatfs_mount *mount, const char *path,
 
         // transcript to fat32 namestyle
         char fat32name[11];
-        pathname_to_fat32name(pathbuf, fat32name);
-
-        debug_printf(">> Before find_dirent: %s\n", fat32name);
-        err = find_dirent(mount, root, fat32name, &next_dirent);
-        debug_printf(">> After find_dirent\n");
-
-        if (err_is_fail(err)) {
-            debug_printf("Error: Directory/File not found\n");
-            return err;
+        if (strcmp(pathbuf, ".\0") == 0) {
+            fat32name[0] = '.';
+            for (int p = 1; p < 11; p++) {
+                fat32name[p] = '0';
+            }
+        } else if (strcmp(pathbuf, "..\0") == 0) {
+            fat32name[0] = '.';
+            fat32name[1] = '.';
+            for (int p = 2; p < 11; p++) {
+                fat32name[p] = '0';
+            }
+        } else {
+            pathname_to_fat32name(pathbuf, fat32name);
         }
+        debug_printf(">> FIND ENTRY: |%.11s| in |%s|\n", fat32name,  root->name);
+
+        if (memcmp(fat32name, root->name, 11) == 0) {
+            next_dirent = root;
+        } else {
+            debug_printf(">> Before find_dirent: %s| in |%s|\n", fat32name, root->name);
+            err = find_dirent(mount, root, fat32name, &next_dirent);
+            debug_printf(">> After find_dirent\n");
+            if (err_is_fail(err)) {
+                debug_printf("Error: Directory/File not found\n");
+                return err;
+            }
+        }
+
 
         if (!next_dirent->is_dir && nextsep != NULL) {
             return FS_ERR_NOTDIR;
@@ -405,7 +436,7 @@ errval_t fatfs_close(void *st, fatfs_handle_t inhandle)
 
 static struct fatfs_dirent *dirent_create(const char *name, bool is_dir)
 {
-    debug_printf(">> CREATING ENTRY\n");
+    debug_printf(">> CREATING ENTRY: %s\n", name);
     struct fatfs_dirent *d = calloc(1, sizeof(*d));
     if (d == NULL) {
         return NULL;
@@ -455,7 +486,6 @@ static errval_t dirent_insert(struct fatfs_mount *mount, struct fatfs_dirent *pa
     }
 
     // Write to sd in folder cluster/sector
-    // TODO: parent is crap
     uint32_t current_cluster = parent->content_cluster;
     uint32_t start_sector;
     debug_printf(">> REACHED while with cluster: %d || %s\n", current_cluster, parent->name);
@@ -477,27 +507,64 @@ static errval_t dirent_insert(struct fatfs_mount *mount, struct fatfs_dirent *pa
                 if (new_ptr[0] == 0xE5 || new_ptr[11] == 0x0)
                 {
                     struct fatfs_short_dirent dir;
-                    strncpy(dir.name, entry->name, 11);
+                    memcpy(dir.name, entry->name, 11);
                     if (entry->is_dir) {
+                        uint32_t content_cluster = 0;
+                        if (memcmp(".          ", entry->name, 11) != 0 && memcmp("..         ", entry->name, 11) != 0) {
+                            // Create FAT entry
+                            // Search free entry
+                            int sec = (int)mount->fs->fat_sector;
+                            while (content_cluster == 0) {
+                                err = sdhc_read_block(mount->ds, sec,
+                                                      get_phys_addr(mount->fs->buf_cap));
+                                ON_ERR_RETURN(err);
+                                for (int k = 0; k < 128; k++) {
+                                    debug_printf(">> FATENTRY: 0x%x\n", ((uint32_t *)mount->fs->buf_va)[k]);
+                                    if (((uint32_t *)mount->fs->buf_va)[k] == 0) {
+                                        content_cluster = k + 128 * (sec - mount->fs->fat_sector);
+                                        ((uint32_t *)mount->fs->buf_va)[k] = -1;
+                                        err = sdhc_write_block( mount->ds, sec, get_phys_addr(mount->fs->buf_cap));
+                                        ON_ERR_RETURN(err);
+                                        break;
+                                    }
+                                }
+                                sec++;
+                            }
+
+                            err = set_cluster_zero(mount, (int)content_cluster);
+                            ON_ERR_RETURN(err);
+
+                            debug_printf(">> FAT ENTRY: %d\n", content_cluster);
+                        } else if (memcmp(".          ", entry->name, 11) == 0) {
+                            content_cluster = parent->content_cluster;
+                        } else {
+                            content_cluster = parent->cluster;
+                        }
                         dir.attr = ATTR_DIRECTORY;
+                        entry->content_cluster = content_cluster;
                     } else {
                         dir.attr = ATTR_ARCHIVE;
+                        entry->content_cluster = 0;
                     }
+                    entry->cluster = current_cluster;
+                    entry->sector = current_sector;
+                    entry->sector_offset = j;
+
                     dir.ntRes = 0;
                     dir.crtTimeTenth = (uint8_t) (systime_to_us(systime_now())/1000);
-                    dir.fstClusLow = 0;
-                    dir.wrtTime = 0;    // TODO: further enhance
-                    dir.wrtDate = 0;    // TODO: further enhance
-                    dir.fstClusHi = 0;
+                    dir.fstClusLow = (uint16_t) (entry->content_cluster & 0x0000FFFF);
+                    dir.wrtTime = 0x514A;    // 10:10:20
+                    dir.wrtDate = 0xEAA9;    // 29-05-2021
+                    dir.fstClusHi = (uint16_t) ((entry->content_cluster >> 16) & 0x0000FFFF);
                     dir.fileSize = 0;
 
-                    memcpy(new_ptr, &dir, sizeof(struct fatfs_short_dirent));
-                    err = sdhc_write_block(mount->ds, (int) current_sector, get_phys_addr(mount->fs->buf_cap));
+                    err = sdhc_read_block(mount->ds, (int) entry->sector, get_phys_addr(mount->fs->buf_cap));
                     ON_ERR_RETURN(err);
 
-                    entry->sector = current_sector;
-                    entry->content_cluster = current_cluster;
-                    entry->sector_offset = j;
+                    memcpy(mount->fs->buf_va + entry->sector_offset, &dir, sizeof(struct fatfs_short_dirent));
+
+                    err = sdhc_write_block(mount->ds, (int) entry->sector, get_phys_addr(mount->fs->buf_cap));
+                    ON_ERR_RETURN(err);
                     exit = true;
                     break;
                 }
@@ -547,7 +614,7 @@ errval_t fatfs_create(void *st, const char *path, fatfs_handle_t *rethandle)
         memcpy(pathbuf, path, pathlen);
         pathbuf[pathlen] = '\0';
 
-        debug_printf("PATHBUF1: %s\n", pathbuf);
+        debug_printf("PATHBUF1: |%s|\n", pathbuf);
         // resolve parent directory
         err = resolve_path(mount, pathbuf, &parent);
         if (err_is_fail(err)) {
@@ -729,80 +796,21 @@ errval_t fatfs_seek(void *st, fatfs_handle_t handle, enum fs_seekpos whence,
     return SYS_ERR_OK;
 }
 
-__unused
-static errval_t set_cluster_zero(void *st, int cluster) {
-    errval_t err;
-    struct fatfs_mount *mount = st;
-
-    for (int i = 0; i < 64; i++) {
-        ((uint64_t *) mount->fs->buf_va)[i] = 0;
-    }
-
-    for (int i = 0; i < mount->fs->bpb.secPerClus; i++) {
-        int sector = mount->fs->data_sector + (cluster - 2) * mount->fs->bpb.secPerClus + i;
-        err = sdhc_write_block(mount->ds, sector, get_phys_addr(mount->fs->buf_cap));
-    }
-
-    return SYS_ERR_OK;
-}
-
-static errval_t fatfs_mkdir_links(void *st, char *path)
+static errval_t fatfs_mkdir_dots(struct fatfs_mount *mount, struct fatfs_dirent *parent, char *folder_name)
 {
-    debug_printf(">> MKDIR LINKS: %s\n", path);
+    debug_printf(">> MKDIR LINKS: |%s|\n", folder_name);
     errval_t err;
 
-    struct fatfs_mount *mount = st;
-
-    err = resolve_path(mount, path, NULL);
-    if (err_is_ok(err)) {
-        return FS_ERR_EXISTS;
-    }
-
-    struct fatfs_handle *parent = NULL;
-    const char *childname;
-
-    // find parent directory
-    char *lastsep = strrchr(path, FS_PATH_SEP);
-    if (lastsep != NULL) {
-        childname = lastsep + 1;
-
-        size_t pathlen = lastsep - path;
-        char pathbuf[pathlen + 1];
-        memcpy(pathbuf, path, pathlen);
-        pathbuf[pathlen] = '\0';
-
-        // resolve parent directory
-        err = resolve_path(mount, pathbuf, &parent);
-        if (err_is_fail(err)) {
-            handle_close(parent);
-            return err;
-        } else if (!parent->isdir) {
-            handle_close(parent);
-            return FS_ERR_NOTDIR; // parent is not a directory
-        }
-    } else {
-        childname = path;
-    }
-
-    // transcript to fat32 namestyle
-    char fat32name[11];
-    pathname_to_fat32name_dot(childname, fat32name);
-    childname = fat32name;
-
-    struct fatfs_dirent *dirent = dirent_create(childname, true);
+    struct fatfs_dirent *dirent = dirent_create(folder_name, true);
     if (dirent == NULL) {
         return LIB_ERR_MALLOC_FAIL;
     }
 
-    if (parent) {
-        dirent_insert(mount, parent->dirent, dirent);
-        handle_close(parent);
-    } else {
-        dirent_insert(mount, mount->root, dirent);
-    }
-
+    err = dirent_insert(mount, parent, dirent);
+    ON_ERR_RETURN(err);
     return SYS_ERR_OK;
 }
+
 
 errval_t fatfs_mkdir(void *st, const char *path)
 {
@@ -810,6 +818,7 @@ errval_t fatfs_mkdir(void *st, const char *path)
     errval_t err;
 
     struct fatfs_mount *mount = st;
+    debug_printf(">> ROOT NAME: %s|\n", mount->root->name);
 
     err = resolve_path(mount, path, NULL);
     if (err_is_ok(err)) {
@@ -864,77 +873,9 @@ errval_t fatfs_mkdir(void *st, const char *path)
         dirent_insert(mount, mount->root, dirent);
     }
 
-    struct fatfs_handle *point = NULL;
-
-    // Create FAT entry
-    // Search free entry
-    int sec = (int) mount->fs->fat_sector;
-    uint32_t content_cluster = 0;
-    while(content_cluster == 0) {
-        err = sdhc_read_block(mount->ds, sec, get_phys_addr(mount->fs->buf_cap));
-        ON_ERR_RETURN(err);
-        for (int i = 0; i < 128; i++) {
-            debug_printf(">> FATENTRY: 0x%x\n", ((uint32_t *)mount->fs->buf_va)[i]);
-            if (((uint32_t *)mount->fs->buf_va)[i] == 0) {
-                content_cluster = i;
-                ((uint32_t *)mount->fs->buf_va)[i] = -1;
-                err = sdhc_write_block(mount->ds, sec, get_phys_addr(mount->fs->buf_cap));
-                ON_ERR_RETURN(err);
-                break;
-            }
-        }
-        sec++;
-    }
-
-    err = set_cluster_zero(st, content_cluster);
-    ON_ERR_RETURN(err);
-
-    dirent->content_cluster = content_cluster;
-
-    // current
-    err = sdhc_read_block(mount->ds, (int) dirent->sector, get_phys_addr(mount->fs->buf_cap));
-    ON_ERR_RETURN(err);
-
-    uint16_t *hi = mount->fs->buf_va+dirent->sector_offset+20;
-    uint16_t *lo = mount->fs->buf_va+dirent->sector_offset+26;
-    *lo = (uint16_t) (dirent->content_cluster & 0x0000FFFF);
-    *hi = (uint16_t) ((dirent->content_cluster >> 16) & 0x0000FFFF);
-
-    err = sdhc_write_block(mount->ds, (int) dirent->sector, get_phys_addr(mount->fs->buf_cap));
-    ON_ERR_RETURN(err);
-
-    // .
-    fatfs_mkdir_links(st, strcat(strdup(path), "/."));
-    err = resolve_path(mount, strcat(strdup(path), "/."), &point);
-    ON_ERR_RETURN(err);
-
-    err = sdhc_read_block(mount->ds, (int) point->dirent->sector, get_phys_addr(mount->fs->buf_cap));
-    ON_ERR_RETURN(err);
-
-    hi = mount->fs->buf_va+point->dirent->sector_offset+20;
-    lo = mount->fs->buf_va+point->dirent->sector_offset+26;
-    *lo = (uint16_t) (dirent->content_cluster & 0x0000FFFF);
-    *hi = (uint16_t) ((dirent->content_cluster >> 16) & 0x0000FFFF);
-
-    err = sdhc_write_block(mount->ds, (int) point->dirent->sector, get_phys_addr(mount->fs->buf_cap));
-    ON_ERR_RETURN(err);
-
-    // ..
-    fatfs_mkdir_links(st, strcat(strdup(path), "/.."));
-    err = resolve_path(mount, strcat(strdup(path), "/.."), &point);
-    ON_ERR_RETURN(err);
-
-    err = sdhc_read_block(mount->ds, (int) point->dirent->sector, get_phys_addr(mount->fs->buf_cap));
-    ON_ERR_RETURN(err);
-
-    hi = mount->fs->buf_va+point->dirent->sector_offset+20;
-    lo = mount->fs->buf_va+point->dirent->sector_offset+26;
-    *lo = (uint16_t) (dirent->cluster & 0x0000FFFF);
-    *hi = (uint16_t) ((dirent->cluster >> 16) & 0x0000FFFF);
-
-    err = sdhc_write_block(mount->ds, (int) point->dirent->sector, get_phys_addr(mount->fs->buf_cap));
-    ON_ERR_RETURN(err);
-
+    // dots
+    fatfs_mkdir_dots(mount, dirent, ".          ");
+    fatfs_mkdir_dots(mount, dirent, "..         ");
     return SYS_ERR_OK;
 }
 
@@ -1195,7 +1136,7 @@ errval_t fatfs_mount(const char *path, fatfs_mount_t *retst)
 {
     /* Setup channel and connect ot service */
     /* TODO: setup channel to init for multiboot files */
-
+    debug_printf(">> MOUNT AT: %s\n", path);
     errval_t err;
 
     // Init driver state
@@ -1236,10 +1177,11 @@ errval_t fatfs_mount(const char *path, fatfs_mount_t *retst)
         free(mount);
         return LIB_ERR_MALLOC_FAIL;
     }
-
+    char fat32name[11];
+    pathname_to_fat32name(path+1, fat32name);
     fatfs_root->size = 0;
     fatfs_root->is_dir = true;
-    fatfs_root->name = "/          ";
+    fatfs_root->name = strdup(fat32name);
     fatfs_root->parent = NULL;
     fatfs_root->cluster = fs->bpb.rootClus;
     fatfs_root->sector_offset = 0;
@@ -1257,7 +1199,7 @@ errval_t fatfs_mount(const char *path, fatfs_mount_t *retst)
     //return SYS_ERR_OK;
 
     debug_printf("==========TESTING==========\n");
-    debug_printf(">>> Print ROOT\n");
+    debug_printf(">>> Print ROOT: %s|\n", mount->root->name);
     debug_printf(">>> RootDirSec: %d\n", fs->rootDir_sector);
     debug_printf(">>> RootClus: %d\n", fs->bpb.rootClus);
     uint8_t *current;

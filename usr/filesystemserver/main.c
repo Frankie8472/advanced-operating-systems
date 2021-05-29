@@ -143,13 +143,19 @@ int main(int argc, char *argv[])
     }
 
     debug_printf(">> OPEN/CREATE FILE\n");
-    FILE* f = fopen("/ASDF.TXT", "wr");
-    char ret[500];
-    fread(ret, 1, 500, f);
+    FILE *f = fopen("/sdcard/ASDF.TXT", "wr");
+    fwrite("HELLO SALADBAR", 14, 1, f);
+    char ret[20];
+    fread(ret, 1, 20, f);
+    debug_printf(">> READ: |%s|\n", ret);
 
     debug_printf(">> OPEN/CREATE FOLDER\n");
-    mkdir("/FOLDER1");
-    test_read_dir("/FOLDER1");
+    mkdir("/sdcard/FOLDER");
+    debug_printf(">> READ FOLDER\n");
+    test_read_dir("/sdcard");
+    test_read_dir("/sdcard/FOLDER");
+    test_read_dir("/sdcard/FOLDER/.");
+    test_read_dir("/sdcard/FOLDER/..");
 
 /*
     debug_printf(">> OPEN FILE\n");
