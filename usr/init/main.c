@@ -324,13 +324,13 @@ static int bsp_main(int argc, char *argv[])
 
     debug_printf("getting stdin from terminal!\n");
 
-    struct capref testep;
-    aos_rpc_call(&term_si->disp_rpc, DISP_IFACE_GET_STDIN, &testep);
+    struct capref terminal_out;
+    aos_rpc_call(&term_si->disp_rpc, DISP_IFACE_GET_STDIN, &terminal_out);
 
     debug_printf("got stdin from terminal!\n");
 
 
-    spawn_new_domain("josh", 0, NULL, &pid, NULL_CAP, testep, NULL_CAP, &josh_si);
+    spawn_new_domain("josh", 0, NULL, &pid, NULL_CAP, terminal_out, NULL_CAP, &josh_si);
 
 
     while (capref_is_null(josh_si->disp_rpc.channel.lmp.remote_cap)) {
@@ -396,7 +396,7 @@ static int bsp_main(int argc, char *argv[])
     // spawn_new_domain("nameservicetest",0,NULL,NULL,NULL_CAP,NULL_CAP,NULL);
 
     // spawn_new_core(my_core_id + 1);
-    spawn_new_domain("server a",0,NULL,NULL,NULL_CAP,NULL_CAP,NULL_CAP,NULL);
+    //spawn_new_domain("server a",0,NULL,NULL,NULL_CAP,NULL_CAP,NULL_CAP,NULL);
     // spawn_new_domain("server b",1,NULL,NULL,NULL_CAP,NULL_CAP,NULL);
     //spawn_new_domain("server a",0,NULL,NULL,NULL_CAP,NULL_CAP,NULL);
     //spawn_new_domain("server b",0,NULL,NULL,NULL_CAP,NULL_CAP,NULL);
