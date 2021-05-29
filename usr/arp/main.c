@@ -2,7 +2,6 @@
 #include <stdint.h>
 
 #include <aos/aos.h>
-#include <aos/nameserver.h>
 #include <aos/udp_service.h>
 
 int main(int argc, char **argv) {
