@@ -66,6 +66,7 @@ static void remove_server(const char *name){
 				if(err_is_fail(err)){
 					DEBUG_ERR(err,"Failed to cancel liveness checker!\n");
 				}
+				
 				free(temp);
 			}
 		}
@@ -122,31 +123,22 @@ errval_t nameservice_rpc(nameservice_chan_t chan, void *message, size_t bytes,
 			return LIB_ERR_NOT_IMPLEMENTED;
 		}
 
-		debug_printf("Calling!\n");
-		
 
-
-
-		// debug_printf("%p\n",serv_con -> rpc);
 		char * response_buffer = (void * ) malloc(MAX_SERVER_MESSAGE_SIZE);
 		struct aos_rpc_varbytes resp_varbytes = {
 			.bytes = response_buffer,
-			.length = 0
+			.length = MAX_SERVER_MESSAGE_SIZE
 		};
 		struct aos_rpc_varbytes msg_varbytes;
 		msg_varbytes.length = bytes;
 		msg_varbytes.bytes = (char* ) message;
-		// memcpy(*&msg_varbytes.bytes,message,bytes);
-
-		err = aos_rpc_call(serv_con -> rpc,OS_IFACE_DIRECT_MESSAGE,msg_varbytes,&resp_varbytes);
-		debug_printf("Finished calling\n");
+		size_t response_size;
+		err = aos_rpc_call(serv_con -> rpc,OS_IFACE_DIRECT_MESSAGE,msg_varbytes,&resp_varbytes,&response_size);
 		ON_ERR_RETURN(err);
-		*response = realloc(response_buffer,resp_varbytes.length);
-		*response_bytes = resp_varbytes.length;
-		debug_printf("Accessing : %lx,%lx\n",*response,resp_varbytes.bytes);
-		debug_printf("Here %c\n",(char*)resp_varbytes.bytes);
-		// memcpy(*response,resp_varbytes.bytes,resp_varbytes.length);
-		// memcpy(*repsponse,resp_varbytes.bytes,resp_varbytes)
+		*response = realloc(response_buffer,response_size);
+		// debug_printf("%s\n",response_buffer);
+		*response_bytes = response_size;
+		resp_varbytes.length = response_size;
 		return SYS_ERR_OK;
 	}else{
 		
@@ -173,7 +165,6 @@ errval_t nameservice_rpc(nameservice_chan_t chan, void *message, size_t bytes,
 		ON_ERR_RETURN(err);
 		*response_bytes = strlen(*response);
 		cap_copy(rx_cap,response_cap);
-		// debug_printf("Response: %s\n",(char*) *response);
 
 	}
 	return SYS_ERR_OK;
@@ -213,7 +204,8 @@ errval_t nameservice_register_properties(const char * name,nameservice_receive_h
 
 
 	errval_t err;
-
+	// char * name_mem = malloc(strlen(name));
+	// strcpy(name_mem,name);
 
 	if(!name_check(name)){
 		return LIB_ERR_NAMESERVICE_INV_SERVER_NAME;
@@ -236,8 +228,10 @@ errval_t nameservice_register_properties(const char * name,nameservice_receive_h
 	new_srv_entry -> name = name;
 	new_srv_entry -> recv_handler = recv_handler;
 	new_srv_entry -> st = st;
+	
 
-	periodic_event_create(&new_srv_entry -> liveness_checker,get_default_waitset(),NS_LIVENESS_INTERVAL,MKCLOSURE(liveness_checker,(void*) new_srv_entry -> name));
+	debug_printf("Creating server iwth name %s\n",new_srv_entry -> name);
+	periodic_event_create(&new_srv_entry -> liveness_checker,get_default_waitset(),NS_LIVENESS_INTERVAL,MKCLOSURE(liveness_checker,(void*) name));
 
 	// struct aos_rpc *new_rpc;
 	struct capref server_ep;
@@ -554,15 +548,11 @@ void nameservice_reveice_handler_wrapper(struct aos_rpc * rpc,char*  message,str
 }
 
 
-void namservice_receive_handler_wrapper_direct(struct aos_rpc *rpc, struct aos_rpc_varbytes message,struct aos_rpc_varbytes * response){
+void namservice_receive_handler_wrapper_direct(struct aos_rpc *rpc, struct aos_rpc_varbytes message,struct aos_rpc_varbytes * response,uintptr_t* response_size){
 	debug_printf("Got direct message!\n");
-	// struct aos_rpc_varbytes response;
 	struct srv_entry * se = (struct srv_entry *) rpc -> serv_entry;
-	// size_t response_bytes;
-	// char * response_buffer = (char * ) malloc(1024); //TODO make varstrlarger
-	se -> recv_handler(se -> st,(void *) message.bytes,message.length,(void*)&response -> bytes,&response -> length,NULL_CAP,NULL);
-	debug_printf("%s,%d\n",response -> bytes,response -> length);
-	// strcpy(response,response_buffer);
+	se -> recv_handler(se -> st,(void *) message.bytes,message.length,(void*)&response -> bytes,response_size,NULL_CAP,NULL);
+	debug_printf("%s,%d\n",response -> bytes,*response_size);
 }
 
 void nameservice_binding_request_handler(struct aos_rpc *rpc,uintptr_t remote_core_id, struct capref remote_cap, struct capref* local_cap){

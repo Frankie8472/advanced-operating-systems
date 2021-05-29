@@ -54,7 +54,10 @@ int main(int argc, char *argv[])
     err = nameservice_rpc(chan, request, request_size,
                           &response, &response_bytes,
                           NULL_CAP, NULL_CAP);
-    PANIC_IF_FAIL(err, "failed to do the nameservice rpc\n");
+    if(err_is_fail(err)){
+        DEBUG_ERR(err,"failed to do the nameservice rpc\n");
+    }
+    // PANIC_IF_FAIL(err, "failed to do the nameservice rpc\n");
 
     debug_printf("got response: %s\n", (char *)response);
 

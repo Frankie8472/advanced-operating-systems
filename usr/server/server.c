@@ -20,7 +20,7 @@
 
 // extern struct aos_rpc fresh_connection;
 static char *myresponse = "reply!!";
-
+static char buffer[512];
 static void server_recv_handler(void *st, void *message,
                                 size_t bytes,
                                 void **response, size_t *response_bytes,
@@ -64,10 +64,10 @@ int main(int argc, char *argv[])
     
     // debug_printf("register with nameservice '%s'\n", SERVICE_NAME);
     // debug_printf("0x%lx\n", get_init_rpc());
-    char buffer[512];
+    
     strcpy(buffer,SERVICE_NAME);
     strcat(buffer,argv[1]);
-    err = nameservice_register_properties(buffer, server_recv_handler,NULL,false,"type=ethernet,mac=1:34:124:1");
+    err = nameservice_register_properties(buffer, server_recv_handler,NULL,true,"type=ethernet,mac=1:34:124:1");
     // err = nameservice_register(buffer, server_recv_handler,NULL);
     PANIC_IF_FAIL(err, "failed to register...\n");
 

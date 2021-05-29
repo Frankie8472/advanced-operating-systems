@@ -188,6 +188,7 @@ void handle_liveness_check(struct aos_rpc *rpc, const char* name){
     err = find_server_by_name((char*)name,&server);
     if(err_is_fail(err)){
         DEBUG_ERR(err,"Failed to find server: %s\n",name);
+        return;
     }
     domainid_t check_pid;
     err = find_process_by_rpc(rpc,&check_pid);
