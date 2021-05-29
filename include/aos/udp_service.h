@@ -1,4 +1,5 @@
 #define ENET_SERVICE_NAME "/ethernet"
+#include <aos/nameserver.h>
 
 enum udp_service_messagetype {
     RECV,
