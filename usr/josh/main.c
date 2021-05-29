@@ -442,6 +442,8 @@ int main(int argc, char **argv)
 
     printf("Welcome to JameOS Shell\n");
 
+    lmp_chan_deregister_recv(&get_ns_rpc()->channel.lmp);
+
     linenoiseHistorySetMaxLen(64);
     linenoiseSetCompletionCallback(&complete_line);
 
