@@ -310,7 +310,6 @@ static void execute_command(struct josh_command *command)
 
     struct capref out_before;
     err = frame_alloc(&out_before, BASE_PAGE_SIZE, NULL);
-    debug_printf("allocced first %d\n", err);
     for (size_t i = 0; i < n_programs; i++) {
         struct capref frame;
         err = frame_alloc(&frame, BASE_PAGE_SIZE, NULL);
