@@ -221,7 +221,6 @@ static errval_t spawn_program(const char *dest, const char *cmd, size_t argc, co
 
     err = call_spawn_request(cmd, destination_core, argc, argv, NULL, prog);
     if (err == SPAWN_ERR_FIND_MODULE) {
-        debug_printf("why?\n");
         if (prog->domainid == COREID_INVALID) {
             printf("spawning failed: invalid destination\n", cmd);
         }
@@ -442,6 +441,8 @@ int main(int argc, char **argv)
     setenv("PATH", "/usr/bin:/home", 0);
 
     printf("Welcome to JameOS Shell\n");
+
+    lmp_chan_deregister_recv(&get_ns_rpc()->channel.lmp);
 
     linenoiseHistorySetMaxLen(64);
     linenoiseSetCompletionCallback(&complete_line);
