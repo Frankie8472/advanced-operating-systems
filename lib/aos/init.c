@@ -54,10 +54,10 @@ void libc_exit(int status)
     if(err_is_fail(err)){
         DEBUG_ERR(err,"Failed to remove self process from nameserver before exiting!\n");
     }
-    //debug_printf("libc exit NYI!\n");
+    debug_printf("libc exit NYI!\n");
 
     // // close stdout
-    err = aos_dc_close(&stdout_chan);
+    // err = aos_dc_close(&stdout_chan);
     // if(err_is_fail(err)){
     //     DEBUG_ERR(err,"Failed to close stdout\n");
     // }
