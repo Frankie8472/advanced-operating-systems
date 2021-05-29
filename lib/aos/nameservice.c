@@ -115,7 +115,15 @@ errval_t nameservice_rpc(nameservice_chan_t chan, void *message, size_t bytes,
 	assert(chan && "Invalid namservice channel!");
 	// debug_printf("here is channel address: 0x%lx\n",chan);
 	struct server_connection *serv_con = (struct server_connection *) chan;
-
+	char * response_buffer = (void * ) malloc(MAX_SERVER_MESSAGE_SIZE);
+	struct aos_rpc_varbytes resp_varbytes = {
+		.bytes = response_buffer,
+		.length = MAX_SERVER_MESSAGE_SIZE
+	};
+	struct aos_rpc_varbytes msg_varbytes;
+	msg_varbytes.length = bytes;
+	msg_varbytes.bytes = (char* ) message;
+	size_t response_size;
 
 	if(serv_con -> direct){
 		if(!capref_is_null(tx_cap) && !capref_is_null(rx_cap)){
@@ -124,49 +132,37 @@ errval_t nameservice_rpc(nameservice_chan_t chan, void *message, size_t bytes,
 		}
 
 
-		char * response_buffer = (void * ) malloc(MAX_SERVER_MESSAGE_SIZE);
-		struct aos_rpc_varbytes resp_varbytes = {
-			.bytes = response_buffer,
-			.length = MAX_SERVER_MESSAGE_SIZE
-		};
-		struct aos_rpc_varbytes msg_varbytes;
-		msg_varbytes.length = bytes;
-		msg_varbytes.bytes = (char* ) message;
-		size_t response_size;
+
 		err = aos_rpc_call(serv_con -> rpc,OS_IFACE_DIRECT_MESSAGE,msg_varbytes,&resp_varbytes,&response_size);
 		ON_ERR_RETURN(err);
-		*response = realloc(response_buffer,response_size);
-		// debug_printf("%s\n",response_buffer);
-		*response_bytes = response_size;
-		resp_varbytes.length = response_size;
-		return SYS_ERR_OK;
+		*response = response_buffer;
+		// *response = realloc(response_buffer,response_size);
+
 	}else{
 		
-		debug_printf("Here\n");
 		struct capref response_cap;
 		slot_alloc(&response_cap);
-		char * payload = (char * ) malloc(bytes + strlen(serv_con -> name) + 2);
-		strcpy(payload,serv_con -> name);
-		strcat(payload,"?");
-		strcat(payload,(char * ) message);
-		// debug_printf("Client call with core: %d message: %s\n",serv_con -> core_id,message );
+
 		if(capref_is_null(rx_cap) && capref_is_null(tx_cap)){ //no ret no senc cap
-			// debug_printf("Here : %lx\n",response);
-			err = aos_rpc_call(serv_con -> rpc,INIT_CLIENT_CALL2,serv_con -> core_id,payload,(char *) *response);
+			err = aos_rpc_call(serv_con -> rpc,INIT_CLIENT_CALL2,serv_con -> core_id,serv_con -> name,msg_varbytes,&resp_varbytes,&response_size);
 		}else if(capref_is_null(rx_cap)){ // no ret cap
-			err = aos_rpc_call(serv_con -> rpc,INIT_CLIENT_CALL1,serv_con -> core_id,payload,tx_cap,(char *) *response);
+			err = aos_rpc_call(serv_con -> rpc,INIT_CLIENT_CALL1,serv_con -> core_id,serv_con -> name,msg_varbytes,tx_cap,&resp_varbytes,&response_size);
 		}
 		else if(capref_is_null(tx_cap)){ //no send cap
-			err = aos_rpc_call(serv_con -> rpc,INIT_CLIENT_CALL3,serv_con -> core_id,payload,(char *) *response,&response_cap);
+			err = aos_rpc_call(serv_con -> rpc,INIT_CLIENT_CALL3,serv_con -> core_id,serv_con -> name,msg_varbytes,&resp_varbytes,&response_cap,&response_size);
 		}else{
-			err = aos_rpc_call(serv_con -> rpc,INIT_CLIENT_CALL,serv_con -> core_id,payload,tx_cap,(char *) *response,&response_cap);
+			err = aos_rpc_call(serv_con -> rpc,INIT_CLIENT_CALL,serv_con -> core_id,serv_con -> name,msg_varbytes,tx_cap,&resp_varbytes,&response_cap,&response_size);
 		}
-		
+		debug_printf("Got here!\n");
 		ON_ERR_RETURN(err);
-		*response_bytes = strlen(*response);
 		cap_copy(rx_cap,response_cap);
+		*response = response_buffer;
+		// *response = realloc(response_buffer,response_size);
 
 	}
+
+	*response_bytes = response_size;
+	resp_varbytes.length = response_size;
 	return SYS_ERR_OK;
 }
 
@@ -429,10 +425,9 @@ errval_t nameservice_lookup_with_prop(const char *name,char * properties, namese
 	if(err_is_fail(err)){
 		DEBUG_ERR(err,"Failed to serialize query\n");
 	}
-	// char * server_name = malloc(SERVER_NAME_SIZE);
+	// debug_printf("query: %s\n",query_with_prop);
 	char server_name[SERVER_NAME_SIZE];
 	err = aos_rpc_call(get_ns_rpc(),NS_LOOKUP_PROP,query_with_prop,&core_id,&direct,&success,server_name);
-	// char * re_server_name = realloc(server_name,strlen(server_name));
 	debug_printf("Server name: %s\n",server_name);
 
 	if(!success){
@@ -449,9 +444,9 @@ errval_t nameservice_lookup_with_prop(const char *name,char * properties, namese
 errval_t nameservice_create_nshan(const char *name,bool direct , coreid_t core_id, nameservice_chan_t * nschan){
 	errval_t err;
 	struct server_connection* serv_con = (struct server_connection*) malloc(sizeof(struct server_connection));
-	const char * con_name = (const char *) malloc(sizeof(strlen(name) + 1));
-	strcpy((char*)con_name,(char*)name);  
-	serv_con -> name = con_name;
+	// const char * con_name = (const char *) malloc(sizeof(strlen(name) + 1));
+	// strcpy((char*)con_name,(char*)name);
+	strcpy(serv_con -> name,name);
 	serv_con -> core_id = core_id;
 	if(direct){
 		serv_con -> direct = true;
@@ -512,10 +507,61 @@ errval_t nameservice_enumerate(char *query, size_t *num, char **result )
 
 	errval_t err;
 	if(!query_check(query)){
+		debug_printf("Here\n");
 		return LIB_ERR_NAMESERVICE_INV_QUERY;
 	}
-	char * response = malloc(1024 * sizeof(char)); 
-	err = aos_rpc_call(get_ns_rpc(),NS_ENUM_SERVERS,query,response,num);
+	char * response_buf = malloc(MAX_RPC_MSG_SIZE * sizeof(char)); 
+	err = aos_rpc_call(get_ns_rpc(),NS_ENUM_SERVERS,query,response_buf,num);
+	char * response = realloc(response_buf,strlen(response_buf));
+	ON_ERR_RETURN(err);
+	size_t res_index = 1;
+	*result = response;
+	while(*response != '\0'){
+
+		if(*response == ','){
+			*response = '\0';
+			response++;
+			result[res_index] = response;
+			res_index++;
+		}
+		response++;
+	}
+	free(response);
+	return SYS_ERR_OK;
+}
+
+
+
+/**
+ * @brief enumerates all entries that match an query (prefix match)
+ * 
+ * @param query     the query, will prefix match this
+ * @param properites all the properties to much this
+ * @param num 		number of entries in the result array
+ * @param result	an array of entries
+ */
+//NOTE: will buffer overflow if buffer pass in result not large enough!
+errval_t nameservice_enumerate_with_props(char *query,char * properties, size_t *num, char **result )
+{	
+
+	errval_t err;
+	if(!query_check(query)){
+		return LIB_ERR_NAMESERVICE_INV_QUERY;
+	}
+
+	if(!property_check(properties)){
+		return LIB_ERR_NAMESERVICE_INVALID_PROPERTY_FORMAT;
+	}
+
+	char* query_with_prop;
+	err = serialize(query,properties,&query_with_prop);
+	if(err_is_fail(err)){
+		DEBUG_ERR(err,"Failed to serialize query\n");
+	}
+	char * response_buf = malloc(MAX_RPC_MSG_SIZE * sizeof(char)); 
+	err = aos_rpc_call(get_ns_rpc(),NS_ENUM_SERVER_PROPS,query_with_prop,num,response_buf);
+	char * response = realloc(response_buf,strlen(response_buf));
+	debug_printf("response: %s\n",response);
 	ON_ERR_RETURN(err);
 	size_t res_index = 1;
 	*result = response;
@@ -534,17 +580,13 @@ errval_t nameservice_enumerate(char *query, size_t *num, char **result )
 
 
 
-void nameservice_reveice_handler_wrapper(struct aos_rpc * rpc,char*  message,struct capref tx_cap, char * response, struct capref* rx_cap){
+
+
+void nameservice_reveice_handler_wrapper(struct aos_rpc * rpc,struct aos_rpc_varbytes message,struct capref tx_cap, struct aos_rpc_varbytes* response, struct capref* rx_cap, uintptr_t* response_size){
 
 	
 	struct srv_entry * se = (struct srv_entry *) rpc -> serv_entry;
-	size_t response_bytes;
-	char * response_buffer = (char * ) malloc(1024); //TODO make varstrlarger
-	se -> recv_handler(se -> st,(void *) message,strlen(message),(void*)&response_buffer,&response_bytes,tx_cap,rx_cap);
-	strcpy(response,response_buffer);
-	// free(response_buffer);
-	debug_printf("Response in wrapper : %s\n",response_buffer);
-
+	se -> recv_handler(se -> st,(void *) message.bytes,message.length,(void*)&response -> bytes,response_size,tx_cap,rx_cap);
 }
 
 
@@ -767,7 +809,7 @@ errval_t nameservice_get_props(const char* name, char ** response){
 	errval_t err;
 	// debug_printf("jere\n");
 	char *response_buf = (char *) malloc (PROPERTY_MAX_SIZE * N_PROPERTIES);
-	err = aos_rpc_call(get_ns_rpc(),NS_GET_SERVER_PROPS,name,*response_buf);
+	err = aos_rpc_call(get_ns_rpc(),NS_GET_SERVER_PROPS,name,response_buf);
 	ON_ERR_RETURN(err);
 	*response = realloc(response_buf,strlen(response_buf));
 	return SYS_ERR_OK;

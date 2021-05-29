@@ -552,7 +552,7 @@ void handle_multi_hop_init(struct aos_rpc *rpc,const char* name, struct capref s
 
 
 
-void handle_client_call(struct aos_rpc *rpc,coreid_t core_id,const char* message,struct capref send_cap,char* response, struct capref *recv_cap){
+void handle_client_call(struct aos_rpc *rpc,coreid_t core_id,const char* name,struct aos_rpc_varbytes message,struct capref send_cap,struct aos_rpc_varbytes* response, struct capref *recv_cap, uintptr_t* response_size){
     debug_printf("handling client call!\n");
     errval_t err;
     coreid_t curr_core = disp_get_core_id();
@@ -566,15 +566,15 @@ void handle_client_call(struct aos_rpc *rpc,coreid_t core_id,const char* message
     }else {
 
 
-        char name[1024];
-        size_t n_index = 0;
-        char * extracted_message = (char *) message;
-        while(*extracted_message != '\0' && *extracted_message != '?'){
-            name[n_index] = *extracted_message++;
-            n_index++;
-        }
-        name[n_index] = '\0';
-        extracted_message++;
+        // char name[1024];
+        // size_t n_index = 0;
+        // char * extracted_message = (char *) message;
+        // while(*extracted_message != '\0' && *extracted_message != '?'){
+        //     name[n_index] = *extracted_message++;
+        //     n_index++;
+        // }
+        // name[n_index] = '\0';
+        // extracted_message++;
 
         debug_printf("Routing to server with name %s\n",name);
         struct routing_entry * re;
@@ -590,7 +590,7 @@ void handle_client_call(struct aos_rpc *rpc,coreid_t core_id,const char* message
         //     return;
         // }
 
-        err = aos_rpc_call(re -> rpc,OS_IFACE_MESSAGE,extracted_message,send_cap,response,recv_cap);
+        err = aos_rpc_call(re -> rpc,OS_IFACE_MESSAGE,message,send_cap,response,recv_cap,response_size);
         if(err_is_fail(err)){
             DEBUG_ERR(err,"Failed call to server ep!\n");
         }
@@ -599,7 +599,7 @@ void handle_client_call(struct aos_rpc *rpc,coreid_t core_id,const char* message
 
 
 
-void handle_client_call1(struct aos_rpc *rpc,coreid_t core_id,const char* message,struct capref send_cap,char* response){
+void handle_client_call1(struct aos_rpc *rpc,coreid_t core_id,const char* name,struct aos_rpc_varbytes message,struct capref send_cap,struct aos_rpc_varbytes* response, uintptr_t* response_size){
     debug_printf("handling client call! 1\n");
     errval_t err;
     coreid_t curr_core = disp_get_core_id();
@@ -613,15 +613,15 @@ void handle_client_call1(struct aos_rpc *rpc,coreid_t core_id,const char* messag
     }else {
 
 
-        char name[1024];
-        size_t n_index = 0;
-        char * extracted_message = (char *) message;
-        while(*extracted_message != '\0' && *extracted_message != '?'){
-            name[n_index] = *extracted_message++;
-            n_index++;
-        }
-        name[n_index] = '\0';
-        extracted_message++;
+        // char name[1024];
+        // size_t n_index = 0;
+        // char * extracted_message = (char *) message;
+        // while(*extracted_message != '\0' && *extracted_message != '?'){
+        //     name[n_index] = *extracted_message++;
+        //     n_index++;
+        // }
+        // name[n_index] = '\0';
+        // extracted_message++;
 
         debug_printf("Routing to server with name %s\n",name);
         struct routing_entry * re;
@@ -632,7 +632,7 @@ void handle_client_call1(struct aos_rpc *rpc,coreid_t core_id,const char* messag
         }
 
         struct capref dummy_cap;
-        err = aos_rpc_call(re -> rpc,OS_IFACE_MESSAGE,extracted_message,send_cap,response,&dummy_cap);
+        err = aos_rpc_call(re -> rpc,OS_IFACE_MESSAGE,message,send_cap,response,&dummy_cap,response_size);
         if(err_is_fail(err)){
             DEBUG_ERR(err,"Failed call to server ep!\n");
         }
@@ -641,7 +641,11 @@ void handle_client_call1(struct aos_rpc *rpc,coreid_t core_id,const char* messag
 
 
 
-void handle_client_call2(struct aos_rpc *rpc,coreid_t core_id,const char* message,char* response){
+void handle_client_call2(struct aos_rpc *rpc,coreid_t core_id,const char* name,struct aos_rpc_varbytes message,struct aos_rpc_varbytes* response, uintptr_t* response_size){
+
+    // struct aos_rpc_varbytes new_message = {
+    //     .bytes 
+    // }
     debug_printf("handling client call 2!\n");
     errval_t err;
     coreid_t curr_core = disp_get_core_id();
@@ -650,20 +654,10 @@ void handle_client_call2(struct aos_rpc *rpc,coreid_t core_id,const char* messag
         if(curr_core == 0){ fw_rpc = get_core_channel(core_id);}
         else{fw_rpc = get_core_channel(0);}
         assert(fw_rpc && "Core channel not online!");
-        err = aos_rpc_call(get_core_channel(0),INIT_CLIENT_CALL2,core_id,message,response);
+        err = aos_rpc_call(get_core_channel(0),INIT_CLIENT_CALL2,core_id,message,response,response_size);
         if(err_is_fail(err)){DEBUG_ERR(err,"Failed forward!");}
     }else {
 
-        // debug_printf("Client call 2\n");
-        char name[1024];
-        size_t n_index = 0;
-        char * extracted_message = (char *) message;
-        while(*extracted_message != '\0' && *extracted_message != '?'){
-            name[n_index] = *extracted_message++;
-            n_index++;
-        }
-        name[n_index] = '\0';
-        extracted_message++;
 
         debug_printf("Routing to server with name %s\n",name);
         struct routing_entry * re;
@@ -673,10 +667,7 @@ void handle_client_call2(struct aos_rpc *rpc,coreid_t core_id,const char* messag
             return;
         }
         struct capref dummy_cap;
-        // debug_printf("em : %lx, response: %lx\n",extracted_message,response);
-        err = aos_rpc_call(re -> rpc,OS_IFACE_MESSAGE,extracted_message,NULL_CAP,response,&dummy_cap);
-        // debug_printf("em : %lx, response: %lx\n",extracted_message,response);
-        // debug_printf("Got response : %s\n",response);
+        err = aos_rpc_call(re -> rpc,OS_IFACE_MESSAGE,message,NULL_CAP,response,&dummy_cap,response_size);
         if(err_is_fail(err)){
             DEBUG_ERR(err,"Failed call to server ep!\n");
         }
@@ -685,7 +676,7 @@ void handle_client_call2(struct aos_rpc *rpc,coreid_t core_id,const char* messag
 }
 
 
-void handle_client_call3(struct aos_rpc *rpc,coreid_t core_id,const char* message, char* response, struct capref *recv_cap){
+void handle_client_call3(struct aos_rpc *rpc,coreid_t core_id,const char* name,struct aos_rpc_varbytes message, struct aos_rpc_varbytes* response, struct capref *recv_cap, uintptr_t* response_size){
     debug_printf("handling client call 3!\n");
     errval_t err;
     coreid_t curr_core = disp_get_core_id();
@@ -694,20 +685,9 @@ void handle_client_call3(struct aos_rpc *rpc,coreid_t core_id,const char* messag
         if(curr_core == 0){ fw_rpc = get_core_channel(core_id);}
         else{fw_rpc = get_core_channel(0);}
         assert(fw_rpc && "Core channel not online!");
-        err = aos_rpc_call(get_core_channel(0),INIT_CLIENT_CALL3,core_id,message,response,recv_cap);
+        err = aos_rpc_call(get_core_channel(0),INIT_CLIENT_CALL3,core_id,message,response,recv_cap,response_size);
         if(err_is_fail(err)){DEBUG_ERR(err,"Failed forward!");}
     }else {
-
-
-        char name[1024];
-        size_t n_index = 0;
-        char * extracted_message = (char *) message;
-        while(*extracted_message != '\0' && *extracted_message != '?'){
-            name[n_index] = *extracted_message++;
-            n_index++;
-        }
-        name[n_index] = '\0';
-        extracted_message++;
 
         debug_printf("Routing to server with name %s\n",name);
         struct routing_entry * re;
@@ -716,7 +696,7 @@ void handle_client_call3(struct aos_rpc *rpc,coreid_t core_id,const char* messag
             DEBUG_ERR(err,"Failed to get routing entry by name\n");
             return;
         }
-        err = aos_rpc_call(re -> rpc,OS_IFACE_MESSAGE,extracted_message,NULL_CAP,response,recv_cap);
+        err = aos_rpc_call(re -> rpc,OS_IFACE_MESSAGE,message,NULL_CAP,response,recv_cap,response_size);
         if(err_is_fail(err)){
             DEBUG_ERR(err,"Failed call to server ep!\n");
         }

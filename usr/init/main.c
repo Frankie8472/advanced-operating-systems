@@ -289,7 +289,7 @@ static int bsp_main(int argc, char *argv[])
     }
 
 
-    //spawn_new_core(1);
+    // spawn_new_core(1);
     //spawn_new_core(2);
     //spawn_new_core(3);
 

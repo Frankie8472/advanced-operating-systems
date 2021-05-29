@@ -18,12 +18,12 @@
 #define N_PROPERTIES 64
 #define NS_SWEEP_INTERVAL 10000000
 #define NS_LIVENESS_INTERVAL 1000000
-
+#define MAX_RPC_MSG_SIZE 10000
 typedef void* nameservice_chan_t;
 
 
 struct server_connection {
-	const char* name;
+	char name[SERVER_NAME_SIZE];
 	coreid_t core_id;
 	bool direct;
 	struct aos_rpc * rpc;
@@ -122,7 +122,7 @@ errval_t nameservice_lookup_with_prop(const char *name,char * properties, namese
  */
 errval_t nameservice_enumerate(char *query, size_t *num, char **result );
 
-
+errval_t nameservice_enumerate_with_props(char *query,char * properties, size_t *num, char **result );
 /**
  * @brief get properties of a server, caller is responseible for free pointer
  * 
@@ -131,7 +131,7 @@ errval_t nameservice_enumerate(char *query, size_t *num, char **result );
  */
 errval_t nameservice_get_props(const char* name, char ** response);
 
-void nameservice_reveice_handler_wrapper(struct aos_rpc * rpc,char*  message,struct capref tx_cap, char * response, struct capref* rx_cap);
+void nameservice_reveice_handler_wrapper(struct aos_rpc * rpc,struct aos_rpc_varbytes message,struct capref tx_cap, struct aos_rpc_varbytes* response, struct capref* rx_cap, uintptr_t* response_size);
 void namservice_receive_handler_wrapper_direct(struct aos_rpc *rpc, struct aos_rpc_varbytes message,struct aos_rpc_varbytes * response,uintptr_t* response_size);
 void nameservice_binding_request_handler(struct aos_rpc *rpc,uintptr_t remote_core_id, struct capref remote_cap, struct capref* local_cap);
 errval_t nameservice_create_nshan(const char *name,bool direct , coreid_t core_id, nameservice_chan_t * nschan);

@@ -67,7 +67,7 @@ int main(int argc, char *argv[])
     
     strcpy(buffer,SERVICE_NAME);
     strcat(buffer,argv[1]);
-    err = nameservice_register_properties(buffer, server_recv_handler,NULL,true,"type=ethernet,mac=1:34:124:1");
+    err = nameservice_register_properties(buffer, server_recv_handler,NULL,false,"type=ethernet,mac=1:34:124:1");
     // err = nameservice_register(buffer, server_recv_handler,NULL);
     PANIC_IF_FAIL(err, "failed to register...\n");
 
