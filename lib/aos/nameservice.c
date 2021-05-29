@@ -111,6 +111,7 @@ errval_t nameservice_rpc(nameservice_chan_t chan, void *message, size_t bytes,
 
 
 	errval_t err;
+	assert(chan && "Invalid namservice channel!");
 	// debug_printf("here is channel address: 0x%lx\n",chan);
 	struct server_connection *serv_con = (struct server_connection *) chan;
 
@@ -127,7 +128,11 @@ errval_t nameservice_rpc(nameservice_chan_t chan, void *message, size_t bytes,
 
 
 		// debug_printf("%p\n",serv_con -> rpc);
-		struct aos_rpc_varbytes resp_varbytes;
+		char * response_buffer = (void * ) malloc(MAX_SERVER_MESSAGE_SIZE);
+		struct aos_rpc_varbytes resp_varbytes = {
+			.bytes = response_buffer,
+			.length = 0
+		};
 		struct aos_rpc_varbytes msg_varbytes;
 		msg_varbytes.length = bytes;
 		msg_varbytes.bytes = (char* ) message;
@@ -136,8 +141,8 @@ errval_t nameservice_rpc(nameservice_chan_t chan, void *message, size_t bytes,
 		err = aos_rpc_call(serv_con -> rpc,OS_IFACE_DIRECT_MESSAGE,msg_varbytes,&resp_varbytes);
 		debug_printf("Finished calling\n");
 		ON_ERR_RETURN(err);
+		*response = realloc(response_buffer,resp_varbytes.length);
 		*response_bytes = resp_varbytes.length;
-		*response = (void * ) malloc(resp_varbytes.length);
 		debug_printf("Accessing : %lx,%lx\n",*response,resp_varbytes.bytes);
 		debug_printf("Here %c\n",(char*)resp_varbytes.bytes);
 		// memcpy(*response,resp_varbytes.bytes,resp_varbytes.length);
@@ -389,6 +394,7 @@ errval_t nameservice_lookup(const char *name, nameservice_chan_t *nschan)
 	err = aos_rpc_call(get_ns_rpc(),NS_NAME_LOOKUP,name,&core_id,&direct,&success);
 	ON_ERR_RETURN(err);
 	if(!success){
+		// DEBUG(LIB_ERR_NAMESERVICE_UNKNOWN_NAME,"Failed to find server\n");
 		return LIB_ERR_NAMESERVICE_UNKNOWN_NAME;
 	}
 

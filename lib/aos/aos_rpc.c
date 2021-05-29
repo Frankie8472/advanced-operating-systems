@@ -1336,7 +1336,7 @@ static errval_t aos_rpc_unmarshall_retval_aarch64(struct aos_rpc *rpc, void **re
             size_t length = pull_word_lmp(lc, &lmi);
             struct aos_rpc_varbytes *bytes = (struct aos_rpc_varbytes *) retptrs[i];
             if (bytes->length < length) {
-                debug_printf("allocated bytes buffer not large enough: %ld\n", len);
+                // debug_printf("allocated bytes buffer not large enough: %ld\n", len);
                 return LIB_ERR_RPC_ARGUMENT_OVERFLOW;
             }
             bytes->length = length;

@@ -71,16 +71,8 @@ errval_t add_server(struct server_list* new_server){
 }
 
 errval_t find_server_by_name(char * name, struct server_list ** ret_serv){
-    // struct server_list* curr = servers;
-    // for(;curr != NULL;curr = curr -> next){
-    //     if(!strcmp(name,curr -> name)){
-    //         *ret_serv = curr;
-    //         return SYS_ERR_OK;
-    //     }
-    // }
-    // debug_printf("Here %lx,%lx\n",&server_ht -> d,ret_serv);
+
     server_ht -> d.get(&server_ht ->d,name,strlen(name),(void**) ret_serv);
-    // printf("here!\n");
     printf("ret_server: %lx\n",*ret_serv);
     if(!*ret_serv){
         return LIB_ERR_NAMESERVICE_UNKNOWN_NAME;

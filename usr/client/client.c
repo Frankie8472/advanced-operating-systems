@@ -46,17 +46,17 @@ int main(int argc, char *argv[])
 
     debug_printf("Got the service %p. Sending request '%s'\n", chan, myrequest);
 
-    // void *request = myrequest;
-    // size_t request_size = strlen(myrequest);
+    void *request = myrequest;
+    size_t request_size = strlen(myrequest);
 
-    // void *response;
-    // size_t response_bytes;
-    // err = nameservice_rpc(chan, request, request_size,
-    //                       &response, &response_bytes,
-    //                       NULL_CAP, NULL_CAP);
-    // PANIC_IF_FAIL(err, "failed to do the nameservice rpc\n");
+    void *response;
+    size_t response_bytes;
+    err = nameservice_rpc(chan, request, request_size,
+                          &response, &response_bytes,
+                          NULL_CAP, NULL_CAP);
+    PANIC_IF_FAIL(err, "failed to do the nameservice rpc\n");
 
-    // debug_printf("got response: %s\n", (char *)response);
+    debug_printf("got response: %s\n", (char *)response);
 
     // size_t num;
     // char * ret_string[512];

@@ -12,12 +12,12 @@
 
 
 
+#define MAX_SERVER_MESSAGE_SIZE 10000
 #define PROPERTY_MAX_SIZE 128
 #define SERVER_NAME_SIZE 128
 #define N_PROPERTIES 64
 #define NS_SWEEP_INTERVAL 10000000
 #define NS_LIVENESS_INTERVAL 1000000
-
 
 typedef void* nameservice_chan_t;
 
