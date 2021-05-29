@@ -516,11 +516,18 @@ static errval_t aos_rpc_call_ump(struct aos_rpc *rpc, enum aos_rpc_msg_type msg_
             size_t len = pull_word_ump(&rpc->channel.ump, response, &ret_offs);
 
             struct aos_rpc_varbytes *ret = (struct aos_rpc_varbytes *) retptrs[i];
+            if (ret->length < len) {
+                debug_printf("allocated bytes buffer not large enough: %ld\n", len);
+                return LIB_ERR_RPC_ARGUMENT_OVERFLOW;
+            }
+            ret->length = len;
+
             for (size_t j = 0; j < len; j += 8) {
                 uintptr_t word = pull_word_ump(&rpc->channel.ump, response, &ret_offs);
                 int word_len = min(sizeof(uintptr_t), len - j);
-                memcpy(ret + j, &word, word_len);
+                memcpy(ret->bytes + j, &word, word_len);
             }
+            // debug_printf("Here!!!!!!!!: %c,%c\n",(char * )ret -> bytes);
         }
         break;
         default:
@@ -1328,15 +1335,20 @@ static errval_t aos_rpc_unmarshall_retval_aarch64(struct aos_rpc *rpc, void **re
         case AOS_RPC_VARBYTES: {
             size_t length = pull_word_lmp(lc, &lmi);
             struct aos_rpc_varbytes *bytes = (struct aos_rpc_varbytes *) retptrs[i];
+            if (bytes->length < length) {
+                // debug_printf("allocated bytes buffer not large enough: %ld\n", len);
+                return LIB_ERR_RPC_ARGUMENT_OVERFLOW;
+            }
+            bytes->length = length;
 
             for (int j = 0; j < length; j += sizeof(uintptr_t)) {
                 uintptr_t word = pull_word_lmp(lc, &lmi);
                 memcpy(bytes->bytes + j, &word, min(sizeof(uintptr_t), length - j));
             }
         }
-
+        break;
         default:
-            debug_printf("unknown return type in unmarshalling\n");
+            debug_printf("unknown return type in unmarshalling %d\n", binding->rets[i]);
             break;
         }
     }

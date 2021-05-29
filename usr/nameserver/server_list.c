@@ -49,13 +49,13 @@ errval_t add_server(struct server_list* new_server){
         for(;curr -> next != NULL;curr = curr -> next){
             debug_printf("%s =? %s\n",new_server->name, curr -> name);
             if(!strcmp(new_server-> name, curr -> name)){
-                free(new_server);
+                free_server(new_server);
                 return LIB_ERR_NAMESERVICE_INVALID_REGISTER;
             }
         }
 
         if(!strcmp(new_server-> name, curr -> name)){
-            free(new_server);
+            free_server(new_server);
             return LIB_ERR_NAMESERVICE_INVALID_REGISTER;
         }
         curr -> next = new_server;
@@ -71,29 +71,22 @@ errval_t add_server(struct server_list* new_server){
 }
 
 errval_t find_server_by_name(char * name, struct server_list ** ret_serv){
-    // struct server_list* curr = servers;
-    // for(;curr != NULL;curr = curr -> next){
-    //     if(!strcmp(name,curr -> name)){
-    //         *ret_serv = curr;
-    //         return SYS_ERR_OK;
-    //     }
-    // }
+
     server_ht -> d.get(&server_ht ->d,name,strlen(name),(void**) ret_serv);
-    if(!ret_serv){
+    printf("ret_server: %lx\n",*ret_serv);
+    if(!*ret_serv){
         return LIB_ERR_NAMESERVICE_UNKNOWN_NAME;
     }else{
         return SYS_ERR_OK;
     }
 }
 
-bool verify_name(const char* name){
-    return true;
-}
+
 
 void remove_server(struct server_list* del_server){
     if(servers == del_server){
         servers = del_server -> next;
-        free(del_server);   
+        free_server(del_server);   
         return;
     }
     struct server_list* curr = servers;
@@ -105,14 +98,14 @@ void remove_server(struct server_list* del_server){
     n_servers--;
 
     server_ht -> d.remove(&server_ht -> d, del_server -> name, strlen(del_server -> name));
-    free(del_server);
+    free_server(del_server);
 
 }
 
 void print_server_list(void){
     debug_printf("================ Servers ==============================\n");
     for(struct server_list * curr = servers; curr != NULL; curr = curr -> next){
-        debug_printf("|| P: %d | C: %d | N: %s | Direct: %d |               \n", curr -> pid, curr -> core_id, curr -> name,curr -> direct);
+        debug_printf("|| P: %d | C: %d | N: %s | Direct: %d | Prop_size: %d              \n", curr -> pid, curr -> core_id, curr -> name,curr -> direct,curr -> n_properties);
 
         for(int i =0 ;i < 64;++i){
             if(curr -> key[i] != NULL && curr -> value[i] != NULL){
@@ -127,6 +120,17 @@ void print_server_list(void){
     debug_printf("=======================================================\n");
 }
 
+
+errval_t find_server_by_name_and_property(const char * name, char*  keys[],char*  values[],size_t prop_size,struct server_list ** ret_serv){
+    struct server_list* curr = servers;
+    while(curr != NULL){
+        if(prefix_match((char*)name,curr -> name) && property_match(curr,keys,values,prop_size)){
+            *ret_serv = curr;
+            return SYS_ERR_OK;
+        }
+    }
+    return LIB_ERR_NAMESERVICE_UNKNOWN_NAME;
+}
 
 void find_servers_by_prefix(const char* name, char* response,size_t * resp_size){
     *resp_size = 0;
@@ -152,6 +156,37 @@ bool prefix_match(char* name, char* server_name){
         if(*name++ != *server_name++){
             return false;
         }
+    }
+    return true;
+}
+
+void free_server(struct server_list* server){
+    for(size_t i = 0; i < N_PROPERTIES;++i){
+        if(server -> key[i]){
+            free(server -> key[i]);
+        }
+        if(server -> value[i]){
+            free(server -> value[i]);
+        }
+    }
+    free(server);
+}
+
+bool property_match(struct server_list* server, char *  keys[],char* values[], size_t prop_size){
+    for(size_t j = 0; j < prop_size;++j){
+        char* q_key = keys[j];
+        char* q_value = values[j];
+        bool match = false;
+        for(size_t i = 0;i < server->n_properties;++i){
+            char* key = server -> key[i];
+            char* value = server -> value[i];
+            if(!strcmp(q_key,key) && !strcmp(q_value,value)){
+                match = true;
+                break;
+            }
+        }
+        if(match == false){return false;}
+        
     }
     return true;
 }

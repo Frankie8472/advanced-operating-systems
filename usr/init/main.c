@@ -26,6 +26,7 @@
 #include <aos/core_state.h>
 #include <aos/systime.h>
 #include <aos/threads.h>
+#include <aos/deferred.h>
 
 #include <aos/dispatch.h>
 #include <aos/dispatcher_arch.h>
@@ -254,8 +255,6 @@ static void hey(void* arg) {
 
 
 
-
-
 static int bsp_main(int argc, char *argv[])
 {
     errval_t err;
@@ -352,6 +351,12 @@ static int bsp_main(int argc, char *argv[])
 
 
 
+    // struct periodic_event pe;
+ 
+    // err = periodic_event_create(&pe,get_default_waitset(),1000000,MKCLOSURE(print_hello,NULL));
+    // if(err_is_fail(err)){
+    //     DEBUG_ERR(err,"Failed to create even closure\n");
+    // }
     //struct aos_rpc *josh_rpc = &josh_si->disp_rpc;
 
     /*aos_rpc_set_interface(josh_rpc, get_dispatcher_interface(), DISP_IFACE_N_FUNCTIONS, malloc(DISP_IFACE_N_FUNCTIONS * sizeof(void *)));
@@ -391,7 +396,7 @@ static int bsp_main(int argc, char *argv[])
     // spawn_new_domain("nameservicetest",0,NULL,NULL,NULL_CAP,NULL_CAP,NULL);
 
     // spawn_new_core(my_core_id + 1);
-    //spawn_new_domain("server a",0,NULL,NULL,NULL_CAP,NULL_CAP,NULL);
+    spawn_new_domain("server a",0,NULL,NULL,NULL_CAP,NULL_CAP,NULL_CAP,NULL);
     // spawn_new_domain("server b",1,NULL,NULL,NULL_CAP,NULL_CAP,NULL);
     //spawn_new_domain("server a",0,NULL,NULL,NULL_CAP,NULL_CAP,NULL);
     //spawn_new_domain("server b",0,NULL,NULL,NULL_CAP,NULL_CAP,NULL);
