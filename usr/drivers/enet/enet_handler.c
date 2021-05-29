@@ -138,7 +138,7 @@ static errval_t arp_request_handle(struct enet_queue* q, struct devq_buf* buf,
             collections_hash_delete(st->arp_table, mac_src);
             collections_hash_insert(st->arp_table, mac_src, ip_src_ref);
             collections_hash_delete(st->inv_table, *ip_src_ref);
-            collections_hash_insert(st->arp_table, *ip_src_ref, mac_src_ref);
+            collections_hash_insert(st->inv_table, *ip_src_ref, mac_src_ref);
         } else {
             ETHARP_DEBUG("ARP entry already stored\n");
         }
@@ -146,7 +146,7 @@ static errval_t arp_request_handle(struct enet_queue* q, struct devq_buf* buf,
         // save info in arp-table
         ETHARP_DEBUG("adding new ARP table entry\n");
         collections_hash_insert(st->arp_table, mac_src, ip_src_ref);
-        collections_hash_insert(st->arp_table, *ip_src_ref, mac_src_ref);
+        collections_hash_insert(st->inv_table, *ip_src_ref, mac_src_ref);
     }
 
     // reply to it
@@ -222,7 +222,7 @@ static errval_t arp_reply_handle(struct enet_queue* q, struct devq_buf* buf,
             collections_hash_delete(st->arp_table, mac_src);
             collections_hash_insert(st->arp_table, mac_src, ip_src_ref);
             collections_hash_delete(st->inv_table, *ip_src_ref);
-            collections_hash_insert(st->arp_table, *ip_src_ref, mac_src_ref);
+            collections_hash_insert(st->inv_table, *ip_src_ref, mac_src_ref);
         } else {
             ETHARP_DEBUG("ARP entry already stored\n");
         }
@@ -230,7 +230,7 @@ static errval_t arp_reply_handle(struct enet_queue* q, struct devq_buf* buf,
         // save info in arp-table
         ETHARP_DEBUG("adding new ARP table entry\n");
         collections_hash_insert(st->arp_table, mac_src, ip_src_ref);
-        collections_hash_insert(st->arp_table, *ip_src_ref, mac_src_ref);
+        collections_hash_insert(st->inv_table, *ip_src_ref, mac_src_ref);
     }
 
     return err;
@@ -453,22 +453,6 @@ static errval_t handle_UDP(struct enet_queue* q, struct devq_buf* buf,
         UDP_DEBUG("no listening socket found on port %d\n", d_p);
         return err;
     }
-
-    debug_printf(
-        "~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~\n"
-        "~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~\n"
-        "~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~\n"
-        "~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~\n"
-        "~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~\n"
-        "~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~\n"
-        "~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~\n"
-        "~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~\n"
-        "~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~\n"
-        "~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~\n"
-        "~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~\n"
-        "~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~\n"
-        "~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~\n"
-        );
 
     struct ip_hdr *iihh = (struct ip_hdr*) ((char *) original_header + ETH_HLEN);
     char *payload = (char *) h + UDP_HLEN;

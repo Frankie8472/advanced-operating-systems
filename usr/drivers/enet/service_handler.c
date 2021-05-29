@@ -49,31 +49,10 @@ static void udp_receive_handler_ns(struct enet_driver_state* st,
                                    struct aos_udp_socket *sock) {
     struct udp_recv_elem *ure = udp_socket_receive(sock);
     if (ure == NULL) {
-        *response = NULL;
+        /* *response = NULL; */
         *response_bytes = 0;
         return;
     }
-    HAN_DEBUG(
-        "*******************************************\n"
-        "*******************************************\n"
-        "*******************************************\n"
-        "*******************************************\n"
-        "*******************************************\n"
-        "*******************************************\n"
-        "*******************************************\n"
-        "*******************************************\n"
-        "*******************************************\n"
-        "*******************************************\n"
-        "*******************************************\n"
-        "*******************************************\n"
-        "*******************************************\n"
-        "*******************************************\n"
-        "*******************************************\n"
-        "*******************************************\n"
-        "*******************************************\n"
-        );
-
-    while (1);
 
     size_t mln = sizeof(struct udp_msg) + ure->len * sizeof(char);
     struct udp_msg *rm = repl_msg;
@@ -139,10 +118,8 @@ static void ping_send_handler_ns(struct enet_driver_state *st, uint32_t ip,
                                  void **response, size_t *response_bytes) {
     struct aos_icmp_socket *is = get_ping_socket(st, ip);
     if (is == NULL) {
-        debug_printf("hee\n");
         create_ping_socket(st, ip);
     }
-    debug_printf("ip is %d\n", ip);
 
     err = ping_socket_send_next(st, ip);
     *response = &err;
@@ -179,7 +156,6 @@ static void server_recv_handler(void *stptr, void *message,
         HAN_DEBUG("Give plz\n");
         sock = get_socket_from_port(st, msg->port);
         if (sock == NULL) {
-            *response = NULL;
             *response_bytes = 0;
         } else {
             udp_receive_handler_ns(st, msg, response, response_bytes,
@@ -206,14 +182,15 @@ static void server_recv_handler(void *stptr, void *message,
         *response = &err;
         break;
     case SEND_TO:
-        HAN_DEBUG("Send iiit (to) \n");
+        HAN_DEBUG("Send iiit (to %d) \n", msg->ip);
         err = udp_socket_send_to(st, msg->port, msg->data, msg->len, msg->ip, msg->tgt_port);
         if (err_is_fail(err)) {
             DEBUG_ERR(err, "oh no :(");
+            debug_printf("%d\n", err);
         }
         HAN_DEBUG("write repl\n");
         /* *response = (void *) err; */
-        *response = NULL;  // TODO: error report sending
+        /* *response = NULL;  // TODO: error report sending */
         *response_bytes = 0;
         break;
     case ARP_TBL:

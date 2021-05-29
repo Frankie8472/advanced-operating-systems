@@ -339,7 +339,7 @@ errval_t udp_socket_send_to(struct enet_driver_state *st, uint16_t port,
     struct region_entry *entry = get_region(st->txq, repl.rid);
     lvaddr_t maddr = (lvaddr_t) entry->mem.vbase + repl.offset + repl.valid_data;
     struct eth_hdr *meh = (struct eth_hdr *) maddr;
-    uint64_t *mac_tgt = collections_hash_find(st->inv_table, sock->ip_dest);
+    uint64_t *mac_tgt = collections_hash_find(st->inv_table, ip_to);
 
     if (mac_tgt == NULL) {
         UDP_DEBUG("but...where? %d\n", ip_to);
@@ -377,12 +377,13 @@ errval_t udp_socket_send_to(struct enet_driver_state *st, uint16_t port,
     struct udp_hdr *muh = (struct udp_hdr *) ((char *) mih + IP_HLEN);
     muh->src = htons(port);
     muh->dest = htons(port_to);
-    muh->len = htons(len);
+    muh->len = htons(eth_tot_len - ETH_HLEN - IP_HLEN);
     muh->chksum = 0;
 
     // copy payload
     UDP_DEBUG("writing payload\n");
     memcpy((char *) muh + UDP_HLEN, data, len);
+    repl.valid_length = eth_tot_len;
 
     dmb();
 

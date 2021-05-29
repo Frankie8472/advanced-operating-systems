@@ -115,7 +115,7 @@ errval_t aos_socket_receive(struct aos_socket *sockref, struct udp_msg *retptr) 
     void *response;
     size_t response_bites;
 
-    errval_t err = nameservice_rpc(sockref->_nschan, (void *) usm, msgsize,
+    __unused errval_t err = nameservice_rpc(sockref->_nschan, (void *) usm, msgsize,
                                    &response, &response_bites,
                                    NULL_CAP, NULL_CAP);
     free(usm);
@@ -123,7 +123,7 @@ errval_t aos_socket_receive(struct aos_socket *sockref, struct udp_msg *retptr) 
     memcpy(retptr, response, response_bites);
     free(response);
 
-    if (err_is_fail(err) || response_bites == 0) {
+    if (response_bites == 0) {
         return LIB_ERR_NOT_IMPLEMENTED;
     }
 
