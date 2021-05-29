@@ -18,6 +18,43 @@ enum shell_state current_state;
 struct josh_line *parsed_line;
 
 
+static errval_t setup_ump_channels(struct running_program *prog)
+{
+    errval_t err;
+    bool has_foreign_out = true;
+    bool has_foreign_in = true;
+
+    if (capref_is_null(prog->out_cap)) {
+        frame_alloc(&prog->out_cap, BASE_PAGE_SIZE, NULL);
+        has_foreign_out = false;
+    }
+
+    if (capref_is_null(prog->in_cap)) {
+        frame_alloc(&prog->in_cap, BASE_PAGE_SIZE, NULL);
+        has_foreign_in = false;
+    }
+
+    if (!has_foreign_in || true) {
+        void *stdin_addr;
+        err = paging_map_frame_complete(get_current_paging_state(), &stdin_addr, prog->out_cap, NULL, NULL);
+        err = aos_dc_init_ump(&prog->process_out, 64, (lvaddr_t) stdin_addr, BASE_PAGE_SIZE, 1);
+        ON_ERR_RETURN(err);
+    }
+    else {
+        debug_printf("has fi\n");
+    }
+
+    if (!has_foreign_out || true) {
+        void *stdout_addr;
+        err = paging_map_frame_complete(get_current_paging_state(), &stdout_addr, prog->in_cap, NULL, NULL);
+        err = aos_dc_init_ump(&prog->process_in, 64, (lvaddr_t) stdout_addr, BASE_PAGE_SIZE, 0);
+        ON_ERR_RETURN(err);
+    }
+
+    return SYS_ERR_OK;
+}
+
+
 static errval_t call_spawn_request(const char *name, coreid_t core, size_t argc, const char **argv, struct array_list *envp, struct running_program *prog)
 {
     errval_t err;
@@ -112,23 +149,8 @@ static errval_t call_spawn_request(const char *name, coreid_t core, size_t argc,
         }
     }
     else {
-        bool has_foreign_out = true;
-        bool has_foreign_in = true;
-
         struct capref rpc_frame;
         frame_alloc(&rpc_frame, BASE_PAGE_SIZE, NULL);
-
-        if (capref_is_null(prog->out_cap)) {
-            frame_alloc(&prog->out_cap, BASE_PAGE_SIZE, NULL);
-            has_foreign_out = false;
-        }
-
-        if (capref_is_null(prog->in_cap)) {
-            frame_alloc(&prog->in_cap, BASE_PAGE_SIZE, NULL);
-            has_foreign_in = false;
-        }
-
-        err = aos_rpc_call(init_rpc, INIT_IFACE_SPAWN_EXTENDED, bytes, core, rpc_frame, prog->out_cap, prog->in_cap, &pid);
 
         prog->domainid = pid;
         if (((int) pid) == MOD_NOT_FOUND || ((int) pid) == COREID_INVALID) {
@@ -145,26 +167,23 @@ static errval_t call_spawn_request(const char *name, coreid_t core, size_t argc,
         err = aos_rpc_init_ump_default(&prog->process_disprpc, (lvaddr_t) disp_rpc_addr, BASE_PAGE_SIZE, 1);
         ON_ERR_RETURN(err);
         aos_rpc_set_interface(&prog->process_disprpc, get_dispatcher_interface(), DISP_IFACE_N_FUNCTIONS, malloc(DISP_IFACE_N_FUNCTIONS * sizeof (void *)));
+        
+        setup_ump_channels(prog);
 
+        err = aos_rpc_call(init_rpc, INIT_IFACE_SPAWN_EXTENDED, bytes, core, rpc_frame, prog->out_cap, prog->in_cap, &pid);
+        free(data); // not needed anymore
 
-        if (!has_foreign_in || true) {
-            void *stdin_addr;
-            err = paging_map_frame_complete(get_current_paging_state(), &stdin_addr, prog->out_cap, NULL, NULL);
-            err = aos_dc_init_ump(&prog->process_out, 64, (lvaddr_t) stdin_addr, BASE_PAGE_SIZE, 1);
-            ON_ERR_RETURN(err);
+        if (err_is_fail(err)) {
+            debug_printf("failed to call init\n");
+            return LIB_ERR_RPC_NOT_CONNECTED;
         }
-        else {
-            debug_printf("has fi\n");
-        }
 
-        if (!has_foreign_out || true) {
-            void *stdout_addr;
-            err = paging_map_frame_complete(get_current_paging_state(), &stdout_addr, prog->in_cap, NULL, NULL);
-            err = aos_dc_init_ump(&prog->process_in, 64, (lvaddr_t) stdout_addr, BASE_PAGE_SIZE, 0);
-            ON_ERR_RETURN(err);
+        prog->domainid = pid;
+
+        if (((int) pid) == MOD_NOT_FOUND || ((int) pid) == COREID_INVALID) {
+            return SPAWN_ERR_FIND_MODULE;
         }
     }
-
 
     return SYS_ERR_OK;
 }
@@ -202,6 +221,7 @@ static errval_t spawn_program(const char *dest, const char *cmd, size_t argc, co
 
     err = call_spawn_request(cmd, destination_core, argc, argv, NULL, prog);
     if (err == SPAWN_ERR_FIND_MODULE) {
+        debug_printf("why?\n");
         if (prog->domainid == COREID_INVALID) {
             printf("spawning failed: invalid destination\n", cmd);
         }
@@ -211,14 +231,47 @@ static errval_t spawn_program(const char *dest, const char *cmd, size_t argc, co
         return SPAWN_ERR_FIND_MODULE;
     }
 
-    if (destination_core == disp_get_core_id() && false) {
+    return SYS_ERR_OK;
+}
 
-    }
-    else {
-        struct aos_rpc *rpc = &prog->process_disprpc;
-        aos_rpc_set_interface(rpc, get_dispatcher_interface(), DISP_IFACE_N_FUNCTIONS, malloc(DISP_IFACE_N_FUNCTIONS * sizeof (void *)));
+
+static int builtin_threadentry(void *arg)
+{
+    struct running_program *prog = arg;
+
+    struct aos_datachan builtin_in;
+    struct aos_datachan builtin_out;
+
+    if (!capref_is_null(prog->in_cap)) {
+        void *page;
+        paging_map_frame_complete(get_current_paging_state(), &page,  prog->in_cap, NULL, NULL);
+        aos_dc_init_ump(&builtin_in, 64, (lvaddr_t) page, BASE_PAGE_SIZE, 1);
     }
 
+    if (!capref_is_null(prog->out_cap)) {
+        void *page;
+        paging_map_frame_complete(get_current_paging_state(), &page,  prog->out_cap, NULL, NULL);
+        aos_dc_init_ump(&builtin_out, 64, (lvaddr_t) page, BASE_PAGE_SIZE, 0);
+    }
+
+    run_builtin(prog->cmd, prog->argc, (const char **) prog->argv, &builtin_out);
+    aos_dc_close(&builtin_out);
+
+    return 0;
+}
+
+
+static errval_t setup_builtin(const char *cmd, size_t argc, const char **argv, struct running_program *prog)
+{
+    prog->is_builtin = true;
+    prog->cmd = strdup(cmd);
+    prog->argc = argc;
+    prog->argv = malloc(argc * sizeof(char *));
+    memcpy(prog->argv, argv, argc * sizeof(char *));
+
+    prog->builtin_thread = thread_create(builtin_threadentry, prog);
+
+    setup_ump_channels(prog);
     return SYS_ERR_OK;
 }
 
@@ -255,7 +308,9 @@ static void execute_command(struct josh_command *command)
     struct running_program *programs = malloc(n_programs * sizeof(struct running_program));
     memset(programs, 0, n_programs * sizeof(struct running_program));
 
-    struct capref out_before = NULL_CAP;
+    struct capref out_before;
+    err = frame_alloc(&out_before, BASE_PAGE_SIZE, NULL);
+    debug_printf("allocced first %d\n", err);
     for (size_t i = 0; i < n_programs; i++) {
         struct capref frame;
         err = frame_alloc(&frame, BASE_PAGE_SIZE, NULL);
@@ -286,15 +341,11 @@ static void execute_command(struct josh_command *command)
         const char* destination = command->destination;
 
         if (is_builtin(cmd)) {
-            if (n_programs > 1) {
-                debug_printf("piping builtins NYI\n");
-            }
             if (destination != NULL && atoi(destination) != disp_get_core_id()) {
                 printf("Can't execute shell builtins on different cores\n");
             }
             else {
-                run_builtin(cmd, argc, (const char **) argv);
-                return;
+                setup_builtin(cmd, argc, (const char **) argv, &programs[j]);
             }
         }
         else {
@@ -317,9 +368,19 @@ static void execute_command(struct josh_command *command)
 
 
     for (size_t i = 0; i < n_programs; i++) {
-        aos_dc_free(&programs[i].process_in);
-        aos_dc_free(&programs[i].process_out);
-        aos_rpc_free(&programs[i].process_disprpc);
+        if (programs[i].is_builtin) {
+            err = thread_join(programs[i].builtin_thread, NULL);
+            aos_dc_free(&programs[i].process_in);
+            aos_dc_free(&programs[i].process_out);
+            aos_rpc_free(&programs[i].process_disprpc);
+        }
+        else {
+            aos_dc_free(&programs[i].process_in);
+            aos_dc_free(&programs[i].process_out);
+            aos_rpc_free(&programs[i].process_disprpc);
+        }
+        //cap_destroy(programs[i].in_cap);
+        //cap_destroy(programs[i].out_cap);
     }
     printf("\n");
 }

@@ -472,7 +472,6 @@ errval_t paging_region_init(struct paging_state *st, struct paging_region *pr,
     if(pr->prev != NULL) {
         pr->prev->next = pr;
     }
-    
     errval_t err = update_region_lookups(st, pr);
     ON_ERR_RETURN(err);
 
@@ -483,7 +482,18 @@ errval_t paging_region_init(struct paging_state *st, struct paging_region *pr,
 errval_t paging_region_delete(struct paging_state *ps, struct paging_region *pr)
 {
     // TODO: implement
-    return LIB_ERR_NOT_IMPLEMENTED;
+
+    if (pr->prev == NULL) {
+        ps->head = pr->next;
+    }
+    else {
+        pr->prev->next = pr->next;
+    }
+    if (pr->next != NULL) {
+        pr->next->prev = pr->prev;
+    }
+    pr->type = PAGING_REGION_FREE;
+    return SYS_ERR_OK;
 }
 
 /**

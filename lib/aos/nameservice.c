@@ -7,6 +7,7 @@
 #include <ctype.h>
 #include <regex.h>
 #include <aos/aos.h>
+#include <aos/deferred.h>
 #include <aos/waitset.h>
 #include <aos/nameserver.h>
 #include <aos/aos_rpc.h>
@@ -22,21 +23,72 @@
 static void *get_opaque_server_rpc_handlers[OS_IFACE_N_FUNCTIONS];
 // * server_table = create_hashtable();
 
-
-
-
-
 struct srv_entry {
+	struct srv_entry* next;
 	const char *name;
 	nameservice_receive_handler_t *recv_handler;
 	void *st;
+	struct periodic_event liveness_checker;
+	struct aos_rpc main_handler;
 };
+
+
+static struct srv_entry* server_entries;
+
+static void add_server(struct srv_entry* srv_entry){
+	struct srv_entry* curr = server_entries; 
+	if(curr == NULL){
+		server_entries = srv_entry;
+	}
+	else{
+		for(;curr -> next != NULL; curr = curr -> next){}
+		curr -> next = srv_entry;
+	}
+}
+
+static void remove_server(const char *name){
+	struct srv_entry* curr = server_entries;  
+	errval_t err;
+	if(!strcmp(curr -> name, name)){
+		server_entries = curr -> next;
+		err = periodic_event_cancel(&curr -> liveness_checker);
+		if(err_is_fail(err)){
+			DEBUG_ERR(err,"Failed to cancel liveness checker!\n");
+		}
+		free(curr);
+	}
+	else{
+		for(;curr -> next != NULL;curr = curr -> next){
+			if((!strcmp(curr -> next -> name, name))){
+				struct srv_entry* temp = curr -> next;
+				curr -> next = temp -> next;
+				err = periodic_event_cancel(&temp -> liveness_checker);
+				if(err_is_fail(err)){
+					DEBUG_ERR(err,"Failed to cancel liveness checker!\n");
+				}
+				free(temp);
+			}
+		}
+	}
+}
+
+
+
 
 struct nameservice_chan 
 {
 	struct aos_rpc rpc;
 	char *name;
 };
+
+
+static void liveness_checker(void* name){
+	// debug_printf("Liveness checker: %s\n",name);
+	errval_t err = aos_rpc_call(get_ns_rpc(),NS_LIVENESS_CHECK,(const char*) name);
+	if(err_is_fail(err)){
+		DEBUG_ERR(err,"Failed to send liveness check");
+	}
+}
 
 
 
@@ -59,6 +111,7 @@ errval_t nameservice_rpc(nameservice_chan_t chan, void *message, size_t bytes,
 
 
 	errval_t err;
+	assert(chan && "Invalid namservice channel!");
 	// debug_printf("here is channel address: 0x%lx\n",chan);
 	struct server_connection *serv_con = (struct server_connection *) chan;
 
@@ -74,15 +127,30 @@ errval_t nameservice_rpc(nameservice_chan_t chan, void *message, size_t bytes,
 
 
 
-		debug_printf("%p\n",serv_con -> rpc);
-		err = aos_rpc_call(serv_con -> rpc,OS_IFACE_DIRECT_MESSAGE,message,(char *)*response);
+		// debug_printf("%p\n",serv_con -> rpc);
+		char * response_buffer = (void * ) malloc(MAX_SERVER_MESSAGE_SIZE);
+		struct aos_rpc_varbytes resp_varbytes = {
+			.bytes = response_buffer,
+			.length = 0
+		};
+		struct aos_rpc_varbytes msg_varbytes;
+		msg_varbytes.length = bytes;
+		msg_varbytes.bytes = (char* ) message;
+		// memcpy(*&msg_varbytes.bytes,message,bytes);
+
+		err = aos_rpc_call(serv_con -> rpc,OS_IFACE_DIRECT_MESSAGE,msg_varbytes,&resp_varbytes);
 		debug_printf("Finished calling\n");
 		ON_ERR_RETURN(err);
-		*response_bytes = strlen(*response);
+		*response = realloc(response_buffer,resp_varbytes.length);
+		*response_bytes = resp_varbytes.length;
+		debug_printf("Accessing : %lx,%lx\n",*response,resp_varbytes.bytes);
+		debug_printf("Here %c\n",(char*)resp_varbytes.bytes);
+		// memcpy(*response,resp_varbytes.bytes,resp_varbytes.length);
+		// memcpy(*repsponse,resp_varbytes.bytes,resp_varbytes)
 		return SYS_ERR_OK;
 	}else{
 		
-		
+		debug_printf("Here\n");
 		struct capref response_cap;
 		slot_alloc(&response_cap);
 		char * payload = (char * ) malloc(bytes + strlen(serv_con -> name) + 2);
@@ -90,8 +158,8 @@ errval_t nameservice_rpc(nameservice_chan_t chan, void *message, size_t bytes,
 		strcat(payload,"?");
 		strcat(payload,(char * ) message);
 		// debug_printf("Client call with core: %d message: %s\n",serv_con -> core_id,message );
-
 		if(capref_is_null(rx_cap) && capref_is_null(tx_cap)){ //no ret no senc cap
+			// debug_printf("Here : %lx\n",response);
 			err = aos_rpc_call(serv_con -> rpc,INIT_CLIENT_CALL2,serv_con -> core_id,payload,(char *) *response);
 		}else if(capref_is_null(rx_cap)){ // no ret cap
 			err = aos_rpc_call(serv_con -> rpc,INIT_CLIENT_CALL1,serv_con -> core_id,payload,tx_cap,(char *) *response);
@@ -101,9 +169,10 @@ errval_t nameservice_rpc(nameservice_chan_t chan, void *message, size_t bytes,
 		}else{
 			err = aos_rpc_call(serv_con -> rpc,INIT_CLIENT_CALL,serv_con -> core_id,payload,tx_cap,(char *) *response,&response_cap);
 		}
+		
 		ON_ERR_RETURN(err);
 		*response_bytes = strlen(*response);
-
+		cap_copy(rx_cap,response_cap);
 		// debug_printf("Response: %s\n",(char*) *response);
 
 	}
@@ -157,33 +226,42 @@ errval_t nameservice_register_properties(const char * name,nameservice_receive_h
 	char* server_data;
 	err = serialize(name,properties,&server_data);
 	ON_ERR_RETURN(err);
+	char buf[512];
+	err = aos_rpc_call(get_ns_rpc(),NS_REG_SERVER,disp_get_domain_id(),disp_get_core_id(),server_data,direct,buf);
+	if(err_is_fail(err) || strlen(buf) >= 1){
+		debug_printf("%s\n",buf);
+		return err;
+	}
 	struct srv_entry* new_srv_entry = (struct srv_entry *) malloc(sizeof(struct srv_entry));
 	new_srv_entry -> name = name;
 	new_srv_entry -> recv_handler = recv_handler;
 	new_srv_entry -> st = st;
 
+	periodic_event_create(&new_srv_entry -> liveness_checker,get_default_waitset(),NS_LIVENESS_INTERVAL,MKCLOSURE(liveness_checker,(void*) new_srv_entry -> name));
 
-	struct aos_rpc *new_rpc;
+	// struct aos_rpc *new_rpc;
 	struct capref server_ep;
 
 
-	err = create_lmp_server_ep(&server_ep,&new_rpc);
+	err = create_lmp_server_ep_with_struct_aos_rpc(&server_ep,&new_srv_entry -> main_handler);
 	
 	ON_ERR_RETURN(err);
 
 
-	char buf[512];
-	err = aos_rpc_call(get_init_rpc(),INIT_REG_SERVER,disp_get_domain_id(),disp_get_core_id(),server_data,direct,buf);
-	ON_ERR_RETURN(err);
+
 
 	
-	err = establish_init_server_con(name,new_rpc,server_ep);
+	err = establish_init_server_con(name,&new_srv_entry -> main_handler,server_ep);
+	// ON_ERR_RETURN(err);
 	if(err_is_fail(err)){
+		nameservice_deregister(name);
+		free(new_srv_entry);
+		// free(new_rpc);
 		DEBUG_ERR(err,"Failed to init server connection with rpc server\n");
 	}
 
-	new_rpc -> serv_entry = (void*) new_srv_entry;
-
+	new_srv_entry -> main_handler.serv_entry = (void*) new_srv_entry;
+	add_server(new_srv_entry);
 	return SYS_ERR_OK;
 }
 
@@ -231,6 +309,28 @@ errval_t create_lmp_server_ep(struct capref* server_ep, struct aos_rpc** ret_rpc
 	return SYS_ERR_OK;
 }
 
+
+errval_t create_lmp_server_ep_with_struct_aos_rpc(struct capref* server_ep, struct aos_rpc* new_rpc){
+	errval_t err;
+	err = slot_alloc(server_ep);
+	ON_ERR_RETURN(err);
+	// struct aos_rpc* new_rpc = (struct aos_rpc*) malloc(sizeof(struct aos_rpc));
+	// new_rpc -> lmp_server_mode  = true; // NOTE: unsure?
+	struct lmp_endpoint * lmp_ep;
+	err = endpoint_create(256,server_ep,&lmp_ep);
+	ON_ERR_RETURN(err);
+	err = aos_rpc_init_lmp(new_rpc,*server_ep,NULL_CAP,lmp_ep, get_default_waitset());
+	ON_ERR_RETURN(err);
+
+	err = aos_rpc_set_interface(new_rpc,get_opaque_server_interface(),OS_IFACE_N_FUNCTIONS,get_opaque_server_rpc_handlers);
+	init_server_handlers(new_rpc);
+
+
+
+	// *ret_rpc = new_rpc;
+	return SYS_ERR_OK;
+}
+
 errval_t establish_init_server_con(const char* name,struct aos_rpc* server_rpc, struct capref local_cap){
 	errval_t err;
 	debug_printf("establish init server con\n");
@@ -268,6 +368,7 @@ errval_t nameservice_deregister(const char *name)
 		DEBUG_ERR(err,"Failed to call dereg server!\n");
 	}
 	if(success){
+		remove_server(name);
 		return SYS_ERR_OK;
 	}
 	else {
@@ -290,12 +391,69 @@ errval_t nameservice_lookup(const char *name, nameservice_chan_t *nschan)
 	uintptr_t success;
 	uintptr_t direct;
 	coreid_t core_id;
-	err = aos_rpc_call(get_init_rpc(),INIT_NAME_LOOKUP,name,&core_id,&direct,&success);
+	err = aos_rpc_call(get_ns_rpc(),NS_NAME_LOOKUP,name,&core_id,&direct,&success);
 	ON_ERR_RETURN(err);
+	if(!success){
+		// DEBUG(LIB_ERR_NAMESERVICE_UNKNOWN_NAME,"Failed to find server\n");
+		return LIB_ERR_NAMESERVICE_UNKNOWN_NAME;
+	}
+
+	err = nameservice_create_nshan(name,direct,core_id,nschan);
+	ON_ERR_RETURN(err);
+	return SYS_ERR_OK;
+
+}
+
+
+/**
+ * @brief creates a channel to the a server with the same prefix as name and has 	all the properites in properties
+ *
+ * @param name  name to lookup
+
+ * @param properties propert
+
+ * @param chan  pointer to the chan representation to send messages to the service
+ *
+ * @return  SYS_ERR_OK on success, errval on failure
+ */
+
+
+errval_t nameservice_lookup_with_prop(const char *name,char * properties, nameservice_chan_t *nschan)
+{
+	errval_t err;
+	uintptr_t success;
+	uintptr_t direct;
+	coreid_t core_id;
+	if(!query_check(name)){
+		return LIB_ERR_NAMESERVICE_INV_QUERY;
+	}
+	if(!property_check(properties)){
+		return LIB_ERR_NAMESERVICE_INVALID_PROPERTY_FORMAT;
+	}
+	char* query_with_prop;
+	err = serialize(name,properties,&query_with_prop);
+	if(err_is_fail(err)){
+		DEBUG_ERR(err,"Failed to serialize query\n");
+	}
+	// char * server_name = malloc(SERVER_NAME_SIZE);
+	char server_name[SERVER_NAME_SIZE];
+	err = aos_rpc_call(get_ns_rpc(),NS_LOOKUP_PROP,query_with_prop,&core_id,&direct,&success,server_name);
+	// char * re_server_name = realloc(server_name,strlen(server_name));
+	debug_printf("Server name: %s\n",server_name);
+
 	if(!success){
 		return LIB_ERR_NAMESERVICE_UNKNOWN_NAME;
 	}
 
+	err = nameservice_create_nshan(server_name,direct,core_id,nschan);
+	ON_ERR_RETURN(err);
+	return SYS_ERR_OK;
+
+}
+
+
+errval_t nameservice_create_nshan(const char *name,bool direct , coreid_t core_id, nameservice_chan_t * nschan){
+	errval_t err;
 	struct server_connection* serv_con = (struct server_connection*) malloc(sizeof(struct server_connection));
 	const char * con_name = (const char *) malloc(sizeof(strlen(name) + 1));
 	strcpy((char*)con_name,(char*)name);  
@@ -396,16 +554,15 @@ void nameservice_reveice_handler_wrapper(struct aos_rpc * rpc,char*  message,str
 }
 
 
-void namservice_receive_handler_wrapper_direct(struct aos_rpc *rpc, char* message,char * response){
+void namservice_receive_handler_wrapper_direct(struct aos_rpc *rpc, struct aos_rpc_varbytes message,struct aos_rpc_varbytes * response){
 	debug_printf("Got direct message!\n");
+	// struct aos_rpc_varbytes response;
 	struct srv_entry * se = (struct srv_entry *) rpc -> serv_entry;
-	size_t response_bytes;
-	char * response_buffer = (char * ) malloc(1024); //TODO make varstrlarger
-	se -> recv_handler(se -> st,(void *) message,strlen(message),(void*)&response_buffer,&response_bytes,NULL_CAP,NULL);
-  debug_printf("cp d str\n");
-  memcpy(response, response_buffer, response_bytes);
-	/* strcpy(response,response_buffer); */
-  debug_printf("cpd d str\n");
+	// size_t response_bytes;
+	// char * response_buffer = (char * ) malloc(1024); //TODO make varstrlarger
+	se -> recv_handler(se -> st,(void *) message.bytes,message.length,(void*)&response -> bytes,&response -> length,NULL_CAP,NULL);
+	debug_printf("%s,%d\n",response -> bytes,response -> length);
+	// strcpy(response,response_buffer);
 }
 
 void nameservice_binding_request_handler(struct aos_rpc *rpc,uintptr_t remote_core_id, struct capref remote_cap, struct capref* local_cap){
@@ -515,7 +672,7 @@ errval_t serialize(const char * name, const char * properties,char** ret_server_
 }
 
 
-errval_t deserialize_prop(const char * server_data,char *  key[],char *  value[], char**name){
+errval_t deserialize_prop(const char * server_data,char *  key[],char *  value[], char**name,size_t * property_size){
 	
 	size_t map_index = 0;
 	size_t key_index = 0;
@@ -523,7 +680,8 @@ errval_t deserialize_prop(const char * server_data,char *  key[],char *  value[]
 	bool is_key = true;
 	bool is_name = false;
 	size_t name_index = 0;
-
+	// *property_size = 0;
+	size_t count_props = 0;
 	char * extract_name = (char * ) malloc(PROPERTY_MAX_SIZE);
 	while(*server_data != ','){
 		if(*server_data == '='){
@@ -551,6 +709,9 @@ errval_t deserialize_prop(const char * server_data,char *  key[],char *  value[]
 	while(true){
 		
 		if(is_key){
+			if(key_index >= PROPERTY_MAX_SIZE){
+				goto end_fail;
+			}
 			if(*server_data == '='){
 				*(key_res + (key_index++))= '\0';
 				// key[map_index] = (char*) realloc(key_res,key_index);
@@ -565,14 +726,19 @@ errval_t deserialize_prop(const char * server_data,char *  key[],char *  value[]
 				*(key_res + (key_index++))= *server_data++;
 			}
 		}else{
+			if(value_index >= PROPERTY_MAX_SIZE){
+				goto end_fail;
+			}
 			if(*server_data == ',' || *server_data == '\0'){
 				*(value_res + (value_index++)) = '\0';
+	
 				// key[map_index++] = (char*) realloc(value_res,value_index);
+				count_props++;
 				value[map_index++] = value_res;
 				value_res = malloc(PROPERTY_MAX_SIZE);
 				value_index = 0;
 				is_key=true;
-				if(*server_data == '\0'){return SYS_ERR_OK;}
+				if(*server_data == '\0'){goto end;}
 				server_data++;
 			}else{
 				// debug_printf("%c\n",*server_data);
@@ -581,11 +747,21 @@ errval_t deserialize_prop(const char * server_data,char *  key[],char *  value[]
 			}
 		}
 	}
-
-	// free(key_res);
-	// free(value_res);
-
+	free(key_res);
+	free(value_res);
 	return SYS_ERR_OK;
+
+end:
+	free(key_res);
+	free(value_res);
+	*property_size = count_props;
+	// debug_printf("Got here\n");
+	
+	return SYS_ERR_OK;
+end_fail:
+	free(key_res);
+	free(value_res);
+	return LIB_ERR_NAMESERVICE_INVALID_PROPERTY_FORMAT;
 }
 
 
@@ -593,6 +769,18 @@ void init_server_handlers(struct aos_rpc* server_rpc){
 	aos_rpc_register_handler(server_rpc,OS_IFACE_MESSAGE,&nameservice_reveice_handler_wrapper);
 	aos_rpc_register_handler(server_rpc,OS_IFACE_BINDING_REQUEST,&nameservice_binding_request_handler);
 	aos_rpc_register_handler(server_rpc,OS_IFACE_DIRECT_MESSAGE,&namservice_receive_handler_wrapper_direct);
+}
+
+
+
+errval_t nameservice_get_props(const char* name, char ** response){
+	errval_t err;
+	// debug_printf("jere\n");
+	char *response_buf = (char *) malloc (PROPERTY_MAX_SIZE * N_PROPERTIES);
+	err = aos_rpc_call(get_ns_rpc(),NS_GET_SERVER_PROPS,name,*response_buf);
+	ON_ERR_RETURN(err);
+	*response = realloc(response_buf,strlen(response_buf));
+	return SYS_ERR_OK;
 }
 
 

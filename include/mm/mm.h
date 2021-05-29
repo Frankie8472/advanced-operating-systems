@@ -20,6 +20,7 @@
 #include <aos/types.h>
 #include <aos/capabilities.h>
 #include <aos/slab.h>
+#include <aos/thread_sync.h>
 #include "slot_alloc.h"
 
 __BEGIN_DECLS
@@ -71,6 +72,8 @@ struct mm {
 
     bool initialized_slot;
     bool refilling;
+
+    struct thread_mutex mutex;
 };
 
 errval_t mm_init(struct mm *mm, enum objtype objtype,

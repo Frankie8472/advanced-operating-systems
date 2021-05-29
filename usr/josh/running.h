@@ -12,7 +12,14 @@ enum shell_state {
 
 struct running_program
 {
+    bool is_builtin;
+    struct thread *builtin_thread;
+    
     domainid_t domainid;
+    
+    const char *cmd;
+    size_t argc;
+    char **argv;
 
     struct capref out_cap;
     struct aos_datachan process_out;

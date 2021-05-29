@@ -57,6 +57,8 @@ errval_t mm_init(struct mm *mm, enum objtype objtype,
     mm->refilling = false;
     mm->stats_bytes_max = 0;
     mm->stats_bytes_available = 0;
+
+    thread_mutex_init(&mm->mutex);
     return SYS_ERR_OK;
 }
 
@@ -254,8 +256,13 @@ errval_t mm_add(struct mm *mm, struct capref cap, genpaddr_t base, size_t size)
 {
     assert(mm != NULL);
 
+    thread_mutex_lock_nested(&mm->mutex);
     struct mmnode *new_node = slab_alloc(&mm->slabs);
-    NULLPTR_CHECK(new_node, LIB_ERR_SLAB_ALLOC_FAIL);
+
+    if (new_node == NULL) {
+        thread_mutex_unlock(&mm->mutex);
+        return LIB_ERR_SLAB_ALLOC_FAIL;
+    }
 
     new_node->cap = (struct capinfo) {
         .cap = cap,
@@ -272,6 +279,7 @@ errval_t mm_add(struct mm *mm, struct capref cap, genpaddr_t base, size_t size)
     mm->stats_bytes_available += size;
     mm->stats_bytes_max += size;
 
+    thread_mutex_unlock(&mm->mutex);
     return SYS_ERR_OK;
 }
 
@@ -302,6 +310,8 @@ errval_t mm_alloc_aligned(struct mm *mm, size_t size, size_t alignment, struct c
     struct mmnode *node;
 
 
+    thread_mutex_lock_nested(&mm->mutex);
+
     for (node = mm->free_head; node != NULL; node = node->free_next) {
         if (node->size >= size) {
             struct mmnode *a, *b;
@@ -312,17 +322,26 @@ errval_t mm_alloc_aligned(struct mm *mm, size_t size, size_t alignment, struct c
                     continue;
                 }
                 err = split_node(mm, node, offset, &a, &b);
-                ON_ERR_RETURN(err);
+                if (err_is_fail(err)) {
+                    thread_mutex_unlock(&mm->mutex);
+                    return err;
+                }
 
                 node = b;
             }
 
-            err = cap_retype(*retcap, node->cap.cap,node->base - node->cap.base, mm->objtype, size,1);
-            ON_ERR_PUSH_RETURN(err, LIB_ERR_CAP_RETYPE);
+            err = cap_retype(*retcap, node->cap.cap, node->base - node->cap.base, mm->objtype, size, 1);
+            if (err_is_fail(err)) {
+                thread_mutex_unlock(&mm->mutex);
+                return err_push(err, LIB_ERR_CAP_RETYPE);
+            }
 
             if (size < node->size) {
                 err = split_node(mm, node, size, &a, &b);
-                ON_ERR_RETURN(err);
+                if (err_is_fail(err)) {
+                    thread_mutex_unlock(&mm->mutex);
+                    return err;
+                }
 
                 node = a;
             }
@@ -332,9 +351,13 @@ errval_t mm_alloc_aligned(struct mm *mm, size_t size, size_t alignment, struct c
             mm->stats_bytes_available -= node->size;
 
             mm_check_refill(mm);
+            thread_mutex_unlock(&mm->mutex);
             return SYS_ERR_OK;
         }
     }
+
+
+    thread_mutex_unlock(&mm->mutex);
     return LIB_ERR_RAM_ALLOC_FIXED_EXHAUSTED;
 }
 
@@ -397,6 +420,9 @@ errval_t mm_free(struct mm *mm, struct capref cap, genpaddr_t base, gensize_t si
 
     errval_t err;
 
+
+    thread_mutex_lock_nested(&mm->mutex);
+
     for (struct mmnode* node = mm->head; node; node = node->next) {
         if (node->base == base && node->size == size) {
             node->type = NodeType_Free;
@@ -409,8 +435,11 @@ errval_t mm_free(struct mm *mm, struct capref cap, genpaddr_t base, gensize_t si
                     err = mm_slot_free(mm, cap);
                 }
             }
+            if(err_is_fail(err)) {
+                thread_mutex_unlock(&mm->mutex);
+                return err_push(err, LIB_ERR_CAP_DESTROY);
+            }
 
-            ON_ERR_PUSH_RETURN(err, LIB_ERR_CAP_DESTROY);
 
             mm->stats_bytes_available += size;
 
@@ -426,6 +455,8 @@ errval_t mm_free(struct mm *mm, struct capref cap, genpaddr_t base, gensize_t si
             return SYS_ERR_OK;
         }
     }
+
+    thread_mutex_unlock(&mm->mutex);
     return LIB_ERR_RAM_ALLOC_WRONG_SIZE;
 }
 
