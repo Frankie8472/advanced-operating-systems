@@ -197,8 +197,8 @@ errval_t arp_request(struct enet_driver_state *st, uint32_t ip_to) {
     struct arp_hdr *ahr = (struct arp_hdr *) (ra2 + ETH_HLEN);
     ahr->hwtype = htons(ARP_HW_TYPE_ETH);
     ahr->proto = htons(ARP_PROT_IP);
-    ahr->hwlen = 0;  // ?
-    ahr->protolen = 0;  // ?
+    ahr->hwlen = 6;  // ?
+    ahr->protolen = 4;  // ?
     ahr->opcode = htons(ARP_OP_REQ);
 
     uint8_t* macref = (uint8_t *) &(st->mac);
