@@ -38,25 +38,25 @@ int main(int argc, char *argv[])
 
     /* look up service using name server */
     nameservice_chan_t chan;
-    // err = nameservice_lookup(SERVICE_NAME, &chan);
-    err = nameservice_lookup_with_prop("/","type=ethernet",&chan);
+    err = nameservice_lookup(SERVICE_NAME, &chan);
+    // err = nameservice_lookup_with_prop("/","type=ethernet",&chan);
     if(err_is_fail(err)){
         DEBUG_ERR(err,"Failed to lookup service!\n");
     }
 
     debug_printf("Got the service %p. Sending request '%s'\n", chan, myrequest);
 
-    void *request = myrequest;
-    size_t request_size = strlen(myrequest);
+    // void *request = myrequest;
+    // size_t request_size = strlen(myrequest);
 
-    void *response;
-    size_t response_bytes;
-    err = nameservice_rpc(chan, request, request_size,
-                          &response, &response_bytes,
-                          NULL_CAP, NULL_CAP);
-    PANIC_IF_FAIL(err, "failed to do the nameservice rpc\n");
+    // void *response;
+    // size_t response_bytes;
+    // err = nameservice_rpc(chan, request, request_size,
+    //                       &response, &response_bytes,
+    //                       NULL_CAP, NULL_CAP);
+    // PANIC_IF_FAIL(err, "failed to do the nameservice rpc\n");
 
-    debug_printf("got response: %s\n", (char *)response);
+    // debug_printf("got response: %s\n", (char *)response);
 
     // size_t num;
     // char * ret_string[512];
@@ -71,13 +71,13 @@ int main(int argc, char *argv[])
 
     // char buffer[512];
     // err = aos_rpc_call(get_ns_rpc(),NS_GET_SERVER_PROPS,SERVICE_NAME,buffer);
-    debug_printf("Properties :");
-    char* props;
-    err = nameservice_get_props(SERVICE_NAME,&props);
-    if(err_is_fail(err)){
-        DEBUG_ERR(err,"Failed to get props!\n");
-    }
-    debug_printf("%s",props);
+    // debug_printf("Properties :");
+    // char* props;
+    // err = nameservice_get_props(SERVICE_NAME,&props);
+    // if(err_is_fail(err)){
+    //     DEBUG_ERR(err,"Failed to get props!\n");
+    // }
+    // debug_printf("%s",props);
     //   domainid_t * pids;
     // size_t pid_size;
     // err = aos_rpc_process_get_all_pids(aos_rpc_get_process_channel(),&pids,&pid_size);

@@ -52,7 +52,7 @@ void handle_all_binding_request(struct aos_rpc *r, uintptr_t pid, uintptr_t core
 void  handle_ns_on(struct aos_rpc *r);
 void handle_forward_ns_reg(struct aos_rpc *rpc,uintptr_t core_id,const char* name,struct capref proc_ep_cap, uintptr_t  pid, struct capref* ns_ep_cap);
 
-void handle_server_request(struct aos_rpc * rpc, uintptr_t pid, uintptr_t core_id ,const char* server_data,uintptr_t direct, const char * return_message);
+
 
 void handle_multi_hop_init(struct aos_rpc *rpc, const char* name,struct capref server_ep_cap, struct capref* init_ep_cap);
 
