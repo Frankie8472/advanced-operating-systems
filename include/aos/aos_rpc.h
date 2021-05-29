@@ -28,8 +28,8 @@
      _a < _b ? _a : _b; })
 
 enum aos_rpc_backend {
-    AOS_RPC_LMP,
-    AOS_RPC_UMP,
+    AOS_RPC_LMP = 1,
+    AOS_RPC_UMP = 2,
 };
 
 /**
