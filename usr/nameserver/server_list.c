@@ -82,7 +82,7 @@ errval_t find_server_by_name(char * name, struct server_list ** ret_serv){
     server_ht -> d.get(&server_ht ->d,name,strlen(name),(void**) ret_serv);
     // printf("here!\n");
     printf("ret_server: %lx\n",*ret_serv);
-    if(!ret_serv){
+    if(!*ret_serv){
         return LIB_ERR_NAMESERVICE_UNKNOWN_NAME;
     }else{
         return SYS_ERR_OK;
