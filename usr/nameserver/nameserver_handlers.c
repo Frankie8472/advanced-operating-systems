@@ -32,6 +32,7 @@ void initialize_nameservice_handlers(struct aos_rpc *ns_rpc){
     aos_rpc_register_handler(ns_rpc,NS_GET_SERVER_PROPS,&handle_get_props);
     aos_rpc_register_handler(ns_rpc,NS_LIVENESS_CHECK,&handle_liveness_check);
     aos_rpc_register_handler(ns_rpc,NS_REG_SERVER,&handle_reg_server);
+    aos_rpc_register_handler(ns_rpc,NS_GET_SERVER_PID,&handle_get_server_pid);
 }
 
 void handle_server_lookup(struct aos_rpc *rpc, char *name,uintptr_t* core_id,uintptr_t *direct,uintptr_t * success){
@@ -220,4 +221,14 @@ void handle_liveness_check(struct aos_rpc *rpc, const char* name){
     if(server -> pid == check_pid){
         server -> marked = false;
     }
+}
+
+void handle_get_server_pid(struct aos_rpc *rpc, const char * name, uintptr_t* pid ){
+    struct server_list *server;
+    errval_t err = find_server_by_name((char*)name,&server);
+    if(err_is_fail(err)){
+        // DEBUG_ERR(er)
+        *pid = 0xffffffff;
+    }
+    *pid = server -> pid;
 }

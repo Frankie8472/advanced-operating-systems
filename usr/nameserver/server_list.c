@@ -163,9 +163,9 @@ void find_servers_by_prefix_and_prop(const char* name,char*  keys[],char*  value
 
 
 bool prefix_match(char* name, char* server_name){
-    if(*name == '/'){
-        return true;
-    }
+    // if(*name == '/' && strlen(name) == 1){
+    //     return true;
+    // }
     while(*name != '\0'){
         if(*server_name == '\0'){return false;}
         if(*name++ != *server_name++){

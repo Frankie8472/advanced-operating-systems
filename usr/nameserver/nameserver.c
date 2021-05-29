@@ -16,7 +16,6 @@
 
 
 static void sweep_server_list(void * ptr){
-    debug_printf("Dead service removal sweep!\n");
     struct server_list* curr = servers;
     while(curr != NULL){
         if(curr -> marked == true){

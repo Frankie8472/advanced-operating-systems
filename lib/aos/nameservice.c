@@ -561,7 +561,6 @@ errval_t nameservice_enumerate_with_props(char *query,char * properties, size_t 
 	char * response_buf = malloc(MAX_RPC_MSG_SIZE * sizeof(char)); 
 	err = aos_rpc_call(get_ns_rpc(),NS_ENUM_SERVER_PROPS,query_with_prop,num,response_buf);
 	char * response = realloc(response_buf,strlen(response_buf));
-	debug_printf("response: %s\n",response);
 	ON_ERR_RETURN(err);
 	size_t res_index = 1;
 	*result = response;
@@ -815,7 +814,14 @@ errval_t nameservice_get_props(const char* name, char ** response){
 	return SYS_ERR_OK;
 }
 
-
+errval_t nameservice_get_pid(const char* name, domainid_t* resp_pid){
+	errval_t err = aos_rpc_call(get_ns_rpc(),NS_GET_SERVER_PID,name,resp_pid);
+	ON_ERR_RETURN(err);
+	if(*resp_pid == 0xffffffff){
+		return LIB_ERR_NAMESERVICE_UNKNOWN_NAME;
+	}
+	return SYS_ERR_OK;
+}
 
 
 
@@ -837,6 +843,18 @@ bool query_check(const char*query){
 bool property_check(const char * properties){
 	regex_t regex_name;
 	int reti = regcomp(&regex_name,"^(([a-z]|[A-Z])*=([a-z]|[A-Z]|[0-9]|:|-)*)(,([a-z]|[A-Z])*=([a-z]|[A-Z]|[0-9]|:|-)*)*$",REG_EXTENDED);
+	if(reti){
+		debug_printf("Failed to compile!\n");
+	}
+	reti = regexec(&regex_name,properties,0,NULL,0);
+	return !reti;
+}
+
+
+// we need this because the parser cannot read "="
+bool property_check_terminal(const char * properties){
+	regex_t regex_name;
+	int reti = regcomp(&regex_name,"^(([a-z]|[A-Z])*%([a-z]|[A-Z]|[0-9]|:|-)*)(,([a-z]|[A-Z])*%([a-z]|[A-Z]|[0-9]|:|-)*)*$",REG_EXTENDED);
 	if(reti){
 		debug_printf("Failed to compile!\n");
 	}
