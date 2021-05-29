@@ -231,7 +231,7 @@ int handle_nslookup(size_t argc, const char **argv, struct aos_datachan *out){
     }
     err = nameservice_get_pid(argv[0],&server_pid);
     if(err_is_fail(err)){
-        printf("Server name " JF_BOLD "%s" JF_RESET " not online.",argv[1]);
+        printf("Server name " JF_BOLD "%s" JF_RESET " not online.",argv[0]);
         return 1;
     }
     printf(JF_BOLD "\nPID: %d\n" JF_RESET);
