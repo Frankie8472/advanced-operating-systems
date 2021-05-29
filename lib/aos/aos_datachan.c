@@ -208,6 +208,10 @@ errval_t aos_dc_send(struct aos_datachan *dc, size_t bytes, const char *data)
     else if (dc->backend == AOS_RPC_UMP) {
         return aos_dc_send_ump(dc, bytes, data);
     }
+    else if (dc->backend == 0) {
+        return SYS_ERR_OK;
+    }
+
     return SYS_ERR_NOT_IMPLEMENTED;
 }
 
@@ -380,6 +384,10 @@ errval_t aos_dc_can_receive(struct aos_datachan *dc)
 errval_t aos_dc_receive(struct aos_datachan *dc, size_t bytes, char *data, size_t *received)
 {
     *received = 0;
+
+    if (dc->backend == 0) {
+        return SYS_ERR_OK;
+    }
     do {
         errval_t err = aos_dc_receive_available(dc, bytes, data, received);
         ON_ERR_RETURN(err);
