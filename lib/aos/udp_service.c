@@ -175,3 +175,48 @@ void aos_arp_table_get(char *rtptr) {
         DEBUG_ERR(err, "failed to do the nameservice rpc\n");
     }
 }
+
+errval_t aos_ping_init(struct aos_ping_socket *s, uint32_t ip) {
+    s->ip = ip;
+    return nameservice_lookup(ENET_SERVICE_NAME, &s->_nschan);
+}
+
+errval_t aos_ping_send(struct aos_ping_socket *s) {
+    errval_t *erref = malloc(sizeof(errval_t));
+    size_t msgsize = sizeof(struct udp_service_message);
+    struct udp_service_message *usm = malloc(msgsize);
+
+    usm->type = ICMP_PING_SEND;
+    usm->ip = s->ip;
+
+    void *response = erref;
+    size_t response_betes;
+
+    errval_t err = nameservice_rpc(s->_nschan, (void *) usm, msgsize,
+                                   &response, &response_betes,
+                                   NULL_CAP, NULL_CAP);
+    free(usm);
+    err = err_is_fail(err) ? err : *erref;
+    free(erref);
+    return LIB_ERR_NOT_IMPLEMENTED;
+}
+
+uint16_t aos_ping_recv(struct aos_ping_socket *s) {
+    uint16_t *resref = malloc(sizeof(uint16_t));
+    size_t msgsize = sizeof(struct udp_service_message);
+    struct udp_service_message *usm = malloc(msgsize);
+
+    usm->type = ICMP_PING_RECV;
+    usm->ip = s->ip;
+
+    void *response = resref;
+    size_t response_betes;
+
+    errval_t err = nameservice_rpc(s->_nschan, (void *) usm, msgsize,
+                                   &response, &response_betes,
+                                   NULL_CAP, NULL_CAP);
+    free(usm);
+    uint16_t res = err_is_fail(err) ? 0 : *resref;
+    free(resref);
+    return res;
+}
