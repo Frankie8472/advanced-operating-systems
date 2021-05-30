@@ -6,6 +6,7 @@
 
 #include <stdio.h>
 
+#include "main.h"
 #include "ast.h"
 #include "builtins.h"
 #include "running.h"
@@ -152,13 +153,7 @@ static errval_t call_spawn_request(const char *name, coreid_t core, size_t argc,
         struct capref rpc_frame;
         frame_alloc(&rpc_frame, BASE_PAGE_SIZE, NULL);
 
-        prog->domainid = pid;
-        if (((int) pid) == MOD_NOT_FOUND || ((int) pid) == COREID_INVALID) {
-            cap_destroy(rpc_frame);
-            cap_destroy(prog->out_cap);
-            cap_destroy(prog->in_cap);
-            return SPAWN_ERR_FIND_MODULE;
-        }
+
 
         void *disp_rpc_addr;
         err = paging_map_frame_complete(get_current_paging_state(), &disp_rpc_addr, rpc_frame, NULL, NULL);
@@ -179,6 +174,13 @@ static errval_t call_spawn_request(const char *name, coreid_t core, size_t argc,
         }
 
         prog->domainid = pid;
+        /*if (((int) pid) == MOD_NOT_FOUND || ((int) pid) == COREID_INVALID) {
+            cap_destroy(rpc_frame);
+            cap_destroy(prog->out_cap);
+            cap_destroy(prog->in_cap);
+
+            return SPAWN_ERR_FIND_MODULE;
+        }*/
 
         if (((int) pid) == MOD_NOT_FOUND || ((int) pid) == COREID_INVALID) {
             return SPAWN_ERR_FIND_MODULE;
@@ -203,7 +205,7 @@ bool is_number(const char *string)
 }
 
 
-static errval_t spawn_program(const char *dest, const char *cmd, size_t argc, const char **argv, struct running_program *prog)
+errval_t spawn_program(const char *dest, const char *cmd, size_t argc, const char **argv, struct running_program *prog)
 {
     errval_t err;
 
@@ -221,7 +223,6 @@ static errval_t spawn_program(const char *dest, const char *cmd, size_t argc, co
 
     err = call_spawn_request(cmd, destination_core, argc, argv, NULL, prog);
     if (err == SPAWN_ERR_FIND_MODULE) {
-        debug_printf("why?\n");
         if (prog->domainid == COREID_INVALID) {
             printf("spawning failed: invalid destination\n", cmd);
         }
@@ -268,10 +269,9 @@ static errval_t setup_builtin(const char *cmd, size_t argc, const char **argv, s
     prog->argc = argc;
     prog->argv = malloc(argc * sizeof(char *));
     memcpy(prog->argv, argv, argc * sizeof(char *));
-
+    setup_ump_channels(prog);
     prog->builtin_thread = thread_create(builtin_threadentry, prog);
 
-    setup_ump_channels(prog);
     return SYS_ERR_OK;
 }
 
@@ -337,14 +337,21 @@ static void execute_command(struct josh_command *command)
             }
         }
 
-        const char* destination = command->destination;
+        char* destination = NULL;
+        if (command->destination != NULL) {
+            destination = evaluate_value(command->destination);
+        }
 
         if (is_builtin(cmd)) {
             if (destination != NULL && atoi(destination) != disp_get_core_id()) {
                 printf("Can't execute shell builtins on different cores\n");
             }
             else {
-                setup_builtin(cmd, argc, (const char **) argv, &programs[j]);
+                err = setup_builtin(cmd, argc, (const char **) argv, &programs[j]);
+                if (err_is_fail(err)) {
+                    free(argv);
+                    break;
+                }
             }
         }
         else {
@@ -393,12 +400,37 @@ static void do_assignment(struct josh_assignment *assignment)
         set_variable(varname, value);
     }
     else {
-        setenv(varname, value, 1);
+        if (value == NULL) {
+            unsetenv(varname);
+        }
+        else {
+            setenv(varname, value, 1);
+        }
     }
 }
 
 
-static void process_line(void) {
+static void run_josh_line(struct josh_line *line)
+{
+    while(line != NULL) {
+        if (line->type == JL_COMMAND) {
+            struct josh_command *command = line->command;
+            execute_command(command);
+        }
+        else if (parsed_line->type == JL_ASSIGNMENT) {
+            struct josh_assignment *assignment = line->assignment;
+            do_assignment(assignment);
+        }
+        else {
+            // should not happen
+            printf("invalid line\n");
+        }
+        line = line->next;
+    }
+}
+
+
+static void parse_input_line(void) {
     char *line = linenoise(getenv("PROMPT"));
 
     if (line == NULL || line[0] == '\0') {
@@ -407,25 +439,18 @@ static void process_line(void) {
 
     linenoiseHistoryAdd(line);
 
-    //debug_printf("we got line: %s\n", line);
     yylex_destroy(); // reset parser
-    yy_scan_string(line);
+    yy_scan_string(line); 
     int errval = yyparse();
     if (errval == 0 && parsed_line != NULL) {
-        if (parsed_line->type == JL_COMMAND) {
-            struct josh_command *command = parsed_line->command;
-            execute_command(command);
-        }
-        else if (parsed_line->type == JL_ASSIGNMENT) {
-            struct josh_assignment *assignment = parsed_line->assignment;
-            do_assignment(assignment);
-        }
+        run_josh_line(parsed_line);
         josh_line_free(parsed_line);
         parsed_line = NULL;
     }
     else {
         printf("error parsing command!\n");
     }
+
     linenoiseFree(line);
 }
 
@@ -441,13 +466,16 @@ int main(int argc, char **argv)
     setenv("PROMPT", "\033[32;1mjosh\033[m $ ", 0);
     setenv("PATH", "/usr/bin:/home", 0);
 
-    printf("Welcome to JameOS Shell\n");
+    // printf("Welcome to JameOS Shell\n");
+
+    // hack
+    lmp_chan_deregister_recv(&get_ns_rpc()->channel.lmp);
 
     linenoiseHistorySetMaxLen(64);
     linenoiseSetCompletionCallback(&complete_line);
 
     while(true) {
-        process_line();
+        parse_input_line();
     }
 
     return 0;

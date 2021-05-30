@@ -59,9 +59,10 @@ void handle_multi_hop_init(struct aos_rpc *rpc, const char* name,struct capref s
 
 
 
-void handle_client_call(struct aos_rpc *rpc,coreid_t core_id,const char* message,struct capref send_cap,char* response, struct capref *recv_cap);
-void handle_client_call1(struct aos_rpc *rpc,coreid_t core_id,const char* message,struct capref send_cap,char* response);
-void handle_client_call2(struct aos_rpc *rpc,coreid_t core_id,const char* message,char* response);
-void handle_client_call3(struct aos_rpc *rpc,coreid_t core_id,const char* message, char* response, struct capref *recv_cap);
+
+void handle_client_call(struct aos_rpc *rpc,coreid_t core_id,const char* name,struct aos_rpc_varbytes message,struct capref send_cap,struct aos_rpc_varbytes* response, struct capref *recv_cap, uintptr_t* response_size);
+void handle_client_call1(struct aos_rpc *rpc,coreid_t core_id,const char* name,struct aos_rpc_varbytes message,struct capref send_cap,struct aos_rpc_varbytes* response, uintptr_t* response_size);
+void handle_client_call2(struct aos_rpc *rpc,coreid_t core_id,const char* name,struct aos_rpc_varbytes message,struct aos_rpc_varbytes* response, uintptr_t* response_size);
+void handle_client_call3(struct aos_rpc *rpc,coreid_t core_id,const char* name,struct aos_rpc_varbytes message, struct aos_rpc_varbytes* response, struct capref *recv_cap, uintptr_t* response_size);
 void handle_binding_request(struct aos_rpc * rpc,const char* name,uintptr_t src_core,uintptr_t target_core,struct capref client_ep_cap, struct capref * server_ep_cap);
 #endif // INIT_RPC_SERVER_H_

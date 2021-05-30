@@ -65,7 +65,7 @@ static struct waitset mm_waitset;
 static int memory_server_func(void *arg)
 {
     errval_t err;
-    debug_printf("memory server thread started\n");
+    // debug_printf("memory server thread started\n");
     while (true) {
         //debug_printf("waiting in thread waitset\n");
         err = event_dispatch(&mm_waitset);
@@ -205,7 +205,7 @@ void handle_spawn(struct aos_rpc *old_rpc, const char *name, uintptr_t core_id, 
     } else { // is 0
         // ump call to core_id
         //OR init distribute on creation of ump channel to all known channels
-        debug_printf("spawn on core id: %d\n", core_id);
+        // debug_printf("spawn on core id: %d\n", core_id);
         errval_t err;
         struct aos_rpc* ump_chan = get_core_channel(core_id);
         
@@ -326,7 +326,7 @@ void handle_foreign_spawn(struct aos_rpc *origin_rpc, const char *name, uintptr_
 void handle_init_process_register(struct aos_rpc *r,uintptr_t core_id,const char* name, uintptr_t* pid){
     errval_t err;
     if(disp_get_current_core_id() == 0){
-        debug_printf("Handling proces register in bsp_init\n");
+        // debug_printf("Handling proces register in bsp_init\n");
         if (!get_pm_online()) {
             debug_printf("pm not yet online, we will now probably fail\n");
         }
@@ -514,7 +514,7 @@ void handle_multi_hop_init(struct aos_rpc *rpc,const char* name, struct capref s
     errval_t err;
 
 
-    debug_printf("Starting init multihop stuff for %s!\n",name);
+    // debug_printf("Starting init multihop stuff for %s!\n",name);
     struct routing_entry * re = (struct routing_entry *) malloc(sizeof(struct routing_entry));
     assert(re && "Routing entry failed!\n");
     strcpy(re -> name,(char *) name);
@@ -552,8 +552,8 @@ void handle_multi_hop_init(struct aos_rpc *rpc,const char* name, struct capref s
 
 
 
-void handle_client_call(struct aos_rpc *rpc,coreid_t core_id,const char* message,struct capref send_cap,char* response, struct capref *recv_cap){
-    debug_printf("handling client call!\n");
+void handle_client_call(struct aos_rpc *rpc,coreid_t core_id,const char* name,struct aos_rpc_varbytes message,struct capref send_cap,struct aos_rpc_varbytes* response, struct capref *recv_cap, uintptr_t* response_size){
+    // debug_printf("handling client call!\n");
     errval_t err;
     coreid_t curr_core = disp_get_core_id();
     if(core_id != curr_core){
@@ -561,22 +561,22 @@ void handle_client_call(struct aos_rpc *rpc,coreid_t core_id,const char* message
         if(curr_core == 0){ fw_rpc = get_core_channel(core_id);}
         else{fw_rpc = get_core_channel(0);}
         assert(fw_rpc && "Core channel not online!");
-        err = aos_rpc_call(get_core_channel(0),INIT_CLIENT_CALL,core_id,message,send_cap,response,recv_cap);
+        err = aos_rpc_call(fw_rpc,INIT_CLIENT_CALL,core_id,name,message,send_cap,response,recv_cap);
         if(err_is_fail(err)){DEBUG_ERR(err,"Failed forward!");}
     }else {
 
 
-        char name[1024];
-        size_t n_index = 0;
-        char * extracted_message = (char *) message;
-        while(*extracted_message != '\0' && *extracted_message != '?'){
-            name[n_index] = *extracted_message++;
-            n_index++;
-        }
-        name[n_index] = '\0';
-        extracted_message++;
+        // char name[1024];
+        // size_t n_index = 0;
+        // char * extracted_message = (char *) message;
+        // while(*extracted_message != '\0' && *extracted_message != '?'){
+        //     name[n_index] = *extracted_message++;
+        //     n_index++;
+        // }
+        // name[n_index] = '\0';
+        // extracted_message++;
 
-        debug_printf("Routing to server with name %s\n",name);
+        // debug_printf("Routing to server with name %s\n",name);
         struct routing_entry * re;
         err = get_routing_entry_by_name(name,&re);
         if(err_is_fail(err)){
@@ -590,7 +590,7 @@ void handle_client_call(struct aos_rpc *rpc,coreid_t core_id,const char* message
         //     return;
         // }
 
-        err = aos_rpc_call(re -> rpc,OS_IFACE_MESSAGE,extracted_message,send_cap,response,recv_cap);
+        err = aos_rpc_call(re -> rpc,OS_IFACE_MESSAGE,message,send_cap,response,recv_cap,response_size);
         if(err_is_fail(err)){
             DEBUG_ERR(err,"Failed call to server ep!\n");
         }
@@ -599,8 +599,8 @@ void handle_client_call(struct aos_rpc *rpc,coreid_t core_id,const char* message
 
 
 
-void handle_client_call1(struct aos_rpc *rpc,coreid_t core_id,const char* message,struct capref send_cap,char* response){
-    debug_printf("handling client call! 1\n");
+void handle_client_call1(struct aos_rpc *rpc,coreid_t core_id,const char* name,struct aos_rpc_varbytes message,struct capref send_cap,struct aos_rpc_varbytes* response, uintptr_t* response_size){
+    // debug_printf("handling client call! 1\n");
     errval_t err;
     coreid_t curr_core = disp_get_core_id();
     if(core_id != curr_core){
@@ -608,22 +608,12 @@ void handle_client_call1(struct aos_rpc *rpc,coreid_t core_id,const char* messag
         if(curr_core == 0){ fw_rpc = get_core_channel(core_id);}
         else{fw_rpc = get_core_channel(0);}
         assert(fw_rpc && "Core channel not online!");
-        err = aos_rpc_call(get_core_channel(0),INIT_CLIENT_CALL1,core_id,message,send_cap,response);
+        err = aos_rpc_call(fw_rpc,INIT_CLIENT_CALL1,core_id,name,message,send_cap,response);
         if(err_is_fail(err)){DEBUG_ERR(err,"Failed forward!");}
     }else {
 
 
-        char name[1024];
-        size_t n_index = 0;
-        char * extracted_message = (char *) message;
-        while(*extracted_message != '\0' && *extracted_message != '?'){
-            name[n_index] = *extracted_message++;
-            n_index++;
-        }
-        name[n_index] = '\0';
-        extracted_message++;
-
-        debug_printf("Routing to server with name %s\n",name);
+        // debug_printf("Routing to server with name %s\n",name);
         struct routing_entry * re;
         err = get_routing_entry_by_name(name,&re);
         if(err_is_fail(err)){
@@ -632,7 +622,7 @@ void handle_client_call1(struct aos_rpc *rpc,coreid_t core_id,const char* messag
         }
 
         struct capref dummy_cap;
-        err = aos_rpc_call(re -> rpc,OS_IFACE_MESSAGE,extracted_message,send_cap,response,&dummy_cap);
+        err = aos_rpc_call(re -> rpc,OS_IFACE_MESSAGE,message,send_cap,response,&dummy_cap,response_size);
         if(err_is_fail(err)){
             DEBUG_ERR(err,"Failed call to server ep!\n");
         }
@@ -641,8 +631,12 @@ void handle_client_call1(struct aos_rpc *rpc,coreid_t core_id,const char* messag
 
 
 
-void handle_client_call2(struct aos_rpc *rpc,coreid_t core_id,const char* message,char* response){
-    debug_printf("handling client call 2!\n");
+void handle_client_call2(struct aos_rpc *rpc,coreid_t core_id,const char* name,struct aos_rpc_varbytes message,struct aos_rpc_varbytes* response, uintptr_t* response_size){
+
+    // struct aos_rpc_varbytes new_message = {
+    //     .bytes 
+    // }
+    // debug_printf("handling client call 2!\n");
     errval_t err;
     coreid_t curr_core = disp_get_core_id();
     if(core_id != curr_core){
@@ -650,22 +644,12 @@ void handle_client_call2(struct aos_rpc *rpc,coreid_t core_id,const char* messag
         if(curr_core == 0){ fw_rpc = get_core_channel(core_id);}
         else{fw_rpc = get_core_channel(0);}
         assert(fw_rpc && "Core channel not online!");
-        err = aos_rpc_call(get_core_channel(0),INIT_CLIENT_CALL2,core_id,message,response);
+        err = aos_rpc_call(fw_rpc,INIT_CLIENT_CALL2,core_id,name,message,response,response_size);
         if(err_is_fail(err)){DEBUG_ERR(err,"Failed forward!");}
     }else {
 
-        // debug_printf("Client call 2\n");
-        char name[1024];
-        size_t n_index = 0;
-        char * extracted_message = (char *) message;
-        while(*extracted_message != '\0' && *extracted_message != '?'){
-            name[n_index] = *extracted_message++;
-            n_index++;
-        }
-        name[n_index] = '\0';
-        extracted_message++;
 
-        debug_printf("Routing to server with name %s\n",name);
+        // debug_printf("Routing to server with name %s\n",name);
         struct routing_entry * re;
         err = get_routing_entry_by_name(name,&re);
         if(err_is_fail(err)){
@@ -673,20 +657,17 @@ void handle_client_call2(struct aos_rpc *rpc,coreid_t core_id,const char* messag
             return;
         }
         struct capref dummy_cap;
-        // debug_printf("em : %lx, response: %lx\n",extracted_message,response);
-        err = aos_rpc_call(re -> rpc,OS_IFACE_MESSAGE,extracted_message,NULL_CAP,response,&dummy_cap);
-        // debug_printf("em : %lx, response: %lx\n",extracted_message,response);
-        // debug_printf("Got response : %s\n",response);
+        err = aos_rpc_call(re -> rpc,OS_IFACE_MESSAGE,message,NULL_CAP,response,&dummy_cap,response_size);
         if(err_is_fail(err)){
             DEBUG_ERR(err,"Failed call to server ep!\n");
         }
     }
-    debug_printf("Got here!\n");
+    // debug_printf("Got here!\n");
 }
 
 
-void handle_client_call3(struct aos_rpc *rpc,coreid_t core_id,const char* message, char* response, struct capref *recv_cap){
-    debug_printf("handling client call 3!\n");
+void handle_client_call3(struct aos_rpc *rpc,coreid_t core_id,const char* name,struct aos_rpc_varbytes message, struct aos_rpc_varbytes* response, struct capref *recv_cap, uintptr_t* response_size){
+    // debug_printf("handling client call 3!\n");
     errval_t err;
     coreid_t curr_core = disp_get_core_id();
     if(core_id != curr_core){
@@ -694,29 +675,18 @@ void handle_client_call3(struct aos_rpc *rpc,coreid_t core_id,const char* messag
         if(curr_core == 0){ fw_rpc = get_core_channel(core_id);}
         else{fw_rpc = get_core_channel(0);}
         assert(fw_rpc && "Core channel not online!");
-        err = aos_rpc_call(get_core_channel(0),INIT_CLIENT_CALL3,core_id,message,response,recv_cap);
+        err = aos_rpc_call(fw_rpc,INIT_CLIENT_CALL3,core_id,name,message,response,recv_cap,response_size);
         if(err_is_fail(err)){DEBUG_ERR(err,"Failed forward!");}
     }else {
 
-
-        char name[1024];
-        size_t n_index = 0;
-        char * extracted_message = (char *) message;
-        while(*extracted_message != '\0' && *extracted_message != '?'){
-            name[n_index] = *extracted_message++;
-            n_index++;
-        }
-        name[n_index] = '\0';
-        extracted_message++;
-
-        debug_printf("Routing to server with name %s\n",name);
+        // debug_printf("Routing to server with name %s\n",name);
         struct routing_entry * re;
         err = get_routing_entry_by_name(name,&re);
         if(err_is_fail(err)){
             DEBUG_ERR(err,"Failed to get routing entry by name\n");
             return;
         }
-        err = aos_rpc_call(re -> rpc,OS_IFACE_MESSAGE,extracted_message,NULL_CAP,response,recv_cap);
+        err = aos_rpc_call(re -> rpc,OS_IFACE_MESSAGE,message,NULL_CAP,response,recv_cap,response_size);
         if(err_is_fail(err)){
             DEBUG_ERR(err,"Failed call to server ep!\n");
         }

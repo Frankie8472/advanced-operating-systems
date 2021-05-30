@@ -128,6 +128,7 @@ errval_t find_server_by_name_and_property(const char * name, char*  keys[],char*
             *ret_serv = curr;
             return SYS_ERR_OK;
         }
+        curr = curr -> next;
     }
     return LIB_ERR_NAMESERVICE_UNKNOWN_NAME;
 }
@@ -143,14 +144,28 @@ void find_servers_by_prefix(const char* name, char* response,size_t * resp_size)
             (*resp_size) += 1;
             strcat(response,curr -> name);
         }
+    }
 }
+
+void find_servers_by_prefix_and_prop(const char* name,char*  keys[],char*  values[],size_t prop_size , char* response,size_t * resp_size){
+    *resp_size = 0;
+    *response = '\0';
+    for(struct server_list* curr = servers;curr != NULL;curr = curr -> next){
+        if(prefix_match((char*) name,(char*) curr -> name) && property_match(curr,keys,values,prop_size)){            
+            if(*resp_size > 0){
+                strcat(response,",");
+            }
+            (*resp_size) += 1;
+            strcat(response,curr -> name);
+        }
+    }
 }
 
 
 bool prefix_match(char* name, char* server_name){
-    if(*name == '/'){
-        return true;
-    }
+    // if(*name == '/' && strlen(name) == 1){
+    //     return true;
+    // }
     while(*name != '\0'){
         if(*server_name == '\0'){return false;}
         if(*name++ != *server_name++){

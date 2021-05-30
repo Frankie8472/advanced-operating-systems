@@ -29,6 +29,11 @@ static void server_recv_handler(void *st, void *message,
     debug_printf("server: got a request: %s\n", (char *)message);
     *response = myresponse;
     *response_bytes = strlen(myresponse);
+    // struct capref cap;
+    // slot_alloc(&cap);
+    // frame_alloc(&cap,BASE_PAGE_SIZE,NULL);
+    // cap_copy(cap,tx_cap);
+
 }
 
 
@@ -38,7 +43,7 @@ int main(int argc, char *argv[])
     
 
     errval_t err;
-    debug_printf("Server\n");
+    // debug_printf("Server\n");
     
     // char * name;
     // aos_rpc_process_get_name(aos_rpc_get_process_channel(),0,&name);
@@ -67,7 +72,7 @@ int main(int argc, char *argv[])
     
     strcpy(buffer,SERVICE_NAME);
     strcat(buffer,argv[1]);
-    err = nameservice_register_properties(buffer, server_recv_handler,NULL,true,"type=ethernet,mac=1:34:124:1");
+    err = nameservice_register_properties(buffer, server_recv_handler,NULL,false,"type=ethernet,mac=1:34:124:1");
     // err = nameservice_register(buffer, server_recv_handler,NULL);
     PANIC_IF_FAIL(err, "failed to register...\n");
 

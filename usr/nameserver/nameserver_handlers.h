@@ -19,4 +19,6 @@ void handle_dereg_server(struct aos_rpc *rpc, const char* name, uintptr_t* succe
 void handle_enum_servers(struct aos_rpc *rpc,const char* name, char * response, uintptr_t * resp_size);
 void handle_get_props(struct aos_rpc *rpc,const char* name, char * response);
 void handle_liveness_check(struct aos_rpc *rpc, const char* name);
+void handle_server_enum_with_prop(struct aos_rpc * rpc, char* query,uintptr_t* num,char * response);
+void handle_get_server_pid(struct aos_rpc *rpc, const char * name, uintptr_t* pid );
 #endif 

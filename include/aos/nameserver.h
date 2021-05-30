@@ -18,12 +18,12 @@
 #define N_PROPERTIES 64
 #define NS_SWEEP_INTERVAL 10000000
 #define NS_LIVENESS_INTERVAL 1000000
-
+#define MAX_RPC_MSG_SIZE 10000
 typedef void* nameservice_chan_t;
 
 
 struct server_connection {
-	const char* name;
+	char name[SERVER_NAME_SIZE];
 	coreid_t core_id;
 	bool direct;
 	struct aos_rpc * rpc;
@@ -35,9 +35,6 @@ typedef void(nameservice_receive_handler_t)(void *st,
 										    void *message, size_t bytes,
 										    void **response, size_t *response_bytes,
                                             struct capref tx_cap, struct capref *rx_cap);
-
-
-
 
 
 /**
@@ -122,7 +119,7 @@ errval_t nameservice_lookup_with_prop(const char *name,char * properties, namese
  */
 errval_t nameservice_enumerate(char *query, size_t *num, char **result );
 
-
+errval_t nameservice_enumerate_with_props(char *query,char * properties, size_t *num, char **result );
 /**
  * @brief get properties of a server, caller is responseible for free pointer
  * 
@@ -131,7 +128,7 @@ errval_t nameservice_enumerate(char *query, size_t *num, char **result );
  */
 errval_t nameservice_get_props(const char* name, char ** response);
 
-void nameservice_reveice_handler_wrapper(struct aos_rpc * rpc,char*  message,struct capref tx_cap, char * response, struct capref* rx_cap);
+void nameservice_reveice_handler_wrapper(struct aos_rpc * rpc,struct aos_rpc_varbytes message,struct capref tx_cap, struct aos_rpc_varbytes* response, struct capref* rx_cap, uintptr_t* response_size);
 void namservice_receive_handler_wrapper_direct(struct aos_rpc *rpc, struct aos_rpc_varbytes message,struct aos_rpc_varbytes * response,uintptr_t* response_size);
 void nameservice_binding_request_handler(struct aos_rpc *rpc,uintptr_t remote_core_id, struct capref remote_cap, struct capref* local_cap);
 errval_t nameservice_create_nshan(const char *name,bool direct , coreid_t core_id, nameservice_chan_t * nschan);
@@ -145,8 +142,10 @@ errval_t establish_init_server_con(const char* name,struct aos_rpc* server_rpc, 
 errval_t nameservice_lookup_query(const char * name,const char * query, nameservice_chan_t *nschan);
 void init_server_handlers(struct aos_rpc* server_rpc);
 errval_t create_lmp_server_ep_with_struct_aos_rpc(struct capref* server_ep, struct aos_rpc* new_rpc);
+errval_t nameservice_get_pid(const char* name, domainid_t* resp_pid);
 bool name_check(const char*name);
 bool property_check(const char * properties);
+bool property_check_terminal(const char * properties);
 bool query_check(const char*query);
 #endif /* INCLUDE_AOS_AOS_NAMESERVICE_H_ */
 

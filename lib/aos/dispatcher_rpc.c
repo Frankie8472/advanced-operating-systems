@@ -27,7 +27,8 @@ static void handle_rebind(struct aos_rpc *rpc, struct capref new_ep)
 static void handle_set_stdout(struct aos_rpc *rpc, struct capref new_stdout_ep)
 {
     //debug_printf("handle_set_stdout\n");
-    slot_free(stdout_chan.channel.lmp.remote_cap);
+    aos_dc_free(&stdout_chan);
+    aos_dc_init_lmp(&stdout_chan, 64);
     stdout_chan.channel.lmp.remote_cap = new_stdout_ep;
 }
 
@@ -114,7 +115,6 @@ errval_t init_dispatcher_rpcs(void)
     }
     set_init_rpc(&init_rpc);
 
-
     // Establishing channel with mm
     err = aos_rpc_init_lmp(&mm_rpc, NULL_CAP, mm_ep_cap, NULL, NULL);
     mm_rpc.lmp_server_mode = true;
@@ -123,9 +123,6 @@ errval_t init_dispatcher_rpcs(void)
         abort();
     }
     set_mm_rpc(&mm_rpc);
-
-
-    // Setting up stdout endpoint
 
 
     struct capability spawner_ep;
@@ -161,6 +158,7 @@ errval_t init_dispatcher_rpcs(void)
 
         struct capref real_stdout_ep_cap = stdout_cap;
 
+        // Setting up stdout endpoint
         struct capability disp_rpc_ep;
         invoke_cap_identify(dispatcher_rpc.channel.lmp.remote_cap, &disp_rpc_ep);
         if (disp_rpc_ep.type == ObjType_EndPointLMP) {
@@ -182,6 +180,8 @@ errval_t init_dispatcher_rpcs(void)
         struct capability stdout_c;
         invoke_cap_identify(real_stdout_ep_cap, &stdout_c);
         if (stdout_c.type == ObjType_EndPointLMP) {
+            // debug_printf("setting LMP stdout\n");
+            aos_dc_init_lmp(&stdout_chan, 64);
             stdout_chan.channel.lmp.remote_cap = real_stdout_ep_cap;
         }
         else if (stdout_c.type == ObjType_Frame) {

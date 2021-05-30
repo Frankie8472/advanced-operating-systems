@@ -123,7 +123,15 @@ errval_t aos_dc_init_ump(struct aos_datachan *dc, size_t buffer_length, lvaddr_t
 
 errval_t aos_dc_free(struct aos_datachan *dc)
 {
-    free(dc->buffer.buffer);
+    if (dc->buffer.buffer) {
+        free(dc->buffer.buffer);
+    }
+    if (dc->backend == AOS_RPC_LMP) {
+        lmp_chan_destroy(&dc->channel.lmp);
+    }
+    if (dc->backend == AOS_RPC_UMP) {
+        ump_chan_destroy(&dc->channel.ump);
+    }
     return SYS_ERR_OK;
 }
 

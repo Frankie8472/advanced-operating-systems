@@ -1,6 +1,8 @@
 #include "builtins.h"
 #include "format.h"
 #include "variables.h"
+#include "main.h"
+#include "running.h"
 
 #include <aos/nameserver.h>
 #include <aos/aos_rpc.h>
@@ -17,6 +19,8 @@ int handle_env(size_t argc, const char **argv, struct aos_datachan *out);
 int handle_time(size_t argc, const char **argv, struct aos_datachan *out);
 int handle_pmlist(size_t argc, const char **argv, struct aos_datachan *out);
 int handle_nslist(size_t argc, const char **argv, struct aos_datachan *out);
+int handle_nslookup(size_t argc, const char **argv, struct aos_datachan *out);
+
 
 const struct builtin builtins[] = {
     { "echo", &handle_echo },
@@ -24,9 +28,52 @@ const struct builtin builtins[] = {
     { "env", &handle_env },
     { "time", &handle_time },
     { "pmlist", &handle_pmlist },
-    { "nslist", &handle_nslist}
+    { "nslist", &handle_nslist},
+    { "nslookup", &handle_nslookup}
 };
 
+
+
+bool check_for_option(size_t argc,const char **argv, const char* option){
+    for(size_t i = 0; i < argc;++i){
+        if(!strcmp(argv[i],option)){
+            return true;
+        }
+    }
+    return false;
+}
+
+bool is_flag(const char* string){
+    if(*string == '-'){return true;}else{return false;}
+}
+
+bool find_query(size_t argc, const char ** argv,  char* query){
+    for(size_t i = 0; i < argc;++i){
+        if(query_check(argv[i])){
+            strcpy(query,argv[i]);
+            return true;
+        }
+    }
+    strcpy(query,"/");
+    return false;
+}
+
+
+bool find_property(size_t argc, const char ** argv,  char* properties){
+    for(size_t i = 0; i < argc;++i){
+        if(property_check_terminal(argv[i])){
+            strcpy(properties,argv[i]);
+            while(*properties!='\0'){
+                if(*properties == '%'){
+                    *properties='=';
+                }
+                properties++;
+            }
+            return true;
+        }
+    }
+    return false;
+} 
 
 int is_builtin(const char* cmd)
 {
@@ -91,6 +138,15 @@ int handle_env(size_t argc, const char **argv, struct aos_datachan *out)
 
 int handle_time(size_t argc, const char **argv, struct aos_datachan *out)
 {
+    /*struct running_program prog;
+    spawn_program(NULL, argv[0], argc, argv, &prog);
+
+    display_running_process(&prog, &prog.process_out);
+
+    while (!aos_dc_is_closed(&prog.process_out)) {
+        printf("timing\n");
+    }*/
+    printf("NYI!\n");
     return 0;
 }
 
@@ -125,28 +181,66 @@ int handle_pmlist(size_t argc, const char **argv, struct aos_datachan *out)
 }
 
 
+
 int handle_nslist(size_t argc, const char **argv, struct aos_datachan *out){
-    // nslist "/hello/" "type=ethernet,speed="
     errval_t err;
-    // char * ret_string[2000]; // MAX AMOUNT OF SERVERS
-    char ** ret_string = (char **) malloc(1024 * sizeof(char*));
+
+    char  query[SERVER_NAME_SIZE];
+    char  properties[2 * N_PROPERTIES * PROPERTY_MAX_SIZE];
+    bool verbose = check_for_option(argc,argv,"-v");
+    bool has_query = find_query(argc,argv,query);
+    bool has_prop = find_property(argc,argv,properties);
+    
+    if((int) verbose + (int) has_query + (int) has_prop != argc){
+        printf("\nInvalid nslist parameters, try: " JF_BOLD "nslist " JF_RESET "[-v] [prefix] [properties]\n" JF_RESET);
+        return 1;
+    }
+    
+    char* ret_string[N_PROPERTIES];
     size_t ret_size;
-    err = nameservice_enumerate("/",&ret_size,ret_string);
-    // if(err_is_ok)
-    if(err_is_fail(err) || ret_size >= 1024){
+    if(has_prop){
+        err = nameservice_enumerate_with_props((char* ) query,properties,&ret_size,(char**) ret_string);
+    }else{
+
+        err = nameservice_enumerate((char*)query,&ret_size,(char**)ret_string);
+    }
+
+    if(err_is_fail(err) ){
         printf("error querying nameserver\n");
         DEBUG_ERR(err,"");
         return 1;
     }
 
-    printf(JF_BOLD "%-32s # %-9"PRIuDOMAINID"\n" JF_RESET, "Servers",ret_size);
+    printf(JF_BOLD YEL " %-32s" RESET "     # %-9"PRIuDOMAINID"\n\n"  JF_RESET, "Servers",ret_size);
+
     for(int i = 0;i < ret_size;++i){
-        printf("%s\n",ret_string[i]);
+        printf("\n  * %-32s\n",ret_string[i]);
+        if(verbose){
+            char * props;
+            err = nameservice_get_props(ret_string[i],&props);
+            printf(CYN "     %-32s\n"RESET,props);
+            
+        }        
     }
-
-
-    free(ret_string);
-
     return 0;
 
+}
+
+
+
+
+int handle_nslookup(size_t argc, const char **argv, struct aos_datachan *out){
+    errval_t err;
+    domainid_t server_pid;
+    if(argc != 1 || !name_check(argv[0])){
+        printf("Invalid parameters for nslookup, try: " JF_BOLD "nslookup" JF_RESET " [name]");
+        return 1;
+    }
+    err = nameservice_get_pid(argv[0],&server_pid);
+    if(err_is_fail(err)){
+        printf("Server name " JF_BOLD "%s" JF_RESET " not online.",argv[0]);
+        return 1;
+    }
+    printf(JF_BOLD "\nPID: %d\n" JF_RESET);
+    return 0;
 }

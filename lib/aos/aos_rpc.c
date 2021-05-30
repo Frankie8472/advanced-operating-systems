@@ -17,6 +17,7 @@
 #include <aos/kernel_cap_invocations.h>
 #include <arch/aarch64/aos/lmp_chan_arch.h>
 #include <stdarg.h>
+#include <aos/systime.h>
 #include <aos/kernel_cap_invocations.h>
 #include <aos/default_interfaces.h>
 #include "init.h"
@@ -148,6 +149,8 @@ errval_t aos_rpc_init_lmp(struct aos_rpc* rpc, struct capref self_ep, struct cap
     err = lmp_chan_register_recv(&rpc->channel.lmp, rpc->waitset, MKCLOSURE(&aos_rpc_on_lmp_message, rpc));
     ON_ERR_PUSH_RETURN(err, LIB_ERR_LMP_ENDPOINT_REGISTER);
 
+    aos_rpc_set_timeout(rpc,DEFAULT_TIMEOUT);
+
     return SYS_ERR_OK;
 }
 
@@ -190,6 +193,8 @@ errval_t aos_rpc_init_ump_default(struct aos_rpc *rpc, lvaddr_t shared_page, siz
     err = ump_chan_register_recv(&rpc->channel.ump, rpc->waitset, MKCLOSURE(&aos_rpc_on_ump_message, rpc));
     //err = ump_chan_register_polling(ump_chan_get_default_poller(), &rpc->channel.ump, &aos_rpc_on_ump_message, rpc);
     ON_ERR_RETURN(err);
+
+    aos_rpc_set_timeout(rpc,DEFAULT_TIMEOUT);
 
     return SYS_ERR_OK;
 }
@@ -442,10 +447,20 @@ static errval_t aos_rpc_call_ump(struct aos_rpc *rpc, enum aos_rpc_msg_type msg_
         retptrs[ret_ind++] = va_arg(args, void*);
     }
     DECLARE_MESSAGE(rpc->channel.ump, response);
+
+
+    assert(rpc -> timeout && "Timeout not set");
+    uint64_t start = systime_to_ns(systime_now());
+    
     bool received = false;
     do {
+        if(systime_to_ns(systime_now()) < 2 * rpc -> timeout  && start - systime_to_ns(systime_now()) > rpc -> timeout){
+            DEBUG_ERR(LIB_ERR_RPC_TIMEOUT,"TIMEOUT IN RPC!\n");
+            return LIB_ERR_RPC_TIMEOUT;
+        }
         received = ump_chan_poll_once(&rpc->channel.ump, response);
     } while (!received);
+
 
     if (!((response->data[0] | AOS_RPC_RETURN_BIT)
           && (response->data[0] & ~AOS_RPC_RETURN_BIT) == msg_type)) {
@@ -1003,21 +1018,25 @@ static errval_t aos_rpc_call_lmp(struct aos_rpc *rpc, enum aos_rpc_msg_type msg_
         retptrs[ret_ind++] = va_arg(args, void*);
     }
 
-    //debug_printf("waiting for response\n");
+    assert(rpc -> timeout && "Timeout not set");
+    uint64_t start = systime_to_ns(systime_now());
+
+
     while(!lmp_chan_can_recv(&rpc->channel.lmp)) {
-        // yield to dispatcher we are communicating with
-        // debug_printf("waiting for response\n");
+        if(systime_to_ns(systime_now()) < 2 * rpc -> timeout  && start - systime_to_ns(systime_now()) > rpc -> timeout){
+            debug_printf("Timout %lu,%lu\n",rpc -> timeout,start - systime_to_ns(systime_now()));
+            DEBUG_ERR(LIB_ERR_RPC_TIMEOUT,"TIMEOUT IN RPC!\n");
+            return LIB_ERR_RPC_TIMEOUT;
+        }
         thread_yield_dispatcher(rpc->channel.lmp.remote_cap);
     }
 
-    //debug_printf("getting response\n");
 
     struct lmp_recv_msg msg = LMP_RECV_MSG_INIT;
     struct capref recieved_cap = NULL_CAP;
 
     err = lmp_chan_recv(&rpc->channel.lmp, &msg, &recieved_cap);
     ON_ERR_RETURN(err);
-    //debug_printf("got response\n");
 
     if (!capref_is_null(recieved_cap)) {
         lmp_chan_alloc_recv_slot(&rpc->channel.lmp);
@@ -1874,4 +1893,10 @@ errval_t aos_rpc_new_binding_by_name(char * name, struct aos_rpc * new_rpc){
         }
     }
     return PROC_MGMT_ERR_DOMAIN_NOT_RUNNING;
+}
+
+
+void aos_rpc_set_timeout(struct aos_rpc* rpc, uint64_t timeout){
+    assert(rpc && "Null rpc");
+    rpc -> timeout = timeout;
 }
