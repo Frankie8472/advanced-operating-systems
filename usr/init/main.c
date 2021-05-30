@@ -396,17 +396,8 @@ static int bsp_main(int argc, char *argv[])
     // spawn_new_domain("nameservicetest",0,NULL,NULL,NULL_CAP,NULL_CAP,NULL);
 
     // spawn_new_core(my_core_id + 1);
-    //spawn_new_domain("server a",0,NULL,NULL,NULL_CAP,NULL_CAP,NULL_CAP,NULL);
-    // spawn_new_domain("server b",1,NULL,NULL,NULL_CAP,NULL_CAP,NULL);
-    //spawn_new_domain("server a",0,NULL,NULL,NULL_CAP,NULL_CAP,NULL);
-    //spawn_new_domain("server b",0,NULL,NULL,NULL_CAP,NULL_CAP,NULL);
-    //spawn_new_core(my_core_id + 1);
-    //spawn_new_domain("server a",0,NULL,NULL,NULL_CAP,NULL_CAP,NULL);
-    // spawn_new_domain("server b",1,NULL,NULL,NULL_CAP,NULL_CAP,NULL);
-    // spawn_new_domain("server c",0,NULL,NULL,NULL_CAP,NULL_CAP,NULL);
-    // spawn_new_domain("server d",0,NULL,NULL,NULL_CAP,NULL_CAP,NULL);
-    // spawn_new_core(my_core_id + 2);
-    // spawn_new_core(my_core_id + 3);
+    // spawn_new_domain("server a",0,NULL,NULL,NULL_CAP,NULL_CAP,NULL_CAP,NULL);
+
 
 
     // 

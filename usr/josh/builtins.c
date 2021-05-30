@@ -187,7 +187,6 @@ int handle_nslist(size_t argc, const char **argv, struct aos_datachan *out){
     
     char* ret_string[N_PROPERTIES];
     size_t ret_size;
-    debug_printf("query:%s\n",query);
     if(has_prop){
         err = nameservice_enumerate_with_props((char* ) query,properties,&ret_size,(char**) ret_string);
     }else{
@@ -209,12 +208,9 @@ int handle_nslist(size_t argc, const char **argv, struct aos_datachan *out){
             char * props;
             err = nameservice_get_props(ret_string[i],&props);
             printf(CYN "     %-32s\n"RESET,props);
-            free(props);
+            
         }        
     }
-
-
-
     return 0;
 
 }

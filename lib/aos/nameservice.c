@@ -135,8 +135,7 @@ errval_t nameservice_rpc(nameservice_chan_t chan, void *message, size_t bytes,
 
 		err = aos_rpc_call(serv_con -> rpc,OS_IFACE_DIRECT_MESSAGE,msg_varbytes,&resp_varbytes,&response_size);
 		ON_ERR_RETURN(err);
-		*response = response_buffer;
-		// *response = realloc(response_buffer,response_size);
+
 
 	}else{
 		
@@ -153,14 +152,13 @@ errval_t nameservice_rpc(nameservice_chan_t chan, void *message, size_t bytes,
 		}else{
 			err = aos_rpc_call(serv_con -> rpc,INIT_CLIENT_CALL,serv_con -> core_id,serv_con -> name,msg_varbytes,tx_cap,&resp_varbytes,&response_cap,&response_size);
 		}
-		debug_printf("Got here!\n");
 		ON_ERR_RETURN(err);
 		cap_copy(rx_cap,response_cap);
-		*response = response_buffer;
+		
 		// *response = realloc(response_buffer,response_size);
 
 	}
-
+	*response = response_buffer;
 	*response_bytes = response_size;
 	resp_varbytes.length = response_size;
 	return SYS_ERR_OK;
@@ -510,9 +508,9 @@ errval_t nameservice_enumerate(char *query, size_t *num, char **result )
 		debug_printf("Here\n");
 		return LIB_ERR_NAMESERVICE_INV_QUERY;
 	}
-	char * response_buf = malloc(MAX_RPC_MSG_SIZE * sizeof(char)); 
-	err = aos_rpc_call(get_ns_rpc(),NS_ENUM_SERVERS,query,response_buf,num);
-	char * response = realloc(response_buf,strlen(response_buf));
+	char * response = malloc(MAX_RPC_MSG_SIZE * sizeof(char)); 
+	err = aos_rpc_call(get_ns_rpc(),NS_ENUM_SERVERS,query,response,num);
+	// char * response = realloc(response_buf,strlen(response_buf));
 	ON_ERR_RETURN(err);
 	size_t res_index = 1;
 	*result = response;
@@ -526,7 +524,7 @@ errval_t nameservice_enumerate(char *query, size_t *num, char **result )
 		}
 		response++;
 	}
-	free(response);
+	// free(response);
 	return SYS_ERR_OK;
 }
 
@@ -590,10 +588,9 @@ void nameservice_reveice_handler_wrapper(struct aos_rpc * rpc,struct aos_rpc_var
 
 
 void namservice_receive_handler_wrapper_direct(struct aos_rpc *rpc, struct aos_rpc_varbytes message,struct aos_rpc_varbytes * response,uintptr_t* response_size){
-	debug_printf("Got direct message!\n");
 	struct srv_entry * se = (struct srv_entry *) rpc -> serv_entry;
 	se -> recv_handler(se -> st,(void *) message.bytes,message.length,(void*)&response -> bytes,response_size,NULL_CAP,NULL);
-	debug_printf("%s,%d\n",response -> bytes,*response_size);
+	// debug_printf("%s,%d\n",response -> bytes,*response_size);
 }
 
 void nameservice_binding_request_handler(struct aos_rpc *rpc,uintptr_t remote_core_id, struct capref remote_cap, struct capref* local_cap){

@@ -561,7 +561,7 @@ void handle_client_call(struct aos_rpc *rpc,coreid_t core_id,const char* name,st
         if(curr_core == 0){ fw_rpc = get_core_channel(core_id);}
         else{fw_rpc = get_core_channel(0);}
         assert(fw_rpc && "Core channel not online!");
-        err = aos_rpc_call(get_core_channel(0),INIT_CLIENT_CALL,core_id,message,send_cap,response,recv_cap);
+        err = aos_rpc_call(fw_rpc,INIT_CLIENT_CALL,core_id,message,send_cap,response,recv_cap);
         if(err_is_fail(err)){DEBUG_ERR(err,"Failed forward!");}
     }else {
 
@@ -608,20 +608,10 @@ void handle_client_call1(struct aos_rpc *rpc,coreid_t core_id,const char* name,s
         if(curr_core == 0){ fw_rpc = get_core_channel(core_id);}
         else{fw_rpc = get_core_channel(0);}
         assert(fw_rpc && "Core channel not online!");
-        err = aos_rpc_call(get_core_channel(0),INIT_CLIENT_CALL1,core_id,message,send_cap,response);
+        err = aos_rpc_call(fw_rpc,INIT_CLIENT_CALL1,core_id,message,send_cap,response);
         if(err_is_fail(err)){DEBUG_ERR(err,"Failed forward!");}
     }else {
 
-
-        // char name[1024];
-        // size_t n_index = 0;
-        // char * extracted_message = (char *) message;
-        // while(*extracted_message != '\0' && *extracted_message != '?'){
-        //     name[n_index] = *extracted_message++;
-        //     n_index++;
-        // }
-        // name[n_index] = '\0';
-        // extracted_message++;
 
         debug_printf("Routing to server with name %s\n",name);
         struct routing_entry * re;
@@ -654,7 +644,7 @@ void handle_client_call2(struct aos_rpc *rpc,coreid_t core_id,const char* name,s
         if(curr_core == 0){ fw_rpc = get_core_channel(core_id);}
         else{fw_rpc = get_core_channel(0);}
         assert(fw_rpc && "Core channel not online!");
-        err = aos_rpc_call(get_core_channel(0),INIT_CLIENT_CALL2,core_id,message,response,response_size);
+        err = aos_rpc_call(fw_rpc,INIT_CLIENT_CALL2,core_id,message,response,response_size);
         if(err_is_fail(err)){DEBUG_ERR(err,"Failed forward!");}
     }else {
 
@@ -685,7 +675,7 @@ void handle_client_call3(struct aos_rpc *rpc,coreid_t core_id,const char* name,s
         if(curr_core == 0){ fw_rpc = get_core_channel(core_id);}
         else{fw_rpc = get_core_channel(0);}
         assert(fw_rpc && "Core channel not online!");
-        err = aos_rpc_call(get_core_channel(0),INIT_CLIENT_CALL3,core_id,message,response,recv_cap,response_size);
+        err = aos_rpc_call(fw_rpc,INIT_CLIENT_CALL3,core_id,message,response,recv_cap,response_size);
         if(err_is_fail(err)){DEBUG_ERR(err,"Failed forward!");}
     }else {
 

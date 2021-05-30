@@ -38,7 +38,7 @@ int main(int argc, char *argv[])
     
 
     errval_t err;
-    debug_printf("Server\n");
+    // debug_printf("Server\n");
     
     // char * name;
     // aos_rpc_process_get_name(aos_rpc_get_process_channel(),0,&name);
@@ -76,7 +76,7 @@ int main(int argc, char *argv[])
     //     DEBUG_ERR(err,"Failed to spawn client!\n");
     // // // }
     domainid_t my_pid;
-    err = aos_rpc_process_spawn(get_init_rpc(),"client",0,&my_pid);
+    err = aos_rpc_process_spawn(get_init_rpc(),"client",1,&my_pid);
     if(err_is_fail(err)){
         DEBUG_ERR(err,"Failed to spawn client!\n");
     }

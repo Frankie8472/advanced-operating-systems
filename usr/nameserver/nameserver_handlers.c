@@ -227,7 +227,6 @@ void handle_get_server_pid(struct aos_rpc *rpc, const char * name, uintptr_t* pi
     struct server_list *server;
     errval_t err = find_server_by_name((char*)name,&server);
     if(err_is_fail(err)){
-        // DEBUG_ERR(er)
         *pid = 0xffffffff;
         return;
     }
