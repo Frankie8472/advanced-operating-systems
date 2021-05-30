@@ -12,7 +12,7 @@ struct josh_command
 {
     char *cmd;
     struct array_list args;
-    char *destination;
+    struct josh_value *destination;
 
     // possible redirects, cannot both be non-null
     struct josh_command *piped_into;

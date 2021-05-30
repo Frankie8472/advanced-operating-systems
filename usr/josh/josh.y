@@ -30,7 +30,7 @@
 %type <value> value
 %type <line> line
 %type <assignment> assignment
-%type <string> destination
+%type <value> destination
 
 
 %%
@@ -157,7 +157,7 @@ value:
     ;
 
 destination:
-    AT_SIGN STRING {
+    AT_SIGN value {
         $$ = $2;
     }
     ;
