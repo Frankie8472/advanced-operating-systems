@@ -79,7 +79,6 @@ static void flush_out(struct udp_msg *cl, struct aos_socket *sock) {
         aos_dc_receive_available(&josh_out, 1990, josh_out_buf, &rcvd);
 
         aos_socket_send_to(sock, josh_out_buf, rcvd, cl->ip, cl->f_port);
-        debug_printf("wohoo\n");
     }
 }
 
@@ -91,9 +90,6 @@ static errval_t forward_in(struct udp_msg *cl, struct aos_socket *sock) {
     }
 
     replace_newlines(cl->data, cl->len);
-    /* cl->data[cl->len + 1] = 0; */
-    /* printf("HERE\n"); */
-    /* printf("<<< %s, %d, \n", cl->data, cl->len); */
     aos_dc_send(&josh_in, cl->len, cl->data);
     return err;
 }
@@ -117,8 +113,6 @@ int main(int argc, char **argv) {
     printf("spawning josh\n");
     err = spawn_josh();
 
-    /* return EXIT_SUCCESS; */
-
     // wait for first message
     struct udp_msg *in = malloc(sizeof(struct udp_msg) + 2048 * sizeof(char));
     do {
@@ -127,30 +121,11 @@ int main(int argc, char **argv) {
     } while (err_is_fail(err));
 
     printf("received a connection!\n");
-    /* forward_in(in, &sock); */
     aos_socket_send_to(&sock, welcome, strlen(welcome), in->ip, in->f_port);
-    /* aos_socket_send_to(&sock, josh_out_buf, rcvd, in->ip, in->f_port); */
     flush_out(in, &sock);
 
     replace_newlines(in->data, in->len);
-    printf("<<< %s, %d\n", in->data, in->len);
     aos_dc_send(&josh_in, in->len, in->data);
-    /* flush_out(in, &sock); */
-    /* aos_dc_send(&josh_in, in->len, in->data); */
-    /* flush_out(in, &sock); */
-    /* do { */
-    /*     err = aos_socket_receive(&sock, in); */
-    /*     /\* err = forward_in(in, &sock); *\/ */
-    /* } while (err_is_fail(err)); */
-
-    /* aos_dc_send(&josh_in, strlen("josh\n"), "josh\n"); */
-    /* aos_dc_send(&josh_in, strlen("\n"), "\n"); */
-    /* printf("first1: %s\n", in->data); */
-    /* replace_newlines(in->data, in->len); */
-    /* aos_dc_send(&josh_in, 1, "\13"); */
-    /* printf("first: %s\n", in->data); */
-    /* aos_dc_send(&josh_in, in->len, in->data); */
-    // main event loop
     for (;;) {
         flush_out(in, &sock);
 
