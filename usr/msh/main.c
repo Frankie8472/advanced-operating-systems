@@ -6,7 +6,7 @@
 #include <aos/aos_datachan.h>
 #include <aos/default_interfaces.h>
 
-static char *welcome =
+static char *welcome = "\n"
     " __  __   ____    _   _\n"
     "|  \\/  | / ___|  | | | |\n"
     "| |\\/| | \\___ \\  | |_| |\n"
@@ -19,7 +19,6 @@ static struct aos_datachan josh_in;
 static struct aos_datachan josh_out;
 
 static errval_t spawn_josh(void) {
-    debug_printf("============================= BP1\n");
     errval_t err;
 
     char tmpbuf[200];
@@ -52,9 +51,7 @@ static errval_t spawn_josh(void) {
     err = frame_alloc(&in_frame, BASE_PAGE_SIZE, NULL);
     err = frame_alloc(&out_frame, BASE_PAGE_SIZE, NULL);
 
-    debug_printf("============================= BP2\n");
     err = aos_rpc_call(get_init_rpc(), INIT_IFACE_SPAWN_EXTENDED, bytes, core, rpc_frame, out_frame, in_frame, &pid);
-    debug_printf("============================= BP3\n");
 
     void *in_addr;
     err = paging_map_frame_complete(get_current_paging_state(), &in_addr,  in_frame, NULL, NULL);
@@ -76,6 +73,7 @@ static void replace_newlines(char *msg, int len) {
     }
 }
 
+// command from machine: stty -icanon -echo && nc -u 10.0.2.1 1525
 int main(int argc, char **argv) {
     if (argc < 2) {
         printf("ERROR: no port given\n");
@@ -93,16 +91,6 @@ int main(int argc, char **argv) {
 
     printf("spawning josh\n");
     err = spawn_josh();
-    debug_printf("done spawning josh\n");
-
-    thread_yield();
-    event_dispatch_non_block(get_default_waitset());
-    if (aos_dc_can_receive(&josh_out)) {
-        debug_printf("out\n");
-    } else if (aos_dc_can_receive(&josh_in)) {
-        debug_printf("in\n");
-    }
-    debug_printf("anyway\n");
 
     /* return EXIT_SUCCESS; */
 
@@ -117,23 +105,19 @@ int main(int argc, char **argv) {
 
     /* aos_dc_send(&josh_in, strlen("josh\n"), "josh\n"); */
     /* aos_dc_send(&josh_in, strlen("\n"), "\n"); */
+    printf("first1: %s\n", in->data);
     replace_newlines(in->data, in->len);
+    /* aos_dc_send(&josh_in, 1, "\13"); */
+    printf("first: %s\n", in->data);
     aos_dc_send(&josh_in, in->len, in->data);
     // main event loop
     bool exit = false;
     for (;;) {
-
         while (aos_dc_can_receive(&josh_out)) {
             size_t rcvd;
             aos_dc_receive_available(&josh_out, 1990, josh_out_buf, &rcvd);
-            /* josh_out_buf[rcvd + 1] = '\0'; */
-            /* aos_socket_send_to(&sock, josh_out_buf, strlen(josh_out_buf), in->ip, in->f_port); */
-            aos_socket_send_to(&sock, josh_out_buf, rcvd, in->ip, in->f_port);
 
-            debug_printf("we just sent: %s, %d\n", josh_out_buf, rcvd);
-            /* if (exit) */
-            /*     return EXIT_SUCCESS; */
-            /* memset(josh_out_buf, 0, 1990); */
+            aos_socket_send_to(&sock, josh_out_buf, rcvd, in->ip, in->f_port);
         }
 
         exit = true;
@@ -143,8 +127,8 @@ int main(int argc, char **argv) {
             continue;
         }
 
-        debug_printf("next msg: %s", in->data);
         replace_newlines(in->data, in->len);
+        /* printf("<<< %s", in->data); */
         aos_dc_send(&josh_in, in->len, in->data);
     }
 
