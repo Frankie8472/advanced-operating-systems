@@ -37,9 +37,6 @@ typedef void(nameservice_receive_handler_t)(void *st,
                                             struct capref tx_cap, struct capref *rx_cap);
 
 
-
-
-
 /**
  * @brief sends a message back to the client who sent us a message
  *

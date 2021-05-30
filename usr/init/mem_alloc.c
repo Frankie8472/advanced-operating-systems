@@ -137,6 +137,6 @@ errval_t add_foreign_ram_cap(struct capref cap){
     errval_t err;
     err = mm_add(&aos_mm,cap,get_phys_addr(cap),get_phys_size(cap));
     ON_ERR_RETURN(err);
-    debug_printf("Added %ld B of physical memory on foreign core.\n", get_phys_size(cap));
+    // debug_printf("Added %ld B of physical memory on foreign core.\n", get_phys_size(cap));
     return SYS_ERR_OK;
 }

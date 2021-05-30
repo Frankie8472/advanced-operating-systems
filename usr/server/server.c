@@ -29,6 +29,11 @@ static void server_recv_handler(void *st, void *message,
     debug_printf("server: got a request: %s\n", (char *)message);
     *response = myresponse;
     *response_bytes = strlen(myresponse);
+    // struct capref cap;
+    // slot_alloc(&cap);
+    // frame_alloc(&cap,BASE_PAGE_SIZE,NULL);
+    // cap_copy(cap,tx_cap);
+
 }
 
 
