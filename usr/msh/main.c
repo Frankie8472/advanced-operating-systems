@@ -73,6 +73,31 @@ static void replace_newlines(char *msg, int len) {
     }
 }
 
+static void flush_out(struct udp_msg *cl, struct aos_socket *sock) {
+    while (aos_dc_can_receive(&josh_out)) {
+        size_t rcvd;
+        aos_dc_receive_available(&josh_out, 1990, josh_out_buf, &rcvd);
+
+        aos_socket_send_to(sock, josh_out_buf, rcvd, cl->ip, cl->f_port);
+        debug_printf("wohoo\n");
+    }
+}
+
+static errval_t forward_in(struct udp_msg *cl, struct aos_socket *sock) {
+    errval_t err = aos_socket_receive(sock, cl);
+    if (err_is_fail(err)) {
+        /* err = aos_socket_receive(&sock, in); */
+        return err;
+    }
+
+    replace_newlines(cl->data, cl->len);
+    /* cl->data[cl->len + 1] = 0; */
+    /* printf("HERE\n"); */
+    /* printf("<<< %s, %d, \n", cl->data, cl->len); */
+    aos_dc_send(&josh_in, cl->len, cl->data);
+    return err;
+}
+
 // command from machine: stty -icanon -echo && nc -u 10.0.2.1 1525
 int main(int argc, char **argv) {
     if (argc < 2) {
@@ -98,38 +123,38 @@ int main(int argc, char **argv) {
     struct udp_msg *in = malloc(sizeof(struct udp_msg) + 2048 * sizeof(char));
     do {
         err = aos_socket_receive(&sock, in);
+        /* err = forward_in(in, &sock); */
     } while (err_is_fail(err));
 
     printf("received a connection!\n");
+    /* forward_in(in, &sock); */
     aos_socket_send_to(&sock, welcome, strlen(welcome), in->ip, in->f_port);
+    /* aos_socket_send_to(&sock, josh_out_buf, rcvd, in->ip, in->f_port); */
+    flush_out(in, &sock);
+
+    replace_newlines(in->data, in->len);
+    printf("<<< %s, %d\n", in->data, in->len);
+    aos_dc_send(&josh_in, in->len, in->data);
+    /* flush_out(in, &sock); */
+    /* aos_dc_send(&josh_in, in->len, in->data); */
+    /* flush_out(in, &sock); */
+    /* do { */
+    /*     err = aos_socket_receive(&sock, in); */
+    /*     /\* err = forward_in(in, &sock); *\/ */
+    /* } while (err_is_fail(err)); */
 
     /* aos_dc_send(&josh_in, strlen("josh\n"), "josh\n"); */
     /* aos_dc_send(&josh_in, strlen("\n"), "\n"); */
-    printf("first1: %s\n", in->data);
-    replace_newlines(in->data, in->len);
+    /* printf("first1: %s\n", in->data); */
+    /* replace_newlines(in->data, in->len); */
     /* aos_dc_send(&josh_in, 1, "\13"); */
-    printf("first: %s\n", in->data);
-    aos_dc_send(&josh_in, in->len, in->data);
+    /* printf("first: %s\n", in->data); */
+    /* aos_dc_send(&josh_in, in->len, in->data); */
     // main event loop
-    bool exit = false;
     for (;;) {
-        while (aos_dc_can_receive(&josh_out)) {
-            size_t rcvd;
-            aos_dc_receive_available(&josh_out, 1990, josh_out_buf, &rcvd);
+        flush_out(in, &sock);
 
-            aos_socket_send_to(&sock, josh_out_buf, rcvd, in->ip, in->f_port);
-        }
-
-        exit = true;
-        err = aos_socket_receive(&sock, in);
-        if (err_is_fail(err)) {
-            /* err = aos_socket_receive(&sock, in); */
-            continue;
-        }
-
-        replace_newlines(in->data, in->len);
-        /* printf("<<< %s", in->data); */
-        aos_dc_send(&josh_in, in->len, in->data);
+        forward_in(in, &sock);
     }
 
     return EXIT_SUCCESS;
