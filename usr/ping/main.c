@@ -7,6 +7,7 @@
 #define MK_IP(a,b,c,d) (((a)<<24)|((b)<<16)|((c)<<8)|(d))
 int main(int argc, char **argv) {
     errval_t err;
+    /* uint32_t tgt_ip = MK_IP(169, 254, 6, 85); */
     uint32_t tgt_ip = MK_IP(192, 168, 1, 34);
     printf("pinging %d\n", tgt_ip);
     struct aos_ping_socket sock;
@@ -16,16 +17,22 @@ int main(int argc, char **argv) {
         return EXIT_SUCCESS;
     }
 
-    do {
+    do {  // wait til setup
         err = aos_ping_send(&sock);
-        printf("hehehe\n");
     } while (err == ENET_ERR_ARP_UNKNOWN);
 
-    if (err == ENET_ERR_ARP_UNKNOWN) {
-        debug_printf("how did i get here?");
+    uint16_t ackd = 0;
+
+    for (int i = 0; i < 10//00000
+             ; i++) {
+        aos_ping_send(&sock);
+        uint16_t a2 = aos_ping_recv(&sock);
+        if (a2 > ackd) {
+            printf("received packed %d!\n", a2);
+            ackd = a2;
+            break;
+        }
     }
-    DEBUG_ERR(err, "this is it\n");
-    debug_printf("err is %d, not %d\n", err, ENET_ERR_ARP_UNKNOWN);
 
     return EXIT_SUCCESS;
 }
