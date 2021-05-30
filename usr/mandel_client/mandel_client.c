@@ -11,6 +11,34 @@
 #include <aos/waitset.h>
 #include <aos/paging.h>
 #include <aos/nameserver.h>
+#include <aos/default_interfaces.h>
+
+struct aos_rpc calc_connection;
+__unused
+static void setup_calc_connection(struct capref frame)
+{
+    void *shared;
+    paging_map_frame_complete(get_current_paging_state(), &shared, frame, NULL, NULL);
+    aos_rpc_init_ump_default(&calc_connection, (lvaddr_t) shared, get_phys_size(frame), 0);
+    aos_rpc_set_interface(&calc_connection, get_dispatcher_interface(), DISP_IFACE_N_FUNCTIONS, malloc(DISP_IFACE_N_FUNCTIONS * sizeof(void *)));
+}
+
+__unused
+static void remote_ipi(struct capref ipi_ep)
+{
+    ump_chan_switch_remote_pinged(&calc_connection.channel.ump, ipi_ep);
+}
+
+__unused
+static void local_ipi(struct capref *ipi_ep)
+{
+    struct lmp_endpoint *ep;
+    struct capref epcap;
+    endpoint_create(LMP_RECV_LENGTH, &epcap, &ep);
+    slot_alloc(ipi_ep);
+    cap_retype(*ipi_ep, epcap, 0, ObjType_EndPointIPI, 0, 1);
+    ump_chan_switch_local_pinged(&calc_connection.channel.ump, ep);
+}
 
 
 int main(int argc, char *argv[])
@@ -24,6 +52,34 @@ int main(int argc, char *argv[])
 
     for (size_t i = 0; i < n_services; i++) {
         printf("servicenames[%d]: %s\n", i, servicenames[i]);
+
+        struct capref frame;
+        frame_alloc(&frame, BASE_PAGE_SIZE, NULL);
+        setup_calc_connection(frame);
+
+        nameservice_chan_t chan;
+        nameservice_lookup(servicenames[i], &chan);
+
+        const char cmd1[] = "set_connection";
+        void *buf; size_t buf_size;
+        nameservice_rpc(chan, (void *) cmd1, sizeof cmd1, &buf, &buf_size, frame, NULL_CAP);
+
+        debug_printf("calling\n");
+        aos_rpc_call(&calc_connection, AOS_RPC_ROUNDTRIP);
+        debug_printf("call returned\n");
+
+        struct capref ipi_ep;
+        struct capref remote_ipi_ep;
+        local_ipi(&ipi_ep);
+        slot_alloc(&remote_ipi_ep);
+
+        const char cmd2[] = "set_ipi";
+        nameservice_rpc(chan, (void *) cmd2, sizeof cmd2, &buf, &buf_size, ipi_ep, remote_ipi_ep);
+        remote_ipi(remote_ipi_ep);
+
+        debug_printf("calling\n");
+        aos_rpc_call(&calc_connection, AOS_RPC_ROUNDTRIP);
+        debug_printf("call returned\n");
     }
 
     free(servicenames);

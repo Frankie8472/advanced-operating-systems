@@ -23,23 +23,58 @@
 struct capref connection_frame;
 struct capref ipi_notifier;
 
+struct aos_rpc calc_connection;
+
+
+static void setup_calc_connection(struct capref frame)
+{
+    errval_t err;
+    void *shared;
+    char buf[128];
+    debug_print_cap_at_capref(buf, 128, frame);
+    debug_printf("cap is %s\n", buf);
+    err = paging_map_frame_complete(get_current_paging_state(), &shared, frame, NULL, NULL);
+    DEBUG_ERR(err, ":O");
+    aos_rpc_init_ump_default(&calc_connection, (lvaddr_t) shared, get_phys_size(frame), 1);
+    aos_rpc_set_interface(&calc_connection, get_dispatcher_interface(), DISP_IFACE_N_FUNCTIONS, malloc(DISP_IFACE_N_FUNCTIONS * sizeof(void *)));
+
+    void handle_roundtrip(struct aos_rpc *rpc) { return; }
+    aos_rpc_register_handler(&calc_connection, AOS_RPC_ROUNDTRIP, &handle_roundtrip);
+}
+
+
+static void remote_ipi(struct capref ipi_ep)
+{
+    ump_chan_switch_remote_pinged(&calc_connection.channel.ump, ipi_ep);
+}
+
+static void local_ipi(struct capref *ipi_ep)
+{
+    struct lmp_endpoint *ep;
+    struct capref epcap;
+    endpoint_create(LMP_RECV_LENGTH, &epcap, &ep);
+    slot_alloc(ipi_ep);
+    cap_retype(*ipi_ep, epcap, 0, ObjType_EndPointIPI, 0, 1);
+    ump_chan_switch_local_pinged(&calc_connection.channel.ump, ep);
+}
+
+
 static void server_recv_handler(void *st, void *message,
                                 size_t bytes,
                                 void **response, size_t *response_bytes,
                                 struct capref rx_cap, struct capref *tx_cap)
 {
     if (strcmp(message, "set_connection") == 0) {
-        connection_frame = rx_cap;
-        static const char resp[] = "OK";
-        *response = resp;
-        *response_bytes = sizeof resp;
+        setup_calc_connection(rx_cap);
     }
     else if (strcmp(message, "set_ipi") == 0) {
-        ipi_notifier = rx_cap;
-        static const char resp[] = "OK";
-        *response = resp;
-        *response_bytes = sizeof resp;
+        remote_ipi(rx_cap);
+        local_ipi(tx_cap);
     }
+
+    static const char resp[] = "OK";
+    *response = resp;
+    *response_bytes = sizeof resp;
 }
 
 

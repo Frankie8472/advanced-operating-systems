@@ -16,6 +16,7 @@
         USER_PANIC_ERR(err, msg);  \
     }
 
+#define CALCULATE_REQUEST 1
 
 
 #define SERVICE_NAME "/myservicenamea"
@@ -105,7 +106,13 @@ int main(int argc, char *argv[])
 
     /*struct aos_rpc server_rpc;
     do {
-        err = aos_rpc_new_binding_by_name("server",&server_rpc);
+        err = aos_rpc_new_binding_by_name("server", &server_rpc);
+        aos_rpc_initialize_binding(&server_rpc, CALCULATE_REQUEST, 1, 1, AOS_RPC_WORD, AOS_RPC_WORD);
+    }while(err_is_fail(err));
+
+    do {
+        err = aos_rpc_new_binding_by_name("server", &server_rpc2);
+        aos_rpc_initialize_binding(&server_rpc2, CALCULATE_REQUEST, 1, 1, AOS_RPC_WORD, AOS_RPC_WORD);
     }while(err_is_fail(err));
     
     // if(err_is_fail(err)){
@@ -113,6 +120,7 @@ int main(int argc, char *argv[])
     // }
 
 
+<<<<<<< HEAD
     debug_printf("sending bytes: %d\n", disp_get_domain_id());
     char arr[128];
     struct aos_rpc_varbytes bytes = {
@@ -125,6 +133,16 @@ int main(int argc, char *argv[])
     }
 
     err = aos_rpc_call(&server_rpc, AOS_RPC_SEND_VARBYTES, bytes);
+=======
+
+    uint64_t number = 1000000;
+    uint64_t num_primes = 0;
+    debug_printf("calculating #primes until: %d\n", number);
+    err = aos_rpc_call(&server_rpc, CALCULATE_REQUEST, number, &num_primes);
+
+    debug_printf("#primes: %ld\n", num_primes);
+
+>>>>>>> rpc_ipi
     // err = aos_rpc_send_number(&server_rpc,disp_get_domain_id());
     if(err_is_fail(err)){
         DEBUG_ERR(err,"Failed to send number from client to server\n");

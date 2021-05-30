@@ -117,7 +117,7 @@ errval_t aos_dc_init_ump(struct aos_datachan *dc, size_t buffer_length, lvaddr_t
         recv_block = (void *) ump_page;
     }
 
-    return ump_chan_init(&dc->channel.ump, send_block, ump_page_size / 2, recv_block, ump_page_size / 2);
+    return ump_chan_init_default(&dc->channel.ump, send_block, ump_page_size / 2, recv_block, ump_page_size / 2);
 }
 
 

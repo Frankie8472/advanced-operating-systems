@@ -102,6 +102,9 @@ errval_t aos_rpc_set_interface(struct aos_rpc *rpc, struct aos_rpc_interface *in
     //memory server bindings
     aos_rpc_initialize_binding(rpc,AOS_RPC_MEM_SERVER_REQ,1,1,AOS_RPC_CAPABILITY,AOS_RPC_CAPABILITY);
 
+    aos_rpc_initialize_binding(rpc, AOS_RPC_SWITCH_TO_PINGED, 1, 0, AOS_RPC_CAPABILITY);
+    aos_rpc_initialize_binding(rpc, AOS_RPC_ROUNDTRIP, 0, 0);
+
 
     //aos_rpc_initialize_binding(rpc, AOS_RPC_REGISTER_PROCESS, 3, 0, AOS_RPC_WORD, AOS_RPC_WORD, AOS_RPC_VARSTR);
     return SYS_ERR_OK;*/
@@ -186,7 +189,7 @@ errval_t aos_rpc_init_ump_default(struct aos_rpc *rpc, lvaddr_t shared_page, siz
         recv_pane = t;
     }
 
-    err = ump_chan_init(&rpc->channel.ump, send_pane, half_page_size, recv_pane, half_page_size);
+    err = ump_chan_init_default(&rpc->channel.ump, send_pane, half_page_size, recv_pane, half_page_size);
     ON_ERR_RETURN(err);
 
     // debug_printf("Here!\n");
@@ -566,6 +569,12 @@ void aos_rpc_on_ump_message(void *arg)
     DECLARE_MESSAGE(rpc->channel.ump, msg);
     msg->flag = 0;
 
+    if (rpc->channel.ump.local_is_pinged) {
+        struct lmp_recv_buf masg;
+        lmp_endpoint_recv(rpc->channel.ump.lmp_ep, &masg, NULL);
+    }
+
+
     bool received = ump_chan_poll_once(&rpc->channel.ump, msg);
     if (!received) {
         //debug_printf("aos_rpc_on_ump_message called but no message available\n");
@@ -747,7 +756,7 @@ static errval_t aos_rpc_unmarshall_ump_simple_aarch64(struct aos_rpc *rpc, void 
             err = invoke_monitor_create_cap((uint64_t *) &cap,
                                             get_cnode_addr(forged),
                                             get_cnode_level(forged),
-                                            forged.slot, !disp_get_core_id()); // TODO: set owner correctly
+                                            forged.slot, disp_get_core_id()); // TODO: set owner correctly
             ON_ERR_PUSH_RETURN(err, LIB_ERR_MONITOR_CAP_SEND);
 
             uintptr_t x1 = (forged.cnode.croot) | (((ui) forged.cnode.cnode) << 32);
