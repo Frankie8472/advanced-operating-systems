@@ -20,28 +20,39 @@
 #define SERVICE_NAME "/mandel"
 // #define TEST_BINARY  "nameservicetest"
 
-// extern struct aos_rpc fresh_connection;
-static char *myresponse = "reply!!";
-static char buffer[512];
+struct capref connection_frame;
+struct capref ipi_notifier;
 
 static void server_recv_handler(void *st, void *message,
                                 size_t bytes,
                                 void **response, size_t *response_bytes,
                                 struct capref rx_cap, struct capref *tx_cap)
 {
-    debug_printf("server: got a request: %s\n", (char *)message);
-    *response = myresponse;
-    *response_bytes = strlen(myresponse);
+    if (strcmp(message, "set_connection") == 0) {
+        connection_frame = rx_cap;
+        static const char resp[] = "OK";
+        *response = resp;
+        *response_bytes = sizeof resp;
+    }
+    else if (strcmp(message, "set_ipi") == 0) {
+        ipi_notifier = rx_cap;
+        static const char resp[] = "OK";
+        *response = resp;
+        *response_bytes = sizeof resp;
+    }
 }
 
 
 
 int main(int argc, char *argv[])
 {
-    
+    if (argc < 2) {
+        printf("Please specify an identifier as an argument\n");
+        return 1;
+    }
 
     errval_t err;
-    // debug_printf("Server\n");
+    char buffer[64];
     strcpy(buffer, SERVICE_NAME);
     strcat(buffer, argv[1]);
 
