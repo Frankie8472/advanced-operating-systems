@@ -2,7 +2,6 @@
 #include <stdint.h>
 
 #include <aos/aos.h>
-#include <aos/nameserver.h>
 #include <aos/udp_service.h>
 #define MK_IP(a,b,c,d) (((a)<<24)|((b)<<16)|((c)<<8)|(d))
 
