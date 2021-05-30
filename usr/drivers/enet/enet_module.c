@@ -411,11 +411,8 @@ static void enet_init_multicast_filt(struct enet_driver_state* st, bool promisc)
 
 static void enet_read_mac(struct enet_driver_state* st)
 {
-    ENET_DEBUG("===================================>MP1\n");
     uint64_t lower = enet_palr_paddr1_rdf(st->d);
-    ENET_DEBUG("===================================>MP2\n");
     uint64_t upper = enet_paur_paddr2_rdf(st->d);
-    ENET_DEBUG("===================================>MP3\n");
     // this is weird lower seems to be the upper part of the address ..
     uint64_t mac = (lower << 16) | upper;
 
@@ -637,16 +634,12 @@ int main(int argc, char *argv[]) {
 
     /* Initialize Mackerel binding */
     st->d = (enet_t *) malloc(sizeof(enet_t));
-    ENET_DEBUG("malloct\n");
     enet_initialize(st->d, (void *) st->d_vaddr);
     collections_hash_create(&st->arp_table, free);
     collections_hash_create(&st->inv_table, free);
-    ENET_DEBUG("==============================> BP1\n");
 
     assert(st->d != NULL);
-    ENET_DEBUG("==============================> BP2\n");
-    enet_read_mac(st);  // <- this line causes pagefault
-    ENET_DEBUG("==============================> BP3\n");
+    enet_read_mac(st);
 
     err = enet_probe(st);
     if (err_is_fail(err)) {
