@@ -6,6 +6,7 @@
 
 #include <stdio.h>
 
+#include "main.h"
 #include "ast.h"
 #include "builtins.h"
 #include "running.h"
@@ -204,7 +205,7 @@ bool is_number(const char *string)
 }
 
 
-static errval_t spawn_program(const char *dest, const char *cmd, size_t argc, const char **argv, struct running_program *prog)
+errval_t spawn_program(const char *dest, const char *cmd, size_t argc, const char **argv, struct running_program *prog)
 {
     errval_t err;
 
