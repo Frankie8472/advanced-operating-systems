@@ -580,7 +580,6 @@ errval_t nameservice_enumerate_with_props(char *query,char * properties, size_t 
 
 void nameservice_reveice_handler_wrapper(struct aos_rpc * rpc,struct aos_rpc_varbytes message,struct capref tx_cap, struct aos_rpc_varbytes* response, struct capref* rx_cap, uintptr_t* response_size){
 
-	
 	struct srv_entry * se = (struct srv_entry *) rpc -> serv_entry;
 	se -> recv_handler(se -> st,(void *) message.bytes,message.length,(void*)&response -> bytes,response_size,tx_cap,rx_cap);
 }

@@ -454,7 +454,7 @@ static errval_t aos_rpc_call_ump(struct aos_rpc *rpc, enum aos_rpc_msg_type msg_
     
     bool received = false;
     do {
-        if(systime_to_ns(systime_now()) < 2 * rpc -> timeout  && start - systime_to_ns(systime_now()) > rpc -> timeout){
+        if(systime_to_ns(systime_now()) - start > rpc -> timeout){
             DEBUG_ERR(LIB_ERR_RPC_TIMEOUT,"TIMEOUT IN RPC!\n");
             return LIB_ERR_RPC_TIMEOUT;
         }
@@ -1024,7 +1024,10 @@ static errval_t aos_rpc_call_lmp(struct aos_rpc *rpc, enum aos_rpc_msg_type msg_
 
 
     while(!lmp_chan_can_recv(&rpc->channel.lmp)) {
-        if(systime_to_ns(systime_now()) < 2 * rpc -> timeout  && start - systime_to_ns(systime_now()) > rpc -> timeout){
+
+        if(systime_to_ns(systime_now()) - start > rpc -> timeout)
+        
+        {
             debug_printf("Timout %lu,%lu\n",rpc -> timeout,start - systime_to_ns(systime_now()));
             DEBUG_ERR(LIB_ERR_RPC_TIMEOUT,"TIMEOUT IN RPC!\n");
             return LIB_ERR_RPC_TIMEOUT;
