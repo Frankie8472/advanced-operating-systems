@@ -344,6 +344,7 @@ errors libaos LIB_ERR_ {
     failure CORESET_GET_NEXT_DONE   "No more elements left in coreset_get_next()",
 
     // IDC (and LMP/UMP channels)
+    failure RPC_TIMEOUT         "RPC TIMEOUT!",
     failure NO_LMP_MSG          "No LMP message available",
     failure LMP_RECV_BUF_OVERFLOW "LMP message in endpoint is longer than user-provided buffer",
     failure NO_UMP_MSG          "No UMP message available",
