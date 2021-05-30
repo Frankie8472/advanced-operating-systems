@@ -178,7 +178,7 @@ errval_t init_dispatcher_rpcs(void)
         struct capability stdout_c;
         invoke_cap_identify(real_stdout_ep_cap, &stdout_c);
         if (stdout_c.type == ObjType_EndPointLMP) {
-            debug_printf("setting LMP stdout\n");
+            // debug_printf("setting LMP stdout\n");
             aos_dc_init_lmp(&stdout_chan, 64);
             stdout_chan.channel.lmp.remote_cap = real_stdout_ep_cap;
         }

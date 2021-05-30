@@ -113,7 +113,6 @@ errval_t nameservice_rpc(nameservice_chan_t chan, void *message, size_t bytes,
 
 	errval_t err;
 	assert(chan && "Invalid namservice channel!");
-	// debug_printf("here is channel address: 0x%lx\n",chan);
 	struct server_connection *serv_con = (struct server_connection *) chan;
 	char * response_buffer = (void * ) malloc(MAX_SERVER_MESSAGE_SIZE);
 	struct aos_rpc_varbytes resp_varbytes = {
@@ -224,7 +223,7 @@ errval_t nameservice_register_properties(const char * name,nameservice_receive_h
 	new_srv_entry -> st = st;
 	
 
-	debug_printf("Creating server iwth name %s\n",new_srv_entry -> name);
+	// debug_printf("Creating server iwth name %s\n",new_srv_entry -> name);
 	periodic_event_create(&new_srv_entry -> liveness_checker,get_default_waitset(),NS_LIVENESS_INTERVAL,MKCLOSURE(liveness_checker,(void*) name));
 
 	// struct aos_rpc *new_rpc;
@@ -321,15 +320,15 @@ errval_t create_lmp_server_ep_with_struct_aos_rpc(struct capref* server_ep, stru
 
 errval_t establish_init_server_con(const char* name,struct aos_rpc* server_rpc, struct capref local_cap){
 	errval_t err;
-	debug_printf("establish init server con\n");
+	// debug_printf("establish init server con\n");
 
 	struct capref remote_cap;
 
 
-	char buffer[512];
+	// char buffer[512];
 
-	debug_print_cap_at_capref(buffer,512,local_cap);
-	debug_printf("Cap : %s\n",buffer);
+	// debug_print_cap_at_capref(buffer,512,local_cap);
+	// debug_printf("Cap : %s\n",buffer);
 	
 	err = aos_rpc_call(get_init_rpc(),INIT_MULTI_HOP_CON,name,local_cap,&remote_cap);
 	ON_ERR_RETURN(err);
@@ -426,7 +425,7 @@ errval_t nameservice_lookup_with_prop(const char *name,char * properties, namese
 	// debug_printf("query: %s\n",query_with_prop);
 	char server_name[SERVER_NAME_SIZE];
 	err = aos_rpc_call(get_ns_rpc(),NS_LOOKUP_PROP,query_with_prop,&core_id,&direct,&success,server_name);
-	debug_printf("Server name: %s\n",server_name);
+	// debug_printf("Server name: %s\n",server_name);
 
 	if(!success){
 		return LIB_ERR_NAMESERVICE_UNKNOWN_NAME;
@@ -452,7 +451,7 @@ errval_t nameservice_create_nshan(const char *name,bool direct , coreid_t core_i
 		struct aos_rpc * new_client_server_channel;
 		struct capref remote_cap;
 		if(serv_con -> core_id == disp_get_core_id()){
-			debug_printf("Setting up direct lmp channel!\n");
+			// debug_printf("Setting up direct lmp channel!\n");
 			err = create_lmp_server_ep(&local_ep_cap,&new_client_server_channel);
 			ON_ERR_RETURN(err);
 			err = aos_rpc_call(get_init_rpc(),INIT_BINDING_REQUEST,name,disp_get_core_id(),serv_con -> core_id,local_ep_cap,&remote_cap);
@@ -461,12 +460,12 @@ errval_t nameservice_create_nshan(const char *name,bool direct , coreid_t core_i
 			// serv_con-> rpc -> channel.lmp.remote_cap = remote_cap;
 		}
 		else {
-			debug_printf("Setting up direct ump channel!\n");
+			// debug_printf("Setting up direct ump channel!\n");
 			err = create_ump_server_ep(&local_ep_cap,&new_client_server_channel,true);
 			ON_ERR_RETURN(err);
-			char buffer[512];
-			debug_print_cap_at_capref(buffer,512,local_ep_cap);
-			debug_printf("Here %s\n",buffer);
+			// char buffer[512];
+			// debug_print_cap_at_capref(buffer,512,local_ep_cap);
+			// debug_printf("Here %s\n",buffer);
 
 			err = aos_rpc_call(get_init_rpc(),INIT_BINDING_REQUEST,name,disp_get_core_id(),serv_con -> core_id,local_ep_cap,&remote_cap);
 			ON_ERR_RETURN(err);
@@ -505,7 +504,7 @@ errval_t nameservice_enumerate(char *query, size_t *num, char **result )
 
 	errval_t err;
 	if(!query_check(query)){
-		debug_printf("Here\n");
+		// debug_printf("Here\n");
 		return LIB_ERR_NAMESERVICE_INV_QUERY;
 	}
 	char * response = malloc(MAX_RPC_MSG_SIZE * sizeof(char)); 
@@ -598,7 +597,7 @@ void nameservice_binding_request_handler(struct aos_rpc *rpc,uintptr_t remote_co
 	
 	struct aos_rpc *new_server_con;
 	if(remote_core_id == disp_get_core_id()){
-		debug_printf("handle lmp binding request!\n");
+		// debug_printf("handle lmp binding request!\n");
 		err = create_lmp_server_ep(local_cap,&new_server_con);
 		if(err_is_fail(err)){
 			DEBUG_ERR(err,"create server ep");
@@ -606,7 +605,7 @@ void nameservice_binding_request_handler(struct aos_rpc *rpc,uintptr_t remote_co
 		new_server_con -> channel.lmp.remote_cap = remote_cap;
 	}else{
 		new_server_con = (struct aos_rpc*) malloc(sizeof(struct aos_rpc));
-		debug_printf("handle ump binding request!\n");
+		// debug_printf("handle ump binding request!\n");
 		char *urpc_data = NULL;
 		err = paging_map_frame_complete(get_current_paging_state(), (void **) &urpc_data, remote_cap, NULL, NULL);
 		if(err_is_fail(err)){

@@ -36,7 +36,6 @@ void initialize_nameservice_handlers(struct aos_rpc *ns_rpc){
 }
 
 void handle_server_lookup(struct aos_rpc *rpc, char *name,uintptr_t* core_id,uintptr_t *direct,uintptr_t * success){
-    debug_printf("Handling server lookup\n");
     errval_t err;
     struct server_list* server;
     err = find_server_by_name(name,&server);
@@ -51,7 +50,6 @@ void handle_server_lookup(struct aos_rpc *rpc, char *name,uintptr_t* core_id,uin
 }
 
 void handle_server_lookup_with_prop(struct aos_rpc *rpc, char *query,uintptr_t* core_id,uintptr_t *direct,uintptr_t * success, char * response_name){
-    debug_printf("Handling lookup with props!\n");
     errval_t err;
     char * keys[N_PROPERTIES];
     char * values[N_PROPERTIES];
@@ -78,7 +76,7 @@ void handle_server_lookup_with_prop(struct aos_rpc *rpc, char *query,uintptr_t* 
     strcpy(buffer,server->name);
     strcpy(response_name,buffer);
     *success = 1;
-    debug_printf("%s\n",response_name);
+    // debug_printf("%s\n",response_name);
 
 
 }
@@ -98,10 +96,7 @@ void handle_server_enum_with_prop(struct aos_rpc * rpc, char* query,uintptr_t* n
     }
     // char response_buffer[MAX_RPC_MSG_SIZE];
     find_servers_by_prefix_and_prop(name,keys,values,prop_size,response,num);
-    // strcpy(response,response_buffer);
-    // debug_printf("Send: %s\n",response);
 
-    // print_server_list();
 
 }
 
@@ -137,7 +132,7 @@ void handle_reg_server(struct aos_rpc * rpc, uintptr_t pid, uintptr_t core_id ,c
     }
 
     *return_message = '\0';
-    print_server_list();
+    // print_server_list();
 }
 
 
@@ -162,7 +157,7 @@ void handle_dereg_server(struct aos_rpc *rpc, const char* name, uintptr_t* succe
     if(pid == -1 || pid == ret_server -> pid){ //if process is dead, anyone can deregister server
         remove_server(ret_server);
         *success = 1;
-        print_server_list();
+        // print_server_list();
     }else{
         *success = 0;
     }
@@ -172,7 +167,6 @@ void handle_dereg_server(struct aos_rpc *rpc, const char* name, uintptr_t* succe
 
 
 void handle_enum_servers(struct aos_rpc *rpc,const char* name, char * response, uintptr_t * resp_size){
-
     find_servers_by_prefix(name,response,resp_size);
 }
 
@@ -185,7 +179,6 @@ void handle_enum_servers(struct aos_rpc *rpc,const char* name, char * response, 
 
 
 void handle_get_props(struct aos_rpc *rpc,const char* name, char * response){
-    // debug_printf("here!\n");
     struct server_list *server;
     errval_t err = find_server_by_name((char*) name,&server);
     if(err_is_fail(err)){

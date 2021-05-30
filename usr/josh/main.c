@@ -466,7 +466,7 @@ int main(int argc, char **argv)
     setenv("PROMPT", "\033[32;1mjosh\033[m $ ", 0);
     setenv("PATH", "/usr/bin:/home", 0);
 
-    printf("Welcome to JameOS Shell\n");
+    // printf("Welcome to JameOS Shell\n");
 
     // hack
     lmp_chan_deregister_recv(&get_ns_rpc()->channel.lmp);
