@@ -289,9 +289,9 @@ static int bsp_main(int argc, char *argv[])
     }
 
 
-    // spawn_new_core(1);
-    //spawn_new_core(2);
-    //spawn_new_core(3);
+    spawn_new_core(1);
+    spawn_new_core(2);
+    spawn_new_core(3);
 
 
     /*struct capref lmp_ep;
@@ -396,7 +396,7 @@ static int bsp_main(int argc, char *argv[])
     // spawn_new_domain("nameservicetest",0,NULL,NULL,NULL_CAP,NULL_CAP,NULL);
 
     // spawn_new_core(my_core_id + 1);
-    // spawn_new_domain("server a",0,NULL,NULL,NULL_CAP,NULL_CAP,NULL_CAP,NULL);
+    // spawn_new_domain("server a",1,NULL,NULL,NULL_CAP,NULL_CAP,NULL_CAP,NULL);
 
 
 
