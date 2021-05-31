@@ -21,6 +21,8 @@
 #include "enet.h"
 #include "enet_regionman.h"
 
+// #define STATIC_UDP_ECHO 1  // enable echo-server inside driver
+
 void print_arp_table(struct enet_driver_state *st) {
     if (collections_hash_traverse_start(st->arp_table) == -1) {
         ENET_DEBUG("unable to print arp-table rn\n");
@@ -373,6 +375,7 @@ static errval_t handle_ICMP(struct enet_queue* q, struct devq_buf* buf,
     return err;
 }
 
+#if defined(STATIC_UDP_ECHO)
 static errval_t udp_echo(struct enet_queue* q, struct devq_buf* buf,
                          struct udp_hdr *h, struct enet_driver_state* st,
                          lvaddr_t original_header) {
@@ -434,6 +437,7 @@ static errval_t udp_echo(struct enet_queue* q, struct devq_buf* buf,
 
     return err;
 }
+#endif
 
 static errval_t handle_UDP(struct enet_queue* q, struct devq_buf* buf,
                            struct udp_hdr *h, struct enet_driver_state* st,
@@ -441,10 +445,13 @@ static errval_t handle_UDP(struct enet_queue* q, struct devq_buf* buf,
     errval_t err = SYS_ERR_OK;
     UDP_DEBUG("handling UDP packet\n");
     uint16_t d_p = ntohs(h->dest);
+
+#if defined(STATIC_UDP_ECHO)
     if (d_p == UDP_ECHO_PORT) {  // TODO: outsource
         UDP_DEBUG("calling UDP-echo server\n");
         return udp_echo(q, buf, h, st, original_header);
     }
+#endif
 
     // check if it belongs to an existing socket
     struct aos_udp_socket *socket = get_socket_from_port(st, d_p);
