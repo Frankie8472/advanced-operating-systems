@@ -129,7 +129,8 @@ int main(int argc, char **argv) {
     for (;;) {
         flush_out(in, &sock);
 
-        forward_in(in, &sock);
+        if (err_is_fail(forward_in(in, &sock)))
+            thread_yield();
     }
 
     return EXIT_SUCCESS;
