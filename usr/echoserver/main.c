@@ -23,17 +23,16 @@ int main(int argc, char **argv) {
         return EXIT_SUCCESS;
     }
 
-    /* uint32_t tip = MK_IP(192, 168, 1, 34); */
-    /* aos_socket_send_to(&sock, "hello im here", 13, tip, 8888); */
     struct udp_msg *in = malloc(sizeof(struct udp_msg) + 2048 * sizeof(char));
     while (1) {
         err = aos_socket_receive(&sock, in);
 
         if (err_is_fail(err)) {
+            thread_yield();
             continue;
         }
 
-        printf("received message:\n%s", in->data);
+        // printf("received message:\n%s", in->data);
         aos_socket_send_to(&sock, in->data, in->len, in->ip, in->f_port);
     }
 
