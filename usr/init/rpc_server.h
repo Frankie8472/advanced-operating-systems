@@ -48,7 +48,6 @@ void handle_init_get_proc_name(struct aos_rpc *r, uintptr_t pid, char *name);
 void handle_init_get_proc_list(struct aos_rpc *r, uintptr_t *pid_count, char *list);
 
 void handle_init_get_core_id(struct aos_rpc *r, uintptr_t pid, uintptr_t * core_id);
-void handle_all_binding_request(struct aos_rpc *r, uintptr_t pid, uintptr_t core_id,uintptr_t client_core,struct capref client_cap,struct capref * server_cap);
 void  handle_ns_on(struct aos_rpc *r);
 void handle_forward_ns_reg(struct aos_rpc *rpc,uintptr_t core_id,const char* name,struct capref proc_ep_cap, uintptr_t  pid, struct capref* ns_ep_cap);
 

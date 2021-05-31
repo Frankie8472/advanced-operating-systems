@@ -10,6 +10,8 @@
 #include <grading.h>
 #include <aos/core_state.h>
 #include <aos/systime.h>
+#include <aos/deferred.h>
+#include <aos/waitset.h>
 
 
 #include <spawn/spawn.h>
@@ -343,4 +345,38 @@ int run_init_tests(int core_id) {
     debug_printf("===============================\n");
     
     return 0;
+}
+
+
+
+static int counter;
+#define SERVER "server_perf /server"
+static coreid_t s_core;
+
+static void spawn_next_server(void * arg){
+    
+
+    char buffer[512];
+    char counter_string[120];
+    strcpy(buffer,SERVER);
+    sprintf(counter_string,"%u",counter);
+    strcat(buffer,counter_string);
+    spawn_new_domain(buffer, s_core,NULL,NULL,NULL_CAP,NULL_CAP,NULL_CAP,NULL);
+    // debug_printf("Spawned new server -client: %d, %s, %d\n",counter,buffer,s_core);
+    counter++;
+}
+void run_ns_perf_test(coreid_t server_core, uint64_t spawn_interval){
+    errval_t err;
+    counter = 0;
+    coreid_t * core = (coreid_t* ) malloc(sizeof(coreid_t));
+    // *core = server_core;
+    s_core = server_core;
+    struct periodic_event * pe = (struct periodic_event *) malloc(sizeof(struct periodic_event));
+
+    err = periodic_event_create(pe,get_default_waitset(),spawn_interval,MKCLOSURE(spawn_next_server,&core));
+    if(err_is_fail(err)){
+        DEBUG_ERR(err,"Failed to create periodic event!\n");
+    }
+
+
 }

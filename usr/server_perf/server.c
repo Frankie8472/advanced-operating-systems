@@ -26,7 +26,7 @@ static void server_recv_handler(void *st, void *message,
                                 void **response, size_t *response_bytes,
                                 struct capref rx_cap, struct capref *tx_cap)
 {
-    debug_printf("server: got a request: %s\n", (char *)message);
+    // debug_printf("server: got a request: %s\n", (char *)message);
     *response = myresponse;
     *response_bytes = strlen(myresponse);
 }
@@ -45,12 +45,13 @@ int main(int argc, char *argv[])
     PANIC_IF_FAIL(err, "failed to register...\n");
 
 
+
+
     domainid_t client_pid;
     char buffer[1024];
     strcpy(buffer,"client_perf ");
     strcat(buffer,argv[1]);
-    debug_printf("Spawning %s\n", buffer);
-    err = aos_rpc_process_spawn(get_init_rpc(),buffer,0,&client_pid);
+    err = aos_rpc_process_spawn(get_init_rpc(),buffer,1,&client_pid);
     if(err_is_fail(err)){
         DEBUG_ERR(err,"Failed to spawn client!\n");
     }
@@ -58,6 +59,7 @@ int main(int argc, char *argv[])
     struct waitset *default_ws = get_default_waitset();
     while (true) {
         err = event_dispatch(default_ws);
+        // err = event_dispatch_non_block(get_default_waitset());
         if (err_is_fail(err)) {
             DEBUG_ERR(err, "in event_dispatch");
             abort();

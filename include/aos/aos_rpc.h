@@ -21,7 +21,7 @@
 #include <aos/ump_chan.h>
 
 #define AOS_RPC_RETURN_BIT 0x1000000
-#define DEFAULT_TIMEOUT 2000000000
+#define DEFAULT_TIMEOUT 20000000000
 
 #define min(a,b) \
    ({ __typeof__ (a) _a = (a); \
@@ -177,9 +177,7 @@ errval_t aos_rpc_process_get_all_pids(struct aos_rpc *chan,
                                       domainid_t **pids, size_t *pid_count);
 
 errval_t aos_rpc_get_terminal_input(struct aos_rpc *chan, char* buf,size_t le);
-errval_t aos_rpc_new_binding(domainid_t pid, coreid_t core_id, struct aos_rpc* ret_rpc);
 
-errval_t aos_rpc_new_binding_by_name(char * name, struct aos_rpc * new_rpc);
 
 struct aos_rpc *aos_rpc_get_init_channel(void);
 

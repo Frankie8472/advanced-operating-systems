@@ -7,36 +7,7 @@
 
 
 
-// errval_t add_server(domainid_t pid, coreid_t core_id,const char* name, struct capref end_point,const char* properties){
-//     errval_t err;
-//     struct server_list * new_server = (struct server_list * ) malloc(sizeof(struct server_list));
 
-//     struct capability cap;
-//     err = invoke_cap_identify(end_point,&cap);
-//     ON_ERR_RETURN(err);
-//     bool direct = false;
-//     if(cap.type == ObjType_Frame){
-//         direct = true;
-//     }
-
-//     debug_printf("Register with name : %s\n",name);
-
-//     new_server -> next = NULL;
-//     new_server -> name = name;
-//     new_server -> pid = pid; 
-//     new_server -> core_id = core_id;
-//     new_server -> end_point = &end_point;
-//     new_server -> direct = direct;
-//     new_server -> properties = properties;
-//     if(servers == NULL){
-//         servers = new_server;
-//     }else {
-//         struct server_list* curr = servers;
-//         for(;curr -> next != NULL;curr = curr -> next){}
-//         curr -> next = new_server;
-//     }
-//     return SYS_ERR_OK;
-// }
 
 
 errval_t add_server(struct server_list* new_server){
@@ -47,7 +18,7 @@ errval_t add_server(struct server_list* new_server){
     else {
         
         for(;curr -> next != NULL;curr = curr -> next){
-            debug_printf("%s =? %s\n",new_server->name, curr -> name);
+            // debug_printf("%s =? %s\n",new_server->name, curr -> name);
             if(!strcmp(new_server-> name, curr -> name)){
                 free_server(new_server);
                 return LIB_ERR_NAMESERVICE_INVALID_REGISTER;
@@ -112,8 +83,6 @@ void print_server_list(void){
                 debug_printf("%s=%s\n",curr -> key[i],curr ->value[i]);
             }
         }
-        // debug_printf("-> %s\n",curr -> properties);
-        //TODO print properties
     }
 
 
@@ -163,9 +132,6 @@ void find_servers_by_prefix_and_prop(const char* name,char*  keys[],char*  value
 
 
 bool prefix_match(char* name, char* server_name){
-    // if(*name == '/' && strlen(name) == 1){
-    //     return true;
-    // }
     while(*name != '\0'){
         if(*server_name == '\0'){return false;}
         if(*name++ != *server_name++){
