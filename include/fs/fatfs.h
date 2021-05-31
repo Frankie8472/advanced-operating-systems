@@ -7,9 +7,6 @@
  * ETH Zurich D-INFK, Universitaetstr 6, CH-8092 Zurich. Attn: Systems Group.
  */
 
-//#ifndef FS_RAMFS_H_
-//#define FS_RAMFS_H_
-
 #include <fs/fs.h>
 #include <drivers/sdhc.h>
 
@@ -137,25 +134,11 @@ errval_t fatfs_write(void *st, fatfs_handle_t handle, const void *buffer,
 errval_t fatfs_seek(void *st, fatfs_handle_t handle, enum fs_seekpos whence,
                     off_t offset);
 
+errval_t fatfs_remove(void *st, const char *path);
 
-/*
+errval_t fatfs_truncate(void *st, fatfs_handle_t handle, size_t bytes);
 
-
-errval_t ramfs_remove(void *st, const char *path);
-
-
-
-errval_t ramfs_truncate(void *st, ramfs_handle_t handle, size_t bytes);
-
-
-
-
-
-
-
-
-errval_t ramfs_rmdir(void *st, const char *path);
-*/
+errval_t fatfs_rmdir(void *st, const char *path);
 
 errval_t fatfs_opendir(void *st, const char *path, fatfs_handle_t *rethandle);
 

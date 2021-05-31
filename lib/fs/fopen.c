@@ -181,12 +181,11 @@ static int fs_libc_write(int fd, void *buf, size_t len)
     }
 
     size_t retlen = 0;
-
     switch(e->type) {
     case FDTAB_TYPE_FILE:
     {
         fatfs_handle_t fh = e->handle;
-        errval_t err = ramfs_write(mount, fh, buf, len, &retlen);
+        errval_t err = fatfs_write(mount, fh, buf, len, &retlen);
         if (err_is_fail(err)) {
             return -1;
         }
@@ -251,7 +250,7 @@ static off_t fs_libc_lseek(int fd, off_t offset, int whence)
             return -1;
         }
 
-        err = ramfs_seek(mount, fh, fs_whence, offset);
+        err = fatfs_seek(mount, fh, fs_whence, offset);
         if(err_is_fail(err)) {
             DEBUG_ERR(err, "vfs_seek");
             return -1;
@@ -271,11 +270,11 @@ static off_t fs_libc_lseek(int fd, off_t offset, int whence)
 }
 
 static errval_t fs_mkdir(const char *path){ return fatfs_mkdir(mount, path);}
-static errval_t fs_rmdir(const char *path){ return ramfs_rmdir(mount, path); }
-static errval_t fs_rm(const char *path){ return ramfs_remove(mount, path); }
+static errval_t fs_rmdir(const char *path){ return fatfs_rmdir(mount, path); }
+static errval_t fs_rm(const char *path){ return fatfs_remove(mount, path); }
 static errval_t fs_opendir(const char *path, fs_dirhandle_t *h){ return fatfs_opendir(mount, path, h); }
 static errval_t fs_readdir(fs_dirhandle_t h, char **name) { return fatfs_dir_read_next(mount, h, name, NULL); }
-static errval_t fs_closedir(fs_dirhandle_t h) { return ramfs_closedir(mount, h); }
+static errval_t fs_closedir(fs_dirhandle_t h) { return fatfs_closedir(mount, h); }
 static errval_t fs_fstat(fs_dirhandle_t h, struct fs_fileinfo *b) { return fatfs_stat(mount, h, b); }
 
 typedef int   fsopen_fn_t(char *, int);

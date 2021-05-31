@@ -459,32 +459,6 @@ static errval_t dirent_insert(struct fatfs_mount *mount, struct fatfs_dirent *pa
     entry->parent = parent;
     bool exit = false;
 
-    // Check if parent has entry in FAT
-    if(parent->content_cluster == -1){
-        // Create entry in FAT
-        for(int j = 0; j < mount->fs->bpb.fatSz32; j += 32) {
-            err = sdhc_read_block(mount->ds, mount->fs->fat_sector + j, get_phys_addr(mount->fs->buf_cap));
-            ON_ERR_RETURN(err);
-
-            uint32_t *addr = mount->fs->buf_va;
-            for (int i = 0; i < 128; i++){
-                if (addr[i] == 0){
-                    entry->content_cluster = 32 * j + i;
-                    addr[i] = 0xFFFFFFFF;
-                    exit = true;
-                    err = sdhc_write_block(mount->ds, mount->fs->fat_sector + j, get_phys_addr(mount->fs->buf_cap));
-                    ON_ERR_RETURN(err);
-                    break;
-                }
-            }
-
-            if(exit) {
-                exit = false;
-                break;
-            }
-        }
-    }
-
     // Write to sd in folder cluster/sector
     uint32_t current_cluster = parent->content_cluster;
     uint32_t start_sector;
@@ -637,8 +611,6 @@ errval_t fatfs_create(void *st, const char *path, fatfs_handle_t *rethandle)
     }
 
     if (parent) {
-        // TODO: strange if, correct
-        if(parent->dirent->content_cluster != 0)
         dirent_insert(mount, parent->dirent, dirent);
         handle_close(parent);
     } else {
@@ -790,7 +762,7 @@ errval_t fatfs_seek(void *st, fatfs_handle_t handle, enum fs_seekpos whence,
         break;
 
     default:
-        USER_PANIC("invalid whence argument to ramfs seek");
+        USER_PANIC("invalid whence argument to fatfs seek");
     }
 
     return SYS_ERR_OK;
@@ -970,168 +942,161 @@ errval_t fatfs_closedir(void *st, fatfs_handle_t dhandle)
     return SYS_ERR_OK;
 }
 
-/*
 errval_t fatfs_write(void *st, fatfs_handle_t handle, const void *buffer,
                      size_t bytes, size_t *bytes_written)
 {
-    //struct fatfs_mount *mount = st;
+    errval_t err;
+    struct fatfs_mount *mount = st;
     struct fatfs_handle *h = handle;
     assert(h->file_pos >= 0);
+    if (h->isdir) {
+        return FS_ERR_NOTFILE;
+    }
 
+    // simplicity: write only to end (for the start)
+    h->file_pos = (off_t) h->dirent->size;
     size_t offset = h->file_pos;
 
-    if (h->isdir) {
-        return FS_ERR_NOTFILE;
-    }
+    size_t sector_offset = offset / mount->fs->bpb.bytsPerSec;
+    size_t cluster_offset = sector_offset / mount->fs->bpb.secPerClus;
+    size_t current_cluster = h->dirent->content_cluster;
 
-    if (h->dirent->size < offset + bytes) {
+    size_t bytes_to_write = MIN(bytes, mount->fs->bpb.bytsPerSec - (offset % mount->fs->bpb.bytsPerSec));
 
-        *//* need to realloc the buffer *//*
+    // Get current cluster
+    if (current_cluster != 0) {
+        for (int f = 0; f < cluster_offset; f++) {
+            err = sdhc_read_block(mount->ds, (int) (mount->fs->fat_sector + current_cluster / 128), get_phys_addr(mount->fs->buf_cap));
+            ON_ERR_RETURN(err);
 
-        void *newbuf = realloc(h->dirent->data, offset + bytes);
-        if (newbuf == NULL) {
-            return LIB_ERR_MALLOC_FAIL;
+            current_cluster = ((uint32_t *) mount->fs->buf_va)[current_cluster%128];
         }
-        h->dirent->data = newbuf;
-    }
 
-    memcpy(h->dirent->data + offset, buffer, bytes);
+        // Create cluster
+        if (current_cluster == -1) {
+            size_t new_cluster = -1;
+            for (int i = 0; i < mount->fs->bpb.secPerClus && new_cluster == -1; i++) {
+                err = sdhc_read_block(mount->ds, (int) (mount->fs->fat_sector + i), get_phys_addr(mount->fs->buf_cap));
+                ON_ERR_RETURN(err);
+                uint32_t *addr = ((uint32_t *) mount->fs->buf_va);
+                for (int j = 0; j < 128 && new_cluster == -1; j++) {
+                    if (addr[j] == 0x0) {
+                        addr[j] = -1;
+                        new_cluster = j + 128 * i;
+                    }
+                }
+            }
+            err = sdhc_read_block(mount->ds, (int) (mount->fs->fat_sector + current_cluster / 128), get_phys_addr(mount->fs->buf_cap));
+            ON_ERR_RETURN(err);
 
-    if (bytes_written) {
-        *bytes_written = bytes;
-    }
+            ((uint32_t *) mount->fs->buf_va)[current_cluster%128] = new_cluster;
 
-    h->file_pos += bytes;
-    h->dirent->size += bytes;
+            err = sdhc_write_block(mount->ds, (int) (mount->fs->fat_sector + current_cluster / 128), get_phys_addr(mount->fs->buf_cap));
+            ON_ERR_RETURN(err);
 
-    return SYS_ERR_OK;
-}
-
-errval_t fatfs_truncate(void *st, fatfs_handle_t handle, size_t bytes)
-{
-    struct ramfs_handle *h = handle;
-
-    if (h->isdir) {
-        return FS_ERR_NOTFILE;
-    }
-
-    void *newdata = realloc(h->dirent->data, bytes);
-    if (newdata == NULL) {
-        return LIB_ERR_MALLOC_FAIL;
-    }
-    h->dirent->data = newdata;
-    h->dirent->size = bytes;
-
-    return SYS_ERR_OK;
-}
-
-
-static void dirent_remove(struct ramfs_dirent *entry)
-{
-    if (entry->prev == NULL) {
-        */
-/* entry was the first in list, update parent pointer *//*
-
-        if (entry->parent) {
-            assert(entry->parent->is_dir);
-            entry->parent->dir = entry->next;
+            current_cluster = new_cluster;
         }
     } else {
-        */
-/* there are entries before that one *//*
+        // Create cluster
+        debug_printf(">> Create cluster\n");
+        uint32_t new_cluster = -1;
+        for (int i = 0; i < mount->fs->bpb.secPerClus && new_cluster == -1; i++) {
+            err = sdhc_read_block(mount->ds, (int) (mount->fs->fat_sector + i), get_phys_addr(mount->fs->buf_cap));
+            ON_ERR_RETURN(err);
+            uint32_t *addr = ((uint32_t *) mount->fs->buf_va);
+            for (int j = 0; j < 128 && new_cluster == -1; j++) {
+                if (addr[j] == 0x0) {
+                    addr[j] = -1;
+                    new_cluster = j + 128 * i;
+                }
+            }
+        }
 
-        entry->prev->next = entry->next;
+        err = sdhc_read_block(mount->ds, (int) h->dirent->sector, get_phys_addr(mount->fs->buf_cap));
+        ON_ERR_RETURN(err);
+
+        struct fatfs_short_dirent *dir = ((struct fatfs_short_dirent *) mount->fs->buf_va) + h->dirent->sector_offset;
+        debug_printf(">>>>>> NAME: %11s\n", dir->name);
+
+        dir->fstClusLow = (uint16_t) (new_cluster & 0x0000FFFF);
+        dir->fstClusHi = (uint16_t) ((new_cluster >> 16) & 0x0000FFFF);
+
+        err = sdhc_write_block(mount->ds, (int) h->dirent->sector, get_phys_addr(mount->fs->buf_cap));
+        ON_ERR_RETURN(err);
+
+        h->dirent->content_cluster = new_cluster;
+        current_cluster = new_cluster;
+        debug_printf(">> Created cluster: %zu\n", current_cluster);
     }
 
-    if (entry->next) {
-        */
-/* update prev pointer *//*
+    size_t sector = mount->fs->data_sector + (current_cluster - 2) * mount->fs->bpb.secPerClus + sector_offset % mount->fs->bpb.secPerClus;
+    err = sdhc_read_block(mount->ds, (int) sector, get_phys_addr(mount->fs->buf_cap));
+    ON_ERR_RETURN(err);
 
-        entry->next->prev = entry->prev;
-    }
-}
+    debug_printf(">> Trying to write %zu Bytes\n", bytes_to_write);
+    debug_printf(">> Offset %lu\n", (offset % mount->fs->bpb.bytsPerSec));
 
-static void dirent_remove_and_free(struct ramfs_dirent *entry)
-{
-    dirent_remove(entry);
-    free(entry->name);
-    if (!entry->is_dir) {
-        free(entry->data);
-    }
+    memcpy(mount->fs->buf_va + (offset % mount->fs->bpb.bytsPerSec), buffer, bytes_to_write);
 
-    memset(entry, 0x00, sizeof(*entry));
-    free(entry);
-}
+    err = sdhc_write_block(mount->ds, (int) sector, get_phys_addr(mount->fs->buf_cap));
+    ON_ERR_RETURN(err);
 
+    err = sdhc_read_block(mount->ds, (int) sector, get_phys_addr(mount->fs->buf_cap));
+    ON_ERR_RETURN(err);
 
-errval_t ramfs_remove(void *st, const char *path)
-{
-    errval_t err;
+    debug_printf(">>>>>>> %14s\n", (char *) (mount->fs->buf_va + (offset % mount->fs->bpb.bytsPerSec)));
 
-    struct ramfs_mount *mount = st;
-
-    struct ramfs_handle *handle;
-    err = resolve_path(mount->root, path, &handle);
-    if (err_is_fail(err)) {
-        return err;
+    if (bytes_written) {
+        *bytes_written = bytes_to_write;
     }
 
-    if (handle->isdir) {
-        return FS_ERR_NOTFILE;
-    }
+    h->file_pos += (off_t) bytes_to_write;
+    h->dirent->size += bytes_to_write;
 
-    struct ramfs_dirent *dirent = handle->dirent;
-    if (dirent->    refcount != 1) {
-        handle_close(handle);
-        return FS_ERR_BUSY;
-    }
+    err = sdhc_read_block(mount->ds, (int) h->dirent->sector, get_phys_addr(mount->fs->buf_cap));
+    ON_ERR_RETURN(err);
 
+    struct fatfs_short_dirent *dir = ((struct fatfs_short_dirent *) mount->fs->buf_va) + h->dirent->sector_offset;
+    debug_printf(">>>>>> NAME: %11s\n", dir->name);
+    dir->fileSize = h->dirent->size;
 
-    dirent_remove_and_free(dirent);
+    err = sdhc_write_block(mount->ds, (int) h->dirent->sector, get_phys_addr(mount->fs->buf_cap));
+    ON_ERR_RETURN(err);
 
     return SYS_ERR_OK;
 }
 
-
-
-errval_t ramfs_rmdir(void *st, const char *path)
+__unused
+errval_t fatfs_truncate(void *st, fatfs_handle_t handle, size_t bytes)
 {
-    errval_t err;
-
-    struct ramfs_mount *mount = st;
-
-    struct ramfs_handle *handle;
-    err = resolve_path(mount->root, path, &handle);
-    if (err_is_fail(err)) {
-        return err;
-    }
-
-    if (!handle->isdir) {
-        goto out;
-        err =  FS_ERR_NOTDIR;
-    }
-
-    if (handle->dirent->refcount != 1) {
-        handle_close(handle);
-        return FS_ERR_BUSY;
-    }
-
-    assert(handle->dirent->is_dir);
-
-    if (handle->dirent->dir) {
-        err = FS_ERR_NOTEMPTY;
-        goto out;
-    }
-
-    dirent_remove_and_free(handle->dirent);
-
-    out:
-    free(handle);
-
-    return err;
+    return SYS_ERR_OK;
 }
 
-*/
+__unused
+static void dirent_remove(struct fatfs_dirent *entry)
+{
+    debug_printf("ERROR: NYI\n");
+}
+
+__unused
+static void dirent_remove_and_free(struct fatfs_dirent *entry)
+{
+    debug_printf("ERROR: NYI\n");
+}
+
+errval_t fatfs_remove(void *st, const char *path)
+{
+    debug_printf("ERROR: NYI\n");
+    return SYS_ERR_OK;
+}
+
+errval_t fatfs_rmdir(void *st, const char *path)
+{
+    debug_printf("ERROR: NYI\n");
+    return SYS_ERR_OK;
+}
+
+
 errval_t fatfs_mount(const char *path, fatfs_mount_t *retst)
 {
     /* Setup channel and connect ot service */

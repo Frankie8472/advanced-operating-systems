@@ -143,8 +143,14 @@ int main(int argc, char *argv[])
     }
 
     debug_printf(">> OPEN/CREATE FILE\n");
-    FILE *f = fopen("/sdcard/ASDF.TXT", "wr");
-    fwrite("HELLO SALADBAR", 14, 1, f);
+    FILE *g = fopen("/sdcard/ASDF.TXT", "w");
+    debug_printf(">> WRITE FILE\n");
+    fwrite("HELLO SALADBAR", 14, 1, g);
+    fclose(g);
+    return EXIT_SUCCESS;
+
+    FILE *f = fopen("/sdcard/ASDF.TXT", "w");
+    debug_printf(">> READ FILE\n");
     char ret[20];
     fread(ret, 1, 20, f);
     debug_printf(">> READ: |%s|\n", ret);
