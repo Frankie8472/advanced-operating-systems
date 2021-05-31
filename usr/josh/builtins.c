@@ -1,6 +1,8 @@
 #include "builtins.h"
 #include "format.h"
 #include "variables.h"
+#include "main.h"
+#include "running.h"
 
 #include <aos/nameserver.h>
 #include <aos/aos_rpc.h>
@@ -136,6 +138,15 @@ int handle_env(size_t argc, const char **argv, struct aos_datachan *out)
 
 int handle_time(size_t argc, const char **argv, struct aos_datachan *out)
 {
+    /*struct running_program prog;
+    spawn_program(NULL, argv[0], argc, argv, &prog);
+
+    display_running_process(&prog, &prog.process_out);
+
+    while (!aos_dc_is_closed(&prog.process_out)) {
+        printf("timing\n");
+    }*/
+    printf("NYI!\n");
     return 0;
 }
 

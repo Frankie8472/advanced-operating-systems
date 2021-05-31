@@ -1,9 +1,9 @@
 #include "calculate.h"
 
-#include </usr/lib/gcc-cross/aarch64-linux-gnu/9/include/arm_neon.h>
+#include "arm_neon.h"
 
 
-void calculate(const struct calc_request *cr, float *ret)
+void calculate(const struct calc_request *cr, int *ret)
 {
     for (long j = 0; j < cr->height; j++) {
         float64_t yv = (float64_t) (cr->y) + (float64_t)(j) * (float64_t)(cr->h / cr->height);
@@ -39,6 +39,12 @@ void calculate(const struct calc_request *cr, float *ret)
                 x = vaddq_f64(vsubq_f64(xsq, ysq), x0);
                 y = vaddq_f64(two_xy, y0);
             }
+            
+            uint64_t result_iters[2];
+            vst1q_u64(result_iters, counter);
+
+            ret[i + j * cr->width] = result_iters[0];
+            ret[i + j * cr->width + 1] = result_iters[1];
         }
     }
 }

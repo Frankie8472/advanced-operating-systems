@@ -462,6 +462,9 @@ static errval_t aos_rpc_call_ump(struct aos_rpc *rpc, enum aos_rpc_msg_type msg_
             return LIB_ERR_RPC_TIMEOUT;
         }
         received = ump_chan_poll_once(&rpc->channel.ump, response);
+        if (!received) {
+            thread_yield();
+        }
     } while (!received);
 
 
@@ -748,7 +751,7 @@ static errval_t aos_rpc_unmarshall_ump_simple_aarch64(struct aos_rpc *rpc, void 
             ON_ERR_PUSH_RETURN(err, LIB_ERR_SLOT_ALLOC);
 
 
-            // debug_printf("Here is forged cap:\n");
+            //debug_printf("Here is forged cap:\n");
             // char buf[512];
             // debug_print_cap(buf,512,&cap);
             // debug_printf("%s\n",buf);

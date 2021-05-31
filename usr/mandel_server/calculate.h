@@ -9,6 +9,6 @@ struct calc_request {
 
 
 
-void calculate(const struct calc_request *cr, float *ret);
+void calculate(const struct calc_request *cr, int *ret);
 
 #endif // CALCULATE_H

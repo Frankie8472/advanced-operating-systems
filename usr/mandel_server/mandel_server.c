@@ -10,6 +10,7 @@
 #include <aos/default_interfaces.h>
 
 #include "calculate.h"
+#include "interface.h"
 
 
 #define PANIC_IF_FAIL(err, msg)    \
@@ -26,25 +27,43 @@ struct capref ipi_notifier;
 struct aos_rpc calc_connection;
 
 
+void handle_calc(struct aos_rpc *rpc, struct aos_rpc_varbytes ci, struct aos_rpc_varbytes *out)
+{
+    //debug_printf("calcing!\n");
+    struct calc_request *c = (struct calc_request *) ci.bytes;
+    
+    static int rets[1024 * 128];
+    assert(c->width * c->height < sizeof rets / sizeof(int));
+    
+    calculate(c, rets);
+
+    out->length = c->width * c->height * sizeof(int);
+    out->bytes = (char *) rets;
+}
+
+
 static void setup_calc_connection(struct capref frame)
 {
     errval_t err;
     void *shared;
     char buf[128];
     debug_print_cap_at_capref(buf, 128, frame);
-    debug_printf("cap is %s\n", buf);
+    //debug_printf("cap is %s\n", buf);
     err = paging_map_frame_complete(get_current_paging_state(), &shared, frame, NULL, NULL);
-    DEBUG_ERR(err, ":O");
     aos_rpc_init_ump_default(&calc_connection, (lvaddr_t) shared, get_phys_size(frame), 1);
-    aos_rpc_set_interface(&calc_connection, get_dispatcher_interface(), DISP_IFACE_N_FUNCTIONS, malloc(DISP_IFACE_N_FUNCTIONS * sizeof(void *)));
+    aos_rpc_set_interface(&calc_connection, get_ms_interface(), MS_IFACE_N_FUNCTIONS, malloc(MS_IFACE_N_FUNCTIONS * sizeof(void *)));
 
     void handle_roundtrip(struct aos_rpc *rpc) { return; }
     aos_rpc_register_handler(&calc_connection, AOS_RPC_ROUNDTRIP, &handle_roundtrip);
+    aos_rpc_register_handler(&calc_connection, MS_IFACE_CALC, &handle_calc);
 }
 
 
 static void remote_ipi(struct capref ipi_ep)
 {
+    char buf[128];
+    debug_print_cap_at_capref(buf, 128, ipi_ep);
+    //debug_printf("cap is %s\n", buf);
     ump_chan_switch_remote_pinged(&calc_connection.channel.ump, ipi_ep);
 }
 
