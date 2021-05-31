@@ -71,7 +71,8 @@ static void arp_tbl_handler_ns(struct enet_driver_state* st,
                               void **response, size_t *response_bytes,
                               struct aos_udp_socket *sock) {
     if (collections_hash_traverse_start(st->arp_table) == -1) {
-        // TODO: error!
+        // unable to print arp-table right now
+        return;
     }
     char *res = arp_tbl;
     int ri = 0;  // index into res
@@ -188,8 +189,6 @@ static void server_recv_handler(void *stptr, void *message,
             debug_printf("%d\n", err);
         }
         HAN_DEBUG("write repl\n");
-        /* *response = (void *) err; */
-        /* *response = NULL;  // TODO: error report sending */
         *response_bytes = 0;
         break;
     case ARP_TBL:
@@ -210,7 +209,7 @@ static void server_recv_handler(void *stptr, void *message,
 void name_server_initialize(struct enet_driver_state *st) {
     errval_t err2;
     err2 = nameservice_register_properties(ENET_SERVICE_NAME, server_recv_handler, (void *) st, true,
-                                          "type=ethernet,mac=TODO,bugs=0xffff");
+                                          "type=ethernet,mac=secret,bugs=no-bugs-at-all-everything-is-perfect");
     PANIC_IF_FAIL(err, "failed to register...\n");
 
     repl_msg = malloc(sizeof(struct udp_msg) + 2048 * sizeof(char));

@@ -72,7 +72,6 @@ static void inline deb_print_mac(char *msg, struct eth_addr* mac) {
                mac->addr[5]);
 }
 
-// NOTE: defined in other thingy too but nis
 static struct region_entry* get_region(struct enet_queue* q, regionid_t rid)
 {
     struct region_entry* entry = q->regions;
@@ -89,7 +88,6 @@ static void print_ip_packet(struct ip_hdr *ih) {
     IP_DEBUG("======== IP  PACKET ========\n");
     IP_DEBUG("version - %d\n", IPH_V(ih));
     IP_DEBUG("header length - %d\n", IPH_HL(ih));
-    // TODO: tos
     IP_DEBUG("length - %d\n", ntohs(ih->len));
     IP_DEBUG("id - %d\n", ntohs(ih->id));
     IP_DEBUG("offset - %d\n", ntohs(ih->offset));
@@ -254,7 +252,6 @@ errval_t handle_ARP(struct enet_queue* q, struct devq_buf* buf,
         break;
     default:
         ETHARP_DEBUG("Unknown ARP opcode\n");
-        // TODO: add errorcode to return here maybe?
         break;
     }
     /* print_arp_table(st); */
@@ -447,7 +444,7 @@ static errval_t handle_UDP(struct enet_queue* q, struct devq_buf* buf,
     uint16_t d_p = ntohs(h->dest);
 
 #if defined(STATIC_UDP_ECHO)
-    if (d_p == UDP_ECHO_PORT) {  // TODO: outsource
+    if (d_p == UDP_ECHO_PORT) {
         UDP_DEBUG("calling UDP-echo server\n");
         return udp_echo(q, buf, h, st, original_header);
     }
@@ -467,7 +464,6 @@ static errval_t handle_UDP(struct enet_queue* q, struct devq_buf* buf,
     return err;
 }
 
-// TODO: error-handling, checksum
 errval_t handle_IP(struct enet_queue* q, struct devq_buf* buf,
                    lvaddr_t vaddr, struct enet_driver_state* st) {
     errval_t err;

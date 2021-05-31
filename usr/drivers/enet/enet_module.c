@@ -622,9 +622,9 @@ int main(int argc, char *argv[]) {
 
     ON_ERR_RETURN(err);
 
-    /* TODO Net Project: get the capability to the register region
+    /* DONE Net Project: get the capability to the register region
      * and then map it so it is accessible.
-     * TODO set st->d_vaddr to the memory mapped register region */
+     * DONE set st->d_vaddr to the memory mapped register region */
     /* st->d_vaddr = (lvaddr_t) device_frame; */
     st->d_vaddr = (lvaddr_t) device_frame;
     if (st->d_vaddr == 0) {

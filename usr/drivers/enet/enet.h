@@ -146,7 +146,7 @@ struct enet_driver_state {
     collections_hash_table* inv_table;  // inverse arp-table: ip 2 mac
     struct enet_qstate* send_qstate;  // regionman for send-queue
 
-    struct aos_udp_socket *sockets;  // TODO: hash-set
+    struct aos_udp_socket *sockets;
     struct aos_icmp_socket *pings;
 };
 
