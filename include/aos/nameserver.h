@@ -12,11 +12,11 @@
 
 
 
-#define MAX_SERVER_MESSAGE_SIZE 10000
+#define MAX_SERVER_MESSAGE_SIZE 4096
 #define PROPERTY_MAX_SIZE 128
 #define SERVER_NAME_SIZE 128
 #define N_PROPERTIES 64
-#define NS_SWEEP_INTERVAL 10000000
+#define NS_SWEEP_INTERVAL 	10000000
 #define NS_LIVENESS_INTERVAL 1000000
 #define MAX_RPC_MSG_SIZE 10000
 typedef void* nameservice_chan_t;
@@ -128,21 +128,46 @@ errval_t nameservice_enumerate_with_props(char *query,char * properties, size_t 
  */
 errval_t nameservice_get_props(const char* name, char ** response);
 
+
+
+/**
+ * @brief Get PID of server with name 'name'
+ */
+errval_t nameservice_get_pid(const char* name, domainid_t* resp_pid);
+
+
+/**
+ * @brief receive handler wrappers for direct/indirect
+ */
+ void init_server_handlers(struct aos_rpc* server_rpc);
 void nameservice_reveice_handler_wrapper(struct aos_rpc * rpc,struct aos_rpc_varbytes message,struct capref tx_cap, struct aos_rpc_varbytes* response, struct capref* rx_cap, uintptr_t* response_size);
 void namservice_receive_handler_wrapper_direct(struct aos_rpc *rpc, struct aos_rpc_varbytes message,struct aos_rpc_varbytes * response,uintptr_t* response_size);
 void nameservice_binding_request_handler(struct aos_rpc *rpc,uintptr_t remote_core_id, struct capref remote_cap, struct capref* local_cap);
-errval_t nameservice_create_nshan(const char *name,bool direct , coreid_t core_id, nameservice_chan_t * nschan);
 
+
+/**
+ * @brief Helpers for setting up / connecting channels
+ */
+errval_t nameservice_create_nschan(const char *name,bool direct , coreid_t core_id, nameservice_chan_t * nschan);
 errval_t create_ump_server_ep(struct capref* server_ep,struct aos_rpc** ret_rpc,bool first_half);
 errval_t create_lmp_server_ep(struct capref* server_ep, struct aos_rpc** ret_rpc);
+errval_t create_lmp_server_ep_with_struct_aos_rpc(struct capref* server_ep, struct aos_rpc* new_rpc);
+errval_t establish_init_server_con(const char* name,struct aos_rpc* server_rpc, struct capref local_cap);
+
+
+
+/**
+ * @brief Serialzing /deseriazing properties
+ */
 errval_t serialize(const char * name, const char * properties,char** ret_server_data);
 errval_t deserialize_prop(const char * server_data,char *  key[],char *  value[], char**name,size_t * property_size);
 errval_t get_properties_size(char * properties,size_t * size);
-errval_t establish_init_server_con(const char* name,struct aos_rpc* server_rpc, struct capref local_cap);
-errval_t nameservice_lookup_query(const char * name,const char * query, nameservice_chan_t *nschan);
-void init_server_handlers(struct aos_rpc* server_rpc);
-errval_t create_lmp_server_ep_with_struct_aos_rpc(struct capref* server_ep, struct aos_rpc* new_rpc);
-errval_t nameservice_get_pid(const char* name, domainid_t* resp_pid);
+
+
+
+/**
+ * @brief Regex checking for name/query/property
+ */
 bool name_check(const char*name);
 bool property_check(const char * properties);
 bool property_check_terminal(const char * properties);

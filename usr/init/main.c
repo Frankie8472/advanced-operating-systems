@@ -339,6 +339,11 @@ static int bsp_main(int argc, char *argv[])
 
 
 
+    // run_ns_perf_test(0,5000000);
+    // run_ns_perf_test(1,10000000);
+    // spawn_new_domain("server_perf /server0",2,NULL,NULL,NULL_CAP,NULL_CAP,NULL_CAP,NULL);
+    
+
     // struct periodic_event pe;
  
     // err = periodic_event_create(&pe,get_default_waitset(),1000000,MKCLOSURE(print_hello,NULL));
@@ -384,7 +389,6 @@ static int bsp_main(int argc, char *argv[])
     // spawn_new_domain("nameservicetest",0,NULL,NULL,NULL_CAP,NULL_CAP,NULL);
 
     // spawn_new_core(my_core_id + 1);
-    // spawn_new_domain("server a",1,NULL,NULL,NULL_CAP,NULL_CAP,NULL_CAP,NULL);
 
 
 

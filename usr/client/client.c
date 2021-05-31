@@ -58,6 +58,18 @@ int main(int argc, char *argv[])
         DEBUG_ERR(err,"failed to do the nameservice rpc\n");
     }
 
+
+
+
+
+
+
+
+
+
+
+
+
     debug_printf("got response: %s\n", (char *)response);
 
     size_t num;

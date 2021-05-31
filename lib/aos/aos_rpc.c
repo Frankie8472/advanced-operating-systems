@@ -64,47 +64,6 @@ errval_t aos_rpc_set_interface(struct aos_rpc *rpc, struct aos_rpc_interface *in
 
     return SYS_ERR_OK;
 
-    /*
-    // initiate function binding (to send our endpoint to init)
-    aos_rpc_initialize_binding(rpc, AOS_RPC_INITIATE, 1, 0, AOS_RPC_CAPABILITY);
-
-    // bind further functions
-    aos_rpc_initialize_binding(rpc, AOS_RPC_SEND_NUMBER, 1, 0, AOS_RPC_WORD);
-    aos_rpc_initialize_binding(rpc, AOS_RPC_SEND_STRING, 1, 0, AOS_RPC_VARSTR);
-    aos_rpc_initialize_binding(rpc, AOS_RPC_SEND_VARBYTES, 1, 0, AOS_RPC_VARBYTES);
-    aos_rpc_initialize_binding(rpc, AOS_RPC_REQUEST_RAM, 2, 2, AOS_RPC_WORD, AOS_RPC_WORD, AOS_RPC_CAPABILITY, AOS_RPC_WORD);
-
-    aos_rpc_initialize_binding(rpc, AOS_RPC_SETUP_PAGE, 3, 0, AOS_RPC_WORD, AOS_RPC_WORD, AOS_RPC_CAPABILITY);
-    aos_rpc_register_handler(rpc, AOS_RPC_SETUP_PAGE, &aos_rpc_setup_page_handler);
-    aos_rpc_initialize_binding(rpc, AOS_RPC_PROC_SPAWN_REQUEST, 2, 1, AOS_RPC_VARSTR, AOS_RPC_WORD, AOS_RPC_WORD);
-
-    aos_rpc_initialize_binding(rpc, AOS_RPC_FOREIGN_SPAWN, 2, 1, AOS_RPC_VARSTR, AOS_RPC_WORD, AOS_RPC_WORD);
-
-    aos_rpc_initialize_binding(rpc, AOS_RPC_PUTCHAR, 1, 0, AOS_RPC_WORD);
-    aos_rpc_initialize_binding(rpc, AOS_RPC_GETCHAR, 0, 1, AOS_RPC_WORD);
-
-    aos_rpc_initialize_binding(rpc, AOS_RPC_ROUNDTRIP, 0, 0);
-
-    aos_rpc_initialize_binding(rpc, AOS_RPC_GET_STDIN_EP, 0, 1, AOS_RPC_CAPABILITY);
-    aos_rpc_initialize_binding(rpc, AOS_RPC_SET_STDOUT_EP, 1, 0, AOS_RPC_CAPABILITY);
-
-    // process manager bindings
-    aos_rpc_initialize_binding(rpc, AOS_RPC_SERVICE_ON, 1, 0, AOS_RPC_WORD);
-    aos_rpc_initialize_binding(rpc, AOS_RPC_REGISTER_PROCESS, 2, 1, AOS_RPC_WORD, AOS_RPC_VARSTR,AOS_RPC_WORD);
-    aos_rpc_initialize_binding(rpc, AOS_RPC_GET_PROC_NAME, 1, 1, AOS_RPC_WORD, AOS_RPC_VARSTR);
-
-    aos_rpc_initialize_binding(rpc,AOS_RPC_GET_PROC_LIST,0,2,AOS_RPC_WORD,AOS_RPC_VARSTR);
-
-    aos_rpc_initialize_binding(rpc, AOS_RPC_GET_PROC_CORE,1,1, AOS_RPC_WORD,AOS_RPC_WORD);
-
-    aos_rpc_initialize_binding(rpc, AOS_RPC_BINDING_REQUEST,4,1,AOS_RPC_WORD,AOS_RPC_WORD,AOS_RPC_WORD,AOS_RPC_CAPABILITY,AOS_RPC_CAPABILITY);
-
-    //memory server bindings
-    aos_rpc_initialize_binding(rpc,AOS_RPC_MEM_SERVER_REQ,1,1,AOS_RPC_CAPABILITY,AOS_RPC_CAPABILITY);
-
-
-    //aos_rpc_initialize_binding(rpc, AOS_RPC_REGISTER_PROCESS, 3, 0, AOS_RPC_WORD, AOS_RPC_WORD, AOS_RPC_VARSTR);
-    return SYS_ERR_OK;*/
 }
 
 
@@ -458,12 +417,17 @@ static errval_t aos_rpc_call_ump(struct aos_rpc *rpc, enum aos_rpc_msg_type msg_
             DEBUG_ERR(LIB_ERR_RPC_TIMEOUT,"TIMEOUT IN RPC!\n");
             return LIB_ERR_RPC_TIMEOUT;
         }
+        // thr
         received = ump_chan_poll_once(&rpc->channel.ump, response);
+        if(!received){
+            thread_yield_dispatcher(NULL_CAP);
+        }
     } while (!received);
 
 
     if (!((response->data[0] | AOS_RPC_RETURN_BIT)
           && (response->data[0] & ~AOS_RPC_RETURN_BIT) == msg_type)) {
+        debug_printf("Error1\n");
         return LIB_ERR_NOT_IMPLEMENTED;  // todo errcode
     }
 
@@ -532,7 +496,7 @@ static errval_t aos_rpc_call_ump(struct aos_rpc *rpc, enum aos_rpc_msg_type msg_
 
             struct aos_rpc_varbytes *ret = (struct aos_rpc_varbytes *) retptrs[i];
             if (ret->length < len) {
-                debug_printf("allocated bytes buffer not large enough: %ld\n", len);
+                debug_printf("allocated bytes buffer not large enough:%ld < %ld\n",ret -> length, len);
                 return LIB_ERR_RPC_ARGUMENT_OVERFLOW;
             }
             ret->length = len;
@@ -1707,7 +1671,6 @@ errval_t aos_rpc_process_get_all_pids(struct aos_rpc *rpc, domainid_t **pids, si
         DEBUG_ERR(err,"Failed aos_rpc call in get all pids\n");
     }
     domainid_t* pid_heap = (domainid_t*) malloc(*pid_count * sizeof(domainid_t));
-    // debug_printf("Received buffer: %s\n",buffer);
     char * buf_ptr = buffer;
     char strbuf[13];
     size_t index = 0;
@@ -1716,8 +1679,6 @@ errval_t aos_rpc_process_get_all_pids(struct aos_rpc *rpc, domainid_t **pids, si
         if(*buf_ptr == ','){
             strbuf[index] = '\0';
             domainid_t pid = atoi(strbuf);
-            // debug_printf(" word : %s\n",strbuf);
-            // debug_printf(" number : %d\n",pid);
             pid_heap[pid_index] = pid;
             pid_index++;
             buf_ptr++;
@@ -1755,148 +1716,6 @@ errval_t aos_rpc_request_foreign_ram(struct aos_rpc *rpc, size_t size, struct ca
     err = aos_rpc_call(rpc,AOS_RPC_REQUEST_RAM, size, 1, ret_cap,ret_size);
     ON_ERR_RETURN(err);
     return err;
-}
-
-
-errval_t aos_rpc_new_binding(domainid_t pid, coreid_t core_id, struct aos_rpc* ret_rpc){
-    
-    // struct aos_rpc rpc;
-    // if(get_init_domain()){
-    //     rpc = get_core_channel
-    // }
-
-
-    errval_t err;
-    struct capref self_ep_cap = (struct capref) {
-      .cnode = cnode_task,
-      .slot = TASKCN_SLOT_SELFEP
-    };
-    debug_printf("Trying to establish connection with process %d on core %d ...\n",pid,core_id);
-    // struct aos_rpc *rpc = aos_rpc_get_init_channel();
-
-    if(core_id == disp_get_current_core_id()){ //lmp channel
-
-        struct lmp_endpoint *ep;
-        err = endpoint_create(256, &self_ep_cap, &ep);
-        ON_ERR_PUSH_RETURN(err, LIB_ERR_ENDPOINT_CREATE);
-
-        //err = aos_rpc_init(ret_rpc);
-        //ON_ERR_RETURN(err);
-
-        // TODO (RPC): init interface
-
-        // initialize_general_purpose_handler(ret_rpc);
-
-        err = aos_rpc_init_lmp(ret_rpc, self_ep_cap, NULL_CAP, ep, NULL);
-        ON_ERR_RETURN(err);
-
-        struct capref remote_cap;
-
-        err = aos_rpc_call(aos_rpc_get_process_channel(),AOS_RPC_BINDING_REQUEST,pid,core_id,disp_get_current_core_id(),self_ep_cap,&remote_cap);
-
-
-        // char buf[512];
-        // debug_print_cap_at_capref(buf,512,remote_cap);
-        // debug_printf("Cap here %s\n",buf);
-        ret_rpc -> channel.lmp.remote_cap = remote_cap;
-        // *ret_rpc = new_rpc;
-        // debug_printf("Channel with %d on %d established!\n",pid,core_id);
-    }else{ //ump channel
-
-
-
-        debug_printf("Creating new ump channel!\n");
-        struct capref urpc_cap;
-        size_t urpc_cap_size;
-
-        err  = frame_alloc(&urpc_cap,BASE_PAGE_SIZE,&urpc_cap_size);
-        ON_ERR_RETURN(err);
-
-        
-
-
-        // struct frame_identity urpc_frame_id = (struct frame_identity) {
-        //     .base = get_phys_addr(urpc_cap),
-        //     .bytes = urpc_cap_size,
-        //     .pasid = disp_get_core_id()
-        // };
-
-        char *urpc_data = NULL;
-        err = paging_map_frame_complete(get_current_paging_state(), (void **) &urpc_data, urpc_cap, NULL, NULL);
-        ON_ERR_RETURN(err);
-
-
-
-        // TODO (RPC): init interface
-        //err = aos_rpc_init(ret_rpc);
-        //ON_ERR_RETURN(err);
-        
-        // struct aos_rpc *rpc = malloc(sizeof(struct aos_rpc));
-        // NULLPTR_CHECK(ret_rpc, LIB_ERR_MALLOC_FAIL);
-
-        
-        //err = aos_rpc_init(ret_rpc);
-        //ON_ERR_RETURN(err);
-        // ON_ERR_PUSH_RETURN(err, LIB_ERR_RPC_INIT);
-
-        err =  aos_rpc_init_ump_default(ret_rpc,(lvaddr_t) urpc_data, BASE_PAGE_SIZE,true);//take first half as creating process
-
-
-        
-        ON_ERR_RETURN(err);
-
-        debug_printf("Binding request ...\n");
-        struct capref dummy_cap; // not useed
-        err = aos_rpc_call(aos_rpc_get_process_channel(),AOS_RPC_BINDING_REQUEST,pid,core_id,disp_get_current_core_id(), urpc_cap,&dummy_cap);
-        ON_ERR_RETURN(err);
-
-        debug_printf("Cahnnel estblished on requester!\n");
-    }
-
-    //initialize_general_purpose_handler(ret_rpc);
-    
-    return SYS_ERR_OK;
-}
-
-
-errval_t aos_rpc_new_binding_by_name(char * name, struct aos_rpc * new_rpc){
-    errval_t err;
-    domainid_t * pids;
-    size_t pid_count;
-    // debug_printf("here is %lx\n", aos_rpc_get_process_channel());
-    err = aos_rpc_process_get_all_pids(aos_rpc_get_process_channel(),&pids,&pid_count);
-    ON_ERR_RETURN(err);
-    // debug_printf("got all pids!\n");
-
-    // domainid_t pid_buffer
-    // for(size_t i = 0; i < pid_count;++i){
-    // }
-    for(size_t i = 0; i < pid_count; ++i){
-        
-        domainid_t pid = pids[i];
-        // debug_printf("[%d] pid :%d \n",i, pid);
-        char* proc_name;
-        err = aos_rpc_process_get_name(aos_rpc_get_process_channel(),pid,&proc_name);
-        // debug_printf("[%d] pid :%d \n",i, pid);
-        // debug_printf("got name of pid!\n");
-        ON_ERR_RETURN(err);
-        // debug_printf("%s, %s, %d\n",proc_name,name,strcmp(proc_name,name));
-        if(strcmp(proc_name,name) == 0){
-            coreid_t core_id;
-            err = aos_rpc_call(aos_rpc_get_process_channel(),AOS_RPC_GET_PROC_CORE,pid,&core_id);
-            // debug_printf("got core id pid!\n");
-            ON_ERR_RETURN(err);
-            // debug_printf("herer\n");
-
-
-            // debug_printf("pid: %d, core_id : %d\n",pid,core_id);
-            err = aos_rpc_new_binding(pid,core_id,new_rpc);
-            ON_ERR_RETURN(err);
-            debug_printf("channel established on client!\n");
-            return SYS_ERR_OK;
-        }
-    }
-    return PROC_MGMT_ERR_DOMAIN_NOT_RUNNING;
 }
 
 

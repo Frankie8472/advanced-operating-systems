@@ -353,7 +353,6 @@ void handle_init_get_proc_name(struct aos_rpc *r, uintptr_t pid, char *name){
     char buffer[512];
     if(disp_get_current_core_id() == 0){
         err = aos_rpc_call(get_pm_rpc(),AOS_RPC_GET_PROC_NAME,pid,buffer);
-        // debug_printf("String received : %s\n",buffer);
 
         strcpy(name,buffer);
         if(err_is_fail(err)){
@@ -371,8 +370,7 @@ void handle_init_get_proc_name(struct aos_rpc *r, uintptr_t pid, char *name){
 
 
 void handle_init_get_proc_list(struct aos_rpc *r, uintptr_t *pid_count, char *list){
-    // debug_printf("Handled init get proc list %d, %s\n");
-    // debug_printf("pid count : %lx, list: %lx\n",pid_count,list);
+
     errval_t err;
     char buffer[2048]; //TODO: 
     if(disp_get_current_core_id() == 0){
@@ -415,84 +413,6 @@ void handle_init_get_core_id(struct aos_rpc *r, uintptr_t pid, uintptr_t * core_
 }
 
 
-void handle_all_binding_request(struct aos_rpc *r, uintptr_t pid, uintptr_t core_id,uintptr_t client_core,struct capref client_cap,struct capref * server_cap){
-
-    errval_t err; 
-    // debug_printf("Forwarding binding request to pid: %d\n",pid);
-    
-    
-    if(pid == disp_get_domain_id()){
-        // init channel 
-        assert(NULL && "shoudnt get here");
-
-        if(core_id !=  disp_get_current_core_id()){
-            //init ump
-        }
-        else {
-            // debug_printf("Handling binding request\n");
-            struct lmp_endpoint * lmp_ep;
-            struct capref self_ep_cap = (struct capref) {
-                .cnode = cnode_task,
-                .slot = TASKCN_SLOT_SELFEP
-            };
-
-            err = endpoint_create(256,&self_ep_cap,&lmp_ep);
-            if(err_is_fail(err)){
-                DEBUG_ERR(err,"Failed to create ep in binding request\n");
-            }
-
-            static struct aos_rpc rpc;
-            //err = aos_rpc_init(&rpc); TODO (RPC): set interface
-            if(err_is_fail(err)){
-                DEBUG_ERR(err,"Failed to init rpc in binding request \n");
-            }
-
-            err = aos_rpc_init_lmp(&rpc, self_ep_cap, client_cap, lmp_ep, NULL);
-            if(err_is_fail(err)){
-                DEBUG_ERR(err,"Failed to register waitset on rpc\n");
-            }
-
-            assert(NULL && "shoudnt get here");
-            *server_cap = self_ep_cap;
-        }
-
-    }else {
-        if(core_id == disp_get_current_core_id()){ // this means we are on init process of same core as server
-            struct aos_rpc* target_server_rpc = get_rpc_from_spawn_info(pid);
-            assert(target_server_rpc && "Failed to find the target server rpc in handle binding request\n");
-            err = aos_rpc_call(target_server_rpc,AOS_RPC_BINDING_REQUEST,pid, core_id,client_core, client_cap,server_cap);
-            if(err_is_fail(err)){
-                DEBUG_ERR(err, "Failed to send from init to target server rpc!\n");
-            }
-
-            // char buf[512];
-            // debug_print_cap_at_capref(buf,512,*server_cap);
-            // debug_printf("Cap her in init %s\n",buf);
-
-
-        }else if(get_init_domain() && core_id == 0){//forward to init on core core_id
-            err = aos_rpc_call(get_core_channel(core_id), AOS_RPC_BINDING_REQUEST,pid,core_id,client_core,client_cap,server_cap);
-            if(err_is_fail(err)){
-                DEBUG_ERR(err,"FAiled to forward from core 0 to core %d in handle binding request",core_id);
-            }
-        }
-        else{ // this means we are on init and need to forward to init on cor 0
-            assert(get_init_domain() && "Shouldnt get here, something wrong in the binding request rpc");
-            err = aos_rpc_call(get_core_channel(0), AOS_RPC_BINDING_REQUEST,pid,core_id,client_core,client_cap,server_cap);
-            if(err_is_fail(err)){
-                DEBUG_ERR(err,"Failed to forward from init to init on core 0\n");
-            }
-        }
-
-
-       
-       
-    }
-
-     if(client_core != core_id){
-        *server_cap  = client_cap; //NOTE: this is fucking stupid
-    }
-}
 
 
 
@@ -514,7 +434,7 @@ void handle_multi_hop_init(struct aos_rpc *rpc,const char* name, struct capref s
     errval_t err;
 
 
-    // debug_printf("Starting init multihop stuff for %s!\n",name);
+
     struct routing_entry * re = (struct routing_entry *) malloc(sizeof(struct routing_entry));
     assert(re && "Routing entry failed!\n");
     strcpy(re -> name,(char *) name);
@@ -553,7 +473,6 @@ void handle_multi_hop_init(struct aos_rpc *rpc,const char* name, struct capref s
 
 
 void handle_client_call(struct aos_rpc *rpc,coreid_t core_id,const char* name,struct aos_rpc_varbytes message,struct capref send_cap,struct aos_rpc_varbytes* response, struct capref *recv_cap, uintptr_t* response_size){
-    // debug_printf("handling client call!\n");
     errval_t err;
     coreid_t curr_core = disp_get_core_id();
     if(core_id != curr_core){
@@ -566,29 +485,14 @@ void handle_client_call(struct aos_rpc *rpc,coreid_t core_id,const char* name,st
     }else {
 
 
-        // char name[1024];
-        // size_t n_index = 0;
-        // char * extracted_message = (char *) message;
-        // while(*extracted_message != '\0' && *extracted_message != '?'){
-        //     name[n_index] = *extracted_message++;
-        //     n_index++;
-        // }
-        // name[n_index] = '\0';
-        // extracted_message++;
 
-        // debug_printf("Routing to server with name %s\n",name);
         struct routing_entry * re;
         err = get_routing_entry_by_name(name,&re);
         if(err_is_fail(err)){
             DEBUG_ERR(err,"Failed to get routing entry by name\n");
             return;
         }
-        // // struct routing_entry * re = get_routing_entry_by_name(name);
-        // if(!re){
-        //     debug_printf("Server routing not found!\n");
-        //     // *response = '\0';
-        //     return;
-        // }
+
 
         err = aos_rpc_call(re -> rpc,OS_IFACE_MESSAGE,message,send_cap,response,recv_cap,response_size);
         if(err_is_fail(err)){
@@ -613,7 +517,6 @@ void handle_client_call1(struct aos_rpc *rpc,coreid_t core_id,const char* name,s
     }else {
 
 
-        // debug_printf("Routing to server with name %s\n",name);
         struct routing_entry * re;
         err = get_routing_entry_by_name(name,&re);
         if(err_is_fail(err)){
@@ -633,10 +536,7 @@ void handle_client_call1(struct aos_rpc *rpc,coreid_t core_id,const char* name,s
 
 void handle_client_call2(struct aos_rpc *rpc,coreid_t core_id,const char* name,struct aos_rpc_varbytes message,struct aos_rpc_varbytes* response, uintptr_t* response_size){
 
-    // struct aos_rpc_varbytes new_message = {
-    //     .bytes 
-    // }
-    // debug_printf("handling client call 2!\n");
+
     errval_t err;
     coreid_t curr_core = disp_get_core_id();
     if(core_id != curr_core){
@@ -649,7 +549,6 @@ void handle_client_call2(struct aos_rpc *rpc,coreid_t core_id,const char* name,s
     }else {
 
 
-        // debug_printf("Routing to server with name %s\n",name);
         struct routing_entry * re;
         err = get_routing_entry_by_name(name,&re);
         if(err_is_fail(err)){
@@ -662,12 +561,10 @@ void handle_client_call2(struct aos_rpc *rpc,coreid_t core_id,const char* name,s
             DEBUG_ERR(err,"Failed call to server ep!\n");
         }
     }
-    // debug_printf("Got here!\n");
 }
 
 
 void handle_client_call3(struct aos_rpc *rpc,coreid_t core_id,const char* name,struct aos_rpc_varbytes message, struct aos_rpc_varbytes* response, struct capref *recv_cap, uintptr_t* response_size){
-    // debug_printf("handling client call 3!\n");
     errval_t err;
     coreid_t curr_core = disp_get_core_id();
     if(core_id != curr_core){
@@ -679,7 +576,6 @@ void handle_client_call3(struct aos_rpc *rpc,coreid_t core_id,const char* name,s
         if(err_is_fail(err)){DEBUG_ERR(err,"Failed forward!");}
     }else {
 
-        // debug_printf("Routing to server with name %s\n",name);
         struct routing_entry * re;
         err = get_routing_entry_by_name(name,&re);
         if(err_is_fail(err)){
@@ -753,12 +649,7 @@ errval_t initialize_rpc_handlers(struct aos_rpc *rpc)
     aos_rpc_register_handler(rpc,INIT_CLIENT_CALL2,&handle_client_call2);
     aos_rpc_register_handler(rpc,INIT_CLIENT_CALL3,&handle_client_call3);
     aos_rpc_register_handler(rpc,INIT_BINDING_REQUEST,&handle_binding_request);
-    // aos_rpc_register_handler(rpc,AOS_RPC_REGISTER_PROCESS,&handle_init_process_register);
-    // aos_rpc_register_handler(rpc,AOS_RPC_MEM_SERVER_REQ,&handle_mem_server_request);
-    // aos_rpc_register_handler(rpc,AOS_RPC_GET_PROC_NAME,&handle_init_get_proc_name);
-    // aos_rpc_register_handler(rpc,AOS_RPC_GET_PROC_LIST,&handle_init_get_proc_list);
-    // aos_rpc_register_handler(rpc, AOS_RPC_GET_PROC_CORE,&handle_init_get_core_id);
-    // aos_rpc_register_handler(rpc,AOS_RPC_BINDING_REQUEST,&handle_all_binding_request);
+
     return SYS_ERR_OK;
 }
 
@@ -775,7 +666,7 @@ void register_core_channel_handlers(struct aos_rpc *rpc)
     aos_rpc_register_handler(rpc,AOS_RPC_GET_PROC_NAME,&handle_init_get_proc_name);
     aos_rpc_register_handler(rpc,AOS_RPC_GET_PROC_LIST,&handle_init_get_proc_list);
     aos_rpc_register_handler(rpc, AOS_RPC_GET_PROC_CORE,&handle_init_get_core_id);
-    aos_rpc_register_handler(rpc,AOS_RPC_BINDING_REQUEST,&handle_all_binding_request );
+    
 }
 
 

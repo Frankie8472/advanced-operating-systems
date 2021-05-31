@@ -19,11 +19,9 @@ static void sweep_server_list(void * ptr){
     struct server_list* curr = servers;
     while(curr != NULL){
         if(curr -> marked == true){
-            debug_printf("Deleting server (Dead service removal) : %s\n", curr -> name);
             struct server_list * temp = curr;
             curr = curr -> next;
             remove_server(temp);
-            print_server_list();
         }else{
             curr -> marked = true;
             curr = curr -> next;
@@ -44,7 +42,6 @@ int main(int argc, char *argv[])
     pl.size = 0;
 
     server_ht = create_hashtable();
-    // domainid_t my_pid;
     
     err = add_process(0,"nameserver",0,NULL);
     if(err_is_fail(err)){

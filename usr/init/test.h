@@ -10,4 +10,7 @@
 int run_init_tests(int core_id);
 
 
+
+void run_ns_perf_test(coreid_t server_core, uint64_t spawn_interval);
+
 #endif // INIT_TEST_H_

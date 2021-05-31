@@ -76,7 +76,6 @@ void handle_server_lookup_with_prop(struct aos_rpc *rpc, char *query,uintptr_t* 
     strcpy(buffer,server->name);
     strcpy(response_name,buffer);
     *success = 1;
-    // debug_printf("%s\n",response_name);
 
 
 }
@@ -94,7 +93,6 @@ void handle_server_enum_with_prop(struct aos_rpc * rpc, char* query,uintptr_t* n
         *num = 0;
         return;
     }
-    // char response_buffer[MAX_RPC_MSG_SIZE];
     find_servers_by_prefix_and_prop(name,keys,values,prop_size,response,num);
 
 
@@ -132,7 +130,6 @@ void handle_reg_server(struct aos_rpc * rpc, uintptr_t pid, uintptr_t core_id ,c
     }
 
     *return_message = '\0';
-    // print_server_list();
 }
 
 
@@ -157,7 +154,7 @@ void handle_dereg_server(struct aos_rpc *rpc, const char* name, uintptr_t* succe
     if(pid == -1 || pid == ret_server -> pid){ //if process is dead, anyone can deregister server
         remove_server(ret_server);
         *success = 1;
-        // print_server_list();
+    
     }else{
         *success = 0;
     }
