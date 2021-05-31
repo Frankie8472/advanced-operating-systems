@@ -115,7 +115,6 @@ errval_t init_dispatcher_rpcs(void)
     }
     set_init_rpc(&init_rpc);
 
-
     // Establishing channel with mm
     err = aos_rpc_init_lmp(&mm_rpc, NULL_CAP, mm_ep_cap, NULL, NULL);
     mm_rpc.lmp_server_mode = true;
