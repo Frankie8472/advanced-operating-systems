@@ -20,7 +20,6 @@
 
 #include "enet.h"
 #include "enet_regionman.h"
-#include "enet_handler.h"
 
 void print_arp_table(struct enet_driver_state *st) {
     if (collections_hash_traverse_start(st->arp_table) == -1) {

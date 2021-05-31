@@ -20,7 +20,6 @@
 #include <collections/hash_table.h>
 
 #include "enet_regionman.h"
-#include "enet_handler.h"
 #include "enet.h"
 
 // for icmp-packets

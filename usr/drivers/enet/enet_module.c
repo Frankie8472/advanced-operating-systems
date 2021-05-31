@@ -30,7 +30,6 @@
 
 #include "enet.h"
 #include "enet_regionman.h"
-#include "enet_handler.h"
 
 #define PHY_ID 0x2
 
