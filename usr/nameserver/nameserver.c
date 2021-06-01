@@ -5,10 +5,29 @@
 #include <aos/aos.h>
 #include <aos/aos_rpc.h>
 #include <aos/default_interfaces.h>
+#include <aos/deferred.h>
+#include <aos/waitset.h>
+
+
 #include "process_list.h"
 #include "nameserver_handlers.h"
 #include "server_list.h"
+#include <hashtable/hashtable.h>
 
+
+static void sweep_server_list(void * ptr){
+    struct server_list* curr = servers;
+    while(curr != NULL){
+        if(curr -> marked == true){
+            struct server_list * temp = curr;
+            curr = curr -> next;
+            remove_server(temp);
+        }else{
+            curr -> marked = true;
+            curr = curr -> next;
+        }
+    }
+}
 
 int main(int argc, char *argv[])
 {   
@@ -22,7 +41,7 @@ int main(int argc, char *argv[])
     pl.tail = NULL;
     pl.size = 0;
 
-    // domainid_t my_pid;
+    server_ht = create_hashtable();
     
     err = add_process(0,"nameserver",0,NULL);
     if(err_is_fail(err)){
@@ -36,6 +55,8 @@ int main(int argc, char *argv[])
         DEBUG_ERR(err,"Failed to call namerserver online!\n");
     }
 
+    struct periodic_event pe;
+    err = periodic_event_create(&pe,get_default_waitset(),NS_SWEEP_INTERVAL,MKCLOSURE(sweep_server_list,NULL));
     struct waitset *default_ws = get_default_waitset();
     debug_printf("Message handler loop\n");
     while (true) {

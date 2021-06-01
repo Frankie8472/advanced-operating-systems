@@ -4,12 +4,17 @@
 #include <aos/aos_rpc.h>
 
 
+static char* strcopy(const char* str){
+    size_t n = strlen(str) + 1;
+    char * new_str = (char * ) malloc( n * sizeof(char));
+    strncpy(new_str, str, n);
+    return new_str;
+}
 
 errval_t add_process(coreid_t core_id,const char* name,domainid_t pid,struct aos_rpc* rpc ){
     
 
     struct process * p = (struct process * ) malloc(sizeof(struct process));
-    // *pid = process++;
     p -> next = NULL,
     p -> pid = pid;
     p -> core_id = core_id;
@@ -25,7 +30,6 @@ errval_t add_process(coreid_t core_id,const char* name,domainid_t pid,struct aos
     }
     pl.size++;
 
-    print_process_list();
     return SYS_ERR_OK;
 };
 
@@ -54,12 +58,6 @@ errval_t find_process_by_rpc(struct aos_rpc *rpc,domainid_t * res_pid){
     return PROC_MGMT_ERR_DOMAIN_NOT_RUNNING;
 }
 
-char* strcopy(const char* str){
-    size_t n = strlen(str) + 1;
-    char * new_str = (char * ) malloc( n * sizeof(char));
-    strncpy(new_str, str, n);
-    return new_str;
-}
 
 void print_process_list(void){
     debug_printf("================ Processes ============================\n");

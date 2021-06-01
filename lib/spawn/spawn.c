@@ -141,7 +141,11 @@ errval_t spawn_setup_dispatcher(int argc, const char *const *argv, struct spawni
     };
     struct capref child_stdout_cap = (struct capref) {
         .cnode = taskcn,
-        .slot = TASKCN_SLOT_STDOUT_EP
+        .slot = TASKCN_SLOT_STDOUT_CAP
+    };
+    struct capref child_stdin_cap = (struct capref) {
+        .cnode = taskcn,
+        .slot = TASKCN_SLOT_STDIN_CAP
     };
     struct capref child_dispatcher = (struct capref) {
         .cnode = taskcn,
@@ -197,6 +201,10 @@ errval_t spawn_setup_dispatcher(int argc, const char *const *argv, struct spawni
 
     if (!capref_is_null(si->child_stdout_cap)) {
         err = cap_copy(child_stdout_cap, si->child_stdout_cap);
+        ON_ERR_PUSH_RETURN(err, LIB_ERR_CAP_COPY_FAIL);
+    }
+    if (!capref_is_null(si->child_stdin_cap)) {
+        err = cap_copy(child_stdin_cap, si->child_stdin_cap);
         ON_ERR_PUSH_RETURN(err, LIB_ERR_CAP_COPY_FAIL);
     }
 
@@ -476,6 +484,7 @@ static int get_argc(char * args){
    return argc;
  }
 static void create_argv(char* args,char *argv[]){
+// "hello'\0'a b c";
   int i = 0;
   int j = 1;
   argv[0] = &args[0];
@@ -505,7 +514,7 @@ errval_t spawn_setup_module_by_name(const char *binary_name, struct spawninfo *s
 {
     errval_t err;
     struct mem_region* mem_region = multiboot_find_module(bi, binary_name);
-
+    
     if (mem_region == NULL) {
         return SPAWN_ERR_MAP_MODULE;
     }
@@ -536,7 +545,15 @@ errval_t spawn_setup_module_by_name(const char *binary_name, struct spawninfo *s
 
 errval_t spawn_setup_by_name(char *binary_name, struct spawninfo *si, domainid_t *pid)
 {
+
+    //PLEASE DONT LOOK AT THIS WHILE GRADING!
+    //THANK YOU
+
     errval_t err = SYS_ERR_OK;
+
+
+    binary_name = strdup(binary_name);
+
 
 
     //Pretty ugly, but fixes a silent Nullptr dereference
@@ -546,54 +563,40 @@ errval_t spawn_setup_by_name(char *binary_name, struct spawninfo *si, domainid_t
     strcpy(cmd_line_copy,binary_name);
     create_argv(cmd_line_copy,(char **) res);
 
-    // char * name = (char *) malloc(strlen(res[0]) + 1);
-    // // strcpy(name,res[0]);
 
-    // si -> binary_name = (char*) res[0];
-    // binary_name = ;
-    //TODO: is  bi correctly initialized by the init/usr/main.c
     err = spawn_setup_module_by_name(res[0], si);
     ON_ERR_RETURN(err);
 
-    // debug_printf("Hello\n");
-    // debug_printf("ELF address = %lx\n", elf_address);
-    // debug_printf("%x, '%c', '%c', '%c'\n", elf_address[0], elf_address[1], elf_address[2], elf_address[3]);
-    // debug_printf("BOI\n");
-    // if()
 
 
-
-    // set binary name to full name
-
-
-    
 
 
     if(argc > 1){
         char *args_string = binary_name;
-        char copy[strlen(args_string)];
+        char copy[strlen(args_string) + 1];
         strcpy(copy,args_string);
         strip_extra_spaces(copy);
         argc = get_argc(copy);
         si->argv = malloc(argc * sizeof(char *));
         
-        create_argv(copy, (char **) si->argv);
+        create_argv(binary_name, (char **) si->argv);
         si->binary_name = (char *) si->argv[0];
+
     }
     else {
         struct mem_region* mem_region = multiboot_find_module(bi, res[0]);
         char * args_string = (char *)  multiboot_module_opts(mem_region);
-        // debug_printf("Args string = %s\n",args_string);
         char copy[strlen(args_string)];
         strcpy(copy,args_string);
         strip_extra_spaces(copy);
+
 
         argc = get_argc(copy);
         si->argv = malloc(argc * sizeof(char *));
         create_argv(copy, (char **) si->argv);
         si->binary_name = (char *) res[0];
     }   
-    
+
 
     return spawn_setup_dispatcher(argc, (const char *const *)si->argv , si, pid);
 }

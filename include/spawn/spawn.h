@@ -58,6 +58,7 @@ struct spawninfo {
     struct aos_rpc disp_rpc;
 
     struct capref child_stdout_cap;
+    struct capref child_stdin_cap;
     struct lmp_endpoint *child_stdout;
 
     // TODO(M2): Add fields you need to store state

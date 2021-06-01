@@ -18,26 +18,16 @@
  * ETH Zurich D-INFK, CAB F.78, Universitaetstr. 6, CH-8092 Zurich,
  * Attn: Systems Group.
  */
-__attribute__((unused))
-    static void stack_overflow(void){
-    char c[1024];
-    c[1] = 1;
-    debug_printf("Stack address: %lx\n",c);
-    stack_overflow();
-}
-
 #include <stdio.h>
-
 #include <aos/aos.h>
 
 int main(int argc, char *argv[])
 {
-    
     printf("Hello, world! from userspace\n");
-
+    printf("I am running on core %d :)\n", disp_get_current_core_id());
 
     for(int i = 0; i < argc; ++i){
-        printf("Argv[%d] = %s\n",i,argv[i]);
+        printf("argv[%d] = %s\n",i,argv[i]);
     }
 
     return EXIT_SUCCESS;

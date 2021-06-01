@@ -344,6 +344,7 @@ errors libaos LIB_ERR_ {
     failure CORESET_GET_NEXT_DONE   "No more elements left in coreset_get_next()",
 
     // IDC (and LMP/UMP channels)
+    failure RPC_TIMEOUT         "RPC TIMEOUT!",
     failure NO_LMP_MSG          "No LMP message available",
     failure LMP_RECV_BUF_OVERFLOW "LMP message in endpoint is longer than user-provided buffer",
     failure NO_UMP_MSG          "No UMP message available",
@@ -382,6 +383,8 @@ errors libaos LIB_ERR_ {
     failure NAMESERVICE_UNKNOWN_NAME "Lookup failed: unknown name",
     failure NAMESERVICE_INVALID_PROPERTY_FORMAT "Invalid property format",
     failure NAMESERVICE_INVALID_NAME "Invalid record retrieved (no iref attribute)",
+    failure NAMESERVICE_ROUTING_ERROR "Multihop routing error",
+    failure NAMESERVICE_HASHTABLE_ERROR "Hashtable operation failed",
     failure NAMESERVICE_INV_SERVER_NAME "Invalid server name",
     failure NAMESERVICE_INV_QUERY "Invalid query",
     failure NAMESERVICE_INVALID_DEREG "Invalid rights to dereg server",
@@ -1315,6 +1318,7 @@ errors cpuid DEVQ_ERR_ {
     failure QUEUE_EMPTY             "Nothing to dequeue.",
     failure QUEUE_FULL              "The queue is full.",
     failure DESCQ_INIT              "Failure in descriptor queue init",
+    failure NO_FREE_BUFFER          "The regionmanager had no free buffer available",
 };
 
 errors cpuid NET_QUEUE_ERR_ {
@@ -1391,6 +1395,8 @@ errors sata ENET_ERR_ {
     failure PHY_RESET        "Phy reset failed",
     failure MDIO_WRITE        "Timeout while trying to write to MDIO",
     failure MDIO_READ        "Timeout while trying to reading from MDIO",
+    failure NO_SOCKET        "No UDP socket with that port or ICMP socket with that ip was found",
+    failure ARP_UNKNOWN      "Unable to obtain target MAC through ARP table",
 };
 
 // errors LPUART driver

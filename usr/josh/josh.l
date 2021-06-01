@@ -3,7 +3,7 @@
 %option yylineno nounput noinput
 
 %{
-    #include "josh.tab.h"
+    #include "josh_parse.h"
 %}
 
 %x QUOT
@@ -11,20 +11,26 @@
 
 %%
 
-<QUOT>"\""        { yy_pop_state(); }
-<QUOT>([^\"])+    { yylval.string = strdup(yytext); return STRING; }
+<QUOT>"\""                      { yy_pop_state(); }
+<QUOT>([^\"])+                  { yylval.string = strdup(yytext); return STRING; }
 
 
-<COMMENT>"\n"     { yy_pop_state(); }
-<COMMENT>(\s|.)*  ;
+<COMMENT>"\n"                   { yy_pop_state(); }
+<COMMENT>(\s|.)*                ;
 
 
-"\""              { yy_push_state(QUOT); }
-"#"               { yy_push_state(COMMENT); }
+"\""                            { yy_push_state(QUOT); }
+"#"                             { yy_push_state(COMMENT); }
 
 
-[ \t\n]           ;
-";"               return SEMICOLON;
-"@"               return AT_SIGN;
-([^ \t\n;@])+              { yylval.string = strdup(yytext); return STRING; }
+[ \t\n]                         ;
+";"                             return SEMICOLON;
+"@"                             return AT_SIGN;
+"="                             return EQUALS;
+"$"                             return DOLLAR;
+"|"                             return PIPE;
+">"                             return GREATER_THAN;
+"<"                             return LESS_THAN;
+"var"                           return VAR;
+([^ \t\n;@#\"=$\|<>])+          { yylval.string = strdup(yytext); return STRING; }
 %%

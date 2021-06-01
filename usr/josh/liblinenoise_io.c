@@ -15,14 +15,4 @@ int stdin_read(char *buf, size_t len);
 int stdin_read(char *buf, size_t len)
 {
     return aos_terminal_read(buf, len);
-    size_t recvd = 0;
-
-    aos_dc_receive_available(&stdin_chan, len, buf, &recvd);
-    while (recvd == 0) {
-        debug_printf("hsa\n");
-        event_dispatch(get_default_waitset());
-        debug_printf("hsa2\n");
-        aos_dc_receive_available(&stdin_chan, len, buf, &recvd);
-    }
-    return recvd;
 }

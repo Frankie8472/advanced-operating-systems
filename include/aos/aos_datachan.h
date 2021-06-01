@@ -43,7 +43,7 @@ size_t aos_dc_bytes_available(struct aos_dc_ringbuffer *buf);
 
 
 errval_t aos_dc_init_lmp(struct aos_datachan *dc, size_t buffer_length);
-errval_t aos_dc_init_ump(struct aos_datachan *dc, size_t buffer_length);
+errval_t aos_dc_init_ump(struct aos_datachan *dc, size_t buffer_length, lvaddr_t ump_page, size_t ump_page_size, bool first_half);
 errval_t aos_dc_free(struct aos_datachan *dc);
 
 
@@ -68,6 +68,10 @@ errval_t aos_dc_send(struct aos_datachan *dc, size_t bytes, const char *data);
  * return the number of bytes read in `received`
  */
 errval_t aos_dc_receive_available(struct aos_datachan *dc, size_t bytes, char *data, size_t *received);
+
+
+
+errval_t aos_dc_can_receive(struct aos_datachan *dc);
 
 
 /**

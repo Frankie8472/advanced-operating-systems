@@ -54,9 +54,9 @@ void libc_exit(int status)
     if(err_is_fail(err)){
         DEBUG_ERR(err,"Failed to remove self process from nameserver before exiting!\n");
     }
-    debug_printf("libc exit NYI!\n");
+    // debug_printf("exit!\n");
 
-    // close stdout
+    // // close stdout
     err = aos_dc_close(&stdout_chan);
     if(err_is_fail(err)){
         DEBUG_ERR(err,"Failed to close stdout\n");
@@ -117,27 +117,35 @@ size_t aos_terminal_write(const char *buf, size_t len)
 
 size_t aos_terminal_read(char *buf, size_t len)
 {
-    errval_t err;
+    errval_t err = SYS_ERR_OK;
     size_t received;
-    bool is_available = lmp_chan_can_recv(&stdin_chan.channel.lmp);
+    bool is_available = aos_dc_can_receive(&stdin_chan);
+
     void avail(void *arg) {
         is_available = true;
     }
+
     if (!is_available) {
-        lmp_chan_register_recv(&stdin_chan.channel.lmp, get_default_waitset(), MKCLOSURE(avail, NULL));
+        if (aos_dc_is_closed(&stdin_chan)) {
+            return -1;
+        }
+
+        aos_dc_register(&stdin_chan, get_default_waitset(), MKCLOSURE(avail, NULL));
         while(!is_available) {
             err = event_dispatch(get_default_waitset());
             if (err_is_fail(err)) {
+                aos_dc_deregister(&stdin_chan);
                 debug_printf("Error in event_dispatch\n");
                 return 0;
             }
             if (aos_dc_is_closed(&stdin_chan)) {
-                lmp_chan_deregister_recv(&stdin_chan.channel.lmp);
+                aos_dc_deregister(&stdin_chan);
                 return -1;
             }
         }
     }
 
+    aos_dc_deregister(&stdin_chan);
     err = aos_dc_receive_available(&stdin_chan, len, buf, &received);
     return received;
 }
@@ -151,7 +159,7 @@ void barrelfish_libc_glue_init(void)
     // XXX: FIXME: Check whether we can use the proper kernel serial, and what we need for that
     // TODO: change these to use the user-space serial driver if possible
     // TODO: set these functions
-    if (init_domain) {
+    if (init_domain || 0) {
         _libc_terminal_read_func = syscall_terminal_read;
         _libc_terminal_write_func = syscall_terminal_write;
         _libc_exit_func = libc_exit;
@@ -250,7 +258,6 @@ errval_t barrelfish_init_onthread(struct spawn_domain_params *params)
 
     // right now we don't have the nameservice & don't need the terminal
     // and domain spanning, so we return here
-    debug_printf("Initialization ok!\n");
     return SYS_ERR_OK;
 }
 

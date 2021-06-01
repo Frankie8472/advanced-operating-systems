@@ -56,6 +56,8 @@ errval_t ump_chan_init(struct ump_chan *chan,
                        void *send_buf, size_t send_buf_size,
                        void *recv_buf, size_t recv_buf_size);
 
+errval_t ump_chan_destroy(struct ump_chan *chan);
+
 int ump_chan_get_data_len(struct ump_chan *chan);
 
 bool ump_chan_send(struct ump_chan *chan, struct ump_msg *send);

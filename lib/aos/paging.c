@@ -45,7 +45,17 @@ void page_fault_handler(enum exception_type type, int subtype, void *addr, arch_
     struct paging_state *st = get_current_paging_state();
 
     if (type == EXCEPT_PAGEFAULT) {
-        // look up, in which region the page fault happened
+
+        // handle special case of invalid virtual address
+        if (((lvaddr_t) addr) > 0x0000FFFFFFFFFFFFULL) {
+            debug_printf("accessing an address outside of our virtual address space.\n");
+            debug_printf("addr: 0x%" PRIxLPADDR "\n", addr);
+            debug_printf("ip: 0x%" PRIxLPADDR "\n", regs->named.pc);
+            thread_exit(1);
+        }
+
+        // if the virtual address is valid, we proceed to look up,
+        // in which region the page fault happened
         struct paging_region *region = paging_region_lookup(st, (lvaddr_t) addr);
         if (region == NULL) {
             debug_printf("error in page handler: can't find paging region\n");
@@ -54,14 +64,10 @@ void page_fault_handler(enum exception_type type, int subtype, void *addr, arch_
             debug_printf("ip: 0x%" PRIxLPADDR "\n", regs->named.pc);
             thread_exit(1);
         }
-        /*if(((lvaddr_t) addr == 0)){
-            debug_printf("Segmentation fault (core dumped)\n");
-            debug_printf("addr: 0x%" PRIxLPADDR "\n", addr);
-            debug_printf("ip: 0x%" PRIxLPADDR "\n", regs->named.pc);
-            thread_exit(1);
-        }*/
         else if (region->type == PAGING_REGION_STACK && ((lvaddr_t) addr) < region->base_addr + BASE_PAGE_SIZE) {
-            // if it is in the first page of a stack region, we consider it a stack overflow
+            // if it is in the first page of a stack region, we consider it an access into the guard region of the
+            // stack, and thus a stack overflow. The size of this guard region does not necessarily need to be page
+            // aligned, it can be any number, but we stuck to one page size, it is an okay number.
             debug_printf("Stack overflow!\n\n");
             debug_printf("addr: 0x%" PRIxLPADDR "\n", addr);
             debug_printf("ip: 0x%" PRIxLPADDR "\n", regs->named.pc);
@@ -466,7 +472,6 @@ errval_t paging_region_init(struct paging_state *st, struct paging_region *pr,
     if(pr->prev != NULL) {
         pr->prev->next = pr;
     }
-    
     errval_t err = update_region_lookups(st, pr);
     ON_ERR_RETURN(err);
 
@@ -477,7 +482,18 @@ errval_t paging_region_init(struct paging_state *st, struct paging_region *pr,
 errval_t paging_region_delete(struct paging_state *ps, struct paging_region *pr)
 {
     // TODO: implement
-    return LIB_ERR_NOT_IMPLEMENTED;
+
+    if (pr->prev == NULL) {
+        ps->head = pr->next;
+    }
+    else {
+        pr->prev->next = pr->next;
+    }
+    if (pr->next != NULL) {
+        pr->next->prev = pr->prev;
+    }
+    pr->type = PAGING_REGION_FREE;
+    return SYS_ERR_OK;
 }
 
 /**
@@ -567,7 +583,7 @@ errval_t paging_alloc(struct paging_state *st, void **buf, size_t bytes, size_t 
  * \brief Finds a free virtual address and maps a frame at that address
  * 
  * \param st A pointer to the paging state.
- * \param buf This will parameter will be used to return the free virtual
+ * \param buf This parameter will be used to return the free virtual
  * address at which a new frame as been mapped.
  * \param bytes The number of bytes that need to be free (at the minimum)
  *        at the virtual address found.

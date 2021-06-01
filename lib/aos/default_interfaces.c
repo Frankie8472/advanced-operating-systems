@@ -46,31 +46,32 @@ static void initialize_interfaces(void)
 
     aos_rpc_initialize_binding(&init_interface, "spawn", INIT_IFACE_SPAWN,
                                2, 1, AOS_RPC_VARSTR, AOS_RPC_WORD, AOS_RPC_WORD);
+
     aos_rpc_initialize_binding(&init_interface, "spawn_extended", INIT_IFACE_SPAWN_EXTENDED,
-                               3, 1, AOS_RPC_VARBYTES, AOS_RPC_WORD, AOS_RPC_CAPABILITY, AOS_RPC_WORD);
+                               5, 1, AOS_RPC_VARBYTES, AOS_RPC_WORD, AOS_RPC_CAPABILITY, AOS_RPC_CAPABILITY, AOS_RPC_CAPABILITY, AOS_RPC_WORD);
 
 
     aos_rpc_initialize_binding(&init_interface, "reg_prc", INIT_REG_NAMESERVER, 4, 1, AOS_RPC_WORD, AOS_RPC_VARSTR,AOS_RPC_CAPABILITY,AOS_RPC_WORD,AOS_RPC_CAPABILITY);
     
-    aos_rpc_initialize_binding(&init_interface, "reg_server", INIT_REG_SERVER, 4, 1,AOS_RPC_WORD,AOS_RPC_WORD, AOS_RPC_VARSTR,AOS_RPC_WORD, AOS_RPC_VARSTR);
 
 
-    aos_rpc_initialize_binding(&init_interface, "lookup_server", INIT_NAME_LOOKUP, 1, 3, AOS_RPC_VARSTR,AOS_RPC_WORD,AOS_RPC_WORD,AOS_RPC_WORD);
-
-    aos_rpc_initialize_binding(&init_interface, "forward client-server rpc", INIT_CLIENT_CALL,3,2,AOS_RPC_WORD,AOS_RPC_VARSTR,AOS_RPC_CAPABILITY,AOS_RPC_VARSTR,AOS_RPC_CAPABILITY);
 
 
-    aos_rpc_initialize_binding(&init_interface, "forward client-server rpc no ret cap", INIT_CLIENT_CALL1,3,1,AOS_RPC_WORD,AOS_RPC_VARSTR,AOS_RPC_CAPABILITY,AOS_RPC_VARSTR);
+
+    aos_rpc_initialize_binding(&init_interface, "forward client-server rpc", INIT_CLIENT_CALL,4,3,AOS_RPC_WORD,AOS_RPC_VARSTR,AOS_RPC_VARBYTES,AOS_RPC_CAPABILITY,AOS_RPC_VARBYTES,AOS_RPC_CAPABILITY,AOS_RPC_WORD);
 
 
-    aos_rpc_initialize_binding(&init_interface, "forward client-server rpc no send no ret cap", INIT_CLIENT_CALL2,2,1,AOS_RPC_WORD,AOS_RPC_VARSTR,AOS_RPC_VARSTR);
+    aos_rpc_initialize_binding(&init_interface, "forward client-server rpc no ret cap", INIT_CLIENT_CALL1,4,2,AOS_RPC_WORD,AOS_RPC_VARSTR,AOS_RPC_VARBYTES,AOS_RPC_CAPABILITY,AOS_RPC_VARBYTES,AOS_RPC_WORD);
 
-    aos_rpc_initialize_binding(&init_interface, "forward client-server rpc no send cap", INIT_CLIENT_CALL3,2,2,AOS_RPC_WORD,AOS_RPC_VARSTR,AOS_RPC_VARSTR,AOS_RPC_CAPABILITY);
+
+    aos_rpc_initialize_binding(&init_interface, "forward client-server rpc no send no ret cap", INIT_CLIENT_CALL2,3,2,AOS_RPC_WORD,AOS_RPC_VARSTR,AOS_RPC_VARBYTES,AOS_RPC_VARBYTES,AOS_RPC_WORD);
+
+    aos_rpc_initialize_binding(&init_interface, "forward client-server rpc no send cap", INIT_CLIENT_CALL3,3,3,AOS_RPC_WORD,AOS_RPC_VARSTR,AOS_RPC_VARBYTES,AOS_RPC_VARBYTES,AOS_RPC_CAPABILITY,AOS_RPC_WORD);
 
 
     aos_rpc_initialize_binding(&init_interface, "multi-hop-init", INIT_MULTI_HOP_CON,2,1,AOS_RPC_VARSTR,AOS_RPC_CAPABILITY,AOS_RPC_CAPABILITY);
 
-
+    aos_rpc_initialize_binding(&init_interface, "binding request", INIT_BINDING_REQUEST,4,1,AOS_RPC_VARSTR,AOS_RPC_WORD,AOS_RPC_WORD,AOS_RPC_CAPABILITY,AOS_RPC_CAPABILITY);
 
 
 
@@ -133,13 +134,30 @@ static void initialize_interfaces(void)
     aos_rpc_initialize_binding(&name_server_interface,"dereg process",NS_DEREG_PROCESS,1,0,AOS_RPC_WORD);
     aos_rpc_initialize_binding(&name_server_interface,"enumerate",NS_ENUM_SERVERS,1,2,AOS_RPC_VARSTR,AOS_RPC_VARSTR,AOS_RPC_WORD);
 
+    aos_rpc_initialize_binding(&name_server_interface,"enumerate with propes",NS_ENUM_SERVER_PROPS,1,2,AOS_RPC_VARSTR,AOS_RPC_WORD,AOS_RPC_VARSTR);
 
+    aos_rpc_initialize_binding(&name_server_interface,"server lookup",NS_NAME_LOOKUP,1, 3, AOS_RPC_VARSTR,AOS_RPC_WORD,AOS_RPC_WORD,AOS_RPC_WORD);
+
+
+    aos_rpc_initialize_binding(&name_server_interface,"server lookup with prop",NS_LOOKUP_PROP,1, 4, AOS_RPC_VARSTR,AOS_RPC_WORD,AOS_RPC_WORD,AOS_RPC_WORD,AOS_RPC_VARSTR);
+
+    aos_rpc_initialize_binding(&name_server_interface,"server prop request", NS_GET_SERVER_PROPS,1,1,AOS_RPC_VARSTR,AOS_RPC_VARSTR);
+
+    aos_rpc_initialize_binding(&name_server_interface,"Server liveness check", NS_LIVENESS_CHECK,1,0,AOS_RPC_VARSTR);
+
+    aos_rpc_initialize_binding(&name_server_interface,"Register server", NS_REG_SERVER, 4, 1,AOS_RPC_WORD,AOS_RPC_WORD, AOS_RPC_VARSTR,AOS_RPC_WORD, AOS_RPC_VARSTR);
+
+    aos_rpc_initialize_binding(&name_server_interface,"Get server pid", NS_GET_SERVER_PID, 1, 1,AOS_RPC_VARSTR,AOS_RPC_WORD);
+
+    
 
 
     // ===================== Opaque Server Interface ========================
     opaque_server_interface.n_bindings = OS_IFACE_N_FUNCTIONS;
     opaque_server_interface.bindings = opaque_server_bindings;
-    aos_rpc_initialize_binding(&opaque_server_interface,"server_message",OS_IFACE_MESSAGE,2,2,AOS_RPC_VARSTR,AOS_RPC_CAPABILITY,AOS_RPC_VARSTR,AOS_RPC_CAPABILITY);
+    aos_rpc_initialize_binding(&opaque_server_interface,"server_message",OS_IFACE_MESSAGE,2,3,AOS_RPC_VARBYTES,AOS_RPC_CAPABILITY,AOS_RPC_VARBYTES,AOS_RPC_CAPABILITY,AOS_RPC_WORD);
+    aos_rpc_initialize_binding(&opaque_server_interface,"direct server message",OS_IFACE_DIRECT_MESSAGE,1,2,AOS_RPC_VARBYTES,AOS_RPC_VARBYTES,AOS_RPC_WORD);
+    aos_rpc_initialize_binding(&opaque_server_interface,"bindin request",OS_IFACE_BINDING_REQUEST,2,1,AOS_RPC_WORD,AOS_RPC_CAPABILITY,AOS_RPC_CAPABILITY);
 
     initialized = true;
 }

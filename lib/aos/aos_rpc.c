@@ -17,6 +17,7 @@
 #include <aos/kernel_cap_invocations.h>
 #include <arch/aarch64/aos/lmp_chan_arch.h>
 #include <stdarg.h>
+#include <aos/systime.h>
 #include <aos/kernel_cap_invocations.h>
 #include <aos/default_interfaces.h>
 #include "init.h"
@@ -63,47 +64,6 @@ errval_t aos_rpc_set_interface(struct aos_rpc *rpc, struct aos_rpc_interface *in
 
     return SYS_ERR_OK;
 
-    /*
-    // initiate function binding (to send our endpoint to init)
-    aos_rpc_initialize_binding(rpc, AOS_RPC_INITIATE, 1, 0, AOS_RPC_CAPABILITY);
-
-    // bind further functions
-    aos_rpc_initialize_binding(rpc, AOS_RPC_SEND_NUMBER, 1, 0, AOS_RPC_WORD);
-    aos_rpc_initialize_binding(rpc, AOS_RPC_SEND_STRING, 1, 0, AOS_RPC_VARSTR);
-    aos_rpc_initialize_binding(rpc, AOS_RPC_SEND_VARBYTES, 1, 0, AOS_RPC_VARBYTES);
-    aos_rpc_initialize_binding(rpc, AOS_RPC_REQUEST_RAM, 2, 2, AOS_RPC_WORD, AOS_RPC_WORD, AOS_RPC_CAPABILITY, AOS_RPC_WORD);
-
-    aos_rpc_initialize_binding(rpc, AOS_RPC_SETUP_PAGE, 3, 0, AOS_RPC_WORD, AOS_RPC_WORD, AOS_RPC_CAPABILITY);
-    aos_rpc_register_handler(rpc, AOS_RPC_SETUP_PAGE, &aos_rpc_setup_page_handler);
-    aos_rpc_initialize_binding(rpc, AOS_RPC_PROC_SPAWN_REQUEST, 2, 1, AOS_RPC_VARSTR, AOS_RPC_WORD, AOS_RPC_WORD);
-
-    aos_rpc_initialize_binding(rpc, AOS_RPC_FOREIGN_SPAWN, 2, 1, AOS_RPC_VARSTR, AOS_RPC_WORD, AOS_RPC_WORD);
-
-    aos_rpc_initialize_binding(rpc, AOS_RPC_PUTCHAR, 1, 0, AOS_RPC_WORD);
-    aos_rpc_initialize_binding(rpc, AOS_RPC_GETCHAR, 0, 1, AOS_RPC_WORD);
-
-    aos_rpc_initialize_binding(rpc, AOS_RPC_ROUNDTRIP, 0, 0);
-
-    aos_rpc_initialize_binding(rpc, AOS_RPC_GET_STDIN_EP, 0, 1, AOS_RPC_CAPABILITY);
-    aos_rpc_initialize_binding(rpc, AOS_RPC_SET_STDOUT_EP, 1, 0, AOS_RPC_CAPABILITY);
-
-    // process manager bindings
-    aos_rpc_initialize_binding(rpc, AOS_RPC_SERVICE_ON, 1, 0, AOS_RPC_WORD);
-    aos_rpc_initialize_binding(rpc, AOS_RPC_REGISTER_PROCESS, 2, 1, AOS_RPC_WORD, AOS_RPC_VARSTR,AOS_RPC_WORD);
-    aos_rpc_initialize_binding(rpc, AOS_RPC_GET_PROC_NAME, 1, 1, AOS_RPC_WORD, AOS_RPC_VARSTR);
-
-    aos_rpc_initialize_binding(rpc,AOS_RPC_GET_PROC_LIST,0,2,AOS_RPC_WORD,AOS_RPC_VARSTR);
-
-    aos_rpc_initialize_binding(rpc, AOS_RPC_GET_PROC_CORE,1,1, AOS_RPC_WORD,AOS_RPC_WORD);
-
-    aos_rpc_initialize_binding(rpc, AOS_RPC_BINDING_REQUEST,4,1,AOS_RPC_WORD,AOS_RPC_WORD,AOS_RPC_WORD,AOS_RPC_CAPABILITY,AOS_RPC_CAPABILITY);
-
-    //memory server bindings
-    aos_rpc_initialize_binding(rpc,AOS_RPC_MEM_SERVER_REQ,1,1,AOS_RPC_CAPABILITY,AOS_RPC_CAPABILITY);
-
-
-    //aos_rpc_initialize_binding(rpc, AOS_RPC_REGISTER_PROCESS, 3, 0, AOS_RPC_WORD, AOS_RPC_WORD, AOS_RPC_VARSTR);
-    return SYS_ERR_OK;*/
 }
 
 
@@ -148,6 +108,8 @@ errval_t aos_rpc_init_lmp(struct aos_rpc* rpc, struct capref self_ep, struct cap
     err = lmp_chan_register_recv(&rpc->channel.lmp, rpc->waitset, MKCLOSURE(&aos_rpc_on_lmp_message, rpc));
     ON_ERR_PUSH_RETURN(err, LIB_ERR_LMP_ENDPOINT_REGISTER);
 
+    aos_rpc_set_timeout(rpc,DEFAULT_TIMEOUT);
+
     return SYS_ERR_OK;
 }
 
@@ -191,6 +153,8 @@ errval_t aos_rpc_init_ump_default(struct aos_rpc *rpc, lvaddr_t shared_page, siz
     //err = ump_chan_register_polling(ump_chan_get_default_poller(), &rpc->channel.ump, &aos_rpc_on_ump_message, rpc);
     ON_ERR_RETURN(err);
 
+    aos_rpc_set_timeout(rpc,DEFAULT_TIMEOUT);
+
     return SYS_ERR_OK;
 }
 
@@ -201,7 +165,7 @@ errval_t aos_rpc_free(struct aos_rpc *rpc)
         lmp_chan_destroy(&rpc->channel.lmp);
     }
     else if (rpc->backend == AOS_RPC_UMP) {
-        // TODO: implement
+        ump_chan_destroy(&rpc->channel.ump);
     }
 
     return SYS_ERR_OK;
@@ -442,13 +406,28 @@ static errval_t aos_rpc_call_ump(struct aos_rpc *rpc, enum aos_rpc_msg_type msg_
         retptrs[ret_ind++] = va_arg(args, void*);
     }
     DECLARE_MESSAGE(rpc->channel.ump, response);
+
+
+    assert(rpc -> timeout && "Timeout not set");
+    uint64_t start = systime_to_ns(systime_now());
+    
     bool received = false;
     do {
+        if(systime_to_ns(systime_now()) - start > rpc -> timeout){
+            DEBUG_ERR(LIB_ERR_RPC_TIMEOUT,"TIMEOUT IN RPC!\n");
+            return LIB_ERR_RPC_TIMEOUT;
+        }
+        // thr
         received = ump_chan_poll_once(&rpc->channel.ump, response);
+        if(!received){
+            thread_yield_dispatcher(NULL_CAP);
+        }
     } while (!received);
+
 
     if (!((response->data[0] | AOS_RPC_RETURN_BIT)
           && (response->data[0] & ~AOS_RPC_RETURN_BIT) == msg_type)) {
+        debug_printf("Error1\n");
         return LIB_ERR_NOT_IMPLEMENTED;  // todo errcode
     }
 
@@ -484,6 +463,11 @@ static errval_t aos_rpc_call_ump(struct aos_rpc *rpc, enum aos_rpc_msg_type msg_
             errval_t err = slot_alloc(&forged);
             ON_ERR_PUSH_RETURN(err, LIB_ERR_SLOT_ALLOC);
 
+            //char buffer[512];
+            //debug_print_cap(buffer,512,&cap);
+            //debug_printf("cap to forge: %s\n",buffer);
+
+
             err = invoke_monitor_create_cap((uint64_t *) &cap,
                                             get_cnode_addr(forged),
                                             get_cnode_level(forged),
@@ -511,11 +495,18 @@ static errval_t aos_rpc_call_ump(struct aos_rpc *rpc, enum aos_rpc_msg_type msg_
             size_t len = pull_word_ump(&rpc->channel.ump, response, &ret_offs);
 
             struct aos_rpc_varbytes *ret = (struct aos_rpc_varbytes *) retptrs[i];
+            if (ret->length < len) {
+                debug_printf("allocated bytes buffer not large enough:%ld < %ld\n",ret -> length, len);
+                return LIB_ERR_RPC_ARGUMENT_OVERFLOW;
+            }
+            ret->length = len;
+
             for (size_t j = 0; j < len; j += 8) {
                 uintptr_t word = pull_word_ump(&rpc->channel.ump, response, &ret_offs);
                 int word_len = min(sizeof(uintptr_t), len - j);
-                memcpy(ret + j, &word, word_len);
+                memcpy(ret->bytes + j, &word, word_len);
             }
+            // debug_printf("Here!!!!!!!!: %c,%c\n",(char * )ret -> bytes);
         }
         break;
         default:
@@ -651,13 +642,16 @@ static errval_t aos_rpc_unmarshall_ump_simple_aarch64(struct aos_rpc *rpc, void 
 
     typedef uintptr_t ui;
     ui arg[8] = { 0 }; // Upper bound so only writes in register
+    ui stack_args[16] = { 0 };
     ui ret[8] = { 0 };
-    errval_t (*h8)(struct aos_rpc*, ui, ui, ui, ui, ui, ui, ui, ui) = handler;
-
+    errval_t (*hd)(struct aos_rpc*, ui, ui, ui, ui, ui, ui, ui,
+                                ui, ui, ui, ui, ui, ui, ui, ui,
+                                ui, ui, ui, ui, ui, ui, ui, ui) = handler;
     // index into msg
     int word_ind = 1;
 
     int a_pos = 0;
+    int a_stack_pos = 0;
     int ret_pos = 0;
     struct capref retcap;
     char argstring[4096]; // very dangerous
@@ -668,11 +662,31 @@ static errval_t aos_rpc_unmarshall_ump_simple_aarch64(struct aos_rpc *rpc, void 
     struct aos_rpc_varbytes argbytes = { .length = sizeof abytes, .bytes = abytes };
     struct aos_rpc_varbytes retbytes = { .length = sizeof rbytes, .bytes = rbytes };
 
+    void argword(ui aw) {
+        if (a_pos < 7 && a_stack_pos == 0) {
+            arg[a_pos++] = aw;
+        }
+        else {
+            stack_args[a_stack_pos++] = aw;
+        }
+    }
+    void argdoubleword(ui x1, ui x2) {
+        if (a_pos < 6 && a_stack_pos == 0) {
+            arg[a_pos++] = x1;
+            arg[a_pos++] = x2;
+        }
+        else {
+            stack_args[a_stack_pos++] = x1;
+            stack_args[a_stack_pos++] = x2;
+        }
+    }
+
+
     for (int i = 0; i < binding->n_args; i++) {
 
         switch(binding->args[i]) {
         case AOS_RPC_WORD: {
-            arg[a_pos++] = pull_word_ump(uc, msg, &word_ind);
+            argword(pull_word_ump(uc, msg, &word_ind));
         }
         break;
         case AOS_RPC_CAPABILITY: {
@@ -700,9 +714,10 @@ static errval_t aos_rpc_unmarshall_ump_simple_aarch64(struct aos_rpc *rpc, void 
                                             forged.slot, !disp_get_core_id()); // TODO: set owner correctly
             ON_ERR_PUSH_RETURN(err, LIB_ERR_MONITOR_CAP_SEND);
 
-            arg[a_pos++] = (forged.cnode.croot) | (((ui) forged.cnode.cnode) << 32);
-            arg[a_pos++] = (forged.cnode.level) | (((ui) forged.slot) << 32);
-            
+            uintptr_t x1 = (forged.cnode.croot) | (((ui) forged.cnode.cnode) << 32);
+            uintptr_t x2 = (forged.cnode.level) | (((ui) forged.slot) << 32);
+            argdoubleword(x1, x2);
+
         }
         break;
         case AOS_RPC_VARSTR: {
@@ -712,7 +727,7 @@ static errval_t aos_rpc_unmarshall_ump_simple_aarch64(struct aos_rpc *rpc, void 
                 uintptr_t piece = pull_word_ump(uc, msg, &word_ind);
                 memcpy(argstring + j, &piece, min(sizeof(uintptr_t), length - j));
             }
-            arg[a_pos++] = (ui) &argstring;
+            argword((ui) &argstring);
         }
         break;
         case AOS_RPC_VARBYTES: {
@@ -723,8 +738,9 @@ static errval_t aos_rpc_unmarshall_ump_simple_aarch64(struct aos_rpc *rpc, void 
                 uintptr_t piece = pull_word_ump(uc, msg, &word_ind);
                 memcpy(argbytes.bytes + j, &piece, min(sizeof(uintptr_t), length - j));
             }
-            memcpy(&arg[a_pos], &argbytes, sizeof argbytes);
-            a_pos += sizeof argbytes / sizeof(uintptr_t);
+            uintptr_t av[2];
+            memcpy(av, &argbytes, sizeof argbytes);
+            argdoubleword(av[0], av[1]);
         }
         break;
         default:
@@ -739,30 +755,30 @@ static errval_t aos_rpc_unmarshall_ump_simple_aarch64(struct aos_rpc *rpc, void 
 
         switch(binding->rets[i]) {
         case AOS_RPC_WORD: {
-            arg[a_pos++] = (ui) &ret[ret_pos++];
+            argword((ui) &ret[ret_pos++]);
         }
         break;
         case AOS_RPC_SHORTSTR: {
-            arg[a_pos++] = (ui) &ret[ret_pos];
+            argword((ui) &ret[ret_pos]);
             ret_pos += 4;
         }
         break;
         case AOS_RPC_CAPABILITY: {
             if (retcap_used) return LIB_ERR_NOT_IMPLEMENTED; // error, sending multiple caps nyi
-            arg[a_pos++] = (ui) &retcap;
+            argword((ui) &retcap);
             retcap_used = true;
         }
         break;
         case AOS_RPC_STR: {
-            arg[a_pos++] = (ui) &retstring; // todo replace with scratch space
+            argword((ui) &retstring); // todo replace with scratch space
         }
         break;
         case AOS_RPC_VARSTR: {
-            arg[a_pos++] = (ui) &retstring; // todo replace with scratch space
+            argword((ui) &retstring); // todo replace with scratch space
         }
         break;
         case AOS_RPC_VARBYTES: {
-            arg[a_pos++] = (ui) &retbytes; // todo replace with scratch space
+            argword((ui) &retbytes); // todo replace with scratch space
         }
         break;
 
@@ -771,12 +787,17 @@ static errval_t aos_rpc_unmarshall_ump_simple_aarch64(struct aos_rpc *rpc, void 
             break;
         }
 
-        if (a_pos >= 7) {
+        if (a_pos > 7) {
             return LIB_ERR_SLAB_ALLOC_FAIL; // todo
         }
     }
 
-    h8(rpc, arg[0], arg[1], arg[2], arg[3], arg[4], arg[5], arg[6], arg[7]);
+    hd(rpc, arg[0], arg[1], arg[2], arg[3], arg[4], arg[5], arg[6],
+       stack_args[0], stack_args[1], stack_args[2], stack_args[3],
+       stack_args[4], stack_args[5], stack_args[6], stack_args[7],
+       stack_args[8], stack_args[9], stack_args[10], stack_args[11],
+       stack_args[12], stack_args[13], stack_args[14], stack_args[15]);
+    
 
     // send response
     DECLARE_MESSAGE(rpc->channel.ump, response);
@@ -883,7 +904,6 @@ static errval_t aos_rpc_call_lmp(struct aos_rpc *rpc, enum aos_rpc_msg_type msg_
     size_t buf_page_offset = 0;
 
 
-
     if (rpc->lmp_server_mode) {
         push_cap_lmp(lc, &lmi, rpc->channel.lmp.local_cap);
     }
@@ -962,21 +982,28 @@ static errval_t aos_rpc_call_lmp(struct aos_rpc *rpc, enum aos_rpc_msg_type msg_
         retptrs[ret_ind++] = va_arg(args, void*);
     }
 
-    //debug_printf("waiting for response\n");
+    assert(rpc -> timeout && "Timeout not set");
+    uint64_t start = systime_to_ns(systime_now());
+
+
     while(!lmp_chan_can_recv(&rpc->channel.lmp)) {
-        // yield to dispatcher we are communicating with
-        // debug_printf("waiting for response\n");
+
+        if(systime_to_ns(systime_now()) - start > rpc -> timeout)
+        
+        {
+            debug_printf("Timout %lu,%lu\n",rpc -> timeout,start - systime_to_ns(systime_now()));
+            DEBUG_ERR(LIB_ERR_RPC_TIMEOUT,"TIMEOUT IN RPC!\n");
+            return LIB_ERR_RPC_TIMEOUT;
+        }
         thread_yield_dispatcher(rpc->channel.lmp.remote_cap);
     }
 
-    //debug_printf("getting response\n");
 
     struct lmp_recv_msg msg = LMP_RECV_MSG_INIT;
     struct capref recieved_cap = NULL_CAP;
 
     err = lmp_chan_recv(&rpc->channel.lmp, &msg, &recieved_cap);
     ON_ERR_RETURN(err);
-    //debug_printf("got response\n");
 
     if (!capref_is_null(recieved_cap)) {
         lmp_chan_alloc_recv_slot(&rpc->channel.lmp);
@@ -1293,15 +1320,20 @@ static errval_t aos_rpc_unmarshall_retval_aarch64(struct aos_rpc *rpc, void **re
         case AOS_RPC_VARBYTES: {
             size_t length = pull_word_lmp(lc, &lmi);
             struct aos_rpc_varbytes *bytes = (struct aos_rpc_varbytes *) retptrs[i];
+            if (bytes->length < length) {
+                // debug_printf("allocated bytes buffer not large enough: %ld\n", len);
+                return LIB_ERR_RPC_ARGUMENT_OVERFLOW;
+            }
+            bytes->length = length;
 
             for (int j = 0; j < length; j += sizeof(uintptr_t)) {
                 uintptr_t word = pull_word_lmp(lc, &lmi);
                 memcpy(bytes->bytes + j, &word, min(sizeof(uintptr_t), length - j));
             }
         }
-
+        break;
         default:
-            debug_printf("unknown return type in unmarshalling\n");
+            debug_printf("unknown return type in unmarshalling %d\n", binding->rets[i]);
             break;
         }
     }
@@ -1321,39 +1353,64 @@ static errval_t aos_rpc_unmarshall_lmp_aarch64(struct aos_rpc *rpc, void *handle
     
     typedef uintptr_t ui;
     ui arg[7] = { 0 }; // Upper bound so only writes in register
+    ui stack_args[16] = { 0 };
+
     ui ret[4] = { 0 };
     
-    char argstring[1024]; // TODO maybe move that into some scratch area in the rpc struct
-    char retstring[1024];
+    char argstring[4096]; // TODO maybe move that into some scratch area in the rpc struct
+    char retstring[4096];
 
-    char abytes[1024];
+    char abytes[4096];
     struct aos_rpc_varbytes argbytes = { .length = sizeof abytes, .bytes = abytes};
-    char rbytes[1024];
+    char rbytes[4096];
     struct aos_rpc_varbytes retbytes = { .length = sizeof rbytes, .bytes = rbytes};
     
 
     struct capref retcap = NULL_CAP;
-    errval_t (*h7)(struct aos_rpc*, ui, ui, ui, ui, ui, ui, ui) = handler;
+    errval_t (*hd)(struct aos_rpc*, ui, ui, ui, ui, ui, ui, ui,
+                                ui, ui, ui, ui, ui, ui, ui, ui,
+                                ui, ui, ui, ui, ui, ui, ui, ui) = handler;
     int a_pos = 0;
+    int a_stack_pos = 0;
     int ret_pos = 0;
+
+    void argword(ui aw) {
+        if (a_pos < 7 && a_stack_pos == 0) {
+            arg[a_pos++] = aw;
+        }
+        else {
+            stack_args[a_stack_pos++] = aw;
+        }
+    }
+    void argdoubleword(ui x1, ui x2) {
+        if (a_pos < 6 && a_stack_pos == 0) {
+            arg[a_pos++] = x1;
+            arg[a_pos++] = x2;
+        }
+        else {
+            stack_args[a_stack_pos++] = x1;
+            stack_args[a_stack_pos++] = x2;
+        }
+    }
     
     for (int i = 0; i < binding->n_args; i++) {
         switch (binding->args[i]) {
         
         case AOS_RPC_WORD: {
-            arg[a_pos++] = pull_word_lmp(lc, lmi);
+            argword(pull_word_lmp(lc, lmi));
         }
         break;
 
         case AOS_RPC_CAPABILITY: {
             struct capref recv_cap = pull_cap_lmp(lc, lmi);
-            arg[a_pos++] = ((ui) recv_cap.cnode.croot) | (((ui) recv_cap.cnode.cnode) << 32);
-            arg[a_pos++] = ((ui) recv_cap.cnode.level) | (((ui) recv_cap.slot) << 32);
+            uintptr_t x1 = ((ui) recv_cap.cnode.croot) | (((ui) recv_cap.cnode.cnode) << 32);
+            uintptr_t x2 = ((ui) recv_cap.cnode.level) | (((ui) recv_cap.slot) << 32);
+            argdoubleword(x1, x2);
         }
         break;
 
         case AOS_RPC_STR: {
-            arg[a_pos++] = ((ui) binding->buf_page_remote) + pull_word_lmp(lc, lmi);
+            argword(((ui) binding->buf_page_remote) + pull_word_lmp(lc, lmi));
         }
         break;
 
@@ -1365,7 +1422,7 @@ static errval_t aos_rpc_unmarshall_lmp_aarch64(struct aos_rpc *rpc, void *handle
                 uintptr_t piece = pull_word_lmp(lc, lmi);
                 memcpy(argstring + j, &piece, sizeof(uintptr_t));
             }
-            arg[a_pos++] = (ui) &argstring;
+            argword((ui) &argstring);
         }
         break;
         case AOS_RPC_VARBYTES: {
@@ -1376,8 +1433,9 @@ static errval_t aos_rpc_unmarshall_lmp_aarch64(struct aos_rpc *rpc, void *handle
                 uintptr_t piece = pull_word_lmp(lc, lmi);
                 memcpy(argbytes.bytes + j, &piece, sizeof(uintptr_t));
             }
-            memcpy(&arg[a_pos], &argbytes, sizeof argbytes);
-            a_pos += sizeof argbytes / sizeof(uintptr_t);
+            uintptr_t aws[2];
+            memcpy(aws, &argbytes, sizeof argbytes);
+            argdoubleword(aws[0], aws[1]);
         }
         break;
 
@@ -1385,30 +1443,30 @@ static errval_t aos_rpc_unmarshall_lmp_aarch64(struct aos_rpc *rpc, void *handle
             debug_printf("unknown argument: %d \n", binding->args[i]);
             break;
         }
-        if (a_pos >= 7) {
+        if (a_pos > 7) {
             return LIB_ERR_SLAB_ALLOC_FAIL; // todo
         }
     }
     for (int i = 0; i < binding->n_rets; i++) {
         switch (binding->rets[i]) {
             case AOS_RPC_WORD: {
-                arg[a_pos++] = (ui) &ret[ret_pos++];
+                argword((ui) &ret[ret_pos++]);
             }
             break;
 
             case AOS_RPC_CAPABILITY: {
-                arg[a_pos++] = (ui) &retcap;
+                argword((ui) &retcap);
             }
             break;
 
             case AOS_RPC_VARSTR: {
-                arg[a_pos++] = (ui) &retstring;
+                argword((ui) &retstring);
                 // TODO err check if used twice
             }
             break;
 
             case AOS_RPC_VARBYTES: {
-                arg[a_pos++] = (ui) &retbytes;
+                argword((ui) &retbytes);
                 // TODO err check if used twice
             }
             break;
@@ -1417,14 +1475,18 @@ static errval_t aos_rpc_unmarshall_lmp_aarch64(struct aos_rpc *rpc, void *handle
             debug_printf("response type not handled\n");
             break;
         }
-        if (a_pos >= 7) {
+        if (a_pos > 7) {
             return LIB_ERR_SLAB_ALLOC_FAIL; // todo
         }
     }
 
     //debug_printf("rpc, handler, n_rets: %p, %p %d\n", rpc, h7, binding->n_rets);
     //debug_printf("calling handler %d with %d retargs: %s\n", binding->msg_type, binding->n_rets, binding->binding_name);
-    h7(rpc, arg[0], arg[1], arg[2], arg[3], arg[4], arg[5], arg[6]);
+    hd(rpc, arg[0], arg[1], arg[2], arg[3], arg[4], arg[5], arg[6],
+       stack_args[0], stack_args[1], stack_args[2], stack_args[3],
+       stack_args[4], stack_args[5], stack_args[6], stack_args[7],
+       stack_args[8], stack_args[9], stack_args[10], stack_args[11],
+       stack_args[12], stack_args[13], stack_args[14], stack_args[15]);
 
     lmi->word_index = 1;
     lmi->msg.words[0] = binding->msg_type | AOS_RPC_RETURN_BIT;
@@ -1608,7 +1670,6 @@ errval_t aos_rpc_process_get_all_pids(struct aos_rpc *rpc, domainid_t **pids, si
         DEBUG_ERR(err,"Failed aos_rpc call in get all pids\n");
     }
     domainid_t* pid_heap = (domainid_t*) malloc(*pid_count * sizeof(domainid_t));
-    // debug_printf("Received buffer: %s\n",buffer);
     char * buf_ptr = buffer;
     char strbuf[13];
     size_t index = 0;
@@ -1617,8 +1678,6 @@ errval_t aos_rpc_process_get_all_pids(struct aos_rpc *rpc, domainid_t **pids, si
         if(*buf_ptr == ','){
             strbuf[index] = '\0';
             domainid_t pid = atoi(strbuf);
-            // debug_printf(" word : %s\n",strbuf);
-            // debug_printf(" number : %d\n",pid);
             pid_heap[pid_index] = pid;
             pid_index++;
             buf_ptr++;
@@ -1659,143 +1718,8 @@ errval_t aos_rpc_request_foreign_ram(struct aos_rpc *rpc, size_t size, struct ca
 }
 
 
-errval_t aos_rpc_new_binding(domainid_t pid, coreid_t core_id, struct aos_rpc* ret_rpc){
-    
-    // struct aos_rpc rpc;
-    // if(get_init_domain()){
-    //     rpc = get_core_channel
-    // }
 
-
-    errval_t err;
-    struct capref self_ep_cap = (struct capref) {
-      .cnode = cnode_task,
-      .slot = TASKCN_SLOT_SELFEP
-    };
-    debug_printf("Trying to establish connection with process %d on core %d ...\n",pid,core_id);
-    // struct aos_rpc *rpc = aos_rpc_get_init_channel();
-
-    if(core_id == disp_get_current_core_id()){ //lmp channel
-
-        struct lmp_endpoint *ep;
-        err = endpoint_create(256, &self_ep_cap, &ep);
-        ON_ERR_PUSH_RETURN(err, LIB_ERR_ENDPOINT_CREATE);
-
-        //err = aos_rpc_init(ret_rpc);
-        //ON_ERR_RETURN(err);
-
-        // TODO (RPC): init interface
-
-        // initialize_general_purpose_handler(ret_rpc);
-
-        err = aos_rpc_init_lmp(ret_rpc, self_ep_cap, NULL_CAP, ep, NULL);
-        ON_ERR_RETURN(err);
-
-        struct capref remote_cap;
-
-        err = aos_rpc_call(aos_rpc_get_process_channel(),AOS_RPC_BINDING_REQUEST,pid,core_id,disp_get_current_core_id(),self_ep_cap,&remote_cap);
-
-
-        // char buf[512];
-        // debug_print_cap_at_capref(buf,512,remote_cap);
-        // debug_printf("Cap here %s\n",buf);
-        ret_rpc -> channel.lmp.remote_cap = remote_cap;
-        // *ret_rpc = new_rpc;
-        // debug_printf("Channel with %d on %d established!\n",pid,core_id);
-    }else{ //ump channel
-
-
-
-        debug_printf("Creating new ump channel!\n");
-        struct capref urpc_cap;
-        size_t urpc_cap_size;
-
-        err  = frame_alloc(&urpc_cap,BASE_PAGE_SIZE,&urpc_cap_size);
-        ON_ERR_RETURN(err);
-
-        
-
-
-        // struct frame_identity urpc_frame_id = (struct frame_identity) {
-        //     .base = get_phys_addr(urpc_cap),
-        //     .bytes = urpc_cap_size,
-        //     .pasid = disp_get_core_id()
-        // };
-
-        char *urpc_data = NULL;
-        err = paging_map_frame_complete(get_current_paging_state(), (void **) &urpc_data, urpc_cap, NULL, NULL);
-        ON_ERR_RETURN(err);
-
-
-
-        // TODO (RPC): init interface
-        //err = aos_rpc_init(ret_rpc);
-        //ON_ERR_RETURN(err);
-        
-        // struct aos_rpc *rpc = malloc(sizeof(struct aos_rpc));
-        // NULLPTR_CHECK(ret_rpc, LIB_ERR_MALLOC_FAIL);
-
-        
-        //err = aos_rpc_init(ret_rpc);
-        //ON_ERR_RETURN(err);
-        // ON_ERR_PUSH_RETURN(err, LIB_ERR_RPC_INIT);
-
-        err =  aos_rpc_init_ump_default(ret_rpc,(lvaddr_t) urpc_data, BASE_PAGE_SIZE,true);//take first half as creating process
-
-
-        
-        ON_ERR_RETURN(err);
-
-        debug_printf("Binding request ...\n");
-        struct capref dummy_cap; // not useed
-        err = aos_rpc_call(aos_rpc_get_process_channel(),AOS_RPC_BINDING_REQUEST,pid,core_id,disp_get_current_core_id(), urpc_cap,&dummy_cap);
-        ON_ERR_RETURN(err);
-
-        debug_printf("Cahnnel estblished on requester!\n");
-    }
-
-    //initialize_general_purpose_handler(ret_rpc);
-    
-    return SYS_ERR_OK;
-}
-
-
-errval_t aos_rpc_new_binding_by_name(char * name, struct aos_rpc * new_rpc){
-    errval_t err;
-    domainid_t * pids;
-    size_t pid_count;
-    // debug_printf("here is %lx\n", aos_rpc_get_process_channel());
-    err = aos_rpc_process_get_all_pids(aos_rpc_get_process_channel(),&pids,&pid_count);
-    ON_ERR_RETURN(err);
-    // debug_printf("got all pids!\n");
-
-    // domainid_t pid_buffer
-    // for(size_t i = 0; i < pid_count;++i){
-    // }
-    for(size_t i = 0; i < pid_count; ++i){
-        
-        domainid_t pid = pids[i];
-        // debug_printf("[%d] pid :%d \n",i, pid);
-        char* proc_name;
-        err = aos_rpc_process_get_name(aos_rpc_get_process_channel(),pid,&proc_name);
-        // debug_printf("[%d] pid :%d \n",i, pid);
-        // debug_printf("got name of pid!\n");
-        ON_ERR_RETURN(err);
-        // debug_printf("%s, %s, %d\n",proc_name,name,strcmp(proc_name,name));
-        if(strcmp(proc_name,name) == 0){
-            coreid_t core_id;
-            err = aos_rpc_call(aos_rpc_get_process_channel(),AOS_RPC_GET_PROC_CORE,pid,&core_id);
-            // debug_printf("got core id pid!\n");
-            ON_ERR_RETURN(err);
-            // debug_printf("herer\n");
-
-
-            // debug_printf("pid: %d, core_id : %d\n",pid,core_id);
-            err = aos_rpc_new_binding(pid,core_id,new_rpc);
-            ON_ERR_RETURN(err);
-            debug_printf("channel established on client!\n");
-            return SYS_ERR_OK;
-        }
-    }
-    return PROC_MGMT_ERR_DOMAIN_NOT_RUNNING;
+void aos_rpc_set_timeout(struct aos_rpc* rpc, uint64_t timeout){
+    assert(rpc && "Null rpc");
+    rpc -> timeout = timeout;
 }

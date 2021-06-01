@@ -20,7 +20,8 @@
                         "mem_alloc.c",
                         "rpc_server.c",
                         "spawn_server.c",
-                        "test.c"
+                        "test.c",
+                        "routing.c"
                       ],
                       addIncludes = [ "/usr/process_manager" ],
                       addLinkFlags = [ "-e _start_init"], -- this is only needed for init

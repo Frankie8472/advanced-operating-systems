@@ -54,7 +54,8 @@
                              "thread_sync.c",
                              "threads.c",
                              "ump_chan.c",
-                             "waitset.c" ],
+                             "waitset.c",
+                             "udp_service.c"],
                   assemblyFiles = [
                         "arch/aarch64/context.S",
                         "arch/aarch64/entry.S",

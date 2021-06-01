@@ -7,6 +7,7 @@
 #include <aos/paging.h>
 #include <aos/nameserver.h>
 
+
 #include <aos/waitset.h>
 #include <aos/default_interfaces.h>
 #define PANIC_IF_FAIL(err, msg)    \
@@ -19,7 +20,7 @@
 
 // extern struct aos_rpc fresh_connection;
 static char *myresponse = "reply!!";
-
+static char buffer[512];
 static void server_recv_handler(void *st, void *message,
                                 size_t bytes,
                                 void **response, size_t *response_bytes,
@@ -28,6 +29,11 @@ static void server_recv_handler(void *st, void *message,
     debug_printf("server: got a request: %s\n", (char *)message);
     *response = myresponse;
     *response_bytes = strlen(myresponse);
+    // struct capref cap;
+    // slot_alloc(&cap);
+    // frame_alloc(&cap,BASE_PAGE_SIZE,NULL);
+    // cap_copy(cap,tx_cap);
+
 }
 
 
@@ -37,7 +43,7 @@ int main(int argc, char *argv[])
     
 
     errval_t err;
-    debug_printf("Server\n");
+    // debug_printf("Server\n");
     
     // char * name;
     // aos_rpc_process_get_name(aos_rpc_get_process_channel(),0,&name);
@@ -63,24 +69,25 @@ int main(int argc, char *argv[])
     
     // debug_printf("register with nameservice '%s'\n", SERVICE_NAME);
     // debug_printf("0x%lx\n", get_init_rpc());
-    char buffer[512];
+    
     strcpy(buffer,SERVICE_NAME);
     strcat(buffer,argv[1]);
-    err = nameservice_register(buffer, server_recv_handler,NULL);
+    err = nameservice_register_properties(buffer, server_recv_handler,NULL,false,"type=ethernet,mac=1:34:124:1");
+    // err = nameservice_register(buffer, server_recv_handler,NULL);
     PANIC_IF_FAIL(err, "failed to register...\n");
-    domainid_t my_pid;
 
     // err = aos_rpc_process_spawn(get_init_rpc(),"client",!disp_get_core_id(),&my_pid);
     // if(err_is_fail(err)){
     //     DEBUG_ERR(err,"Failed to spawn client!\n");
-    // }
+    // // // }
+    domainid_t my_pid;
     err = aos_rpc_process_spawn(get_init_rpc(),"client",0,&my_pid);
     if(err_is_fail(err)){
         DEBUG_ERR(err,"Failed to spawn client!\n");
     }
     
     
-
+    // nameservice_deregister(buffer);
 
     
 

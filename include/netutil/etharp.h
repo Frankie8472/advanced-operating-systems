@@ -6,7 +6,7 @@
 #include <aos/aos.h>
 
 
-//#define ETHARP_DEBUG_OPTION 1
+// #define ETHARP_DEBUG_OPTION 1
 
 #if defined(ETHARP_DEBUG_OPTION)
 #define ETHARP_DEBUG(x...) debug_printf("[etharp] " x);
@@ -52,6 +52,32 @@ struct arp_hdr {
     uint32_t ip_dst;
 } __attribute__((__packed__));
 
+
+// definitions for ETH-handler, udp-socket
+// TODO: make more concise with architecture in mind
+static inline uint64_t eth_addr_to_u64(struct eth_addr *a) {
+    return (0  // to make it look more aligned
+            | a->addr[0] << 7
+            | a->addr[1] << 6
+            | a->addr[2] << 5
+            | a->addr[3] << 4
+            | a->addr[4] << 3
+            | a->addr[5] << 2);
+}
+
+/**
+ * \brief convert an uint64_t to an eth address:
+ * converts src, writes it into dest
+ */
+// TODO: make more concise with architecture in mind
+static inline void u64_to_eth_addr(uint64_t src, struct eth_addr* dest) {
+    dest->addr[0] = src >> 7;
+    dest->addr[1] = src >> 6;
+    dest->addr[2] = src >> 5;
+    dest->addr[3] = src >> 4;
+    dest->addr[4] = src >> 3;
+    dest->addr[5] = src >> 2;
+}
 
 
 #endif

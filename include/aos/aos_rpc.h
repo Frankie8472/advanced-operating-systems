@@ -21,6 +21,7 @@
 #include <aos/ump_chan.h>
 
 #define AOS_RPC_RETURN_BIT 0x1000000
+#define DEFAULT_TIMEOUT 20000000000
 
 #define min(a,b) \
    ({ __typeof__ (a) _a = (a); \
@@ -28,8 +29,8 @@
      _a < _b ? _a : _b; })
 
 enum aos_rpc_backend {
-    AOS_RPC_LMP,
-    AOS_RPC_UMP,
+    AOS_RPC_LMP = 1,
+    AOS_RPC_UMP = 2,
 };
 
 /**
@@ -131,6 +132,7 @@ struct aos_rpc {
 
     size_t n_handlers;
     void **handlers;
+    uint64_t timeout;
 };
 
 errval_t aos_rpc_set_interface(struct aos_rpc *rpc, struct aos_rpc_interface *interface, size_t n_handlers, void **handlers);
@@ -175,9 +177,7 @@ errval_t aos_rpc_process_get_all_pids(struct aos_rpc *chan,
                                       domainid_t **pids, size_t *pid_count);
 
 errval_t aos_rpc_get_terminal_input(struct aos_rpc *chan, char* buf,size_t le);
-errval_t aos_rpc_new_binding(domainid_t pid, coreid_t core_id, struct aos_rpc* ret_rpc);
 
-errval_t aos_rpc_new_binding_by_name(char * name, struct aos_rpc * new_rpc);
 
 struct aos_rpc *aos_rpc_get_init_channel(void);
 
@@ -188,6 +188,8 @@ struct aos_rpc *aos_rpc_get_process_channel(void);
 struct aos_rpc *aos_rpc_get_serial_channel(void);
 
 errval_t aos_rpc_request_foreign_ram(struct aos_rpc * rpc, size_t size,struct capref *ret_cap,size_t * ret_size);
+
+void aos_rpc_set_timeout(struct aos_rpc * rpc, uint64_t timeout);
 
 
 

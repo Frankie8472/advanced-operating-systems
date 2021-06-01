@@ -19,15 +19,36 @@
 #include <devif/queue_interface_backend.h>
 #include <devif/backends/net/enet_devif.h>
 #include <aos/aos.h>
+#include <aos/nameserver.h>
 #include <aos/deferred.h>
 #include <driverkit/driverkit.h>
 #include <dev/imx8x/enet_dev.h>
 #include <netutil/etharp.h>
+#include <netutil/htons.h>
 
+#include <collections/hash_table.h>
 
 #include "enet.h"
+#include "enet_regionman.h"
 
 #define PHY_ID 0x2
+
+// NOTE: defined in other thingy too but nis
+static struct region_entry* get_region(struct enet_queue* q, regionid_t rid)
+{
+    struct region_entry* entry = q->regions;
+    while (entry != NULL) {
+        if (entry->rid == rid) {
+            return entry;
+        }
+        entry = entry->next;
+    }
+    return NULL;
+}
+
+const int DEVFRAME_ATTRIBUTES = KPI_PAGING_FLAGS_READ
+    | KPI_PAGING_FLAGS_WRITE
+    | KPI_PAGING_FLAGS_NOCACHE;
 
 static errval_t enet_write_mdio(struct enet_driver_state* st, int8_t phyaddr,
                                 int8_t regaddr, int16_t data)
@@ -285,7 +306,7 @@ static void enet_parse_link(struct enet_driver_state* st)
     assert(err_is_ok(err));
 
     if (status < 0) {   
-        debug_printf("ENET not capable of 1G \n");
+        ENET_DEBUG("ENET not capable of 1G \n");
         return;
     } else {
         err = enet_read_mdio(st, PHY_ID, PHY_CTRL1000_CMD, &status);
@@ -302,9 +323,9 @@ static void enet_parse_link(struct enet_driver_state* st)
             lpa &= lpa2;
             if (lpa & (PHY_LPA_100FULL | PHY_LPA_100HALF)) {
                 if (lpa & PHY_LPA_100FULL) {
-                    debug_printf("LINK 100 Mbit/s FULL duplex \n");
+                    ENET_DEBUG("LINK 100 Mbit/s FULL duplex \n");
                 } else {
-                    debug_printf("LINK 100 Mbit/s half\n");
+                    ENET_DEBUG("LINK 100 Mbit/s half\n");
                 }
             }
         }
@@ -322,13 +343,13 @@ static errval_t enet_phy_startup(struct enet_driver_state* st)
     assert(err_is_ok(err));
 
     if (mii_reg & PHY_STATUS_LSTATUS) {
-        debug_printf("LINK already UP\n");
+        ENET_DEBUG("LINK already UP\n");
         return SYS_ERR_OK;
     }
     
     if (!(mii_reg & PHY_STATUS_ANEG_COMP)) {
 
-        debug_printf("[enet] Starting autonegotiation \n");
+        ENET_DEBUG("[enet] Starting autonegotiation \n");
         while(!(mii_reg & PHY_STATUS_ANEG_COMP))  {
             err = enet_read_mdio(st, PHY_ID, PHY_STATUS_CMD, &mii_reg);
             assert(err_is_ok(err));
@@ -526,6 +547,9 @@ static errval_t enet_init(struct enet_driver_state* st)
         return err;
     }
 
+    st->sockets = NULL;
+    st->pings = NULL;
+
     return err;
 }
 
@@ -548,7 +572,7 @@ static errval_t enet_probe(struct enet_driver_state* st)
 
     err = enet_init_phy(st);
     if (err_is_fail(err))  {
-        debug_printf("Failed PHY reset\n");
+        ENET_DEBUG("Failed PHY reset\n");
         return err;
     }   
 
@@ -558,29 +582,60 @@ static errval_t enet_probe(struct enet_driver_state* st)
     enet_write_mac(st);
     enet_read_mac(st);
 
-    // TODO checked dump until here! 
+    // TODO checked dump until here!
     return SYS_ERR_OK;
+}
+
+/**
+ * \brief Print all hte bytes in a given packet, in hex format.
+ */
+__attribute__((unused))
+static void print_packet(struct enet_queue* q, struct devq_buf* buf) {
+    struct region_entry *entry = get_region(q, buf->rid);
+    __attribute__((unused))
+        char* pkt = (char*) entry->mem.vbase + buf->offset + buf->valid_data;
+    for (int i = 0; i < buf->valid_length; i++) {
+        ENET_DEBUG("byte %d = %x\n", i, pkt[i]);
+    }
 }
 
 
 int main(int argc, char *argv[]) {
     errval_t err;
 
-    debug_printf("Enet driver started \n");
-    struct enet_driver_state * st = (struct enet_driver_state*) 
-                                    calloc(1, sizeof(struct enet_driver_state));    
+    ENET_DEBUG("Enet driver started \n");
+    struct enet_driver_state * st = (struct enet_driver_state*)
+        calloc(1, sizeof(struct enet_driver_state));
     assert(st != NULL);
 
-    /* TODO Net Project: get the capability to the register region
-     * and then map it so it is accessible. 
-     * TODO set st->d_vaddr to the memory mapped register region */
-    if (st->d_vaddr == NULL) {
-        USER_PANIC("ENET: No register region mapped \N");
+    struct capref devframe = {
+        .cnode = cnode_task,
+        .slot = TASKCN_SLOT_DEV
+    };
+
+    void *device_frame;
+
+    err = paging_map_frame_attr(get_current_paging_state(), &device_frame,
+                                get_phys_size(devframe), devframe,
+                                DEVFRAME_ATTRIBUTES, NULL, NULL);
+    ENET_DEBUG("do we have an error?\n");
+
+    ON_ERR_RETURN(err);
+
+    /* DONE Net Project: get the capability to the register region
+     * and then map it so it is accessible.
+     * DONE set st->d_vaddr to the memory mapped register region */
+    /* st->d_vaddr = (lvaddr_t) device_frame; */
+    st->d_vaddr = (lvaddr_t) device_frame;
+    if (st->d_vaddr == 0) {
+        USER_PANIC("ENET: No register region mapped \n");
     }
 
     /* Initialize Mackerel binding */
     st->d = (enet_t *) malloc(sizeof(enet_t));
     enet_initialize(st->d, (void *) st->d_vaddr);
+    collections_hash_create(&st->arp_table, free);
+    collections_hash_create(&st->inv_table, free);
 
     assert(st->d != NULL);
     enet_read_mac(st);
@@ -597,19 +652,19 @@ int main(int argc, char *argv[]) {
         return err;
     }
 
-    debug_printf("Enet driver init done \n");
+    ENET_DEBUG("Enet driver init done \n");
     
-    debug_printf("Creating devqs \n");
+    ENET_DEBUG("Creating devqs \n");
    
     err = enet_rx_queue_create(&st->rxq, st->d);
     if (err_is_fail(err)) {
-        debug_printf("Failed creating RX devq \n");
+        ENET_DEBUG("Failed creating RX devq \n");
         return err;
     }
 
     err = enet_tx_queue_create(&st->txq, st->d);
     if (err_is_fail(err)) {
-        debug_printf("Failed creating RX devq \n");
+        ENET_DEBUG("Failed creating RX devq \n");
         return err;
     }
 
@@ -643,17 +698,48 @@ int main(int argc, char *argv[]) {
     if (err_is_fail(err)) {
         return err;
     }
+
+    // initialize region-manager for send-queue
+    st->send_qstate = malloc(sizeof(struct enet_qstate));
+    err = init_enet_qstate(st->txq, st->send_qstate);
+    for (int i = 0; i < st->txq->size - 1; i++) {
+        struct devq_buf *curb = malloc(sizeof(struct devq_buf));
+        curb->rid = rid;
+        curb->offset = i * 2048;
+        curb->length = 2048;
+        curb->valid_data = 0;
+        curb->valid_length = 2048;
+        curb->flags = 0;
+
+        struct dev_list *curn = malloc(sizeof(struct dev_list));
+        curn->cur = curb;
+
+        qstate_append_free(st->send_qstate, curn);
+    }
+
+    // initialize nameserver
+    name_server_initialize(st);
+
     struct devq_buf buf;
     while(true) {
         err = devq_dequeue((struct devq*) st->rxq, &buf.rid, &buf.offset,
                            &buf.length, &buf.valid_data, &buf.valid_length,
                            &buf.flags);
         if (err_is_ok(err)) {
-            debug_printf("Received Packet of size %lu \n", buf.valid_length);
+            ENET_DEBUG("Received Packet of size %lu \n", buf.valid_length);
+            handle_packet(st->rxq, &buf, st);
+            /* print_packet(st->rxq, &buf); */
             err = devq_enqueue((struct devq*) st->rxq, buf.rid, buf.offset,
                                buf.length, buf.valid_data, buf.valid_length,
                                buf.flags);
             assert(err_is_ok(err));
+        } else {  // NOTE: maybe compare against DEVQ_ERR_QUEUE_EMPTY
+            /* thread_yield(); */
+            err = event_dispatch_non_block(get_default_waitset());
+            if (err == LIB_ERR_NO_EVENT) {
+                thread_yield();
+            } else {
+            }
         }
     }
 }

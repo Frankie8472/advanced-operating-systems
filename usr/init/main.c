@@ -26,6 +26,7 @@
 #include <aos/core_state.h>
 #include <aos/systime.h>
 #include <aos/threads.h>
+#include <aos/deferred.h>
 
 #include <aos/dispatch.h>
 #include <aos/dispatcher_arch.h>
@@ -40,14 +41,19 @@
 #include "mem_alloc.h"
 #include "rpc_server.h"
 #include "test.h"
+#include <hashtable/hashtable.h>
 
+
+#include "routing.h"
 #include <aos/kernel_cap_invocations.h>
 
 #include <process_manager_interface.h>
 #include <fs/fs.h>
 
 
-    // #include <aos/curdispatcher_arch.h>
+
+
+// #include <aos/curdispatcher_arch.h>
 
 
 coreid_t my_core_id;
@@ -84,8 +90,6 @@ static errval_t init_foreign_core(void){
     set_pm_online();
 
     uint64_t *urpc_init = (uint64_t*) MON_URPC_VBASE;
-        debug_printf("Bootinfo base: %lx, bootinfo size: %lx\n",urpc_init[0],urpc_init[1]);
-    debug_printf("Ram base: %lx, Ram size: %lx\n",urpc_init[2],urpc_init[3]);
     struct capref bootinfo_cap = {
         .cnode = cnode_task,
         .slot = TASKCN_SLOT_BOOTINFO,
@@ -135,7 +139,6 @@ static errval_t init_foreign_core(void){
                 .slot = bi -> regions[i].mrmod_slot
             };
             size_t size = bi->regions[i].mrmod_size;
-            // debug_printf("Trying to forge cap: %ld bytes\n", size);
             err = frame_forge(module_cap, bi->regions[i].mr_base, ROUND_UP(size, BASE_PAGE_SIZE), disp_get_current_core_id()); 
             ON_ERR_RETURN(err);
         }
@@ -169,6 +172,8 @@ static errval_t init_foreign_core(void){
 
     
     set_ns_online();
+
+    routing_ht = create_hashtable();
     return SYS_ERR_OK;
 }
 
@@ -185,6 +190,9 @@ static errval_t init_filesystemserver(void)
 
 static errval_t init_name_server(void){
     errval_t err;
+
+    routing_ht = create_hashtable();
+
     struct spawninfo *ns_si = spawn_create_spawninfo();
     domainid_t *ns_pid = &ns_si -> pid;
     err = spawn_load_by_name("nameserver",ns_si,ns_pid);
@@ -197,7 +205,6 @@ static errval_t init_name_server(void){
     aos_rpc_set_interface(rpc, get_init_interface(), INIT_IFACE_N_FUNCTIONS, malloc(INIT_IFACE_N_FUNCTIONS * sizeof(void *)));
     initialize_rpc_handlers(rpc);
 
-    debug_printf("waiting for name server to come online...\n");
     while(!get_ns_online()){
         err = event_dispatch(get_default_waitset());
         if (err_is_fail(err)) {
@@ -231,16 +238,6 @@ static errval_t init_name_server(void){
     return SYS_ERR_OK;
 }
 
-
-
-
-__unused
-static void hey(void* arg) {
-    debug_printf("we were pinged!\n");
-    struct lmp_recv_buf msg;
-    lmp_endpoint_recv(arg, &msg, NULL);
-    lmp_endpoint_register(arg, get_default_waitset(), MKCLOSURE(hey, arg));
-}
 
 
 
@@ -284,6 +281,8 @@ static int bsp_main(int argc, char *argv[])
 
 
     spawn_new_core(1);
+    spawn_new_core(2);
+    spawn_new_core(3);
 
 
     /*struct capref lmp_ep;
@@ -304,6 +303,19 @@ static int bsp_main(int argc, char *argv[])
     domainid_t pid;
     struct spawninfo *josh_si;
 
+    struct spawninfo *enet_si;
+    debug_printf("lets go\n");
+    spawn_enet_driver("enet", &enet_si);
+
+    /* domainid_t pid; */
+    /* struct spawninfo *enet_si; */
+
+    /* struct capref ecap; */
+    /* struct lmp_endpoint *eep; */
+    /* endpoint_create(LMP_RECV_LENGTH, &ecap, &eep); */
+
+    /* spawn_new_domain("enet", &pid, ecap, &enet_si); */
+
     while (capref_is_null(term_si->disp_rpc.channel.lmp.remote_cap)) {
         err = event_dispatch(get_default_waitset());
         if (err_is_fail(err)) {
@@ -314,15 +326,15 @@ static int bsp_main(int argc, char *argv[])
     err = event_dispatch(get_default_waitset());
     err = event_dispatch(get_default_waitset());
 
-    debug_printf("getting stdin from terminal!\n");
+    // debug_printf("getting stdin from terminal!\n");
 
-    struct capref testep;
-    aos_rpc_call(&term_si->disp_rpc, DISP_IFACE_GET_STDIN, &testep);
+    struct capref terminal_out;
+    aos_rpc_call(&term_si->disp_rpc, DISP_IFACE_GET_STDIN, &terminal_out);
 
-    debug_printf("got stdin from terminal!\n");
+    // debug_printf("got stdin from terminal!f\n");
 
 
-    spawn_new_domain("josh", 0, NULL, &pid, NULL_CAP, testep, &josh_si);
+    spawn_new_domain("josh", 0, NULL, &pid, NULL_CAP, terminal_out, NULL_CAP, &josh_si);
 
 
     while (capref_is_null(josh_si->disp_rpc.channel.lmp.remote_cap)) {
@@ -336,13 +348,24 @@ static int bsp_main(int argc, char *argv[])
     err = event_dispatch(get_default_waitset());
 
     struct capref josh_in;
-    debug_printf("getting stdin from josh!\n");
+    // debug_printf("getting stdin from josh!\n");
     aos_rpc_call(&josh_si->disp_rpc, DISP_IFACE_GET_STDIN, &josh_in);
-    debug_printf("got stdin from josh!\n");
+    // debug_printf("got stdin from josh!\n");
     aos_rpc_call(&term_si->disp_rpc, DISP_IFACE_SET_STDOUT, josh_in);
 
 
 
+    // run_ns_perf_test(0,5000000);
+    // run_ns_perf_test(1,10000000);
+    // spawn_new_domain("server_perf /server0",2,NULL,NULL,NULL_CAP,NULL_CAP,NULL_CAP,NULL);
+
+
+    // struct periodic_event pe;
+
+    // err = periodic_event_create(&pe,get_default_waitset(),1000000,MKCLOSURE(print_hello,NULL));
+    // if(err_is_fail(err)){
+    //     DEBUG_ERR(err,"Failed to create even closure\n");
+    // }
     //struct aos_rpc *josh_rpc = &josh_si->disp_rpc;
 
     /*aos_rpc_set_interface(josh_rpc, get_dispatcher_interface(), DISP_IFACE_N_FUNCTIONS, malloc(DISP_IFACE_N_FUNCTIONS * sizeof(void *)));
@@ -381,13 +404,8 @@ static int bsp_main(int argc, char *argv[])
 
     // spawn_new_domain("nameservicetest",0,NULL,NULL,NULL_CAP,NULL_CAP,NULL);
 
-    //spawn_new_core(my_core_id + 1);
-    //spawn_new_domain("server a",0,NULL,NULL,NULL_CAP,NULL_CAP,NULL);
-    // spawn_new_domain("server b",1,NULL,NULL,NULL_CAP,NULL_CAP,NULL);
-    // spawn_new_domain("server c",0,NULL,NULL,NULL_CAP,NULL_CAP,NULL);
-    // spawn_new_domain("server d",0,NULL,NULL,NULL_CAP,NULL_CAP,NULL);
-    // spawn_new_core(my_core_id + 2);
-    // spawn_new_core(my_core_id + 3);
+    // spawn_new_core(my_core_id + 1);
+
 
 
     // 
@@ -414,7 +432,7 @@ static int bsp_main(int argc, char *argv[])
     // Grading
     grading_test_late();
 
-    debug_printf("Message handler loop\n");
+    // debug_printf("Message handler loop\n");
     // Hang around
     
     struct waitset *default_ws = get_default_waitset();
@@ -448,7 +466,6 @@ static int app_main(int argc, char *argv[])
     
     errval_t err;
 
-    debug_printf("Hello from core: %d!\n",disp_get_current_core_id());
     err = init_foreign_core();
     if(err_is_fail(err)){
         DEBUG_ERR(err,"Failed to initialize ram and bootinfo for new core core\n");
@@ -467,7 +484,6 @@ static int app_main(int argc, char *argv[])
 
     grading_test_late();
 
-    debug_printf("Message handler loop\n");
     // Hang around
     struct waitset *default_ws = get_default_waitset();
     while (true) {
@@ -493,7 +509,7 @@ int main(int argc, char *argv[])
     assert(err_is_ok(err));
     disp_set_core_id(my_core_id);
 
-    debug_printf("init: on core %" PRIuCOREID ", invoked as:", my_core_id);
+    // debug_printf("init: on core %" PRIuCOREID ", invoked as:", my_core_id);
     for (int i = 0; i < argc; i++) {
         printf(" %s", argv[i]);
     }
