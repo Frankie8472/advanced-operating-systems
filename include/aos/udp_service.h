@@ -49,8 +49,7 @@ errval_t aos_socket_initialize(struct aos_socket *sockref, uint32_t ip_dest, uin
 
 errval_t aos_socket_send(struct aos_socket *sockref, void *data, uint16_t len);
 
-errval_t aos_socket_send_to(struct aos_socket *sockref, void *data, uint16_t len,
-                            uint32_t ip, uint16_t port);
+errval_t aos_socket_send_to(struct aos_socket *sockref, void *data, uint16_t len, uint32_t ip, uint16_t port);
 
 errval_t aos_socket_receive(struct aos_socket *sockref, struct udp_msg *retptr);
 
