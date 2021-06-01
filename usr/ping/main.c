@@ -29,7 +29,6 @@ int main(int argc, char **argv) {
 
         curn[ti] = '\0';
         tgt_ip |= atoi(curn) << (3 - i) * 8;
-        printf("this time: %d\n", atoi(curn));
     }
 
     int count = atoi(argv[2]);
@@ -61,7 +60,7 @@ int main(int argc, char **argv) {
         thread_yield();
         uint16_t a2 = aos_ping_recv(&sock);
         if (a2 > ackd) {
-            printf("received packed %d!\n", a2);
+            printf("packet %d was acked\n", a2);
             ackd = a2;
         }
     }
