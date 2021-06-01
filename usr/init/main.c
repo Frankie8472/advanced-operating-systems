@@ -444,7 +444,7 @@ static int bsp_main(int argc, char *argv[])
     //run_init_tests(my_core_id);
 
     debug_printf(">> Start filesystem server\n");
-    init_filesystemserver();
+    //init_filesystemserver();
 
     debug_printf(">> Start filesystem server\n");
     //init_fs();
