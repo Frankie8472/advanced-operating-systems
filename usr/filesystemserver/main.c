@@ -131,6 +131,7 @@ static void server_recv_handler(void *stptr, void *message,
                                 void **response, size_t *response_bytes,
                                 struct capref rx_cap, struct capref *tx_cap)
 {
+    debug_printf(">> REEEEEECH ============\n");
     struct fs_service_message *fsm = (struct fs_service_message *) message;
 
     size_t path_size = fsm->path_size;
@@ -181,14 +182,19 @@ static void server_recv_handler(void *stptr, void *message,
 
 int main(int argc, char *argv[])
 {
+    debug_printf(">> HELLO FS NAMESERVER ==============\n");
     errval_t err;
     err = filesystem_init();
     if (err_is_fail(err)){
         return EXIT_FAILURE;
     }
-
+    debug_printf(">> LINK FS NAMESERVER ==============\n");
     // NAMESERVER LINK
-    nameservice_register_properties("/fs", server_recv_handler, NULL, true,"type=fs");
+    err = nameservice_register_properties("/fs", server_recv_handler, NULL, true,"type=fs");
+    if (err_is_fail(err)){
+        return EXIT_FAILURE;
+    }
+    debug_printf(">> WHILE FS NAMESERVER ==============\n");
     while(true){
         err = event_dispatch_non_block(get_default_waitset());
         if (err == LIB_ERR_NO_EVENT){

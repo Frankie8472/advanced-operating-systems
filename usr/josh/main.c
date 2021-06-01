@@ -463,7 +463,7 @@ static void complete_line(const char *line, linenoiseCompletions *completions)
 
 int main(int argc, char **argv)
 {
-    setenv("PROMPT", "\033[32;1mjosh\033[m $ ", 0);
+    setenv("PROMPT", "$ ", 0);
     setenv("PATH", "/usr/bin:/home", 0);
 
     // printf("Welcome to JameOS Shell\n");
