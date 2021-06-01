@@ -4,11 +4,15 @@
 #include <aos/aos.h>
 #include <aos/udp_service.h>
 
-#define MK_IP(a,b,c,d) (((a)<<24)|((b)<<16)|((c)<<8)|(d))
 int main(int argc, char **argv) {
     errval_t err;
     if (argc < 3) {
         printf("invalid number of arguments!\n");
+        printf("usage:\n"
+               "$ ping `IP` `COUNT`\n"
+               "example:\n"
+               "$ ping 192.168.1.1 500\n");
+        return EXIT_SUCCESS;
     }
 
     // parse ip
@@ -39,14 +43,22 @@ int main(int argc, char **argv) {
         return EXIT_SUCCESS;
     }
 
+    int cnnt = 0;
     do {  // wait til setup
         err = aos_ping_send(&sock);
-    } while (err == ENET_ERR_ARP_UNKNOWN);
+        thread_yield();
+        cnnt++;
+    } while (err == ENET_ERR_ARP_UNKNOWN && cnnt < 500);
+    if (cnnt == 500) {
+        printf("unable to resolve ARP information\n");
+        return EXIT_SUCCESS;
+    }
 
     uint16_t ackd = 0;
 
     while (ackd < count) {
         aos_ping_send(&sock);
+        thread_yield();
         uint16_t a2 = aos_ping_recv(&sock);
         if (a2 > ackd) {
             printf("received packed %d!\n", a2);
