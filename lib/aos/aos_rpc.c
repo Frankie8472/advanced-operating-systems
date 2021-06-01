@@ -418,7 +418,7 @@ static errval_t aos_rpc_call_ump(struct aos_rpc *rpc, enum aos_rpc_msg_type msg_
             return LIB_ERR_RPC_TIMEOUT;
         }
         // thr
-        received = ump_chan_poll_once(&rpc->channel.ump, response);
+        received = ump_chan_receive(&rpc->channel.ump, response);
         if(!received && !rpc->ump_dont_yield){
             thread_yield_dispatcher(NULL_CAP);
         }
@@ -536,7 +536,7 @@ void aos_rpc_on_ump_message(void *arg)
     }
 
 
-    bool received = ump_chan_poll_once(&rpc->channel.ump, msg);
+    bool received = ump_chan_receive(&rpc->channel.ump, msg);
     if (!received) {
         //debug_printf("aos_rpc_on_ump_message called but no message available\n");
         ump_chan_register_recv(&rpc->channel.ump, rpc->waitset, MKCLOSURE(&aos_rpc_on_ump_message, rpc));
@@ -585,7 +585,7 @@ static uintptr_t pull_word_ump(struct ump_chan *uc, struct ump_msg *um, int *wor
     if (*word_ind >= UMP_MSG_N_WORDS) {
         bool received = false;
         do {
-            received = ump_chan_poll_once(uc, um);
+            received = ump_chan_receive(uc, um);
         } while(!received);
         *word_ind = 0;
     }

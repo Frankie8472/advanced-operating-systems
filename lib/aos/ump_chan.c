@@ -81,7 +81,9 @@ int ump_chan_get_data_len(struct ump_chan *chan) {
  * \brief Send a message over an ump-channel.
  * \param chan Channel to use.
  * \param send Pointer to the message to send.
- * \return Flag: true if the message could be sent, false if the
+ * \param ping_if_pinged If the channel is operating in pinged mode, determines whether
+ *                       a ping will be sent. Otherwise ignored.
+ * \return true if the message could be sent, false if the
  * message could not be sent (because send-buffer is full).
  */
 bool ump_chan_send(struct ump_chan *chan, struct ump_msg *send, bool ping_if_pinged)
@@ -133,7 +135,7 @@ bool ump_chan_can_receive(struct ump_chan *chan)
  * \return Flag: true if a message was received and written to ´recv´,
  * false if no new message was received (and ´recv´ was not written to).
  */
-bool ump_chan_poll_once(struct ump_chan *chan, struct ump_msg *recv)
+bool ump_chan_receive(struct ump_chan *chan, struct ump_msg *recv)
 {
     void *poll_location = chan->recv_pane + chan->recv_buf_index * chan->msg_size;
     
@@ -283,7 +285,7 @@ errval_t ump_chan_run_poller(struct ump_poller *poller)
         volatile size_t *n_channels = &poller->n_channels;
         for (int i = 0; i < *n_channels; i++) {
             struct ump_msg um = { .flag = 0 };
-            bool received = ump_chan_poll_once(poller->channels[i], &um);
+            bool received = ump_chan_receive(poller->channels[i], &um);
             if (received) {
                 poller->handlers[i](poller->args[i], &um);
             }
