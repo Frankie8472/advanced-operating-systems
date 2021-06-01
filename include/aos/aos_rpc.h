@@ -133,6 +133,7 @@ struct aos_rpc {
     size_t n_handlers;
     void **handlers;
     uint64_t timeout;
+    bool ump_dont_yield;
 };
 
 errval_t aos_rpc_set_interface(struct aos_rpc *rpc, struct aos_rpc_interface *interface, size_t n_handlers, void **handlers);
