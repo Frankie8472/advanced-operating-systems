@@ -1363,12 +1363,12 @@ static errval_t aos_rpc_unmarshall_lmp_aarch64(struct aos_rpc *rpc, void *handle
 
     ui ret[4] = { 0 };
     
-    char argstring[4096]; // TODO maybe move that into some scratch area in the rpc struct
-    char retstring[4096];
+    char argstring[1024]; // TODO maybe move that into some scratch area in the rpc struct
+    char retstring[1024];
 
-    char abytes[4096];
+    char abytes[1024];
     struct aos_rpc_varbytes argbytes = { .length = sizeof abytes, .bytes = abytes};
-    char rbytes[4096];
+    char rbytes[2048];
     struct aos_rpc_varbytes retbytes = { .length = sizeof rbytes, .bytes = rbytes};
     
 
