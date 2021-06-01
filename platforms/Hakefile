@@ -18,9 +18,11 @@ let
         "memeater",
         "performance_tester",
         "process_manager",
-        "server", "client",
+        "server",
+        "client",
         "lpuart_terminal",
-        "josh", "cat",
+        "josh",
+        "cat",
         "nameservicetest",
         "nameserver",
         "filesystemserver",
@@ -30,8 +32,9 @@ let
         "echoserver",
         "arp",
         "ping",
-        "msh"
-    ]]
+        "msh",
+        "xxd"
+        ]]
 in
   [
     --

@@ -54,5 +54,6 @@ compile_commands.json
 .idea
 CMakeLists.txt
 cmake-build-debug
-serialport.ps1
 usr/watt/**
+
+serialport.ps1
