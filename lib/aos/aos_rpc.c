@@ -611,7 +611,7 @@ static void push_word_ump(struct ump_chan *uc, struct ump_msg *um, int *word_ind
     if (*word_ind >= UMP_MSG_N_WORDS) {
         bool sent = false;
         do {
-            sent = ump_chan_send(uc, um);
+            sent = ump_chan_send(uc, um, false);
         } while (!sent);
         *word_ind = 0;
     }
@@ -628,9 +628,14 @@ static void send_remaining_ump(struct ump_chan *uc, struct ump_msg *um, int *wor
     if (*word_ind > 0) {
         bool sent = false;
         do {
-            sent = ump_chan_send(uc, um);
+            sent = ump_chan_send(uc, um, true);
         } while (!sent);
         *word_ind = 0;
+    }
+    else {
+        if (uc->remote_is_pinged) {
+            invoke_ipi_notify(uc->ipi_ep);
+        }
     }
 }
 

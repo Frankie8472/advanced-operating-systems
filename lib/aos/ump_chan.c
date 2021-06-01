@@ -84,7 +84,7 @@ int ump_chan_get_data_len(struct ump_chan *chan) {
  * \return Flag: true if the message could be sent, false if the
  * message could not be sent (because send-buffer is full).
  */
-bool ump_chan_send(struct ump_chan *chan, struct ump_msg *send)
+bool ump_chan_send(struct ump_chan *chan, struct ump_msg *send, bool ping_if_pinged)
 {
     void *send_location = chan->send_pane + chan->send_buf_index * chan->msg_size;
     
@@ -107,7 +107,7 @@ bool ump_chan_send(struct ump_chan *chan, struct ump_msg *send)
     chan->send_buf_index++;
     chan->send_buf_index %= chan->send_pane_size / chan->msg_size;
 
-    if (chan->remote_is_pinged) {
+    if (chan->remote_is_pinged && ping_if_pinged) {
         invoke_ipi_notify(chan->ipi_ep);
     }
     return true;
