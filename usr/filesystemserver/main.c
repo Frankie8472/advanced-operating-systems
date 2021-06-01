@@ -142,14 +142,18 @@ int main(int argc, char *argv[])
         return EXIT_FAILURE;
     }
 
-    debug_printf(">> OPEN/CREATE FILE\n");
+    return EXIT_SUCCESS;
+    /*
+    debug_printf(">> OPEN/CREATE FILE1\n");
     FILE *g = fopen("/sdcard/ASDF.TXT", "w");
+
     debug_printf(">> WRITE FILE\n");
     fwrite("HELLO SALADBAR", 14, 1, g);
     fclose(g);
-    return EXIT_SUCCESS;
 
-    FILE *f = fopen("/sdcard/ASDF.TXT", "w");
+    debug_printf(">> OPEN FILE2\n");
+    FILE *f = fopen("/sdcard/ASDF.TXT", "r");
+
     debug_printf(">> READ FILE\n");
     char ret[20];
     fread(ret, 1, 20, f);
@@ -157,12 +161,12 @@ int main(int argc, char *argv[])
 
     debug_printf(">> OPEN/CREATE FOLDER\n");
     mkdir("/sdcard/FOLDER");
-    debug_printf(">> READ FOLDER\n");
-    test_read_dir("/sdcard");
-    test_read_dir("/sdcard/FOLDER");
-    test_read_dir("/sdcard/FOLDER/.");
-    test_read_dir("/sdcard/FOLDER/..");
 
+    debug_printf(">> READ FOLDER\n");
+    test_read_dir("/sdcard/FOLDER");
+
+    return EXIT_SUCCESS;
+*/
 /*
     debug_printf(">> OPEN FILE\n");
 
