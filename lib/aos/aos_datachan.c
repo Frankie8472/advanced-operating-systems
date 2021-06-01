@@ -465,6 +465,9 @@ errval_t aos_dc_close(struct aos_datachan *dc)
     errval_t err;
     dc->is_closed = true;
     if (dc->backend == AOS_RPC_LMP) {
+        if (capref_is_null(dc->channel.lmp.remote_cap)) {
+            return LIB_ERR_LMP_CHAN_SEND;
+        }
         do {
             err = lmp_chan_send4(&dc->channel.lmp, LMP_FLAG_SYNC | LMP_FLAG_YIELD, NULL_CAP, CLOSE_MESSAGE, 0, 0, 0);
         } while (err_is_fail(err) && lmp_err_is_transient(err));
