@@ -419,7 +419,7 @@ static errval_t aos_rpc_call_ump(struct aos_rpc *rpc, enum aos_rpc_msg_type msg_
         }
         // thr
         received = ump_chan_poll_once(&rpc->channel.ump, response);
-        if(!received){
+        if(!received && !rpc->ump_dont_yield){
             thread_yield_dispatcher(NULL_CAP);
         }
     } while (!received);
