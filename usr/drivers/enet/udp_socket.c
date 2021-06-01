@@ -188,7 +188,7 @@ errval_t arp_request(struct enet_driver_state *st, uint32_t ip_to) {
     struct region_entry *entry = get_region(st->txq, requ.rid);
     lvaddr_t raddr = (lvaddr_t) entry->mem.vbase + requ.offset + requ.valid_data;
     char *ra2 = (char *) raddr;
-    memset(ra2 + 6, 0, 6);  // leave dest-mac empty -> dk
+    memset(ra2, 0xff, 6);  // leave dest-mac empty -> dk
     ((struct eth_hdr *) ra2)->type = htons(ETH_TYPE_ARP);
     char *tmp = ra2 + 6;
 

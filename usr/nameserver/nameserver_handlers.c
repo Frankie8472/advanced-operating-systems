@@ -98,7 +98,7 @@ void handle_server_enum_with_prop(struct aos_rpc * rpc, char* query,uintptr_t* n
 
 }
 
-void handle_reg_server(struct aos_rpc * rpc, uintptr_t pid, uintptr_t core_id ,const char* server_data, uintptr_t direct,  char * return_message){
+void handle_reg_server(struct aos_rpc * rpc, uintptr_t pid, uintptr_t core_id ,const char* server_data, uintptr_t direct,  uintptr_t * success){
     errval_t err;
 
     struct server_list * new_server = (struct server_list * ) malloc(sizeof(struct server_list));
@@ -125,11 +125,14 @@ void handle_reg_server(struct aos_rpc * rpc, uintptr_t pid, uintptr_t core_id ,c
 
     err = add_server(new_server);
     if(err_is_fail(err)){
-        return_message = "Non-unique name!\n";
+        *success = 0;
         DEBUG_ERR(err,"Failed to add new server!\n");
+        // free_server(new_server);
+        return;
     }
 
-    *return_message = '\0';
+    *success = 1;
+
 }
 
 

@@ -145,7 +145,7 @@ static void initialize_interfaces(void)
 
     aos_rpc_initialize_binding(&name_server_interface,"Server liveness check", NS_LIVENESS_CHECK,1,0,AOS_RPC_VARSTR);
 
-    aos_rpc_initialize_binding(&name_server_interface,"Register server", NS_REG_SERVER, 4, 1,AOS_RPC_WORD,AOS_RPC_WORD, AOS_RPC_VARSTR,AOS_RPC_WORD, AOS_RPC_VARSTR);
+    aos_rpc_initialize_binding(&name_server_interface,"Register server", NS_REG_SERVER, 4, 1,AOS_RPC_WORD,AOS_RPC_WORD, AOS_RPC_VARSTR,AOS_RPC_WORD, AOS_RPC_WORD);
 
     aos_rpc_initialize_binding(&name_server_interface,"Get server pid", NS_GET_SERVER_PID, 1, 1,AOS_RPC_VARSTR,AOS_RPC_WORD);
 

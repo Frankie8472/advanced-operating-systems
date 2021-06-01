@@ -27,4 +27,6 @@ module /armv8/sbin/echoserver
 module /armv8/sbin/arp
 module /armv8/sbin/ping
 module /armv8/sbin/msh
+module /armv8/sbin/mandel_server
+module /armv8/sbin/mandel_client
 # newlines are important here

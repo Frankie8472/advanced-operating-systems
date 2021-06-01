@@ -57,7 +57,33 @@
 
 
 coreid_t my_core_id;
+
+
+__unused
+static struct capref forge_ipi_cap_default(void) {
+    struct capref epcap;
+    slot_alloc(&epcap);
+
+    struct capability ipi_ep = {
+        .type = ObjType_EndPointIPI,
+        .rights = CAPRIGHTS_READ_WRITE,
+        .u.endpointipi = {
+            .channel_id = 1,
+            .notifier = (void*) 0xffff000008000000,
+            .listener_core = !disp_get_core_id()
+        }
+    };
+
+    invoke_monitor_create_cap((uint64_t *)&ipi_ep,
+                                     get_cnode_addr(epcap),
+                                     get_cnode_level(epcap),
+                                     epcap.slot, my_core_id);
+    return epcap;
+}
+
 static errval_t init_foreign_core(void){
+
+
 
     /*struct capref epcap;
     slot_alloc(&epcap);
@@ -128,7 +154,7 @@ static errval_t init_foreign_core(void){
     };
     err = cnode_create_raw(mc, NULL, ObjType_L2CNode, L2_CNODE_SLOTS, NULL);
     
-    err = frame_forge(cap_mmstrings, urpc_init[4], urpc_init[5], 0);
+    err = frame_forge(cap_mmstrings, urpc_init[4], urpc_init[5], disp_get_current_core_id());
     ON_ERR_RETURN(err);
     
     for(int i = 0; i < bi -> regions_length;++i) {
@@ -346,6 +372,7 @@ static int bsp_main(int argc, char *argv[])
     }
     err = event_dispatch(get_default_waitset());
     err = event_dispatch(get_default_waitset());
+
     struct capref josh_in;
     // debug_printf("getting stdin from josh!\n");
     aos_rpc_call(&josh_si->disp_rpc, DISP_IFACE_GET_STDIN, &josh_in);
@@ -357,10 +384,10 @@ static int bsp_main(int argc, char *argv[])
     // run_ns_perf_test(0,5000000);
     // run_ns_perf_test(1,10000000);
     // spawn_new_domain("server_perf /server0",2,NULL,NULL,NULL_CAP,NULL_CAP,NULL_CAP,NULL);
-
+    
 
     // struct periodic_event pe;
-
+ 
     // err = periodic_event_create(&pe,get_default_waitset(),1000000,MKCLOSURE(print_hello,NULL));
     // if(err_is_fail(err)){
     //     DEBUG_ERR(err,"Failed to create even closure\n");
@@ -421,7 +448,6 @@ static int bsp_main(int argc, char *argv[])
     // Grading
     grading_test_early();
 
-    // fopen -> glue -> server_recv_handler -> fileserver
     // TODO: Spawn system processes, boot second core etc. here
     
 

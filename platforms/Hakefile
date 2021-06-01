@@ -17,15 +17,15 @@ let
         "hello",
         "memeater",
         "performance_tester",
-        "process_manager",
-        "server",
+        "process_manager" ,
+       "server",
         "client",
         "lpuart_terminal",
         "josh",
         "cat",
-        "nameservicetest",
+        "xxd",
+       "nameservicetest",
         "nameserver",
-        "filesystemserver",
         "client_perf",
         "server_perf",
         "enet",
@@ -33,7 +33,9 @@ let
         "arp",
         "ping",
         "msh",
-        "xxd"
+        "mandel_server",
+        "mandel_client",
+        "filesystemserver"
         ]]
 in
   [

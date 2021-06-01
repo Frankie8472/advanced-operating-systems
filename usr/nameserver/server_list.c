@@ -57,13 +57,15 @@ errval_t find_server_by_name(char * name, struct server_list ** ret_serv){
 void remove_server(struct server_list* del_server){
     if(servers == del_server){
         servers = del_server -> next;
-        free_server(del_server);   
+        free_server(del_server); 
+        server_ht -> d.remove(&server_ht -> d, del_server -> name, strlen(del_server -> name));  
         return;
     }
     struct server_list* curr = servers;
     for(;curr -> next  != NULL;curr = curr -> next){
         if(curr -> next == del_server){
             curr -> next = del_server->next;
+            break;
         }
     }
     n_servers--;

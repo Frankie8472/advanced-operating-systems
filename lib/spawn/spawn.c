@@ -234,7 +234,8 @@ errval_t spawn_setup_dispatcher(int argc, const char *const *argv, struct spawni
     err = cap_copy(l0_vnode, child_l0_vnodecap);
     ON_ERR_PUSH_RETURN(err, SPAWN_ERR_COPY_VNODE);
 
-    paging_init_state_foreign(&si->ps, VADDR_OFFSET, l0_vnode, get_default_slot_allocator());
+    err = paging_init_state_foreign(&si->ps, VADDR_OFFSET, l0_vnode, get_default_slot_allocator());
+    ON_ERR_PUSH_RETURN(err, LIB_ERR_PMAP_INIT);
 
     struct capref argframe;
     err = frame_alloc(&argframe, BASE_PAGE_SIZE, NULL);

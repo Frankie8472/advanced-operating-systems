@@ -225,13 +225,15 @@ errval_t paging_init_state_foreign(struct paging_state *st, lvaddr_t start_vaddr
     memset(st, 0, sizeof(struct paging_state));
     st->slot_alloc = ca;
 
+    thread_mutex_init(&st->mutex);
+
     // Initialize shadowpagetable
     st->map_l0.pt_cap = pdir;
 
     // Init allocator for shadowpagetable
     struct capref frame;
     size_t actual_size;
-    err = frame_alloc(&frame, ROUND_UP(sizeof(struct mapping_table) * 32, BASE_PAGE_SIZE), &actual_size);
+    err = frame_alloc(&frame, ROUND_UP(sizeof(struct mapping_table) * 20, BASE_PAGE_SIZE), &actual_size);
     ON_ERR_PUSH_RETURN(err, LIB_ERR_FRAME_ALLOC);
 
     void *slab_memory;
@@ -361,8 +363,7 @@ errval_t paging_region_init_aligned(struct paging_state *st, struct paging_regio
 
 struct paging_region *paging_region_lookup(struct paging_state *st, lvaddr_t vaddr)
 {
-    // naive implementation; TODO improve
-    
+    PAGING_LOCK(st);
     const uint64_t pt_index[4] = {
         (vaddr >> (12 + 3 * 9)) & 0x1FF,
         (vaddr >> (12 + 2 * 9)) & 0x1FF,
@@ -384,9 +385,12 @@ struct paging_region *paging_region_lookup(struct paging_state *st, lvaddr_t vad
     struct paging_region *region = nearest->region ? : st->head;
     for (; region != NULL; region = region->next) {
         if (region->base_addr <= vaddr && region->base_addr + region->region_size > vaddr) {
+            PAGING_UNLOCK(st);
             return region;
         }
     }
+
+    PAGING_UNLOCK(st);
     return NULL;
 }
 
@@ -611,11 +615,20 @@ errval_t paging_map_frame_attr(struct paging_state *st, void **buf, size_t bytes
     size_t ret_size;
     PAGING_LOCK(st);
     err = paging_region_map(&st->meta_region,bytes,buf,&ret_size);
-    PAGING_UNLOCK(st);
-    ON_ERR_PUSH_RETURN(err, LIB_ERR_VSPACE_MAP);
+    if (err_is_fail(err)) {
+        PAGING_UNLOCK(st);
+        return err_push(err, LIB_ERR_VSPACE_MAP);
+ 
+    }
+
+    /*if ((lvaddr_t) buf == 0x8002a00000UL) {
+        //debug_printf("HE\n");
+    }
+    dmb();*/
 
     err = paging_map_fixed_attr(st, (lvaddr_t) *buf, frame, bytes, flags);
-    ON_ERR_PUSH_RETURN(err, LIB_ERR_PMAP_DO_MAP);
+    PAGING_UNLOCK(st);
+    ON_ERR_PUSH_RETURN(err, LIB_ERR_PMAP_DO_MAP);   
 
     return SYS_ERR_OK;
 
@@ -673,6 +686,7 @@ static errval_t pt_alloc(struct paging_state * st, enum objtype type,
  */
 static errval_t paging_check_spt_refill(struct paging_state *st)
 {
+    PAGING_LOCK(st);
     if (slab_freecount(&st->mappings_alloc) < 10) {
         if (!st->mappings_alloc_is_refilling) {
             st->mappings_alloc_is_refilling = true;
@@ -681,6 +695,7 @@ static errval_t paging_check_spt_refill(struct paging_state *st)
                 errval_t err = st->slot_alloc->alloc(st->slot_alloc, &frameslot);
                 if (err_is_fail(err)) {
                     st->mappings_alloc_is_refilling = false;
+                    PAGING_UNLOCK(st);
                     return err;
                 }
 
@@ -690,12 +705,15 @@ static errval_t paging_check_spt_refill(struct paging_state *st)
                 if(err_is_fail(err)) {
                     DEBUG_ERR(err, "shadow page table slab alloc could not be refilled.");
                     st->mappings_alloc_is_refilling = false;
+
+                    PAGING_UNLOCK(st);
                     return err;
                 }
             }
             st->mappings_alloc_is_refilling = false;
         }
     }
+    PAGING_UNLOCK(st);
     return SYS_ERR_OK;
 }
 
@@ -742,7 +760,7 @@ errval_t paging_spt_find(struct paging_state *st, int level, lvaddr_t vaddr, boo
     PAGING_LOCK(st);
 
     // walking shadow page table
-    for (int i = 0; i < 3; i++) {
+    for (int i = 0; i < level; i++) {
         struct mapping_table *table = shadow_tables[i];
         struct mapping_table *child = table->children[pt_index[i]];
         struct capref mapping_child = table->mapping_caps[pt_index[i]];
@@ -784,12 +802,23 @@ errval_t paging_spt_find(struct paging_state *st, int level, lvaddr_t vaddr, boo
             err = vnode_map(table->pt_cap, pt_cap, index, VREGION_FLAGS_READ, 0, 1, mapping_cap);
             if (err_is_fail(err)) {
                 PAGING_UNLOCK(st);
+                //debug_printf("level = %d\n", level);
+                //debug_printf("vaddr = %lx\n", (vaddr >> (12 + 9)) == 0x8002a00/2);
+                debug_printf("vaddr = %lx\n", vaddr);
+                //char buf[128];
+                //debug_print_cap_at_capref(buf, 128, pt_cap);
+                //debug_printf("pt_cap = %s\n", buf);
+                debug_printf("err = %d\n", err);
+                //debug_printf("level = %d\n", level);
+                /*debug_printf("vaddr = %lx\n", vaddr);
+                debug_printf("mutex.locked = %d\n", st->mutex.locked);*/
                 return err_push(err, LIB_ERR_PMAP_DO_MAP);
             }
 
             child = slab_alloc(&st->mappings_alloc);
             if (child == NULL) {
                 PAGING_UNLOCK(st);
+                debug_printf("THIS3!\n");
                 return LIB_ERR_SLAB_ALLOC_FAIL;
             }
 
@@ -802,11 +831,12 @@ errval_t paging_spt_find(struct paging_state *st, int level, lvaddr_t vaddr, boo
             table->children[index] = child;
             table->mapping_caps[index] = mapping_cap;
 
-
-            // check whether we need to refill the slab allocator for the shadow page table (st->mappings_alloc)
-            paging_check_spt_refill(st);
         }
         shadow_tables[i + 1] = child;
+
+
+        // check whether we need to refill the slab allocator for the shadow page table (st->mappings_alloc)
+        paging_check_spt_refill(st);
 
         if (i + 1 == level) {
             if (ret != NULL) {
@@ -856,12 +886,14 @@ errval_t paging_map_fixed_attr(struct paging_state *st, lvaddr_t vaddr,
 
         struct mapping_table *table;
         err = paging_spt_find(st, page_level, page_start_addr, true, &table);
-        ON_ERR_PUSH_RETURN(err, LIB_ERR_PMAP_SHADOWPT_LOOKUP);
+        if (err_is_fail(err)) {
+            return err_push(err, LIB_ERR_PMAP_SHADOWPT_LOOKUP);
+        }
 
         int pt_index = map_large_page ?
-                (page_start_addr >> 21) & 0x1FF
+                (page_start_addr >> LARGE_PAGE_BITS) & 0x1FF
                 :
-                (page_start_addr >> 12) & 0x1FF;
+                (page_start_addr >> BASE_PAGE_BITS) & 0x1FF;
 
         if (!capcmp(table->mapping_caps[pt_index], NULL_CAP)) {
             DEBUG_PRINTF("attempting to map already mapped page\n");
@@ -883,7 +915,9 @@ errval_t paging_map_fixed_attr(struct paging_state *st, lvaddr_t vaddr,
             1,
             mapping
         );
-        ON_ERR_RETURN(err);
+        if (err_is_fail(err)) {
+            return err;
+        }
         //debug_printf("mapped at: %lx\n", page_start_addr);
 
         table->mapping_caps[pt_index] = mapping;
