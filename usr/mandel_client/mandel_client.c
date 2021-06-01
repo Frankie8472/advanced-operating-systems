@@ -119,7 +119,8 @@ int main(int argc, char *argv[])
         int *result = (int *) bytes2.bytes;
         for (int j = 0; j < cr.height; j++) {
             for (int k = 0; k < cr.width; k++) {
-                if (result[j * cr.width + k] >= 250)
+                int val = result[j * cr.width + k];
+                if (val >= 250)
                     printf("  ");
                 else
                     printf("XX");
