@@ -161,6 +161,8 @@ errval_t spawn_lpuart_driver(const char *mod_name, struct spawninfo **ret_si)
 
 
     aos_rpc_init_lmp(disp_rpc, NULL_CAP, NULL_CAP, NULL, NULL);
+
+
     aos_rpc_set_interface(disp_rpc, get_dispatcher_interface(), DISP_IFACE_N_FUNCTIONS, malloc(DISP_IFACE_N_FUNCTIONS * sizeof(void *)));
     aos_rpc_register_handler(disp_rpc, DISP_IFACE_BINDING, handle_binding);
     debug_printf("disp_rpc: %p\n", disp_rpc);
@@ -173,7 +175,6 @@ errval_t spawn_lpuart_driver(const char *mod_name, struct spawninfo **ret_si)
     if (err_is_fail(err) && err == LIB_ERR_CHAN_ALREADY_REGISTERED) {
         // not too bad, already registered
     }*/
-
     struct cnoderef child_taskcn = {
         .croot = get_cap_addr(si->rootcn),
         .cnode = ROOTCN_SLOT_ADDR(ROOTCN_SLOT_TASKCN),
@@ -216,7 +217,6 @@ errval_t spawn_lpuart_driver(const char *mod_name, struct spawninfo **ret_si)
     if (ret_si != NULL) {
         *ret_si = si;
     }
-
     return SYS_ERR_OK;
 }
 

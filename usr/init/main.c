@@ -346,7 +346,6 @@ static int bsp_main(int argc, char *argv[])
     }
     err = event_dispatch(get_default_waitset());
     err = event_dispatch(get_default_waitset());
-
     struct capref josh_in;
     // debug_printf("getting stdin from josh!\n");
     aos_rpc_call(&josh_si->disp_rpc, DISP_IFACE_GET_STDIN, &josh_in);
@@ -422,6 +421,7 @@ static int bsp_main(int argc, char *argv[])
     // Grading
     grading_test_early();
 
+    // fopen -> glue -> server_recv_handler -> fileserver
     // TODO: Spawn system processes, boot second core etc. here
     
 

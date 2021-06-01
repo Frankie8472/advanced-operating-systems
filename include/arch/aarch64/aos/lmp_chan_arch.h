@@ -45,6 +45,9 @@ lmp_ep_send(
     )
 {
     // debug_printf("sending message over lmp channel %d!\n",arg1);
+    if (capref_is_null(ep)){
+        debug_printf(">> NULL cap is producing an KERNEL PANIC!\n");
+    }
     uint8_t invoke_level = get_cap_level(ep);
     capaddr_t invoke_cptr = get_cap_addr(ep);
 

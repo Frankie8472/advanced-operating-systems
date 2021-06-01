@@ -143,6 +143,7 @@ int main(int argc, char *argv[])
     }
 
     return EXIT_SUCCESS;
+
     /*
     debug_printf(">> OPEN/CREATE FILE1\n");
     FILE *g = fopen("/sdcard/ASDF.TXT", "w");
