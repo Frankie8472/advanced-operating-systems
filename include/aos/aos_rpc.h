@@ -21,7 +21,7 @@
 #include <aos/ump_chan.h>
 
 #define AOS_RPC_RETURN_BIT 0x1000000
-#define DEFAULT_TIMEOUT 20000000000
+#define DEFAULT_TIMEOUT 1000000000
 
 #define min(a,b) \
    ({ __typeof__ (a) _a = (a); \
@@ -133,6 +133,7 @@ struct aos_rpc {
     size_t n_handlers;
     void **handlers;
     uint64_t timeout;
+    bool ump_dont_yield;
 };
 
 errval_t aos_rpc_set_interface(struct aos_rpc *rpc, struct aos_rpc_interface *interface, size_t n_handlers, void **handlers);

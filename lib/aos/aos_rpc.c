@@ -145,7 +145,7 @@ errval_t aos_rpc_init_ump_default(struct aos_rpc *rpc, lvaddr_t shared_page, siz
         recv_pane = t;
     }
 
-    err = ump_chan_init(&rpc->channel.ump, send_pane, half_page_size, recv_pane, half_page_size);
+    err = ump_chan_init_default(&rpc->channel.ump, send_pane, half_page_size, recv_pane, half_page_size);
     ON_ERR_RETURN(err);
 
     // debug_printf("Here!\n");
@@ -418,8 +418,8 @@ static errval_t aos_rpc_call_ump(struct aos_rpc *rpc, enum aos_rpc_msg_type msg_
             return LIB_ERR_RPC_TIMEOUT;
         }
         // thr
-        received = ump_chan_poll_once(&rpc->channel.ump, response);
-        if(!received){
+        received = ump_chan_receive(&rpc->channel.ump, response);
+        if(!received && !rpc->ump_dont_yield){
             thread_yield_dispatcher(NULL_CAP);
         }
     } while (!received);
@@ -530,7 +530,13 @@ void aos_rpc_on_ump_message(void *arg)
     DECLARE_MESSAGE(rpc->channel.ump, msg);
     msg->flag = 0;
 
-    bool received = ump_chan_poll_once(&rpc->channel.ump, msg);
+    if (rpc->channel.ump.local_is_pinged) {
+        struct lmp_recv_buf masg;
+        lmp_endpoint_recv(rpc->channel.ump.lmp_ep, &masg, NULL);
+    }
+
+
+    bool received = ump_chan_receive(&rpc->channel.ump, msg);
     if (!received) {
         //debug_printf("aos_rpc_on_ump_message called but no message available\n");
         ump_chan_register_recv(&rpc->channel.ump, rpc->waitset, MKCLOSURE(&aos_rpc_on_ump_message, rpc));
@@ -579,7 +585,7 @@ static uintptr_t pull_word_ump(struct ump_chan *uc, struct ump_msg *um, int *wor
     if (*word_ind >= UMP_MSG_N_WORDS) {
         bool received = false;
         do {
-            received = ump_chan_poll_once(uc, um);
+            received = ump_chan_receive(uc, um);
         } while(!received);
         *word_ind = 0;
     }
@@ -605,7 +611,7 @@ static void push_word_ump(struct ump_chan *uc, struct ump_msg *um, int *word_ind
     if (*word_ind >= UMP_MSG_N_WORDS) {
         bool sent = false;
         do {
-            sent = ump_chan_send(uc, um);
+            sent = ump_chan_send(uc, um, false);
         } while (!sent);
         *word_ind = 0;
     }
@@ -622,9 +628,14 @@ static void send_remaining_ump(struct ump_chan *uc, struct ump_msg *um, int *wor
     if (*word_ind > 0) {
         bool sent = false;
         do {
-            sent = ump_chan_send(uc, um);
+            sent = ump_chan_send(uc, um, true);
         } while (!sent);
         *word_ind = 0;
+    }
+    else {
+        if (uc->remote_is_pinged) {
+            invoke_ipi_notify(uc->ipi_ep);
+        }
     }
 }
 
@@ -703,7 +714,7 @@ static errval_t aos_rpc_unmarshall_ump_simple_aarch64(struct aos_rpc *rpc, void 
             ON_ERR_PUSH_RETURN(err, LIB_ERR_SLOT_ALLOC);
 
 
-            // debug_printf("Here is forged cap:\n");
+            //debug_printf("Here is forged cap:\n");
             // char buf[512];
             // debug_print_cap(buf,512,&cap);
             // debug_printf("%s\n",buf);
@@ -711,7 +722,7 @@ static errval_t aos_rpc_unmarshall_ump_simple_aarch64(struct aos_rpc *rpc, void 
             err = invoke_monitor_create_cap((uint64_t *) &cap,
                                             get_cnode_addr(forged),
                                             get_cnode_level(forged),
-                                            forged.slot, !disp_get_core_id()); // TODO: set owner correctly
+                                            forged.slot, disp_get_core_id()); // TODO: set owner correctly
             ON_ERR_PUSH_RETURN(err, LIB_ERR_MONITOR_CAP_SEND);
 
             uintptr_t x1 = (forged.cnode.croot) | (((ui) forged.cnode.cnode) << 32);
@@ -1357,12 +1368,12 @@ static errval_t aos_rpc_unmarshall_lmp_aarch64(struct aos_rpc *rpc, void *handle
 
     ui ret[4] = { 0 };
     
-    char argstring[4096]; // TODO maybe move that into some scratch area in the rpc struct
-    char retstring[4096];
+    char argstring[1024]; // TODO maybe move that into some scratch area in the rpc struct
+    char retstring[1024];
 
-    char abytes[4096];
+    char abytes[1024];
     struct aos_rpc_varbytes argbytes = { .length = sizeof abytes, .bytes = abytes};
-    char rbytes[4096];
+    char rbytes[2048];
     struct aos_rpc_varbytes retbytes = { .length = sizeof rbytes, .bytes = rbytes};
     
 

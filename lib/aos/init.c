@@ -59,7 +59,7 @@ void libc_exit(int status)
     // // close stdout
     err = aos_dc_close(&stdout_chan);
     if(err_is_fail(err)){
-        DEBUG_ERR(err,"Failed to close stdout\n");
+        //DEBUG_ERR(err,"Failed to close stdout\n");
     }
 
 
