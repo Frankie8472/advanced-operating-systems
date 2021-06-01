@@ -58,7 +58,31 @@
 coreid_t my_core_id;
 
 
+__unused
+static struct capref forge_ipi_cap_default(void) {
+    struct capref epcap;
+    slot_alloc(&epcap);
+
+    struct capability ipi_ep = {
+        .type = ObjType_EndPointIPI,
+        .rights = CAPRIGHTS_READ_WRITE,
+        .u.endpointipi = {
+            .channel_id = 1,
+            .notifier = (void*) 0xffff000008000000,
+            .listener_core = !disp_get_core_id()
+        }
+    };
+
+    invoke_monitor_create_cap((uint64_t *)&ipi_ep,
+                                     get_cnode_addr(epcap),
+                                     get_cnode_level(epcap),
+                                     epcap.slot, my_core_id);
+    return epcap;
+}
+
 static errval_t init_foreign_core(void){
+
+    
 
     /*struct capref epcap;
     slot_alloc(&epcap);
@@ -132,7 +156,7 @@ static errval_t init_foreign_core(void){
     };
     err = cnode_create_raw(mc, NULL, ObjType_L2CNode, L2_CNODE_SLOTS, NULL);
     
-    err = frame_forge(cap_mmstrings, urpc_init[4], urpc_init[5], 0);
+    err = frame_forge(cap_mmstrings, urpc_init[4], urpc_init[5], disp_get_current_core_id());
     ON_ERR_RETURN(err);
     
     for(int i = 0; i < bi -> regions_length;++i) {
