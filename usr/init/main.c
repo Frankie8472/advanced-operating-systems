@@ -42,6 +42,7 @@
 #include "rpc_server.h"
 #include "test.h"
 #include <hashtable/hashtable.h>
+#include <aos/fs_service.h>
 
 
 #include "routing.h"
@@ -444,6 +445,10 @@ static int bsp_main(int argc, char *argv[])
 
     debug_printf(">> Start filesystem server\n");
     init_filesystemserver();
+
+    debug_printf(">> Start filesystem server\n");
+    //init_fs();
+    //write_file("/sdcard/HELLO.TXT", "BOIIIIII");
 
     // Grading
     grading_test_early();

@@ -19,19 +19,60 @@
 #include <fs/dirent.h>
 #include <aos/aos.h>
 #include <aos/aos_rpc.h>
+#include <aos/nameserver.h>
+#include <aos/fs_service.h>
+
 
 __unused
-static errval_t test_read_dir(char *dir)
+static void file_read(char *path, size_t size, char **ret)
+{
+    FILE *f = fopen(path, "r");
+    if (f == NULL) {
+        debug_printf("Error: file not found\n");
+        return;
+    }
+
+    char *content = calloc(1, size);
+    fread(content, 1, size, f);
+    content[size+1] = '\0';
+    fclose(f);
+    *ret = content;
+}
+
+
+__unused
+static void file_write(char *path, char *buffer, size_t size)
+{
+    FILE *f = fopen(path, "w");
+    if (f == NULL) {
+        debug_printf("Error: file not found\n");
+        return;
+    }
+
+    fwrite(buffer, 1, size, f);
+    fclose(f);
+}
+
+__unused
+static void file_delete(char *path)
+{
+    rm(path);
+}
+
+__unused
+static void dir_read(char *path, char **ret)
 {
     errval_t err;
-
     fs_dirhandle_t dh;
-    err = opendir(dir, &dh);
+    err = opendir(path, &dh);
     if (err_is_fail(err)) {
-        return err;
+        return;
     }
 
     assert(dh);
+
+    char *str = calloc(1, 1000);
+    str[0] = '\0';
 
     do {
         char *name;
@@ -39,99 +80,103 @@ static errval_t test_read_dir(char *dir)
         if (err_no(err) == FS_ERR_INDEX_BOUNDS) {
             break;
         } else if (err_is_fail(err)) {
-            goto err_out;
+            closedir(dh);
+            return;
         }
-        printf("%s\n", name);
+        strcat(str, name);
+        strcat(str, "\n");
     } while(err_is_ok(err));
+    closedir(dh);
 
-    return closedir(dh);
-    err_out:
-    return err;
+    *ret = str;
 }
 
 __unused
-static errval_t test_fread(char *file)
+static void dir_create(char *path)
 {
-    int res = 0;
-
-    FILE *f = fopen(file, "r");
-    if (f == NULL) {
-        return FS_ERR_OPEN;
-    }
-
-    /* obtain the file size */
-    res = fseek (f , 0 , SEEK_END);
-    if (res) {
-        return FS_ERR_INVALID_FH;
-    }
-
-    size_t filesize = ftell (f);
-    rewind (f);
-
-    printf("File size is %zu\n", filesize);
-
-    char *buf = calloc(filesize + 2, sizeof(char));
-    if (buf == NULL) {
-        return LIB_ERR_MALLOC_FAIL;
-    }
-
-    size_t read = fread(buf, 1, filesize, f);
-
-    printf("read: %s\n", buf);
-
-    if (read != filesize) {
-        return FS_ERR_READ;
-    }
-
-    rewind(f);
-
-    size_t nchars = 0;
-    int c;
-    do {
-        c = fgetc (f);
-        nchars++;
-    } while (c != EOF);
-
-    if (nchars < filesize) {
-        return FS_ERR_READ;
-    }
-
-    free(buf);
-    res = fclose(f);
-    if (res) {
-        return FS_ERR_CLOSE;
-    }
-
-    return SYS_ERR_OK;
+    mkdir(path);
 }
 
 __unused
-static errval_t test_fwrite(char *file)
+static void dir_delete(char *path)
 {
-    int res = 0;
+    rmdir(path);
+}
 
-    FILE *f = fopen(file, "w");
+__unused
+static void elf_file_spawn(char* path)
+{
+    FILE *f = fopen(path, "r");
     if (f == NULL) {
-        return FS_ERR_OPEN;
+        debug_printf("Error: file not found\n");
+        return;
     }
-
-    const char *inspirational_quote = "I love deadlines. I like the whooshing "
-                                      "sound they make as they fly by.";
-
-    size_t written = fwrite(inspirational_quote, 1, strlen(inspirational_quote),
-                            f);
-    printf("wrote %zu bytes\n", written);
-
-    if (written != strlen(inspirational_quote)) {
-        return FS_ERR_READ;
+    struct fs_fileinfo fsinfo;
+    errval_t err = fstat(f, &fsinfo);
+    if (err_is_fail(err)){
+        debug_printf("Error: fstat\n");
+        return;
     }
+    char *content = calloc(1, fsinfo.size);
+    fread(content, 1, fsinfo.size, f);
+    fclose(f);
 
-    res = fclose(f);
-    if (res) {
-        return FS_ERR_CLOSE;
+    // rpc call to init and call spawn load by name with elf
+    debug_printf("NYI\n");
+    free(content);
+}
+
+static void server_recv_handler(void *stptr, void *message,
+                                size_t bytes,
+                                void **response, size_t *response_bytes,
+                                struct capref rx_cap, struct capref *tx_cap)
+{
+    struct fs_service_message *fsm = (struct fs_service_message *) message;
+
+    size_t path_size = fsm->path_size;
+    size_t data_size = fsm->data_size;
+
+    char path[path_size];
+    strcpy(path, fsm->data);
+
+    *response_bytes = 0;
+
+    switch (fsm->type) {
+    case F_READ: {
+        file_read(path, data_size, (char **) response);
+        *response_bytes = strlen(*response);
+        break;
     }
-
-    return SYS_ERR_OK;
+    case F_WRITE: {
+        char data[data_size];
+        strcpy(data, fsm->data + path_size);  // TODO +1?
+        file_write(path, data, data_size);
+        break;
+    }
+    case F_RM: {
+        file_delete(path);
+        break;
+    }
+    case D_READ: {
+        dir_read(path, (char **) response);
+        *response_bytes = strlen(*response);
+        break;
+    }
+    case D_MKDIR: {
+        dir_create(path);
+        break;
+    }
+    case D_RM: {
+        dir_delete(path);
+        break;
+    }
+    case SPAWN_ELF: {
+        elf_file_spawn(path);
+        break;
+    }
+    default:
+        break;
+    }
 }
 
 int main(int argc, char *argv[])
@@ -142,6 +187,14 @@ int main(int argc, char *argv[])
         return EXIT_FAILURE;
     }
 
+    // NAMESERVER LINK
+    nameservice_register_properties("/fs", server_recv_handler, NULL, true,"type=fs");
+    while(true){
+        err = event_dispatch_non_block(get_default_waitset());
+        if (err == LIB_ERR_NO_EVENT){
+            thread_yield();
+        }
+    }
     return EXIT_SUCCESS;
 
     /*

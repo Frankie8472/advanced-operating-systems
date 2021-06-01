@@ -507,10 +507,6 @@ static void strip_extra_spaces(char* str) {
   str[x] = '\0';
 }
 
-
-
-
-
 errval_t spawn_setup_module_by_name(const char *binary_name, struct spawninfo *si)
 {
     errval_t err;
@@ -552,10 +548,7 @@ errval_t spawn_setup_by_name(char *binary_name, struct spawninfo *si, domainid_t
 
     errval_t err = SYS_ERR_OK;
 
-
     binary_name = strdup(binary_name);
-
-
 
     //Pretty ugly, but fixes a silent Nullptr dereference
     int argc = get_argc(binary_name);
@@ -567,10 +560,6 @@ errval_t spawn_setup_by_name(char *binary_name, struct spawninfo *si, domainid_t
 
     err = spawn_setup_module_by_name(res[0], si);
     ON_ERR_RETURN(err);
-
-
-
-
 
     if(argc > 1){
         char *args_string = binary_name;

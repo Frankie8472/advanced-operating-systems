@@ -31,6 +31,8 @@
 #define ATTR_LONG_NAME ((uint8_t)(ATTR_READ_ONLY | ATTR_HIDDEN | ATTR_SYSTEM | ATTR_VOLUME_ID))
 #define ATTR_LONG_NAME_MASK ((uint8_t)(ATTR_READ_ONLY | ATTR_HIDDEN | ATTR_SYSTEM | ATTR_VOLUME_ID | ATTR_DIRECTORY | ATTR_ARCHIVE))
 
+void measurments(struct fatfs_mount *mount);
+
 /**
  * @brief an entry in the fatfs
  */
@@ -1297,6 +1299,7 @@ errval_t fatfs_mount(const char *path, fatfs_mount_t *retst)
 
     *retst = mount;
 
+    //measurments(mount);
     return SYS_ERR_OK;
 
 
@@ -1412,4 +1415,39 @@ errval_t fatfs_mount(const char *path, fatfs_mount_t *retst)
     }
 */
     return SYS_ERR_OK;
+}
+
+__unused
+void measurments(struct fatfs_mount *mount)
+{
+    systime_t start, end;
+    uint64_t diff;
+    debug_printf(">> Sequential reads:\n");
+    for(int i = 0; i < 100; i++) {
+        start = systime_now();
+        sdhc_read_block(mount->ds, i, get_phys_addr(mount->fs->buf_cap));
+        end = systime_now();
+        diff = systime_to_us(end - start)/1000;
+        debug_printf(">> ms: %lu\n", diff);
+    }
+
+    debug_printf(">> Sequential writes:\n");
+    for(int i = 0; i < 100; i++) {
+        start = systime_now();
+        sdhc_read_block(mount->ds, i, get_phys_addr(mount->fs->buf_cap));
+        end = systime_now();
+        diff = systime_to_us(end - start)/1000;
+        debug_printf(">> ms: %lu\n", diff);
+    }
+
+    debug_printf(">> Sequential read/writes:\n");
+    for(int i = 0; i < 50; i++) {
+        start = systime_now();
+        sdhc_read_block(mount->ds, i, get_phys_addr(mount->fs->buf_cap));
+        sdhc_write_block(mount->ds, i, get_phys_addr(mount->fs->buf_cap));
+        end = systime_now();
+        diff = systime_to_us(end - start)/1000;
+        debug_printf(">> ms: %lu\n", diff);
+    }
+
 }
