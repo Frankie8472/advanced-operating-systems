@@ -51,6 +51,9 @@ int main(int argc, char **argv) {
     if (cnnt == 500) {
         printf("unable to resolve ARP information\n");
         return EXIT_SUCCESS;
+    } else if (err_is_fail(err)) {
+        printf("ERROR %d - exiting\n", err);
+        return EXIT_SUCCESS;
     }
 
     uint16_t ackd = 0;
