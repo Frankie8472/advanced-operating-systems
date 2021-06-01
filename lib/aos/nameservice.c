@@ -244,11 +244,16 @@ errval_t nameservice_register_properties(const char * name,nameservice_receive_h
 	char* server_data;
 	err = serialize(name,properties,&server_data);
 	ON_ERR_RETURN(err);
-	char buf[512];
-	err = aos_rpc_call(get_ns_rpc(),NS_REG_SERVER,disp_get_domain_id(),disp_get_core_id(),server_data,direct,buf);
-	if(err_is_fail(err) || strlen(buf) >= 1){
-		debug_printf("%s\n",buf);
+	uint64_t success;
+	err = aos_rpc_call(get_ns_rpc(),NS_REG_SERVER,disp_get_domain_id(),disp_get_core_id(),server_data,direct,&success);
+	if(err_is_fail(err)){
+		
+		
 		return err;
+	}
+	if(!success){
+		printf("Server name: %s already in use!\n",name);
+		return LIB_ERR_NAMESERVICE_INVALID_REGISTER;
 	}
 	struct srv_entry* new_srv_entry = (struct srv_entry *) malloc(sizeof(struct srv_entry));
 	new_srv_entry -> name = name;

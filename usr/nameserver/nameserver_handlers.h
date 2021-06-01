@@ -14,7 +14,7 @@ void initialize_nameservice_handlers(struct aos_rpc *ns_rpc);
 /**
  * @brief Handle registration and deregistration
  */
-void handle_reg_server(struct aos_rpc * rpc, uintptr_t pid, uintptr_t core_id ,const char* server_data, uintptr_t direct, char * return_message);
+void handle_reg_server(struct aos_rpc * rpc, uintptr_t pid, uintptr_t core_id ,const char* server_data, uintptr_t direct,  uintptr_t * success);
 void handle_dereg_server(struct aos_rpc *rpc, const char* name, uintptr_t* success);
 
 
