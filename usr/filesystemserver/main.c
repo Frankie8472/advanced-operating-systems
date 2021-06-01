@@ -22,6 +22,8 @@
 #include <aos/nameserver.h>
 #include <aos/fs_service.h>
 
+#include <aos/default_interfaces.h>
+
 
 __unused
 static void file_read(char *path, size_t size, char **ret)
@@ -196,11 +198,14 @@ int main(int argc, char *argv[])
     }
     debug_printf(">> WHILE FS NAMESERVER ==============\n");
     while(true){
-        err = event_dispatch_non_block(get_default_waitset());
+        err = event_dispatch(get_default_waitset());
         if (err == LIB_ERR_NO_EVENT){
             thread_yield();
         }
     }
+
+
+    err = aos_rpc_call(get_init_rpc(), INIT_FS_ON);
     return EXIT_SUCCESS;
 
     /*

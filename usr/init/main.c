@@ -327,6 +327,14 @@ static int bsp_main(int argc, char *argv[])
     debug_printf(">> START filesystem server\n");
     init_filesystemserver();
 
+    while(!get_fs_online()){
+        err = event_dispatch(get_default_waitset());
+        if(err_is_fail(err)){
+            DEBUG_ERR(err,"Failed waitset");
+        }
+    }
+
+
     struct spawninfo *term_si;
     spawn_lpuart_driver("lpuart_terminal", &term_si);
 
@@ -449,11 +457,17 @@ static int bsp_main(int argc, char *argv[])
 
     //for (volatile size_t i = 0; i < 1000000000; i++);
 
-    debug_printf(">> INIT filesystem server\n");
-    for (volatile size_t i = 0; i < 100; i++){
-        thread_yield();
-    }
-    init_fs();
+    // debug_printf(">> INIT filesystem server\n");
+    // for (volatile size_t i = 0; i < 100; i++){
+    //     thread_yield();
+    // }
+
+
+
+    // init_fs();
+
+
+
     debug_printf(">> SUCCESS filesystem server\n");
     //write_file("/sdcard/HELLO.TXT", "BOIIIIII");
 

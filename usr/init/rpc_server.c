@@ -670,3 +670,6 @@ void register_core_channel_handlers(struct aos_rpc *rpc)
 }
 
 
+void handle_fs_on(struct aos_rpc *rpc){
+    set_fs_online();
+}
