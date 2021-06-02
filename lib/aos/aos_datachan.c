@@ -117,7 +117,7 @@ errval_t aos_dc_init_ump(struct aos_datachan *dc, size_t buffer_length, lvaddr_t
         recv_block = (void *) ump_page;
     }
 
-    return ump_chan_init(&dc->channel.ump, send_block, ump_page_size / 2, recv_block, ump_page_size / 2);
+    return ump_chan_init_default(&dc->channel.ump, send_block, ump_page_size / 2, recv_block, ump_page_size / 2);
 }
 
 
@@ -197,11 +197,11 @@ static errval_t aos_dc_send_ump(struct aos_datachan *dc, size_t bytes, const cha
     msg->data[0] = bytes;
     memcpy(&msg->data[1], data, min(first_msg_length, bytes));
 
-    while(!ump_chan_send(&dc->channel.ump, msg));
+    while(!ump_chan_send(&dc->channel.ump, msg, first_msg_length > bytes));
 
     for (size_t offs = first_msg_length; offs < bytes; offs += ump_bytes_length) {
         memcpy(&msg->data[0], data + offs, min(ump_bytes_length, bytes - offs));
-        while(!ump_chan_send(&dc->channel.ump, msg));
+        while(!ump_chan_send(&dc->channel.ump, msg, offs + ump_bytes_length >= bytes));
     }
 
     return SYS_ERR_OK;
@@ -280,7 +280,7 @@ static errval_t aos_dc_receive_one_message_ump(struct aos_datachan *dc)
 
     DECLARE_MESSAGE(dc->channel.ump, msg);
 
-    while(!ump_chan_poll_once(&dc->channel.ump, msg));
+    while(!ump_chan_receive(&dc->channel.ump, msg));
 
     if (dc->bytes_left > 0) {
         // part of a multi message chunk
@@ -480,7 +480,7 @@ errval_t aos_dc_close(struct aos_datachan *dc)
 
         msg->data[0] = CLOSE_MESSAGE;
 
-        while(!ump_chan_send(&dc->channel.ump, msg));
+        while(!ump_chan_send(&dc->channel.ump, msg, true));
     }
     return SYS_ERR_OK;
 }

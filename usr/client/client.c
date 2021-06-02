@@ -16,6 +16,7 @@
         USER_PANIC_ERR(err, msg);  \
     }
 
+#define CALCULATE_REQUEST 1
 
 
 #define SERVICE_NAME "/myservicenamea"
@@ -117,7 +118,13 @@ int main(int argc, char *argv[])
 
     /*struct aos_rpc server_rpc;
     do {
-        err = aos_rpc_new_binding_by_name("server",&server_rpc);
+        err = aos_rpc_new_binding_by_name("server", &server_rpc);
+        aos_rpc_initialize_binding(&server_rpc, CALCULATE_REQUEST, 1, 1, AOS_RPC_WORD, AOS_RPC_WORD);
+    }while(err_is_fail(err));
+
+    do {
+        err = aos_rpc_new_binding_by_name("server", &server_rpc2);
+        aos_rpc_initialize_binding(&server_rpc2, CALCULATE_REQUEST, 1, 1, AOS_RPC_WORD, AOS_RPC_WORD);
     }while(err_is_fail(err));
     
     // if(err_is_fail(err)){

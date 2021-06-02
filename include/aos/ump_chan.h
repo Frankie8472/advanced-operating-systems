@@ -5,6 +5,8 @@
 #include <errors/errno.h>
 #include <assert.h>
 #include <aos/waitset.h>
+#include <aos/lmp_chan_arch.h>
+#include <aos/lmp_chan.h>
 
 #define UMP_MSG_SIZE 64 // TODO: set to cache line size
 #define UMP_MSG_N_WORDS 7
@@ -31,7 +33,7 @@ struct ump_msg
 
 struct ump_chan
 {
-    size_t msg_size; // size of a single ump message
+    size_t msg_size; /// < size of a single ump message
 
     void *recv_pane;
     size_t recv_pane_size;
@@ -40,8 +42,28 @@ struct ump_chan
     void *send_pane;
     size_t send_pane_size;
     size_t send_buf_index;
-    
-    struct waitset_chanstate waitset_state;
+
+    /// whether receiving messages on this channel is done by repeatedly polling
+    /// or an ipi notification is expected when a message is receivable
+    bool local_is_pinged;
+
+    /// whether the other endpoint is operating in `local_is_pinged` mode,
+    /// i.e. whether we need to send an ipi after each message we sent
+    bool remote_is_pinged;
+
+    union {
+        /// when operating in polled mode, this chanstate is registered in the
+        /// default waitset as a polled channel where it will regularly get polled
+        struct waitset_chanstate waitset_state;
+
+        /// when operating in pinged mode, this endpoint is registered to receive
+        /// an empty lmp message when a ump message is available
+        struct lmp_endpoint *lmp_ep;
+    };
+
+    /// if the remote end of the channel is operating in pinged mode (`remote_is_pinged`)
+    /// we invoke this capability `invoke_ipi_notify` to notify the other end of a new message
+    struct capref ipi_ep;
 };
 
 errval_t ump_chan_init_size(struct ump_chan *chan, size_t msg_size,
@@ -52,7 +74,7 @@ errval_t ump_chan_init_len(struct ump_chan *chan, int len,
                            void *send_buf, size_t send_buf_size,
                            void *recv_buf, size_t recv_buf_size);
 
-errval_t ump_chan_init(struct ump_chan *chan,
+errval_t ump_chan_init_default(struct ump_chan *chan,
                        void *send_buf, size_t send_buf_size,
                        void *recv_buf, size_t recv_buf_size);
 
@@ -60,13 +82,33 @@ errval_t ump_chan_destroy(struct ump_chan *chan);
 
 int ump_chan_get_data_len(struct ump_chan *chan);
 
-bool ump_chan_send(struct ump_chan *chan, struct ump_msg *send);
+bool ump_chan_send(struct ump_chan *chan, struct ump_msg *send, bool ping_if_pinged);
 
 bool ump_chan_can_receive(struct ump_chan *chan);
-bool ump_chan_poll_once(struct ump_chan *chan, struct ump_msg *recv);
+bool ump_chan_receive(struct ump_chan *chan, struct ump_msg *recv);
+
+
+/**
+ * \brief switch to pinged mode on the local end
+ * 
+ * This function assumes a setup ump channel in local polled mode.
+ * It deregisters the channel from the polled queue and will reregister
+ * for messages received on `ep`.
+ * 
+ * \param ep needs to be a valid endpoint that is notified when we receive a
+ *           message on this channel
+ */
+errval_t ump_chan_switch_local_pinged(struct ump_chan *chan, struct lmp_endpoint *ep);
+
+errval_t ump_chan_switch_remote_pinged(struct ump_chan *chan, struct capref ipi_endpoint);
+
 
 errval_t ump_chan_register_recv(struct ump_chan *chan, struct waitset *ws, struct event_closure closure);
 errval_t ump_chan_deregister_recv(struct ump_chan *chan);
+
+errval_t ump_chan_register_polled_recv(struct ump_chan *chan, struct waitset *ws, struct event_closure closure);
+
+errval_t ump_chan_register_pinged_recv(struct ump_chan *chan, struct waitset *ws, struct event_closure closure);
 
 
 
