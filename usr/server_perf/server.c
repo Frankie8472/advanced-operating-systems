@@ -51,7 +51,7 @@ int main(int argc, char *argv[])
     char buffer[1024];
     strcpy(buffer,"client_perf ");
     strcat(buffer,argv[1]);
-    err = aos_rpc_process_spawn(get_init_rpc(),buffer,1,&client_pid);
+    err = aos_rpc_process_spawn(get_init_rpc(),buffer,0,&client_pid);
     if(err_is_fail(err)){
         DEBUG_ERR(err,"Failed to spawn client!\n");
     }
