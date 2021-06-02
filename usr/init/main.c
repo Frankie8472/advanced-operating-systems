@@ -241,7 +241,10 @@ static errval_t init_name_server(void){
 
 
 
-
+__unused static void handle_fast_RTT(void * arg){
+    debug_printf("Here\n");
+    return;
+}
 
 static int bsp_main(int argc, char *argv[])
 {
@@ -352,9 +355,31 @@ static int bsp_main(int argc, char *argv[])
 
 
 
+    struct spawninfo  *si;
+    spawn_new_domain("client_perf",0,NULL,NULL,NULL_CAP,NULL_CAP,NULL_CAP,&si);
+
+    err = event_dispatch(get_default_waitset());
+    debug_printf("Here!\n");
+    err = event_dispatch(get_default_waitset());
+    debug_printf("Here!\n");
+    err = event_dispatch(get_default_waitset());
+    debug_printf("Here!\n");
+    err = event_dispatch(get_default_waitset());
+    debug_printf("Here!\n");
+    // err = event_dispatch(get_default_waitset());
+    // debug_printf("Here!\n");
+    // err = event_dispatch(get_default_waitset());
+    // debug_printf("Here!\n");
+    // debug_printf("%s\n", si -> binary_name);
+
+    
+    // lmp_chan_deregister_recv(&si -> rpc.channel.lmp);
+    lmp_chan_register_recv(&si -> rpc.channel.lmp,get_default_waitset(),MKCLOSURE(handle_fast_RTT,NULL));
+    // lmp_chan_register_en
+    // MKCLOSURE()
+
     // run_ns_perf_test(0,5000000);
     // run_ns_perf_test(1,10000000);
-    // spawn_new_domain("server_perf /server0",2,NULL,NULL,NULL_CAP,NULL_CAP,NULL_CAP,NULL);
     
 
     // struct periodic_event pe;
