@@ -336,7 +336,7 @@ static errval_t find_dirent(struct fatfs_mount *mount, struct fatfs_dirent *root
                     // Invalidated File, continue
                 } else if ((new_ptr[11] & ATTR_LONG_NAME_MASK) == ATTR_LONG_NAME) {
                     // Reached long direntry
-                    debug_printf(">>> LONG NAME %x, NYI\n", ATTR_LONG_NAME);
+                    //debug_printf(">>> LONG NAME %x, NYI\n", ATTR_LONG_NAME);
 
                     struct fatfs_long_dirent dir;
                     memcpy(&dir, new_ptr, sizeof(struct fatfs_short_dirent));
@@ -428,7 +428,7 @@ static errval_t resolve_path(struct fatfs_mount *mount, const char *path,
         } else {
             err = find_dirent(mount, root, fat32name, &next_dirent);
             if (err_is_fail(err)) {
-                debug_printf(">> NO FOUND: |%s| in |%s|\n", fat32name, root->name);
+                //debug_printf(">> NO FOUND: |%s| in |%s|\n", fat32name, root->name);
                 debug_printf("Error: Directory/File not found\n");
                 return err;
             }
@@ -1153,7 +1153,7 @@ errval_t fatfs_truncate(void *st, fatfs_handle_t handle, size_t bytes)
 
     // FAT tablewalk to remove entries
     for (int c = 0; ((current_cluster & 0x0fffffff) != 0x0fffffff) && ((current_cluster & 0x0fffffff) != 0x0ffffff8); c++) {
-        debug_printf(">> SO LONG\n");
+        //debug_printf(">> SO LONG\n");
         uint32_t old_cluster = current_cluster;
         get_next_fat_entry(mount, current_cluster, &current_cluster);
 
@@ -1181,7 +1181,7 @@ errval_t fatfs_truncate(void *st, fatfs_handle_t handle, size_t bytes)
 
 errval_t fatfs_remove(void *st, const char *path)
 {
-    debug_printf(">> REACHED REMOVE\n");
+    //debug_printf(">> REACHED REMOVE\n");
     errval_t err;
     struct fatfs_mount *mount = st;
     struct fatfs_handle *h;
@@ -1190,16 +1190,16 @@ errval_t fatfs_remove(void *st, const char *path)
     err = resolve_path(mount, path, &h);
     if (err_is_fail(err)){
         // file does not exist
-        debug_printf(">> FILE NOT FOUND\n");
+        //debug_printf(">> FILE NOT FOUND\n");
         return FS_ERR_NOTFOUND;
     }
 
     // Truncate to 0
-    debug_printf(">> REACHED TRUNCATE START\n");
+    //debug_printf(">> REACHED TRUNCATE START\n");
     err = fatfs_truncate(st, h, 0);
-    debug_printf(">> REACHED TRUNCATE ERR\n");
+    //debug_printf(">> REACHED TRUNCATE ERR\n");
     ON_ERR_RETURN(err);
-    debug_printf(">> REACHED TRUNCATE\n");
+    //debug_printf(">> REACHED TRUNCATE\n");
     // Set first byte in file entry to 0xE5 and attr to 0
     err = long_sdhc_read(mount->ds, (int) h->dirent->sector, get_phys_addr(mount->fs->buf_cap));
     ON_ERR_RETURN(err);
@@ -1213,7 +1213,7 @@ errval_t fatfs_remove(void *st, const char *path)
     err = long_sdhc_read(mount->ds, (int) h->dirent->sector, get_phys_addr(mount->fs->buf_cap));
     ON_ERR_RETURN(err);
     dir = ((uint8_t *) mount->fs->buf_va) + h->dirent->sector_offset;
-    debug_printf(">> REACHED 0x%x\n", dir[0]);
+    //debug_printf(">> REACHED 0x%x\n", dir[0]);
     handle_close(h);
     return SYS_ERR_OK;
 }

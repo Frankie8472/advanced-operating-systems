@@ -152,7 +152,7 @@ static int fs_libc_open(char *path, int flags)
 static int fs_libc_read(int fd, void *buf, size_t len)
 {
     errval_t err;
-    debug_printf(">> REACHHHHH %d\n", len);
+    //debug_printf(">> REACHHHHH %d\n", len);
     struct fdtab_entry *e = fdtab_get(fd);
     size_t retlen = 0;
     switch(e->type) {

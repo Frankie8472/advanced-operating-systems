@@ -134,7 +134,7 @@ static void server_recv_handler(void *stptr, void *message,
                                 void **response, size_t *response_bytes,
                                 struct capref rx_cap, struct capref *tx_cap)
 {
-    debug_printf(">> START CALLEE\n");
+    //debug_printf(">> START CALLEE\n");
     struct fs_service_message *fsm = (struct fs_service_message *) message;
 
     size_t path_size = fsm->path_size;
@@ -144,10 +144,10 @@ static void server_recv_handler(void *stptr, void *message,
     memcpy(path, fsm->data, path_size);
     path[path_size] = '\0';
     *response_bytes = 0;
-    debug_printf(">> GOT TYPE: %d\n", fsm->type);
+    //debug_printf(">> GOT TYPE: %d\n", fsm->type);
     switch (fsm->type) {
     case F_READ: {
-        debug_printf(">> GOT HERE\n");
+        //debug_printf(">> GOT HERE\n");
         file_read(path, data_size, (char **) response);
         *response_bytes = strlen(*response);
         break;
@@ -183,7 +183,7 @@ static void server_recv_handler(void *stptr, void *message,
     default:
         break;
     }
-    debug_printf(">> END CALLEE\n");
+    //debug_printf(">> END CALLEE\n");
 }
 
 int main(int argc, char *argv[])

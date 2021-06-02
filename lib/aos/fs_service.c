@@ -23,11 +23,11 @@ void read_file(char *path, size_t size, char *ret)
 
     void *response;
     size_t response_bytes;
-    debug_printf("GOT HERE1: %d\n", fsm->type);
+    //debug_printf("GOT HERE1: %d\n", fsm->type);
     err = nameservice_rpc(_nschan, (void *) fsm, length,
                                    &response, &response_bytes,
                                    NULL_CAP, NULL_CAP);
-    debug_printf("GOT HERE2\n");
+    //debug_printf("GOT HERE2\n");
     strcpy(ret, response);
     free(response);
     free(fsm);
