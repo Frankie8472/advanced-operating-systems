@@ -755,7 +755,7 @@ errval_t paging_spt_find(struct paging_state *st, int level, lvaddr_t vaddr, boo
         ObjType_VNode_AARCH64_l1,
         ObjType_VNode_AARCH64_l2,
         ObjType_VNode_AARCH64_l3
-    };
+    }; 
     
     PAGING_LOCK(st);
 

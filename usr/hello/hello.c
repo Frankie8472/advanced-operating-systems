@@ -25,6 +25,7 @@ int main(int argc, char *argv[])
 {
     printf("Hello, world! from userspace\n");
     printf("I am running on core %d :)\n", disp_get_current_core_id());
+    
 
     for(int i = 0; i < argc; ++i){
         printf("argv[%d] = %s\n",i,argv[i]);

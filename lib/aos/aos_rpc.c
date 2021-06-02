@@ -110,6 +110,8 @@ errval_t aos_rpc_init_lmp(struct aos_rpc* rpc, struct capref self_ep, struct cap
 
     aos_rpc_set_timeout(rpc,DEFAULT_TIMEOUT);
 
+    thread_mutex_init(&rpc -> mutex);
+
     return SYS_ERR_OK;
 }
 
@@ -249,7 +251,7 @@ errval_t aos_rpc_register_handler(struct aos_rpc *rpc, enum aos_rpc_msg_type msg
 errval_t aos_rpc_call(struct aos_rpc *rpc, enum aos_rpc_msg_type msg_type, ...)
 {   
 
-
+    RPC_LOCK(rpc);
     va_list args;
     va_start(args, msg_type);
 
@@ -264,8 +266,8 @@ errval_t aos_rpc_call(struct aos_rpc *rpc, enum aos_rpc_msg_type msg_type, ...)
         break;
 
     }
+    RPC_UNLOCK(rpc);
     va_end(args);
-
     return err;
 }
 
@@ -1613,10 +1615,11 @@ errval_t aos_rpc_serial_getchar(struct aos_rpc *rpc, char *retc)
  */
 errval_t aos_rpc_get_terminal_input(struct aos_rpc *rpc, char* buf, size_t len)
 {
-    errval_t err;
+    //errval_t err;
     for (int i = 0; i < len; i++) {
         err = aos_rpc_call(rpc, AOS_RPC_GETCHAR, buf + i);
-        ON_ERR_RETURN(err);
+        //buf[i] = getchar();
+        //ON_ERR_RETURN(err);
         if (buf[i] == 13 || buf[i] == '\n') {
             buf[i] = '\0';
             return SYS_ERR_OK;

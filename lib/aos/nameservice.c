@@ -75,10 +75,13 @@ static void remove_server(const char *name){
 }
 
 
-static void liveness_checker(void* name){
+static void liveness_checker(void* srv){
 	// debug_printf("Liveness checker: %s\n",name);
-	errval_t err = aos_rpc_call(get_ns_rpc(),NS_LIVENESS_CHECK,(const char*) name);
+	struct srv_entry* srv_entry = (struct srv_entry* ) srv;
+
+	errval_t err = aos_rpc_call(get_ns_rpc(),NS_LIVENESS_CHECK,srv_entry -> name);
 	if(err_is_fail(err)){
+		periodic_event_cancel(&srv_entry -> liveness_checker);
 		DEBUG_ERR(err,"Failed to send liveness check");
 	}
 }
@@ -260,7 +263,7 @@ errval_t nameservice_register_properties(const char * name,nameservice_receive_h
 	new_srv_entry -> recv_handler = recv_handler;
 	new_srv_entry -> st = st;
 	
-	err = periodic_event_create(&new_srv_entry -> liveness_checker,get_default_waitset(),NS_LIVENESS_INTERVAL,MKCLOSURE(liveness_checker,(void*) name));
+	err = periodic_event_create(&new_srv_entry -> liveness_checker,get_default_waitset(),NS_LIVENESS_INTERVAL,MKCLOSURE(liveness_checker,(void*) new_srv_entry));
 	ON_ERR_RETURN(err);
 	struct capref server_ep;
 	err = create_lmp_server_ep_with_struct_aos_rpc(&server_ep,&new_srv_entry -> main_handler);
