@@ -20,6 +20,7 @@
  */
 #include <stdio.h>
 #include <aos/aos.h>
+#include <aos/fs_service.h>
 
 int main(int argc, char *argv[])
 {
@@ -30,5 +31,44 @@ int main(int argc, char *argv[])
         printf("argv[%d] = %s\n",i,argv[i]);
     }
 
+
+    debug_printf("> START DEMO\n");
+
+    char *path = "/sdcard/RABA.TXT";
+    /*
+    char *text = "BOIIIIII123456789123456791234567890AASDADSFADFJAJKSFHJASHDFHASFDHHGGFHGFHFHFHFDFGEWGHSGfEND";
+
+    debug_printf(">> WRITE FILE\n");
+    debug_printf(">>> path: %s\n", path);
+    debug_printf(">>> text: %s\n", text);
+
+    write_file(path, text);
+
+    //debug_printf(">> READ FILE\n");
+    int readsize = 20;
+    char read[readsize];
+    //read[readsize + 1] = '\0';
+    //read_file(path, readsize, read);
+    //debug_printf(">>> ret: %s\n", read);
+
+    debug_printf(">> DELETE FILE\n");
+    delete_file(path);
+
+    debug_printf(">> READ FILE\n");
+    read_file(path, readsize, read);
+
+*/
+    debug_printf(">> CREATE DIR \n");
+    path = "/sdcard/DAFOLDER";
+    create_dir(path);
+    debug_printf(">> READ DIR \n");
+    char *readdir;
+    read_dir(path, &readdir);
+    debug_printf(">> dir: %s\n", readdir);
+    debug_printf(">> DELETE DIR \n");
+    delete_dir(path);
+    debug_printf(">> READ DIR \n");
+    read_dir(path, &readdir);
+    debug_printf("> END DEMO\n");
     return EXIT_SUCCESS;
 }

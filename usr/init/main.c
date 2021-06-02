@@ -464,12 +464,7 @@ static int bsp_main(int argc, char *argv[])
 
 
 
-    // init_fs();
-
-
-
-    debug_printf(">> SUCCESS filesystem server\n");
-    //write_file("/sdcard/HELLO.TXT", "BOIIIIII");
+    spawn_new_domain("hello", 0, NULL, NULL, NULL_CAP, NULL_CAP, NULL_CAP, NULL);
 
     // Grading
     grading_test_early();

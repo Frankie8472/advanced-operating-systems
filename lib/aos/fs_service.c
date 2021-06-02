@@ -2,17 +2,6 @@
 #include <stdlib.h>
 #include <aos/fs_service.h>
 
-void init_fs(void)
-{
-    errval_t err;
-    nameservice_chan_t _nschan;
-
-    err = nameservice_lookup(FS_SERVICE_NAME, &_nschan);
-    while(err_is_fail(err)){
-        err = nameservice_lookup(FS_SERVICE_NAME, &_nschan);
-        thread_yield();
-    }
-}
 
 void read_file(char *path, size_t size, char *ret)
 {
@@ -25,7 +14,8 @@ void read_file(char *path, size_t size, char *ret)
         return;
     }
 
-    struct fs_service_message *fsm = malloc(sizeof(struct fs_service_message) + strlen(path));
+    size_t length = sizeof(struct fs_service_message) + strlen(path);
+    struct fs_service_message *fsm = malloc(length);
     fsm->type = F_READ;
     fsm->path_size = strlen(path);
     fsm->data_size = size;
@@ -33,10 +23,11 @@ void read_file(char *path, size_t size, char *ret)
 
     void *response;
     size_t response_bytes;
-
-    err = nameservice_rpc(_nschan, (void *) fsm, strlen((char *) fsm),
+    debug_printf("GOT HERE1: %d\n", fsm->type);
+    err = nameservice_rpc(_nschan, (void *) fsm, length,
                                    &response, &response_bytes,
                                    NULL_CAP, NULL_CAP);
+    debug_printf("GOT HERE2\n");
     strcpy(ret, response);
     free(response);
     free(fsm);
@@ -57,17 +48,18 @@ void write_file(char *path, char *data)
         return;
     }
 
-    struct fs_service_message *fsm = malloc(sizeof(struct fs_service_message) + strlen(path) + strlen(data));
+    size_t length = sizeof(struct fs_service_message) + strlen(path) + strlen(data) + 1;
+    struct fs_service_message *fsm = malloc(length);
     fsm->type = F_WRITE;
     fsm->path_size = strlen(path);
     fsm->data_size = strlen(data);
     strcpy(fsm->data, path);
-    strcpy(fsm->data, data);
+    strcat(fsm->data, data);
 
     void *response;
     size_t response_bytes;
 
-    err = nameservice_rpc(_nschan, (void *) fsm, strlen((char *) fsm),
+    err = nameservice_rpc(_nschan, (void *) fsm, length,
                           &response, &response_bytes,
                           NULL_CAP, NULL_CAP);
     free(fsm);
@@ -88,7 +80,8 @@ void delete_file(char *path)
         return;
     }
 
-    struct fs_service_message *fsm = malloc(sizeof(struct fs_service_message) + strlen(path));
+    size_t length = sizeof(struct fs_service_message) + strlen(path);
+    struct fs_service_message *fsm = malloc(length);
     fsm->type = F_RM;
     fsm->path_size = strlen(path);
     fsm->data_size = 0;
@@ -97,7 +90,7 @@ void delete_file(char *path)
     void *response;
     size_t response_bytes;
 
-    err = nameservice_rpc(_nschan, (void *) fsm, strlen((char *) fsm),
+    err = nameservice_rpc(_nschan, (void *) fsm, length,
                           &response, &response_bytes,
                           NULL_CAP, NULL_CAP);
     free(fsm);
@@ -118,7 +111,8 @@ void read_dir(char *path, char **ret)
         return;
     }
 
-    struct fs_service_message *fsm = malloc(sizeof(struct fs_service_message) + strlen(path));
+    size_t length = sizeof(struct fs_service_message) + strlen(path);
+    struct fs_service_message *fsm = malloc(length);
     fsm->type = D_READ;
     fsm->path_size = strlen(path);
     fsm->data_size = 0;
@@ -127,7 +121,7 @@ void read_dir(char *path, char **ret)
     void *response;
     size_t response_bytes;
 
-    err = nameservice_rpc(_nschan, (void *) fsm, strlen((char *) fsm),
+    err = nameservice_rpc(_nschan, (void *) fsm, length,
                           &response, &response_bytes,
                           NULL_CAP, NULL_CAP);
     *ret = response;
@@ -149,7 +143,8 @@ void create_dir(char *path)
         return;
     }
 
-    struct fs_service_message *fsm = malloc(sizeof(struct fs_service_message) + strlen(path));
+    size_t length = sizeof(struct fs_service_message) + strlen(path);
+    struct fs_service_message *fsm = malloc(length);
     fsm->type = D_MKDIR;
     fsm->path_size = strlen(path);
     fsm->data_size = 0;
@@ -158,7 +153,7 @@ void create_dir(char *path)
     void *response;
     size_t response_bytes;
 
-    err = nameservice_rpc(_nschan, (void *) fsm, strlen((char *) fsm),
+    err = nameservice_rpc(_nschan, (void *) fsm, length,
                           &response, &response_bytes,
                           NULL_CAP, NULL_CAP);
     free(fsm);
@@ -179,7 +174,8 @@ void delete_dir(char *path)
         return;
     }
 
-    struct fs_service_message *fsm = malloc(sizeof(struct fs_service_message) + strlen(path));
+    size_t length = sizeof(struct fs_service_message) + strlen(path);
+    struct fs_service_message *fsm = malloc(length);
     fsm->type = D_RM;
     fsm->path_size = strlen(path);
     fsm->data_size = 0;
@@ -188,7 +184,7 @@ void delete_dir(char *path)
     void *response;
     size_t response_bytes;
 
-    err = nameservice_rpc(_nschan, (void *) fsm, strlen((char *) fsm),
+    err = nameservice_rpc(_nschan, (void *) fsm, length,
                           &response, &response_bytes,
                           NULL_CAP, NULL_CAP);
     free(fsm);
@@ -210,7 +206,8 @@ void spawn_elf_file(char* path)
         return;
     }
 
-    struct fs_service_message *fsm = malloc(sizeof(struct fs_service_message) + strlen(path));
+    size_t length = sizeof(struct fs_service_message) + strlen(path);
+    struct fs_service_message *fsm = malloc(length);
     fsm->type = SPAWN_ELF;
     fsm->path_size = strlen(path);
     fsm->data_size = 0;
@@ -219,7 +216,7 @@ void spawn_elf_file(char* path)
     void *response;
     size_t response_bytes;
 
-    err = nameservice_rpc(_nschan, (void *) fsm, strlen((char *) fsm),
+    err = nameservice_rpc(_nschan, (void *) fsm, length,
                           &response, &response_bytes,
                           NULL_CAP, NULL_CAP);
     free(fsm);

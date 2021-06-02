@@ -10,6 +10,7 @@
 #include <stdio.h>
 #include <string.h>
 #include <aos/aos.h>
+#include <aos/cache.h>
 
 #include <fs/fs.h>
 #include <fs/fatfs.h>
@@ -21,6 +22,7 @@
 //#define BULK_MEM_SIZE       (1U << 16)      // 64kB
 //#define BULK_BLOCK_SIZE     BULK_MEM_SIZE   // (it's RPC)
 
+#define WAIT_TIME 3000000
 // Directory attributes
 #define ATTR_READ_ONLY ((uint8_t) 0x01)
 #define ATTR_HIDDEN ((uint8_t) 0x02)
@@ -75,6 +77,19 @@ struct fatfs_handle
 const int DEVFRAME_ATTRIBUTES = KPI_PAGING_FLAGS_READ
                                 | KPI_PAGING_FLAGS_WRITE
                                 | KPI_PAGING_FLAGS_NOCACHE;
+
+
+static errval_t long_sdhc_read(struct sdhc_s *ds, int index, lpaddr_t dest){
+    errval_t err = sdhc_read_block(ds, index, dest);
+    for(volatile int t = 0; t < WAIT_TIME; t++);
+    return err;
+}
+
+static errval_t long_sdhc_write(struct sdhc_s *ds, int index, lpaddr_t dest){
+    for(volatile int t = 0; t < WAIT_TIME; t++);
+    errval_t err = sdhc_write_block(ds, index, dest);
+    return err;
+}
 
 static errval_t initialize_sdhc_driver(struct sdhc_s **ds)
 {
@@ -136,7 +151,7 @@ static errval_t set_cluster_zero(struct fatfs_mount *mount, uint32_t cluster) {
     // Iterate through the full cluster and set it 0 (the buf page)
     for (int i = 0; i < mount->fs->bpb.secPerClus; i++) {
         int sector = (int) (start_sector + i);
-        err = sdhc_write_block(mount->ds, sector, get_phys_addr(mount->fs->buf_cap));
+        err = long_sdhc_write(mount->ds, sector, get_phys_addr(mount->fs->buf_cap));
         ON_ERR_RETURN(err);
     }
 
@@ -149,24 +164,33 @@ static errval_t get_free_fat_entry(struct fatfs_mount *mount, uint32_t *ret){
 
     // Iterate over FAT cluster
     for (int i = 0; i < mount->fs->bpb.secPerClus; i++) {
-        err = sdhc_read_block(mount->ds, fat_sec + i, get_phys_addr(mount->fs->buf_cap));
+        err = long_sdhc_read(mount->ds, fat_sec + i, get_phys_addr(mount->fs->buf_cap));
         ON_ERR_RETURN(err);
-        uint32_t *addr = ((uint32_t *) mount->fs->buf_va);
+        uint32_t *addr = mount->fs->buf_va;
+        //for(volatile int t = 0; t < 1000000; t++);
+        //debug_printf(">>> FAT ADDR ONE: %x\n", *addr);
 
         // Iterate over FAT sector
         for (int j = 0; j < 128; j++) {
-            if (addr[j] == 0) {
+            //debug_printf(">>> FAT SECTOR: %d\n", fat_sec);
+            //debug_printf(">>> FAT SECTOR i: %d\n", i);
+            //debug_printf(">>> FAT SECTOR j: %d\n", j);
+            //debug_printf(">>> FAT ENTRY: %x\n", addr[j]);
+            //debug_printf(">>> FAT ADDR: %x\n", *((uint32_t *) mount->fs->buf_va));
+            uint32_t entry = addr[j] & 0x0fffffff;
+            //debug_printf(">>> FAT ENTRY: %x\n", entry);
+            if (entry != 0x0ffffff8 && entry != 0x0fffffff && entry == 0x00000000) {
                 addr[j] = -1;
                 uint32_t new_cluster = j + (128 * i);
 
                 // Write back assigned FAT entry (value -1)
-                err = sdhc_write_block(mount->ds, fat_sec + i, get_phys_addr(mount->fs->buf_cap));
+                err = long_sdhc_write(mount->ds, fat_sec + i, get_phys_addr(mount->fs->buf_cap));
                 ON_ERR_RETURN(err);
 
                 // Set new cluster to zero
                 err = set_cluster_zero(mount, new_cluster);
                 ON_ERR_RETURN(err);
-
+                //debug_printf(">>> new cluster: %d\n", new_cluster);
                 *ret = new_cluster;
                 return SYS_ERR_OK;
             }
@@ -179,10 +203,10 @@ static errval_t get_next_fat_entry(struct fatfs_mount *mount, uint32_t cur, uint
     errval_t err;
     uint16_t fat_sec = (int) (mount->fs->fat_sector + (cur / 128));
 
-    err = sdhc_read_block(mount->ds, fat_sec, get_phys_addr(mount->fs->buf_cap));
+    err = long_sdhc_read(mount->ds, fat_sec, get_phys_addr(mount->fs->buf_cap));
     ON_ERR_RETURN(err);
 
-    *ret = ((uint32_t *) mount->fs->buf_va)[cur % 128];
+    *ret = (((uint32_t *) mount->fs->buf_va)[cur % 128]) & 0x0fffffff;
 
     return SYS_ERR_OK;
 }
@@ -191,12 +215,12 @@ static errval_t insert_new_fat_link(struct fatfs_mount *mount, size_t parent, si
     errval_t err;
     uint16_t fat_sec = (int) (mount->fs->fat_sector + (parent / 128));
 
-    err = sdhc_read_block(mount->ds, fat_sec, get_phys_addr(mount->fs->buf_cap));
+    err = long_sdhc_read(mount->ds, fat_sec, get_phys_addr(mount->fs->buf_cap));
     ON_ERR_RETURN(err);
 
     ((uint32_t *) mount->fs->buf_va)[parent % 128] = new;
 
-    err = sdhc_write_block(mount->ds, fat_sec, get_phys_addr(mount->fs->buf_cap));
+    err = long_sdhc_write(mount->ds, fat_sec, get_phys_addr(mount->fs->buf_cap));
     ON_ERR_RETURN(err);
 
     return SYS_ERR_OK;
@@ -214,7 +238,9 @@ static errval_t initialize_fat32_partition(struct sdhc_s *ds, struct fat32_fs *f
 
     // Read first sector
     fs->bpb_sector = 0;
-    err = sdhc_read_block(ds, fs->bpb_sector, get_phys_addr(fs->buf_cap));
+    arm64_dcache_wbinv_range((vm_offset_t) fs->buf_va, 4096);
+    //dmb();
+    err = long_sdhc_read(ds, fs->bpb_sector, get_phys_addr(fs->buf_cap));
     ON_ERR_RETURN(err);
 
     memcpy(&fs->bpb, fs->buf_va, sizeof(struct fatfs_bpb));
@@ -227,7 +253,8 @@ static errval_t initialize_fat32_partition(struct sdhc_s *ds, struct fat32_fs *f
     fs->rootDir_sector = fs->data_sector + fs->bpb.secPerClus * (fs->bpb.rootClus - 2);
 
     // Read fsinfo sector
-    err = sdhc_read_block(ds, fs->fsinfo_sector, get_phys_addr(fs->buf_cap));
+    arm64_dcache_wbinv_range((vm_offset_t) fs->buf_va, 4096);
+    err = long_sdhc_read(ds, fs->fsinfo_sector, get_phys_addr(fs->buf_cap));
     ON_ERR_RETURN(err);
 
     memcpy(&fs->fsi, fs->buf_va, sizeof(struct fs_info));
@@ -276,43 +303,44 @@ static errval_t find_dirent(struct fatfs_mount *mount, struct fatfs_dirent *root
 
     uint32_t current_cluster = d->content_cluster;
     uint32_t start_sector;
-
+    //debug_printf(">> find dirent: |%s| in |%s| with cc |%d|\n", name, root->name, current_cluster);
     // Read linked clusters until entry is found of empty region is reached
-    while(current_cluster != 0xffffff8 && current_cluster != -1) {
+    while((current_cluster & 0x0fffffff) != 0x0ffffff8 && (current_cluster & 0x0fffffff) != 0x0fffffff) {
         start_sector = mount->fs->data_sector + (current_cluster - 2) * mount->fs->bpb.secPerClus;
-
+        //debug_printf(">> base sector: |%d|\n", start_sector);
         // Iterate through all sectors in cluster
         for (int i = 0; i < mount->fs->bpb.secPerClus; i++) {
             uint32_t current_sector = start_sector + i;
+            //debug_printf(">> current sector: |%d|\n", current_sector);
 
             // Read sector
-            err = sdhc_read_block(mount->ds, (int) current_sector, get_phys_addr(mount->fs->buf_cap));
+            err = long_sdhc_read(mount->ds, (int) current_sector, get_phys_addr(mount->fs->buf_cap));
             ON_ERR_RETURN(err);
 
-            uint8_t *current = mount->fs->buf_va;
+            uint8_t *current = (uint8_t *) mount->fs->buf_va;
 
             // Iterate through all dir entrys in sector
             for(int j = 0; j < mount->fs->bpb.bytsPerSec; j += sizeof(struct fatfs_short_dirent)) {
                 uint8_t *new_ptr = current + j;
 
-                if (((new_ptr[11] & ATTR_LONG_NAME_MASK) == ATTR_LONG_NAME) && (new_ptr[0] != 0xE5)) {
+                //debug_printf(">> current iter: |%d|\n", j);
+                //debug_printf(">> current entry name: |%11s|\n", new_ptr);
+                //debug_printf(">> current entry 1: |%d|\n", new_ptr[0]);
+                //debug_printf(">> current entry 11: |%d|\n", new_ptr[11]);
+
+                if (new_ptr[0] == 0 || new_ptr[11] == 0) {
+                    // Reached empty region, file not found, terminate
+                    // debug_printf(">> File not found\n");
+                    return FS_ERR_NOTFOUND;
+                } else if (new_ptr[0] == 0xE5) {
+                    // Invalidated File, continue
+                } else if ((new_ptr[11] & ATTR_LONG_NAME_MASK) == ATTR_LONG_NAME) {
                     // Reached long direntry
-                    debug_printf(">>> LONG NAME, NYI\n");
+                    debug_printf(">>> LONG NAME %x, NYI\n", ATTR_LONG_NAME);
 
                     struct fatfs_long_dirent dir;
                     memcpy(&dir, new_ptr, sizeof(struct fatfs_short_dirent));
-                }
-                else if (new_ptr[0] == 0xE5 && new_ptr[11] == 0)
-                {
-                    // Invalidated file, search more!
-                }
-                else if (new_ptr[0] == 0 && new_ptr[11] == 0)
-                {
-                    // Reached empty region, file not found
-                    return FS_ERR_NOTFOUND;
-                }
-                else // Reached short direntry --> entry found
-                {
+                } else {  // Reached short direntry --> entry found
                     struct fatfs_short_dirent dir;
                     memcpy(&dir, new_ptr, sizeof(struct fatfs_short_dirent));
 
@@ -395,11 +423,13 @@ static errval_t resolve_path(struct fatfs_mount *mount, const char *path,
 
         // Set rootname, else get parent
         if (memcmp(fat32name, root->name, 11) == 0) {
+            //debug_printf(">>> GET TO HERE?\n");
             next_dirent = root;
         } else {
             err = find_dirent(mount, root, fat32name, &next_dirent);
             if (err_is_fail(err)) {
-                //debug_printf("Error: Directory/File not found\n");
+                debug_printf(">> NO FOUND: |%s| in |%s|\n", fat32name, root->name);
+                debug_printf("Error: Directory/File not found\n");
                 return err;
             }
         }
@@ -503,17 +533,18 @@ static errval_t dirent_insert(struct fatfs_mount *mount, struct fatfs_dirent *pa
             uint32_t current_sector = start_sector + i;
 
             // Read sector from sdcard
-            err = sdhc_read_block(mount->ds, (int) current_sector, get_phys_addr(mount->fs->buf_cap));
+            err = long_sdhc_read(mount->ds, (int) current_sector, get_phys_addr(mount->fs->buf_cap));
             ON_ERR_RETURN(err);
 
-            uint8_t *current = mount->fs->buf_va;
+            uint8_t *current = (uint8_t *) mount->fs->buf_va;
 
             // Iterate through all dirents in sector
             for(int j = 0; j < mount->fs->bpb.bytsPerSec; j += sizeof(struct fatfs_short_dirent)) {
                 uint8_t *new_ptr = current + j;
 
                 // Find evicted entry or new one
-                if ((new_ptr[0] == 0 || new_ptr[0] == 0xE5) && new_ptr[11] == 0) {
+                if (new_ptr[0] == 0 || new_ptr[0] == 0xE5 || new_ptr[11] == 0) {
+                    //debug_printf(">>> Successful write to: %d\n", j);
                     // Fill short_dir struct with infos and write to sdcard at newptr
                     struct fatfs_short_dirent dir;
                     memcpy(dir.name, entry->name, 11);
@@ -553,13 +584,19 @@ static errval_t dirent_insert(struct fatfs_mount *mount, struct fatfs_dirent *pa
                     dir.fileSize = 0;
 
                     // Write new dir entry back to sdcard
-                    err = sdhc_read_block(mount->ds, (int) entry->sector, get_phys_addr(mount->fs->buf_cap));
+                    err = long_sdhc_read(mount->ds, (int) entry->sector, get_phys_addr(mount->fs->buf_cap));
                     ON_ERR_RETURN(err);
-
+                    //debug_printf(">>> WTF: |%d|\n", entry->sector_offset);
                     memcpy(mount->fs->buf_va + entry->sector_offset, &dir, sizeof(struct fatfs_short_dirent));
 
-                    err = sdhc_write_block(mount->ds, (int) entry->sector, get_phys_addr(mount->fs->buf_cap));
+                    err = long_sdhc_write(mount->ds, (int) entry->sector, get_phys_addr(mount->fs->buf_cap));
                     ON_ERR_RETURN(err);
+                    //debug_printf(">>> WTF: |%d|\n", entry->sector);
+
+                    //err = long_sdhc_read(mount->ds, (int) entry->sector, get_phys_addr(mount->fs->buf_cap));
+                    //ON_ERR_RETURN(err);
+                    //struct fatfs_short_dirent *diro = (struct fatfs_short_dirent *)(mount->fs->buf_va + entry->sector_offset);
+                    //debug_printf(">>> ROLOLO |%s|\n", diro->name);
 
                     exit = true;
                     break;
@@ -591,6 +628,7 @@ static errval_t dirent_insert(struct fatfs_mount *mount, struct fatfs_dirent *pa
 
 errval_t fatfs_create(void *st, const char *path, fatfs_handle_t *rethandle)
 {
+    //debug_printf(">>>> path: |%s|\n", path);
     errval_t err;
     struct fatfs_mount *mount = st;
 
@@ -636,7 +674,10 @@ errval_t fatfs_create(void *st, const char *path, fatfs_handle_t *rethandle)
     }
 
     // Insert new entry in parent or root
+    //debug_printf(">>> CHILDNAME: |%s|\n", dirent->name);
     if (parent) {
+        //debug_printf(">>> SHOULD GET HERE name: |%s|\n", parent->dirent->name);
+        //debug_printf(">>> SHOULD GET HERE clus: |%d|\n", parent->dirent->content_cluster);
         dirent_insert(mount, parent->dirent, dirent);
         handle_close(parent);
     } else {
@@ -682,7 +723,7 @@ errval_t fatfs_read(void *st, fatfs_handle_t handle, void *buffer, uint32_t byte
     // Can we read actually something?
     if (bytes == 0) {
         *bytes_read = bytes;
-        //debug_printf(">> EOF\n");
+        debug_printf(">> EOF\n");
         return SYS_ERR_OK;
     }
 
@@ -694,14 +735,14 @@ errval_t fatfs_read(void *st, fatfs_handle_t handle, void *buffer, uint32_t byte
         get_next_fat_entry(mount, current_cluster, &current_cluster);
 
         if (current_cluster == -1) {
-            debug_printf(">> Error: This sould not happen\n");
+            debug_printf(">> Error: This should not happen\n");
         }
     }
 
     // Load sector from sdhc
     uint32_t sector = (int)(mount->fs->data_sector + (current_cluster - 2) * mount->fs->bpb.secPerClus + (h->file_pos / mount->fs->bpb.bytsPerSec));
 
-    err = sdhc_read_block(mount->ds, (int) sector, get_phys_addr(mount->fs->buf_cap));
+    err = long_sdhc_read(mount->ds, (int) sector, get_phys_addr(mount->fs->buf_cap));
     ON_ERR_RETURN(err);
 
     // Adjust read length for simplicity
@@ -915,7 +956,7 @@ errval_t fatfs_dir_read_next(void *st, fatfs_handle_t inhandle, char **retname,
     // Read next folder entry from sector
     uint32_t sector = (int)(mount->fs->data_sector + (current_cluster - 2) * mount->fs->bpb.secPerClus + (h->dir_pos / mount->fs->bpb.bytsPerSec));
 
-    err = sdhc_read_block(mount->ds, (int) sector, get_phys_addr(mount->fs->buf_cap));
+    err = long_sdhc_read(mount->ds, (int) sector, get_phys_addr(mount->fs->buf_cap));
     ON_ERR_RETURN(err);
 
     struct fatfs_short_dirent fsd;
@@ -961,6 +1002,7 @@ errval_t fatfs_closedir(void *st, fatfs_handle_t dhandle)
 errval_t fatfs_write(void *st, fatfs_handle_t handle, const void *buffer,
                      size_t bytes, size_t *bytes_written)
 {
+    //debug_printf(">> ENTRY WRITE\n");
     errval_t err;
     struct fatfs_mount *mount = st;
     struct fatfs_handle *h = handle;
@@ -981,7 +1023,6 @@ errval_t fatfs_write(void *st, fatfs_handle_t handle, const void *buffer,
     uint32_t current_cluster = h->dirent->content_cluster;
 
     size_t bytes_to_write = MIN(bytes, mount->fs->bpb.bytsPerSec - (offset % mount->fs->bpb.bytsPerSec));
-
     // Get current cluster
     if (current_cluster != 0) {
         // Content cluster available
@@ -1002,36 +1043,46 @@ errval_t fatfs_write(void *st, fatfs_handle_t handle, const void *buffer,
             ON_ERR_RETURN(err);
         }
     } else {
+        //debug_printf(">>> Should come here\n");
         // There is no cluster available, so create one
         err = get_free_fat_entry(mount, &current_cluster);
         ON_ERR_RETURN(err);
 
         // Write content cluster origin into file entry, important, sector includes data offset
-        err = sdhc_read_block(mount->ds, (int) h->dirent->sector, get_phys_addr(mount->fs->buf_cap));
+        err = long_sdhc_read(mount->ds, (int) h->dirent->sector, get_phys_addr(mount->fs->buf_cap));
         ON_ERR_RETURN(err);
 
-        struct fatfs_short_dirent *dir = ((struct fatfs_short_dirent *) mount->fs->buf_va) + h->dirent->sector_offset;
-
+        struct fatfs_short_dirent *dir = ((struct fatfs_short_dirent *) ((uint8_t *) mount->fs->buf_va + h->dirent->sector_offset));
+        //debug_printf(">>> cluster: %d\n", current_cluster);
+        //debug_printf(">>> sector offset: %d\n", h->dirent->sector_offset);
         dir->fstClusLow = (uint16_t) (current_cluster & 0x0000FFFF);
         dir->fstClusHi = (uint16_t) ((current_cluster >> 16) & 0x0000FFFF);
 
-        err = sdhc_write_block(mount->ds, (int) h->dirent->sector, get_phys_addr(mount->fs->buf_cap));
+        //debug_printf(">>> clusterlow: %d\n", dir->fstClusLow);
+        //debug_printf(">>> clusterhi: %d\n", dir->fstClusHi);
+        //debug_printf(">>> sector: %d\n", h->dirent->sector);
+        err = long_sdhc_write(mount->ds, (int) h->dirent->sector, get_phys_addr(mount->fs->buf_cap));
         ON_ERR_RETURN(err);
 
         // Update handler directory entry
         h->dirent->content_cluster = current_cluster;
         current_cluster = current_cluster;
     }
-
-    // Mount the cluster we want to write into / dont forget the sector offset to get the right sector
+    //debug_printf(">>> cluster: %d\n", current_cluster);
+    // Mount the cluster we want to write into / don't forget the sector offset to get the right sector
     size_t sector = mount->fs->data_sector + ((current_cluster - 2) * mount->fs->bpb.secPerClus) + (sector_offset % mount->fs->bpb.secPerClus);
-    err = sdhc_read_block(mount->ds, (int) sector, get_phys_addr(mount->fs->buf_cap));
+    err = long_sdhc_read(mount->ds, (int) sector, get_phys_addr(mount->fs->buf_cap));
     ON_ERR_RETURN(err);
-
+    //debug_printf(">>> write off: %zu\n", offset);
+    //debug_printf(">>> write secoff: %zu\n", sector_offset);
     memcpy(mount->fs->buf_va + (offset % mount->fs->bpb.bytsPerSec), buffer, bytes_to_write);
-
-    err = sdhc_write_block(mount->ds, (int) sector, get_phys_addr(mount->fs->buf_cap));
+    //debug_printf(">>> to write: |%s|\n", (char *) buffer);
+    err = long_sdhc_write(mount->ds, (int) sector, get_phys_addr(mount->fs->buf_cap));
     ON_ERR_RETURN(err);
+
+    err = long_sdhc_read(mount->ds, (int) sector, get_phys_addr(mount->fs->buf_cap));
+    ON_ERR_RETURN(err);
+    //debug_printf(">>> to write: |%s|\n", (char *) mount->fs->buf_va);
 
     // Set return values
     if (bytes_written) {
@@ -1043,15 +1094,20 @@ errval_t fatfs_write(void *st, fatfs_handle_t handle, const void *buffer,
     h->dirent->size += bytes_to_write;
 
     // Write updated file size into file entry
-    err = sdhc_read_block(mount->ds, (int) h->dirent->sector, get_phys_addr(mount->fs->buf_cap));
+    err = long_sdhc_read(mount->ds, (int) h->dirent->sector, get_phys_addr(mount->fs->buf_cap));
     ON_ERR_RETURN(err);
 
-    struct fatfs_short_dirent *dir = ((struct fatfs_short_dirent *) mount->fs->buf_va) + h->dirent->sector_offset;
-    dir->fileSize = h->dirent->size;
+    struct fatfs_short_dirent *dir = ((struct fatfs_short_dirent *) ((uint8_t *) mount->fs->buf_va + h->dirent->sector_offset));
+    //debug_printf(">>>>>> OIOIOIsi %u\n", (uint32_t) h->dirent->size);
+    //debug_printf(">>>>>> OIOIOIsec %u\n", (uint32_t) h->dirent->sector_offset);
+    //debug_printf(">>>>>> OIOIOInam |%11s|\n", dir->name);
 
-    err = sdhc_write_block(mount->ds, (int) h->dirent->sector, get_phys_addr(mount->fs->buf_cap));
+    dir->fileSize = (uint32_t) h->dirent->size;
+
+    err = long_sdhc_write(mount->ds, (int) h->dirent->sector, get_phys_addr(mount->fs->buf_cap));
     ON_ERR_RETURN(err);
 
+    //debug_printf(">> WEIRD\n");
     return SYS_ERR_OK;
 }
 
@@ -1073,10 +1129,10 @@ errval_t fatfs_truncate(void *st, fatfs_handle_t handle, size_t bytes)
     }
 
     // Change the size in file
-    err = sdhc_read_block(mount->ds, (int) h->dirent->sector, get_phys_addr(mount->fs->buf_cap));
+    err = long_sdhc_read(mount->ds, (int) h->dirent->sector, get_phys_addr(mount->fs->buf_cap));
     ON_ERR_RETURN(err);
 
-    struct fatfs_short_dirent *dir = ((struct fatfs_short_dirent *) mount->fs->buf_va) + h->dirent->sector_offset;
+    struct fatfs_short_dirent *dir = ((struct fatfs_short_dirent *) ((uint8_t *) mount->fs->buf_va + h->dirent->sector_offset));
     dir->fileSize = (uint32_t) bytes;
 
     // If bytes is zero, delete hi and low in file --> delete assigned content cluster
@@ -1085,43 +1141,34 @@ errval_t fatfs_truncate(void *st, fatfs_handle_t handle, size_t bytes)
         dir->fstClusHi = (uint16_t) 0;
     }
 
-    err = sdhc_write_block(mount->ds, (int) h->dirent->sector, get_phys_addr(mount->fs->buf_cap));
+    err = long_sdhc_write(mount->ds, (int) h->dirent->sector, get_phys_addr(mount->fs->buf_cap));
     ON_ERR_RETURN(err);
 
     // Remove clusters from FAT (Set to 0x0) (if cluster boundary is crossed)
     // Get cluster_offset which ends in bytes
     size_t sector_offset = bytes / mount->fs->bpb.bytsPerSec;
     size_t cluster_offset = sector_offset / mount->fs->bpb.secPerClus;
-    size_t current_cluster = h->dirent->content_cluster;
-    size_t out_cluster = 0;
+    uint32_t current_cluster = h->dirent->content_cluster;
+    size_t out_cluster = current_cluster;
 
     // FAT tablewalk to remove entries
-    for (int c = 0; current_cluster != -1; c++) {
-        int sector = (int) (mount->fs->fat_sector + (current_cluster / 128));
-
-        err = sdhc_read_block(mount->ds, sector, get_phys_addr(mount->fs->buf_cap));
-        ON_ERR_RETURN(err);
-        uint32_t *addr = ((uint32_t *) mount->fs->buf_va);
-
-        // Get next
-        current_cluster = addr[current_cluster % 128];
+    for (int c = 0; ((current_cluster & 0x0fffffff) != 0x0fffffff) && ((current_cluster & 0x0fffffff) != 0x0ffffff8); c++) {
+        debug_printf(">> SO LONG\n");
+        uint32_t old_cluster = current_cluster;
+        get_next_fat_entry(mount, current_cluster, &current_cluster);
 
         // Apply conditional changes
         if (c > cluster_offset) {
-            addr[current_cluster % 128] = 0;
+            insert_new_fat_link(mount, old_cluster, 0);
         } else if (c == cluster_offset) {
             if (bytes == 0) {
-                addr[current_cluster % 128] = 0;
+                insert_new_fat_link(mount, old_cluster, 0);;
             } else {
-                addr[current_cluster % 128] = -1;
+                insert_new_fat_link(mount, old_cluster, 0x0fffffff);
             }
         } else {
             out_cluster = current_cluster;
         }
-
-        // Write back
-        err = sdhc_write_block(mount->ds, sector, get_phys_addr(mount->fs->buf_cap));
-        ON_ERR_RETURN(err);
     }
 
     // Change size in handle dir entry
@@ -1134,6 +1181,7 @@ errval_t fatfs_truncate(void *st, fatfs_handle_t handle, size_t bytes)
 
 errval_t fatfs_remove(void *st, const char *path)
 {
+    debug_printf(">> REACHED REMOVE\n");
     errval_t err;
     struct fatfs_mount *mount = st;
     struct fatfs_handle *h;
@@ -1141,25 +1189,31 @@ errval_t fatfs_remove(void *st, const char *path)
     // Get handle
     err = resolve_path(mount, path, &h);
     if (err_is_fail(err)){
-        // Folder does not exist
+        // file does not exist
+        debug_printf(">> FILE NOT FOUND\n");
         return FS_ERR_NOTFOUND;
     }
 
     // Truncate to 0
+    debug_printf(">> REACHED TRUNCATE START\n");
     err = fatfs_truncate(st, h, 0);
+    debug_printf(">> REACHED TRUNCATE ERR\n");
     ON_ERR_RETURN(err);
-
+    debug_printf(">> REACHED TRUNCATE\n");
     // Set first byte in file entry to 0xE5 and attr to 0
-    err = sdhc_read_block(mount->ds, (int) h->dirent->sector, get_phys_addr(mount->fs->buf_cap));
+    err = long_sdhc_read(mount->ds, (int) h->dirent->sector, get_phys_addr(mount->fs->buf_cap));
     ON_ERR_RETURN(err);
 
     uint8_t *dir = ((uint8_t *) mount->fs->buf_va) + h->dirent->sector_offset;
     dir[0] = 0xE5;
     dir[11] = 0;
 
-    err = sdhc_write_block(mount->ds, (int) h->dirent->sector, get_phys_addr(mount->fs->buf_cap));
+    err = long_sdhc_write(mount->ds, (int) h->dirent->sector, get_phys_addr(mount->fs->buf_cap));
     ON_ERR_RETURN(err);
-
+    err = long_sdhc_read(mount->ds, (int) h->dirent->sector, get_phys_addr(mount->fs->buf_cap));
+    ON_ERR_RETURN(err);
+    dir = ((uint8_t *) mount->fs->buf_va) + h->dirent->sector_offset;
+    debug_printf(">> REACHED 0x%x\n", dir[0]);
     handle_close(h);
     return SYS_ERR_OK;
 }
@@ -1178,21 +1232,21 @@ errval_t fatfs_rmdir(void *st, const char *path)
     }
 
     // Check if folder is empty (only contains . and ..)
-    uint8_t start_byte = -1;
+    uint8_t start_byte = 1;
     uint32_t current_cluster = h->dirent->cluster;
     size_t start_offset = 2 * sizeof(struct fatfs_short_dirent); // To skip . and ..
-    while (start_byte != 0 && current_cluster != -1) {
+    while (start_byte != 0 && ((current_cluster & 0x0fffffff) != 0x0fffffff) && ((current_cluster & 0x0fffffff) != 0x0ffffff8)) {
         int sector = (int) (mount->fs->data_sector + (current_cluster - 2) * mount->fs->bpb.secPerClus);
         for (int i = 0; (i < mount->fs->bpb.secPerClus) && (start_byte != 0); i++) {
-            err = sdhc_read_block(mount->ds, sector + i, get_phys_addr(mount->fs->buf_cap));
+            err = long_sdhc_read(mount->ds, sector + i, get_phys_addr(mount->fs->buf_cap));
             ON_ERR_RETURN(err);
 
-            for (uint8_t *addr = mount->fs->buf_va + start_offset; (addr - (uint8_t *)mount->fs->buf_va) < mount->fs->bpb.bytsPerSec; addr += sizeof(struct fatfs_short_dirent)) {
-                if (addr[11] != 0 && (addr[0] != 0xE5)) {
+            for (uint8_t *addr = mount->fs->buf_va + start_offset; (addr - (uint8_t *) mount->fs->buf_va) < mount->fs->bpb.bytsPerSec; addr += sizeof(struct fatfs_short_dirent)) {
+                if ((addr[11] != 0) && (addr[0] != 0xE5) && (addr[0] != 0x00)) {
                     handle_close(h);
                     return FS_ERR_NOTEMPTY;
                 }
-                if (addr[0] == 0 && addr[11] == 0) {
+                if ((addr[0] == 0) && (addr[11] == 0)) {
                     start_byte = 0;
                     break;
                 }
@@ -1207,9 +1261,9 @@ errval_t fatfs_rmdir(void *st, const char *path)
 
     // . and .. dont have to be deleted, as cluster will be set to 0 on new folder allocation
     // Remove content cluster from fat (set to 0x0)
-    current_cluster = h->dirent->cluster;
+    current_cluster = h->dirent->content_cluster;
     uint32_t parent = current_cluster;
-    while (parent != -1) {
+    while (((parent & 0x0fffffff) != 0x0fffffff) && ((parent & 0x0fffffff) != 0x0ffffff8)) {
         uint32_t child;
         err = get_next_fat_entry(mount, parent, &child);
         ON_ERR_RETURN(err);
@@ -1221,20 +1275,19 @@ errval_t fatfs_rmdir(void *st, const char *path)
     }
 
     // Set first byte in dir entry to 0xE5 and attr to 0
-    err = sdhc_read_block(mount->ds, (int) h->dirent->sector, get_phys_addr(mount->fs->buf_cap));
+    err = long_sdhc_read(mount->ds, (int) h->dirent->sector, get_phys_addr(mount->fs->buf_cap));
     ON_ERR_RETURN(err);
 
     uint8_t *dir = ((uint8_t *) mount->fs->buf_va) + h->dirent->sector_offset;
     dir[0] = 0xE5;
     dir[11] = 0;
 
-    err = sdhc_write_block(mount->ds, (int) h->dirent->sector, get_phys_addr(mount->fs->buf_cap));
+    err = long_sdhc_write(mount->ds, (int) h->dirent->sector, get_phys_addr(mount->fs->buf_cap));
     ON_ERR_RETURN(err);
 
     handle_close(h);
     return SYS_ERR_OK;
 }
-
 
 errval_t fatfs_mount(const char *path, fatfs_mount_t *retst)
 {
@@ -1305,15 +1358,15 @@ errval_t fatfs_mount(const char *path, fatfs_mount_t *retst)
 
 
     debug_printf("==========TESTING==========\n");
-    debug_printf(">>> Print ROOT: %s|\n", mount->root->name);
+    debug_printf(">>> Print ROOT: |%s|\n", mount->root->name);
     debug_printf(">>> RootDirSec: %d\n", fs->rootDir_sector);
     debug_printf(">>> RootClus: %d\n", fs->bpb.rootClus);
     uint8_t *current;
-    for (int j = 0; j < fs->bpb.secPerClus; j++) {
-        err = sdhc_read_block(ds, fs->rootDir_sector + j, get_phys_addr(fs->buf_cap));
+    for (int j = 0; j < fs->bpb.secPerClus/fs->bpb.secPerClus; j++) {
+        err = long_sdhc_read(ds, fs->rootDir_sector + j, get_phys_addr(fs->buf_cap));
         ON_ERR_RETURN(err);
         current = fs->buf_va;
-        for (int i = 0; i < 16; i++) {
+        for (int i = 0; i < 16/8; i++) {
             current += i * 32;
             if (((current[11] & ATTR_LONG_NAME_MASK) == ATTR_LONG_NAME)
                 && (current[0] != 0xE5)) {
@@ -1328,9 +1381,10 @@ errval_t fatfs_mount(const char *path, fatfs_mount_t *retst)
                 debug_printf(">> lo:    %hu\n", dir.fstClusLo);
                 debug_printf(">> name3: %2ls\n", dir.name3);
                 debug_printf(">> <<\n");
-            } else if (current[0] == 0xE5 || current[11] == 0x0) {
+            //} else if ((current[0] == 0xE5 || current[0] == 0) && current[11] == 0) {
                 // Do nothing
             } else {
+
                 struct fatfs_short_dirent dir;
                 memcpy(&dir, current, sizeof(struct fatfs_short_dirent));
                 debug_printf(">> name:  %11s\n", dir.name);
@@ -1346,8 +1400,8 @@ errval_t fatfs_mount(const char *path, fatfs_mount_t *retst)
             }
         }
     }
-/*
-    err = sdhc_read_block(ds, fs->data_sector + (3-2) * fs->bpb.secPerClus, get_phys_addr(fs->buf_cap));
+
+    err = long_sdhc_read(ds, fs->data_sector + (3-2) * fs->bpb.secPerClus, get_phys_addr(fs->buf_cap));
     ON_ERR_RETURN(err);
 
     debug_printf(">>> Print FOLDER\n");
@@ -1384,7 +1438,7 @@ errval_t fatfs_mount(const char *path, fatfs_mount_t *retst)
         }
     }
 
-    err = sdhc_read_block(ds, fs->data_sector + (4-2) * fs->bpb.secPerClus, get_phys_addr(fs->buf_cap));
+    err = long_sdhc_read(ds, fs->data_sector + (4-2) * fs->bpb.secPerClus, get_phys_addr(fs->buf_cap));
     ON_ERR_RETURN(err);
 
     debug_printf(">>> Print FILE SHORT\n");
@@ -1393,9 +1447,9 @@ errval_t fatfs_mount(const char *path, fatfs_mount_t *retst)
         debug_printf(">> Content:  %s\n", (uint8_t *) fs->buf_va);
         debug_printf(">> <<\n");
     }
-*/
+
     debug_printf(">>> Print FAT\n");
-    err = sdhc_read_block(ds, fs->fat_sector, get_phys_addr(fs->buf_cap));
+    err = long_sdhc_read(ds, fs->fat_sector, get_phys_addr(fs->buf_cap));
     ON_ERR_RETURN(err);
 
     uint32_t fatentry;
@@ -1404,7 +1458,7 @@ errval_t fatfs_mount(const char *path, fatfs_mount_t *retst)
         debug_printf(">> fatentry %d: 0x%x\n", i, fatentry);
     }
 /*
-    err = sdhc_read_block(ds, fs->data_sector + (7-2) * fs->bpb.secPerClus, get_phys_addr(fs->buf_cap));
+    err = long_sdhc_read(ds, fs->data_sector + (7-2) * fs->bpb.secPerClus, get_phys_addr(fs->buf_cap));
     ON_ERR_RETURN(err);
 
     debug_printf(">>> Print FILE LONG\n");
@@ -1425,7 +1479,7 @@ void measurments(struct fatfs_mount *mount)
     debug_printf(">> Sequential reads:\n");
     for(int i = 0; i < 100; i++) {
         start = systime_now();
-        sdhc_read_block(mount->ds, i, get_phys_addr(mount->fs->buf_cap));
+        long_sdhc_read(mount->ds, i, get_phys_addr(mount->fs->buf_cap));
         end = systime_now();
         diff = systime_to_us(end - start)/1000;
         debug_printf(">> ms: %lu\n", diff);
@@ -1434,7 +1488,7 @@ void measurments(struct fatfs_mount *mount)
     debug_printf(">> Sequential writes:\n");
     for(int i = 0; i < 100; i++) {
         start = systime_now();
-        sdhc_read_block(mount->ds, i, get_phys_addr(mount->fs->buf_cap));
+        long_sdhc_read(mount->ds, i, get_phys_addr(mount->fs->buf_cap));
         end = systime_now();
         diff = systime_to_us(end - start)/1000;
         debug_printf(">> ms: %lu\n", diff);
@@ -1443,8 +1497,8 @@ void measurments(struct fatfs_mount *mount)
     debug_printf(">> Sequential read/writes:\n");
     for(int i = 0; i < 50; i++) {
         start = systime_now();
-        sdhc_read_block(mount->ds, i, get_phys_addr(mount->fs->buf_cap));
-        sdhc_write_block(mount->ds, i, get_phys_addr(mount->fs->buf_cap));
+        long_sdhc_read(mount->ds, i, get_phys_addr(mount->fs->buf_cap));
+        long_sdhc_write(mount->ds, i, get_phys_addr(mount->fs->buf_cap));
         end = systime_now();
         diff = systime_to_us(end - start)/1000;
         debug_printf(">> ms: %lu\n", diff);

@@ -33,9 +33,10 @@ static void file_read(char *path, size_t size, char **ret)
         debug_printf("Error: file not found\n");
         return;
     }
-
+    //debug_printf(">>>> |%s|%zu\n", path, size);
     char *content = calloc(1, size);
     fread(content, 1, size, f);
+    //debug_printf(">>>> |%s|%zu|\n", content, strlen(content));
     content[size+1] = '\0';
     fclose(f);
     *ret = content;
@@ -133,26 +134,28 @@ static void server_recv_handler(void *stptr, void *message,
                                 void **response, size_t *response_bytes,
                                 struct capref rx_cap, struct capref *tx_cap)
 {
-    debug_printf(">> REEEEEECH ============\n");
+    debug_printf(">> START CALLEE\n");
     struct fs_service_message *fsm = (struct fs_service_message *) message;
 
     size_t path_size = fsm->path_size;
     size_t data_size = fsm->data_size;
 
-    char path[path_size];
-    strcpy(path, fsm->data);
-
+    char path[path_size + 1];
+    memcpy(path, fsm->data, path_size);
+    path[path_size] = '\0';
     *response_bytes = 0;
-
+    debug_printf(">> GOT TYPE: %d\n", fsm->type);
     switch (fsm->type) {
     case F_READ: {
+        debug_printf(">> GOT HERE\n");
         file_read(path, data_size, (char **) response);
         *response_bytes = strlen(*response);
         break;
     }
     case F_WRITE: {
-        char data[data_size];
-        strcpy(data, fsm->data + path_size);  // TODO +1?
+        char data[data_size + 1];
+        data[data_size] = '\0';
+        memcpy(data, fsm->data + path_size, data_size);
         file_write(path, data, data_size);
         break;
     }
@@ -180,33 +183,43 @@ static void server_recv_handler(void *stptr, void *message,
     default:
         break;
     }
+    debug_printf(">> END CALLEE\n");
 }
 
 int main(int argc, char *argv[])
 {
-    debug_printf(">> HELLO FS NAMESERVER ==============\n");
+    assert(get_init_rpc() != NULL);
+    debug_printf(">> INIT FS NAMESERVER\n");
     errval_t err;
+
     err = filesystem_init();
     if (err_is_fail(err)){
         return EXIT_FAILURE;
     }
-    debug_printf(">> LINK FS NAMESERVER ==============\n");
+    debug_printf(">> LINK FS NAMESERVER\n");
     // NAMESERVER LINK
     err = nameservice_register_properties("/fs", server_recv_handler, NULL, true,"type=fs");
     if (err_is_fail(err)){
         return EXIT_FAILURE;
     }
-    debug_printf(">> WHILE FS NAMESERVER ==============\n");
+    debug_printf(">> RUN FS NAMESERVER\n");
+    err = aos_rpc_call(get_init_rpc(), INIT_FS_ON);
+    if (err_is_fail(err)){
+        return EXIT_FAILURE;
+    }
+
     while(true){
         err = event_dispatch(get_default_waitset());
         if (err == LIB_ERR_NO_EVENT){
             thread_yield();
+        } else if (err_is_fail(err)){
+            return EXIT_FAILURE;
         }
     }
 
-
-    err = aos_rpc_call(get_init_rpc(), INIT_FS_ON);
     return EXIT_SUCCESS;
+
+
 
     /*
     debug_printf(">> OPEN/CREATE FILE1\n");

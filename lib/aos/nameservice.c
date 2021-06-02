@@ -228,8 +228,6 @@ errval_t nameservice_register_direct(const char *name,
 
 
 errval_t nameservice_register_properties(const char * name,nameservice_receive_handler_t recv_handler, void * st, bool direct,const char * properties){
-    debug_printf(">>>> DADADA\n");
-
 	errval_t err;
 
 
@@ -278,10 +276,6 @@ errval_t nameservice_register_properties(const char * name,nameservice_receive_h
 
 	new_srv_entry -> main_handler.serv_entry = (void*) new_srv_entry;
 	add_server(new_srv_entry);
-
-    debug_printf(">>>> DADADA2\n");
-
-
     return SYS_ERR_OK;
 }
 

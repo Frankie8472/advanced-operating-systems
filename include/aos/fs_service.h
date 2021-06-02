@@ -1,14 +1,14 @@
-#define FS_SERVICE_NAME "/fs"
 #include <aos/nameserver.h>
+#define FS_SERVICE_NAME "/fs"
 
 enum fs_service_messagetype {
-    F_READ,
-    F_WRITE,
-    F_RM,
-    D_READ,
-    D_MKDIR,
-    D_RM,
-    SPAWN_ELF
+    F_READ=0,
+    F_WRITE=1,
+    F_RM=2,
+    D_READ=3,
+    D_MKDIR=4,
+    D_RM=5,
+    SPAWN_ELF=6
 };
 
 
@@ -18,8 +18,6 @@ struct fs_service_message {
     size_t data_size;
     char data[0];
 } __attribute__((__packed__));
-
-void init_fs(void);
 
 void read_file(char *path, size_t size, char *ret);
 
