@@ -26,6 +26,7 @@ enum {
     INIT_CLIENT_CALL3,
     INIT_MULTI_HOP_CON,
     INIT_BINDING_REQUEST,
+    INIT_IFACE_GET_ALL_MODULES,
     INIT_IFACE_N_FUNCTIONS, // <- count -- must be last
 };
 
