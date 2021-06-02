@@ -85,7 +85,7 @@ int ump_chan_get_data_len(struct ump_chan *chan);
 bool ump_chan_send(struct ump_chan *chan, struct ump_msg *send, bool ping_if_pinged);
 
 bool ump_chan_can_receive(struct ump_chan *chan);
-bool ump_chan_poll_once(struct ump_chan *chan, struct ump_msg *recv);
+bool ump_chan_receive(struct ump_chan *chan, struct ump_msg *recv);
 
 
 /**

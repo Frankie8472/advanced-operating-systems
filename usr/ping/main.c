@@ -60,12 +60,13 @@ int main(int argc, char **argv) {
 
     while (ackd < count) {
         aos_ping_send(&sock);
-        thread_yield();
-        uint16_t a2 = aos_ping_recv(&sock);
-        if (a2 > ackd) {
-            printf("packet %d was acked\n", a2);
-            ackd = a2;
-        }
+        uint16_t a2;
+        do {
+            thread_yield();
+            a2 = aos_ping_recv(&sock);
+        } while (a2 <= ackd);
+        printf("packet %d was acked\n", a2);
+        ackd = a2;
     }
 
     return EXIT_SUCCESS;

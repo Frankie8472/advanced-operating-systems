@@ -162,6 +162,7 @@ void aos_arp_table_get(char *rtptr) {
     if(err_is_fail(err)) {
         debug_printf("not found\n");
         rtptr[0] = 0;
+        return;
     }
 
     struct udp_service_message *usm = malloc(sizeof(struct udp_service_message));
@@ -171,8 +172,8 @@ void aos_arp_table_get(char *rtptr) {
     size_t response_butes;
 
     err = nameservice_rpc(_nschan, (void *) usm, strlen((char *) usm),
-                                   &response, &response_butes,
-                                   NULL_CAP, NULL_CAP);
+                          &response, &response_butes,
+                          NULL_CAP, NULL_CAP);
     strcpy(rtptr, response);
     free(response);
     free(usm);

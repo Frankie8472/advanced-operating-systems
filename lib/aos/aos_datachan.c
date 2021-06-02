@@ -280,7 +280,7 @@ static errval_t aos_dc_receive_one_message_ump(struct aos_datachan *dc)
 
     DECLARE_MESSAGE(dc->channel.ump, msg);
 
-    while(!ump_chan_poll_once(&dc->channel.ump, msg));
+    while(!ump_chan_receive(&dc->channel.ump, msg));
 
     if (dc->bytes_left > 0) {
         // part of a multi message chunk

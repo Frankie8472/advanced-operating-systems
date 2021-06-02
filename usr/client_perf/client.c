@@ -18,26 +18,45 @@
 
 
 
-#define INTERVAL 10000
+#define INTERVAL 1000
 // static char *myrequest = "request !!";
 
 int main(int argc, char *argv[])
 {
     
 
+    // errval_t err;
 
-    errval_t err;
-    if(argc != 2){
-        return 1;
-    }
-    nameservice_chan_t chan;
-    // debug_printf("%s\n",argv[1]);
-    uint64_t start = systime_to_ns(systime_now());
-    err = nameservice_lookup(argv[1],&chan);
-    PANIC_IF_FAIL(err, "failed to register lookup...\n");
-    uint64_t end = systime_to_ns(systime_now());
-    uint64_t tts = end - start;
-    debug_printf("%lu\n",tts);
+
+    // lmp_ep_send()
+    debug_printf("Here!\n");
+    // uint64_t start = systime_to_ns(systime_now());
+    // lmp_ep_send0(get_init_rpc() -> channel.lmp.remote_cap,LMP_FLAG_SYNC,NULL_CAP);
+    // uint64_t end = systime_to_ns(systime_now());
+    // uint64_t  time  = (end - start) ;
+    // debug_printf("%lu\n",time);
+    // while(true){
+    //     uint64_t start = systime_to_ns(systime_now());
+    //     for (int i = 0; i < INTERVAL;++i){
+    //         err = aos_rpc_call(get_init_rpc(),AOS_RPC_ROUNDTRIP);
+    //     }
+    //     uint64_t end = systime_to_ns(systime_now());
+    //     uint64_t  time  = (end - start) / INTERVAL;
+    //     // debug_printf("%lu\n",time);
+
+    // }
+
+    // if(argc != 2){
+    //     return 1;
+    // }
+    // nameservice_chan_t chan;
+    // // debug_printf("%s\n",argv[1]);
+    // // uint64_t start = systime_to_ns(systime_now());
+    // err = nameservice_lookup(argv[1],&chan);
+    // PANIC_IF_FAIL(err, "failed to register lookup...\n");
+    // // uint64_t end = systime_to_ns(systime_now());
+    // // uint64_t tts = end - start;
+    // // debug_printf("%lu\n",tts);
     // size_t request_size = strlen(myrequest);
     // size_t response_bytes;
     // void *response;
@@ -59,7 +78,7 @@ int main(int argc, char *argv[])
     //     // debug_printf("%lu\n",tts);
     //     if(count % INTERVAL == 0){
     //         // double time = ((double) sum) /  INTERVAL;
-    //         // debug_printf("%lu\n",sum);
+    //         debug_printf("%lu\n",sum);
     //         // debug_printf("%lf\n",time);
     //         sum = 0;
     //         // if(disp_get_domain_id() == 8){

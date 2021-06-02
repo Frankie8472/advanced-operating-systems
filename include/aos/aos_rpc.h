@@ -78,6 +78,8 @@ enum aos_rpc_argument_type {
 
 
 #define AOS_RPC_SHORTSTR_LENGTH 32
+#define RPC_LOCK(rpc) thread_mutex_lock_nested(&(rpc)->mutex)
+#define RPC_UNLOCK(rpc) thread_mutex_unlock(&(rpc)->mutex)
 
 struct aos_rpc_varbytes
 {
@@ -111,6 +113,7 @@ struct aos_rpc_interface
 
 /* An RPC binding, which may be transported over LMP or UMP. */
 struct aos_rpc {
+    struct thread_mutex mutex; 
     enum aos_rpc_backend backend;
 
     ///

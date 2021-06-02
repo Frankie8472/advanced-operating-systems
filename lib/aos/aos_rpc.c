@@ -110,6 +110,8 @@ errval_t aos_rpc_init_lmp(struct aos_rpc* rpc, struct capref self_ep, struct cap
 
     aos_rpc_set_timeout(rpc,DEFAULT_TIMEOUT);
 
+    thread_mutex_init(&rpc -> mutex);
+
     return SYS_ERR_OK;
 }
 
@@ -250,6 +252,7 @@ errval_t aos_rpc_call(struct aos_rpc *rpc, enum aos_rpc_msg_type msg_type, ...)
 {   
     assert(rpc != NULL);
 
+    RPC_LOCK(rpc);
     va_list args;
     va_start(args, msg_type);
 
@@ -264,8 +267,8 @@ errval_t aos_rpc_call(struct aos_rpc *rpc, enum aos_rpc_msg_type msg_type, ...)
         break;
 
     }
+    RPC_UNLOCK(rpc);
     va_end(args);
-
     return err;
 }
 
@@ -418,7 +421,7 @@ static errval_t aos_rpc_call_ump(struct aos_rpc *rpc, enum aos_rpc_msg_type msg_
             return LIB_ERR_RPC_TIMEOUT;
         }
         // thr
-        received = ump_chan_poll_once(&rpc->channel.ump, response);
+        received = ump_chan_receive(&rpc->channel.ump, response);
         if(!received && !rpc->ump_dont_yield){
             thread_yield_dispatcher(NULL_CAP);
         }
@@ -536,7 +539,7 @@ void aos_rpc_on_ump_message(void *arg)
     }
 
 
-    bool received = ump_chan_poll_once(&rpc->channel.ump, msg);
+    bool received = ump_chan_receive(&rpc->channel.ump, msg);
     if (!received) {
         //debug_printf("aos_rpc_on_ump_message called but no message available\n");
         ump_chan_register_recv(&rpc->channel.ump, rpc->waitset, MKCLOSURE(&aos_rpc_on_ump_message, rpc));
@@ -585,7 +588,7 @@ static uintptr_t pull_word_ump(struct ump_chan *uc, struct ump_msg *um, int *wor
     if (*word_ind >= UMP_MSG_N_WORDS) {
         bool received = false;
         do {
-            received = ump_chan_poll_once(uc, um);
+            received = ump_chan_receive(uc, um);
         } while(!received);
         *word_ind = 0;
     }
@@ -1371,7 +1374,7 @@ static errval_t aos_rpc_unmarshall_lmp_aarch64(struct aos_rpc *rpc, void *handle
     char argstring[1024]; // TODO maybe move that into some scratch area in the rpc struct
     char retstring[1024];
 
-    char abytes[1024];
+    char abytes[2048];
     struct aos_rpc_varbytes argbytes = { .length = sizeof abytes, .bytes = abytes};
     char rbytes[2048];
     struct aos_rpc_varbytes retbytes = { .length = sizeof rbytes, .bytes = rbytes};
@@ -1616,7 +1619,8 @@ errval_t aos_rpc_get_terminal_input(struct aos_rpc *rpc, char* buf, size_t len)
     errval_t err;
     for (int i = 0; i < len; i++) {
         err = aos_rpc_call(rpc, AOS_RPC_GETCHAR, buf + i);
-        ON_ERR_RETURN(err);
+        //buf[i] = getchar();
+        //ON_ERR_RETURN(err);
         if (buf[i] == 13 || buf[i] == '\n') {
             buf[i] = '\0';
             return SYS_ERR_OK;

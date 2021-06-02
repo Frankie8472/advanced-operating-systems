@@ -13,7 +13,7 @@ static char *welcome = "\n"
     "| |  | |  ___) | |  _  |\n"
     "|_|  |_| |____/  |_| |_|\n";
 
-static char josh_out_buf[1990];
+static char josh_out_buf[1494];
 
 static struct aos_datachan josh_in;
 static struct aos_datachan josh_out;
@@ -76,7 +76,7 @@ static void replace_newlines(char *msg, int len) {
 static void flush_out(struct udp_msg *cl, struct aos_socket *sock) {
     while (aos_dc_can_receive(&josh_out)) {
         size_t rcvd;
-        aos_dc_receive_available(&josh_out, 1990, josh_out_buf, &rcvd);
+        aos_dc_receive_available(&josh_out, 1494, josh_out_buf, &rcvd);
 
         aos_socket_send_to(sock, josh_out_buf, rcvd, cl->ip, cl->f_port);
     }
