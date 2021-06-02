@@ -77,6 +77,19 @@ int main(int argc, char *argv[])
             printf("time: %ld\n", systime_to_ns((after - beg)) / tries);
         }
 
+        printf("switching to non-yield\n");
+        calc_connection.ump_dont_yield = true;
+
+        for (int k = 0; k < 10; k++) {
+            size_t tries = 1000;
+            systime_t beg = systime_now();
+            for (int j = 0; j < tries; j++) {
+                aos_rpc_call(&calc_connection, AOS_RPC_ROUNDTRIP);
+            }
+            systime_t after = systime_now();
+            printf("time: %ld\n", systime_to_ns((after - beg)) / tries);
+        }
+
 
         printf("switching to pinged\n");
 

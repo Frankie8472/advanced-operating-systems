@@ -1613,10 +1613,11 @@ errval_t aos_rpc_serial_getchar(struct aos_rpc *rpc, char *retc)
  */
 errval_t aos_rpc_get_terminal_input(struct aos_rpc *rpc, char* buf, size_t len)
 {
-    errval_t err;
+    //errval_t err;
     for (int i = 0; i < len; i++) {
         err = aos_rpc_call(rpc, AOS_RPC_GETCHAR, buf + i);
-        ON_ERR_RETURN(err);
+        //buf[i] = getchar();
+        //ON_ERR_RETURN(err);
         if (buf[i] == 13 || buf[i] == '\n') {
             buf[i] = '\0';
             return SYS_ERR_OK;
