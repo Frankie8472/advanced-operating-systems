@@ -278,7 +278,6 @@ static int bsp_main(int argc, char *argv[])
     spawn_new_core(3);
     barrelfish_usleep(500000);
 
-    debug_printf(">> START filesystem server\n");
     init_filesystemserver();
 
     while(!get_fs_online()){
@@ -289,7 +288,6 @@ static int bsp_main(int argc, char *argv[])
     }
 
     struct spawninfo *enet_si;
-    debug_printf("lets go\n");
     spawn_enet_driver("enet", &enet_si);
 
     start_josh_on_serial();

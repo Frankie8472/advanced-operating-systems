@@ -104,7 +104,7 @@ int main(int argc, char *argv[])
 
     
 
-    debug_printf("Message handler loop\n");
+    //debug_printf("Message handler loop\n");
     struct waitset *default_ws = get_default_waitset();
     while (true) {
         err = event_dispatch(default_ws);
