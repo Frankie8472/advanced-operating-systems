@@ -724,7 +724,7 @@ errval_t fatfs_read(void *st, fatfs_handle_t handle, void *buffer, uint32_t byte
     // Can we read actually something?
     if (bytes == 0) {
         *bytes_read = bytes;
-        debug_printf(">> EOF\n");
+        //debug_printf(">> EOF\n");
         return SYS_ERR_OK;
     }
 

@@ -21,7 +21,9 @@ int main(int argc, char *argv[])
         } while (read > 0);
         return 0;
     }
-    char ret[1000];
-    read_file(argv[0], 1000, ret);
-    printf("%s\n", ret);
+    else {
+        char ret[1000];
+        read_file(argv[1], sizeof ret, ret);
+        printf("%s\n", ret);
+    }
 }

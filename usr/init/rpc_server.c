@@ -667,8 +667,8 @@ errval_t initialize_rpc_handlers(struct aos_rpc *rpc)
     aos_rpc_register_handler(rpc,INIT_CLIENT_CALL2,&handle_client_call2);
     aos_rpc_register_handler(rpc,INIT_CLIENT_CALL3,&handle_client_call3);
     aos_rpc_register_handler(rpc,INIT_BINDING_REQUEST,&handle_binding_request);
-    aos_rpc_register_handler(rpc,INIT_FS_ON,&handle_fs_on);
     aos_rpc_register_handler(rpc, INIT_IFACE_GET_ALL_MODULES, &handle_get_all_modules);
+    aos_rpc_register_handler(rpc,INIT_FS_ON,&handle_fs_on);
 
     return SYS_ERR_OK;
 }

@@ -60,59 +60,7 @@
 coreid_t my_core_id;
 
 
-__unused
-static struct capref forge_ipi_cap_default(void) {
-    struct capref epcap;
-    slot_alloc(&epcap);
-
-    struct capability ipi_ep = {
-        .type = ObjType_EndPointIPI,
-        .rights = CAPRIGHTS_READ_WRITE,
-        .u.endpointipi = {
-            .channel_id = 1,
-            .notifier = (void*) 0xffff000008000000,
-            .listener_core = !disp_get_core_id()
-        }
-    };
-
-    invoke_monitor_create_cap((uint64_t *)&ipi_ep,
-                                     get_cnode_addr(epcap),
-                                     get_cnode_level(epcap),
-                                     epcap.slot, my_core_id);
-    return epcap;
-}
-
 static errval_t init_foreign_core(void){
-
-
-
-    /*struct capref epcap;
-    slot_alloc(&epcap);
-
-    struct capability ipi_ep = {
-        .type = ObjType_EndPointIPI,
-        .rights = CAPRIGHTS_READ_WRITE,
-        .u.endpointipi = {
-            .channel_id = 1,
-            .notifier = (void*) 0xffff000008000000,
-            .listener_core = 0
-        }
-    };
-
-    invoke_monitor_create_cap((uint64_t *)&ipi_ep,
-                                     get_cnode_addr(epcap),
-                                     get_cnode_level(epcap),
-                                     epcap.slot, 0);
-
-    debug_printf("notifying\n");
-    invoke_ipi_notify(epcap);
-    //invoke_ipi_register(epcap, 4);
-
-    //lmp_endpoint_register(ep, get_default_waitset(), MKCLOSURE(hey, ep));
-
-    return SYS_ERR_OK;*/
-
-
     errval_t err;
     set_pm_online();
 
@@ -265,10 +213,24 @@ static errval_t init_name_server(void){
     return SYS_ERR_OK;
 }
 
+__unused
+static errval_t start_josh_on_serial(void)
+{
+    errval_t err;
 
+    // use ump communication as it is simpler to use
+    struct capref term_in;
+    struct capref term_out;
+    frame_alloc(&term_in, BASE_PAGE_SIZE, NULL);
+    frame_alloc(&term_out, BASE_PAGE_SIZE, NULL);
 
-
-
+    struct spawninfo *term_si;
+    spawn_lpuart_driver("lpuart_terminal", &term_si, term_in, term_out);
+    
+    struct spawninfo *josh_si;
+    err = spawn_new_domain("josh", 0, NULL, NULL, NULL_CAP, term_in, term_out, &josh_si);
+    return err;
+}
 
 
 __unused static void handle_fast_RTT(void * arg){
@@ -308,24 +270,13 @@ static int bsp_main(int argc, char *argv[])
     if(err_is_fail(err)){
         DEBUG_ERR(err,"Failed to start nameserver\n");
     }
+    
 
 
     spawn_new_core(1);
     spawn_new_core(2);
     spawn_new_core(3);
-
-
-    /*struct capref lmp_ep;
-    struct lmp_endpoint *le;
-
-    struct capref ump_ep;
-
-    endpoint_create(64, &lmp_ep, &le);
-    err = ipi_endpoint_create(lmp_ep, &ump_ep);
-
-    lmp_endpoint_register(le, get_default_waitset(), MKCLOSURE(hey, le));
-
-    invoke_ipi_notify(ump_ep);*/
+    barrelfish_usleep(500000);
 
     debug_printf(">> START filesystem server\n");
     init_filesystemserver();
@@ -337,76 +288,20 @@ static int bsp_main(int argc, char *argv[])
         }
     }
 
-
-    struct spawninfo *term_si;
-    spawn_lpuart_driver("lpuart_terminal", &term_si);
-
-    domainid_t pid;
-    struct spawninfo *josh_si;
-
     struct spawninfo *enet_si;
     debug_printf("lets go\n");
     spawn_enet_driver("enet", &enet_si);
 
-    /* domainid_t pid; */
-    /* struct spawninfo *enet_si; */
-
-    /* struct capref ecap; */
-    /* struct lmp_endpoint *eep; */
-    /* endpoint_create(LMP_RECV_LENGTH, &ecap, &eep); */
-
-    /* spawn_new_domain("enet", &pid, ecap, &enet_si); */
-
-    while (capref_is_null(term_si->disp_rpc.channel.lmp.remote_cap)) {
-        err = event_dispatch(get_default_waitset());
-        if (err_is_fail(err)) {
-            DEBUG_ERR(err, "in event_dispatch");
-            abort();
-        }
-    }
-    err = event_dispatch(get_default_waitset());
-    err = event_dispatch(get_default_waitset());
-
-    // debug_printf("getting stdin from terminal!\n");
-
-    struct capref terminal_out;
-    aos_rpc_call(&term_si->disp_rpc, DISP_IFACE_GET_STDIN, &terminal_out);
-
-    // debug_printf("got stdin from terminal!f\n");
+    start_josh_on_serial();
 
 
-    spawn_new_domain("josh", 0, NULL, &pid, NULL_CAP, terminal_out, NULL_CAP, &josh_si);
-
-
-    while (capref_is_null(josh_si->disp_rpc.channel.lmp.remote_cap)) {
-        err = event_dispatch(get_default_waitset());
-        if (err_is_fail(err)) {
-            DEBUG_ERR(err, "in event_dispatch");
-            abort();
-        }
-    }
-    err = event_dispatch(get_default_waitset());
-    err = event_dispatch(get_default_waitset());
-
-    struct capref josh_in;
-    // debug_printf("getting stdin from josh!\n");
-    aos_rpc_call(&josh_si->disp_rpc, DISP_IFACE_GET_STDIN, &josh_in);
-    // debug_printf("got stdin from josh!\n");
-    aos_rpc_call(&term_si->disp_rpc, DISP_IFACE_SET_STDOUT, josh_in);
-
-
-
-    struct spawninfo  *si;
-    spawn_new_domain("client_perf",0,NULL,NULL,NULL_CAP,NULL_CAP,NULL_CAP,&si);
+    //struct spawninfo  *si;
+    //spawn_new_domain("client_perf",0,NULL,NULL,NULL_CAP,NULL_CAP,NULL_CAP,&si);
 
     err = event_dispatch(get_default_waitset());
-    debug_printf("Here!\n");
     err = event_dispatch(get_default_waitset());
-    debug_printf("Here!\n");
     err = event_dispatch(get_default_waitset());
-    debug_printf("Here!\n");
     err = event_dispatch(get_default_waitset());
-    debug_printf("Here!\n");
     // err = event_dispatch(get_default_waitset());
     // debug_printf("Here!\n");
     // err = event_dispatch(get_default_waitset());
@@ -415,7 +310,7 @@ static int bsp_main(int argc, char *argv[])
 
     
     // lmp_chan_deregister_recv(&si -> rpc.channel.lmp);
-    lmp_chan_register_recv(&si -> rpc.channel.lmp,get_default_waitset(),MKCLOSURE(handle_fast_RTT,NULL));
+    //lmp_chan_register_recv(&si -> rpc.channel.lmp,get_default_waitset(),MKCLOSURE(handle_fast_RTT,NULL));
     // lmp_chan_register_en
     // MKCLOSURE()
 
@@ -505,8 +400,7 @@ static int bsp_main(int argc, char *argv[])
     grading_test_late();
 
     // debug_printf("Message handler loop\n");
-    // Hang around
-    
+
     struct waitset *default_ws = get_default_waitset();
     while (true) {
         err = event_dispatch(default_ws);

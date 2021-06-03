@@ -12,9 +12,9 @@
 int main(int argc, char *argv[])
 {
     if (argc == 3) {
-        char *path = argv[0];
-        char *text = argv[1];
-        write_file(path, data);
+        char *path = argv[1];
+        char *text = argv[2];
+        write_file(path, text);
         return 0;
     }
 }

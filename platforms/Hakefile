@@ -35,7 +35,9 @@ let
         "msh",
         "mandel_server",
         "mandel_client",
-        "filesystemserver"
+        "time",
+        "filesystemserver",
+        "wtf"
         ]]
 in
   [

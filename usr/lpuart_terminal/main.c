@@ -112,14 +112,14 @@ static void handle_input(void *arg)
         }
     } while (received >= sizeof buffer);
 
-    err = lmp_chan_register_recv(&stdin_chan.channel.lmp, get_default_waitset(), MKCLOSURE(handle_input, arg));
+    err = aos_dc_register(&stdin_chan, get_default_waitset(), MKCLOSURE(handle_input, arg));
     ON_ERR_NO_RETURN(err);
 }
 
 
 static errval_t setup_stdin(void)
 {
-    lmp_chan_register_recv(&stdin_chan.channel.lmp, get_default_waitset(), MKCLOSURE(handle_input, &stdin_chan));
+    aos_dc_register(&stdin_chan, get_default_waitset(), MKCLOSURE(handle_input, &stdin_chan));
     return SYS_ERR_OK;
 }
 
