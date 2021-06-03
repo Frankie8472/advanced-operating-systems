@@ -110,6 +110,10 @@ static void print_arp_packet(struct arp_hdr* h) {
     deb_print_mac("eth_dst", &h->eth_dst);
 }
 
+/**
+ * \brief Handle an ARP request: possibly update local ARP table and send
+ * back device's MAC address
+ */
 static errval_t arp_request_handle(struct enet_queue* q, struct devq_buf* buf,
                                    struct arp_hdr *h, struct enet_driver_state* st,
                                    lvaddr_t original_header) {
@@ -196,6 +200,10 @@ static errval_t arp_request_handle(struct enet_queue* q, struct devq_buf* buf,
     return SYS_ERR_OK;
 }
 
+/**
+ * \brief Handle an ARP reply. If addressed to this device, add the received
+ * information into the local ARP table
+ */
 static errval_t arp_reply_handle(struct enet_queue* q, struct devq_buf* buf,
                                  struct arp_hdr *h, struct enet_driver_state* st,
                                  lvaddr_t original_header) {
@@ -235,6 +243,9 @@ static errval_t arp_reply_handle(struct enet_queue* q, struct devq_buf* buf,
     return err;
 }
 
+/**
+ * \breif handle an ARP request: check the packet's type and call the corresponding handler.
+ */
 errval_t handle_ARP(struct enet_queue* q, struct devq_buf* buf,
                     lvaddr_t vaddr, struct enet_driver_state* st) {
     errval_t err = SYS_ERR_OK;
@@ -258,6 +269,10 @@ errval_t handle_ARP(struct enet_queue* q, struct devq_buf* buf,
     return err;
 }
 
+/**
+ * \brief handle an ICMP echo request: Create a reply with the
+ * received payload and send it.
+ */
 static errval_t icmp_echo_handle(
     struct enet_queue* q, struct devq_buf* buf,
     struct icmp_echo_hdr *h, struct enet_driver_state* st,
@@ -333,6 +348,10 @@ static errval_t icmp_echo_handle(
     return err;
 }
 
+/**
+ * \brief handle an ICMP echo reply: If a corresponding ICMP socket exists,
+ * inside the driver, adjust its seq_rcv and seq_sent as needed.
+ */
 static errval_t icmp_er_handle(
     struct enet_queue* q, struct devq_buf* buf,
     struct icmp_echo_hdr *h, struct enet_driver_state* st,
@@ -353,6 +372,10 @@ static errval_t icmp_er_handle(
     return SYS_ERR_OK;
 }
 
+/**
+ * \brief handle an ICMP packet: check the packet's type and call
+ * the corresponding handler.
+ */
 static errval_t handle_ICMP(struct enet_queue* q, struct devq_buf* buf,
                             struct icmp_echo_hdr *h, struct enet_driver_state* st,
                             lvaddr_t original_header) {
@@ -373,6 +396,10 @@ static errval_t handle_ICMP(struct enet_queue* q, struct devq_buf* buf,
 }
 
 #if defined(STATIC_UDP_ECHO)
+/**
+ * \brief static UDP echo server: send back all UDP payloads received
+ * on port ..|.....|..|.
+ */
 static errval_t udp_echo(struct enet_queue* q, struct devq_buf* buf,
                          struct udp_hdr *h, struct enet_driver_state* st,
                          lvaddr_t original_header) {
@@ -436,6 +463,10 @@ static errval_t udp_echo(struct enet_queue* q, struct devq_buf* buf,
 }
 #endif
 
+/**
+ * \brief handle UMP packets: Check if a local socket on the incoming
+ * port exists. If so, add the received data to the socket's receive buffer.
+ */
 static errval_t handle_UDP(struct enet_queue* q, struct devq_buf* buf,
                            struct udp_hdr *h, struct enet_driver_state* st,
                            lvaddr_t original_header) {
@@ -464,6 +495,10 @@ static errval_t handle_UDP(struct enet_queue* q, struct devq_buf* buf,
     return err;
 }
 
+/**
+ * \brief handle IP packet: Check its type and call the
+ * corresponding handler.
+ */
 errval_t handle_IP(struct enet_queue* q, struct devq_buf* buf,
                    lvaddr_t vaddr, struct enet_driver_state* st) {
     errval_t err;
@@ -495,6 +530,10 @@ errval_t handle_IP(struct enet_queue* q, struct devq_buf* buf,
     return err;
 }
 
+/**
+ * \brief handle an incoming packet: Check its ETH type and call the
+ * corresponding handler.
+ */
 errval_t handle_packet(struct enet_queue* q, struct devq_buf* buf,
                        struct enet_driver_state* st) {
     ENET_DEBUG("handling new packet\n");
