@@ -907,7 +907,7 @@ void paging_dump_tables(struct dcb *dispatcher)
                     if (!paddr) {
                         continue;
                     }
-                    printf("%d.%d.%d.%d: 0x%"PRIxGENPADDR" \n", l0_index, l1_index, l2_index, entry, paddr);
+                    printf("%d.%d.%d.%d: 0x%"PRIxGENPADDR" | %d |\n", l0_index, l1_index, l2_index, entry, paddr, e->page.attrindex);
                 }
             }
         }

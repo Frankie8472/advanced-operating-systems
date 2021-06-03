@@ -11,5 +11,6 @@ errval_t spawn_new_domain(const char *mod_name, int argc, char **argv, domainid_
 
 errval_t spawn_lpuart_driver(const char *mod_name, struct spawninfo **ret_si);
 errval_t spawn_enet_driver(const char *mod_name, struct spawninfo **ret_si);
+errval_t spawn_filesystem(const char *mod_name, struct spawninfo **ret_si);
 
 #endif // INIT_SPAWN_SERVER_H_

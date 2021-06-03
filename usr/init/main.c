@@ -42,12 +42,14 @@
 #include "rpc_server.h"
 #include "test.h"
 #include <hashtable/hashtable.h>
+#include <aos/fs_service.h>
 
 
 #include "routing.h"
 #include <aos/kernel_cap_invocations.h>
 
 #include <process_manager_interface.h>
+#include <fs/fs.h>
 
 
 
@@ -82,7 +84,7 @@ static struct capref forge_ipi_cap_default(void) {
 
 static errval_t init_foreign_core(void){
 
-    
+
 
     /*struct capref epcap;
     slot_alloc(&epcap);
@@ -112,9 +114,6 @@ static errval_t init_foreign_core(void){
 
 
     errval_t err;
-
-    
-
     set_pm_online();
 
     uint64_t *urpc_init = (uint64_t*) MON_URPC_VBASE;
@@ -205,7 +204,14 @@ static errval_t init_foreign_core(void){
     return SYS_ERR_OK;
 }
 
-
+__unused
+static errval_t init_filesystemserver(void)
+{
+    errval_t err;
+    struct spawninfo *fs_si;
+    err = spawn_filesystem("filesystemserver", &fs_si);
+    return err;
+}
 
 
 
@@ -320,6 +326,17 @@ static int bsp_main(int argc, char *argv[])
     lmp_endpoint_register(le, get_default_waitset(), MKCLOSURE(hey, le));
 
     invoke_ipi_notify(ump_ep);*/
+
+    debug_printf(">> START filesystem server\n");
+    init_filesystemserver();
+
+    while(!get_fs_online()){
+        err = event_dispatch(get_default_waitset());
+        if(err_is_fail(err)){
+            DEBUG_ERR(err,"Failed waitset");
+        }
+    }
+
 
     struct spawninfo *term_si;
     spawn_lpuart_driver("lpuart_terminal", &term_si);
@@ -462,8 +479,17 @@ static int bsp_main(int argc, char *argv[])
     
     //run_init_tests(my_core_id);
 
-    
 
+    //for (volatile size_t i = 0; i < 1000000000; i++);
+
+    // debug_printf(">> INIT filesystem server\n");
+    // for (volatile size_t i = 0; i < 100; i++){
+    //     thread_yield();
+    // }
+
+
+
+    //spawn_new_domain("hello", 0, NULL, NULL, NULL_CAP, NULL_CAP, NULL_CAP, NULL);
 
     // Grading
     grading_test_early();

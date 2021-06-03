@@ -20,6 +20,8 @@ module /armv8/sbin/lpuart_terminal
 module /armv8/sbin/josh
 module /armv8/sbin/enet
 module /armv8/sbin/cat
+module /armv8/sbin/filesystemserver
+
 module /armv8/sbin/xxd
 module /armv8/sbin/echoserver
 module /armv8/sbin/arp
