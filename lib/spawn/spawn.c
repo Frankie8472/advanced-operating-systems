@@ -183,7 +183,7 @@ errval_t spawn_setup_dispatcher(int argc, const char *const *argv, struct spawni
 
     // setup the channel from the init side
 
-    err = endpoint_create(LMP_RECV_LENGTH, &si->cap_ep, &si->lmp_ep);
+    err = endpoint_create(256, &si->cap_ep, &si->lmp_ep);
     ON_ERR_PUSH_RETURN(err, LIB_ERR_ENDPOINT_CREATE);
 
     err = cap_copy(init_ep_cap, si->cap_ep);

@@ -141,7 +141,7 @@ void handle_send_number(struct aos_rpc *r, uintptr_t number) {
  * \brief handler function for send string rpc call
  */
 void handle_send_string(struct aos_rpc *r, const char *string) {
-    debug_printf("recieved string: %s\n", string);
+    // debug_printf("recieved string: %s\n", string);
 }
 
 /**
