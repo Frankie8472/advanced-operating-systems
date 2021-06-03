@@ -968,7 +968,7 @@ errval_t fatfs_dir_read_next(void *st, fatfs_handle_t inhandle, char **retname,
     memcpy(&fsd, mount->fs->buf_va + (h->dir_pos % mount->fs->bpb.bytsPerSec), sizeof(struct fatfs_short_dirent));
 
     // Check if entry is valid
-    if (fsd.attr == 0x0) {
+    if (((fsd.attr == 0x0) && (((uint8_t) fsd.name[0]) != 0xE5)) || (((uint8_t) fsd.name[0]) == 0x00)) {
         return FS_ERR_INDEX_BOUNDS;
     }
 
