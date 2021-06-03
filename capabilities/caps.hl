@@ -168,9 +168,6 @@ cap EndPointLMP from Dispatcher {
 };
 
 cap EndPointIPI from EndPointLMP {
-    /* IDC endpoint for ipi notification across cores */
-
-    /*"struct capability" notifier;*/  /* LMP endpoint that is bound to this endpoint */
     coreid listener_core;          /* core on which listening dispatcher resides */
     uint32 channel_id;             /* channel for ipi notification */
 };
