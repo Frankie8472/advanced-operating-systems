@@ -68,7 +68,6 @@ static struct capref forge_ipi_cap_default(void) {
         .rights = CAPRIGHTS_READ_WRITE,
         .u.endpointipi = {
             .channel_id = 1,
-            .notifier = (void*) 0xffff000008000000,
             .listener_core = !disp_get_core_id()
         }
     };

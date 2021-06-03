@@ -324,8 +324,8 @@ int debug_print_cap(char *buf, size_t len, struct capability *cap)
                         cap->u.endpointlmp.listener, cap->u.endpointlmp.epoffset);
 
     case ObjType_EndPointIPI:
-            return snprintf(buf, len, "IPI EndPoint cap (notifier %p, channel_id=%"PRIu32")",
-                        cap->u.endpointipi.notifier, cap->u.endpointipi.channel_id);
+            return snprintf(buf, len, "IPI EndPoint cap (core=%d, channel_id=%"PRIu32")",
+                        cap->u.endpointipi.listener_core, cap->u.endpointipi.channel_id);
 
 
 ObjType_Mapping:
