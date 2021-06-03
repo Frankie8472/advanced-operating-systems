@@ -273,9 +273,9 @@ static int bsp_main(int argc, char *argv[])
     barrelfish_usleep(500000);
 
 
-    /*struct spawninfo *enet_si;
+    struct spawninfo *enet_si;
     debug_printf("lets go\n");
-    spawn_enet_driver("enet", &enet_si);*/
+    spawn_enet_driver("enet", &enet_si);
 
 
     start_josh_on_serial();
