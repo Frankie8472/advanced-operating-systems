@@ -122,6 +122,8 @@ errval_t init_dispatcher_rpcs(void)
         DEBUG_ERR(err, "Error establishing connection with memory server! aborting!");
         abort();
     }
+    aos_rpc_set_timeout(&mm_rpc, 1000000000);
+    err = lmp_chan_deregister_recv(&mm_rpc.channel.lmp);
     set_mm_rpc(&mm_rpc);
 
 

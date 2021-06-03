@@ -1110,7 +1110,6 @@ void aos_rpc_on_lmp_message(void *arg)
             //char buf[128];
             //debug_print_capref(buf, 128, rpc->channel.lmp.remote_cap);
             //debug_printf("setting epcap to %s\n", buf);
-            recieved_cap = NULL_CAP;
         }
     }
 

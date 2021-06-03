@@ -427,10 +427,10 @@ struct thread *thread_create_unrunnable(thread_func_t start_func, void *arg,
     }
     newthread->stack_region.type = PAGING_REGION_STACK;
     //err = paging_map_stack_guard(st, (lvaddr_t) newthread->stack_region.base_addr);
-    for (size_t i = 1; i * BASE_PAGE_SIZE < stacksize; i++) {
-        int *ptr = (int *) (newthread->stack_region.base_addr + i * BASE_PAGE_SIZE);
-        *ptr = 0;
-    }
+    //for (size_t i = 1; i * BASE_PAGE_SIZE < stacksize; i++) {
+        //int *ptr = (int *) (newthread->stack_region.base_addr + i * BASE_PAGE_SIZE);
+        //*ptr = 0;
+    //}
     snprintf(newthread->stack_region.region_name, sizeof newthread->stack_region.region_name, "thread stack %d", newthread->id);
 
     // init stack

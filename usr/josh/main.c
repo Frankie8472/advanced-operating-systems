@@ -98,94 +98,41 @@ static errval_t call_spawn_request(const char *name, coreid_t core, size_t argc,
     struct aos_rpc *init_rpc = get_init_rpc();
     uintptr_t pid;
 
-    if (core == disp_get_core_id() && false) {
 
-        struct lmp_endpoint *lmp_ep;
-        struct capref lmp_ep_cap;
-        err = endpoint_create(LMP_RECV_LENGTH * 8, &lmp_ep_cap, &lmp_ep);
-        ON_ERR_RETURN(err);
+    struct capref rpc_frame;
+    frame_alloc(&rpc_frame, BASE_PAGE_SIZE, NULL);
 
-        err = aos_rpc_call(init_rpc, INIT_IFACE_SPAWN_EXTENDED, bytes, core, lmp_ep_cap, NULL_CAP, NULL_CAP, &pid);
 
-        free(data); // not needed anymore
 
-        if (err_is_fail(err)) {
-            debug_printf("failed to call init\n");
+    void *disp_rpc_addr;
+    err = paging_map_frame_complete(get_current_paging_state(), &disp_rpc_addr, rpc_frame, NULL, NULL);
 
-            lmp_endpoint_free(lmp_ep);
-            cap_destroy(lmp_ep_cap);
-            return LIB_ERR_RPC_NOT_CONNECTED;
-        }
 
-        prog->domainid = pid;
+    err = aos_rpc_init_ump_default(&prog->process_disprpc, (lvaddr_t) disp_rpc_addr, BASE_PAGE_SIZE, 1);
+    ON_ERR_RETURN(err);
+    aos_rpc_set_interface(&prog->process_disprpc, get_dispatcher_interface(), DISP_IFACE_N_FUNCTIONS, malloc(DISP_IFACE_N_FUNCTIONS * sizeof (void *)));
+    
+    setup_ump_channels(prog);
 
-        if (((int) pid) == MOD_NOT_FOUND || ((int) pid) == COREID_INVALID) {
-            lmp_endpoint_free(lmp_ep);
-            cap_destroy(lmp_ep_cap);
-            return SPAWN_ERR_FIND_MODULE;
-        }
+    err = aos_rpc_call(init_rpc, INIT_IFACE_SPAWN_EXTENDED, bytes, core, rpc_frame, prog->out_cap, prog->in_cap, &pid);
+    free(data); // not needed anymore
 
-        err = aos_rpc_init_lmp(&prog->process_disprpc, lmp_ep_cap, NULL_CAP, lmp_ep, get_default_waitset());
-        if (err_is_fail(err)) {
-            lmp_endpoint_free(lmp_ep);
-            cap_destroy(lmp_ep_cap);
-            return err;
-        }
-
-        aos_dc_init_lmp(&prog->process_in, 1024);
-        aos_dc_init_lmp(&prog->process_out, 1024);
-        endpoint_create(LMP_RECV_LENGTH * 64, &prog->process_out.channel.lmp.local_cap, &prog->process_out.channel.lmp.endpoint);
-
-        void haendl(struct aos_rpc *r, struct capref ep, struct capref stdinep, struct capref *stdoutep) {
-            r->channel.lmp.remote_cap = ep;
-            prog->process_in.channel.lmp.remote_cap = stdinep;
-            *stdoutep = prog->process_out.channel.lmp.local_cap;
-        }
-
-        struct aos_rpc *rpc = &prog->process_disprpc;
-        aos_rpc_set_interface(rpc, get_dispatcher_interface(), DISP_IFACE_N_FUNCTIONS, malloc(DISP_IFACE_N_FUNCTIONS * sizeof (void *)));
-        aos_rpc_register_handler(rpc, DISP_IFACE_BINDING, haendl);
-
-        while(capref_is_null(rpc->channel.lmp.remote_cap)) {
-            err = event_dispatch(get_default_waitset());
-        }
+    if (err_is_fail(err)) {
+        debug_printf("failed to call init\n");
+        return LIB_ERR_RPC_NOT_CONNECTED;
     }
-    else {
-        struct capref rpc_frame;
-        frame_alloc(&rpc_frame, BASE_PAGE_SIZE, NULL);
 
+    prog->domainid = pid;
+    /*if (((int) pid) == MOD_NOT_FOUND || ((int) pid) == COREID_INVALID) {
+        cap_destroy(rpc_frame);
+        cap_destroy(prog->out_cap);
+        cap_destroy(prog->in_cap);
 
+        return SPAWN_ERR_FIND_MODULE;
+    }*/
 
-        void *disp_rpc_addr;
-        err = paging_map_frame_complete(get_current_paging_state(), &disp_rpc_addr, rpc_frame, NULL, NULL);
-
-
-        err = aos_rpc_init_ump_default(&prog->process_disprpc, (lvaddr_t) disp_rpc_addr, BASE_PAGE_SIZE, 1);
-        ON_ERR_RETURN(err);
-        aos_rpc_set_interface(&prog->process_disprpc, get_dispatcher_interface(), DISP_IFACE_N_FUNCTIONS, malloc(DISP_IFACE_N_FUNCTIONS * sizeof (void *)));
-        
-        setup_ump_channels(prog);
-
-        err = aos_rpc_call(init_rpc, INIT_IFACE_SPAWN_EXTENDED, bytes, core, rpc_frame, prog->out_cap, prog->in_cap, &pid);
-        free(data); // not needed anymore
-
-        if (err_is_fail(err)) {
-            debug_printf("failed to call init\n");
-            return LIB_ERR_RPC_NOT_CONNECTED;
-        }
-
-        prog->domainid = pid;
-        /*if (((int) pid) == MOD_NOT_FOUND || ((int) pid) == COREID_INVALID) {
-            cap_destroy(rpc_frame);
-            cap_destroy(prog->out_cap);
-            cap_destroy(prog->in_cap);
-
-            return SPAWN_ERR_FIND_MODULE;
-        }*/
-
-        if (((int) pid) == MOD_NOT_FOUND || ((int) pid) == COREID_INVALID) {
-            return SPAWN_ERR_FIND_MODULE;
-        }
+    if (((int) pid) == MOD_NOT_FOUND || ((int) pid) == COREID_INVALID) {
+        return SPAWN_ERR_FIND_MODULE;
     }
 
     return SYS_ERR_OK;
@@ -271,6 +218,7 @@ static errval_t setup_builtin(const char *cmd, size_t argc, const char **argv, s
     prog->argv = malloc(argc * sizeof(char *));
     memcpy(prog->argv, argv, argc * sizeof(char *));
     setup_ump_channels(prog);
+
     prog->builtin_thread = thread_create(builtin_threadentry, prog);
 
     return SYS_ERR_OK;
