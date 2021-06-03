@@ -215,7 +215,7 @@ int main(int argc, char *argv[])
     //     DEBUG_ERR(err,"Failed to call AOS_RPC_SERVICE_ON\n");
     // }
 
-    debug_printf("Message handler loop\n");
+    //debug_printf("Message handler loop\n");
     while (true) {
         err = event_dispatch(default_ws);
         if (err_is_fail(err)) {

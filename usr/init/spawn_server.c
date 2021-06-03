@@ -47,9 +47,9 @@ errval_t spawn_new_core(coreid_t core)
         DEBUG_ERR(err,"Failed to allcoate ram for new core\n");
     }
     uint64_t* urpc_init = (uint64_t *) urpc_data;
-    debug_printf("Here is bi in bsp: %lx \n", bi);
-    debug_printf("Bootinfo base: %lx, bootinfo size: %lx\n",get_phys_addr(bootinfo_cap),BOOTINFO_SIZE);
-    debug_printf("Core ram base: %lx, core ram size: %lx\n",get_phys_addr(core_ram),get_phys_size(core_ram));
+    //debug_printf("Here is bi in bsp: %lx \n", bi);
+    //debug_printf("Bootinfo base: %lx, bootinfo size: %lx\n",get_phys_addr(bootinfo_cap),BOOTINFO_SIZE);
+    //debug_printf("Core ram base: %lx, core ram size: %lx\n",get_phys_addr(core_ram),get_phys_size(core_ram));
     urpc_init[0] = get_phys_addr(bootinfo_cap);
     urpc_init[1] = BOOTINFO_SIZE;
     urpc_init[2] = get_phys_addr(core_ram);
@@ -165,8 +165,8 @@ errval_t spawn_lpuart_driver(const char *mod_name, struct spawninfo **ret_si, st
 
     aos_rpc_set_interface(disp_rpc, get_dispatcher_interface(), DISP_IFACE_N_FUNCTIONS, malloc(DISP_IFACE_N_FUNCTIONS * sizeof(void *)));
     aos_rpc_register_handler(disp_rpc, DISP_IFACE_BINDING, handle_binding);
-    debug_printf("disp_rpc: %p\n", disp_rpc);
-    debug_printf("handle_binding: %p\n", handle_binding);
+    //debug_printf("disp_rpc: %p\n", disp_rpc);
+    //debug_printf("handle_binding: %p\n", handle_binding);
 
     si->spawner_ep_cap = disp_rpc->channel.lmp.local_cap;
 

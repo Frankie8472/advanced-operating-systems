@@ -103,7 +103,7 @@ errval_t initialize_ram_alloc(void)
             mem_cap.slot++;
         }
     }
-    debug_printf("Added %"PRIu64" MB of physical memory.\n", mem_avail / 1024 / 1024);
+    //debug_printf("Added %"PRIu64" MB of physical memory.\n", mem_avail / 1024 / 1024);
 
     // Finally, we can initialize the generic RAM allocator to use our local allocator
     err = ram_alloc_set(aos_ram_alloc_aligned);

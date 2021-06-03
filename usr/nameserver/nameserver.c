@@ -58,7 +58,7 @@ int main(int argc, char *argv[])
     struct periodic_event pe;
     err = periodic_event_create(&pe,get_default_waitset(),NS_SWEEP_INTERVAL,MKCLOSURE(sweep_server_list,NULL));
     struct waitset *default_ws = get_default_waitset();
-    debug_printf("Message handler loop\n");
+    //debug_printf("Message handler loop\n");
     while (true) {
         err = event_dispatch(default_ws);
         if (err_is_fail(err)) {
