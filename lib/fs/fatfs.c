@@ -1306,7 +1306,7 @@ errval_t fatfs_mount(const char *path, fatfs_mount_t *retst)
     if (err_is_fail(err)) {
         free(ds);
         debug_printf("Fatal Error, could not initialize SHDC driver\n");
-        abort();
+        return SDHC_ERR_TEST_FAILED;
     }
 
     // Init fat32 filesystem state

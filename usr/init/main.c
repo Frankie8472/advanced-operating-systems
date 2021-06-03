@@ -489,7 +489,7 @@ static int bsp_main(int argc, char *argv[])
 
 
 
-    spawn_new_domain("hello", 0, NULL, NULL, NULL_CAP, NULL_CAP, NULL_CAP, NULL);
+    //spawn_new_domain("hello", 0, NULL, NULL, NULL_CAP, NULL_CAP, NULL_CAP, NULL);
 
     // Grading
     grading_test_early();

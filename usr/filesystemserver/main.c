@@ -195,6 +195,8 @@ int main(int argc, char *argv[])
 
     err = filesystem_init();
     if (err_is_fail(err)){
+        aos_rpc_call(get_init_rpc(), INIT_FS_ON);
+        DEBUG_ERR(SDHC_ERR_TEST_FAILED, "SDHC INIT FAILED");
         return EXIT_FAILURE;
     }
     debug_printf(">> LINK FS NAMESERVER\n");
