@@ -11,6 +11,7 @@
 #include "builtins.h"
 #include "running.h"
 #include "variables.h"
+#include "complete.h"
 
 
 
@@ -454,11 +455,6 @@ static void parse_input_line(void) {
     linenoiseFree(line);
 }
 
-
-static void complete_line(const char *line, linenoiseCompletions *completions)
-{
-    completions->len = 0;
-}
 
 
 int main(int argc, char **argv)
