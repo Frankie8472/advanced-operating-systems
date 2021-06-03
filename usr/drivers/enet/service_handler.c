@@ -186,7 +186,6 @@ static void server_recv_handler(void *stptr, void *message,
         err = udp_socket_send_to(st, msg->port, msg->data, msg->len, msg->ip, msg->tgt_port);
         if (err_is_fail(err)) {
             DEBUG_ERR(err, "oh no :(");
-            debug_printf("%d\n", err);
         }
         HAN_DEBUG("write repl\n");
         *response_bytes = 0;
