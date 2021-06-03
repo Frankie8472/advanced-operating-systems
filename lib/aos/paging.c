@@ -85,7 +85,7 @@ void page_fault_handler(enum exception_type type, int subtype, void *addr, arch_
             );
             
             if (err_is_fail(err)) {
-                DEBUG_ERR(err, "error mapping page in page fauilt handler\n");
+                debug_printf("error mapping page in page fauilt handler\n");
                 thread_exit(1);
             }
             return;
