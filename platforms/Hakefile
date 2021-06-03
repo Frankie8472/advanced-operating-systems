@@ -37,7 +37,11 @@ let
         "mandel_client",
         "time",
         "filesystemserver",
-        "wtf"
+        "wtf",
+        "mkdir",
+        "rmdir",
+        "ls",
+        "rm"
         ]]
 in
   [

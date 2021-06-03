@@ -872,8 +872,10 @@ main(int argc, char *argv[])
 	  p = 0;
 	}
     }
+  /*
   if (e == EOF && ferror(fp))
     die(2);
+  */
   if (p)
     {
       l[c = (addrlen + 3 + (grplen * cols - 1)/octspergrp + p)] = '\n'; l[++c] = '\0';
