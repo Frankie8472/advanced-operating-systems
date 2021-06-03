@@ -223,5 +223,6 @@ void handle_get_server_pid(struct aos_rpc *rpc, const char * name, uintptr_t* pi
         *pid = 0xffffffff;
         return;
     }
+    debug_printf("%s\n",server -> name);
     *pid = server -> pid;
 }

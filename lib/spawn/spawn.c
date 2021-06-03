@@ -52,6 +52,7 @@ static void armv8_set_registers(void *arch_load_info,
  * \param taskcn References to Level 2 CNodes to initialize.
  * \param basepagecn
  * \param pagecn
+ * \param argcn
  * \param alloc0
  * \param alloc1
  * \param alloc2
@@ -62,6 +63,7 @@ errval_t setup_c_space(struct capref cnode_l1,
                        struct cnoderef *taskcn,
                        struct cnoderef *basepagecn,
                        struct cnoderef *pagecn,
+                       struct cnoderef *argcn,
                        struct cnoderef *alloc0,
                        struct cnoderef *alloc1,
                        struct cnoderef *alloc2)
@@ -87,6 +89,9 @@ errval_t setup_c_space(struct capref cnode_l1,
 
     err = cnode_create_foreign_l2(cnode_l1, ROOTCN_SLOT_PAGECN, pagecn);
     ON_ERR_PUSH_RETURN(err, SPAWN_ERR_CREATE_PAGECN);
+
+    err = cnode_create_foreign_l2(cnode_l1, ROOTCN_SLOT_ARGCN, argcn);
+    ON_ERR_PUSH_RETURN(err, SPAWN_ERR_CREATE_ARGCN);
 
     err = cnode_create_foreign_l2(cnode_l1, ROOTCN_SLOT_SLOT_ALLOC0, alloc0);
     ON_ERR_PUSH_RETURN(err, SPAWN_ERR_CREATE_SLOTALLOC_CNODE);
@@ -120,12 +125,14 @@ errval_t spawn_setup_dispatcher(int argc, const char *const *argv, struct spawni
     struct cnoderef taskcn;
     struct cnoderef basepagecn;
     struct cnoderef pagecn;
+    struct cnoderef argcn;
 
     struct cnoderef alloc0;
     struct cnoderef alloc1;
     struct cnoderef alloc2;
 
-    err = setup_c_space(cnode_child_l1, &taskcn, &basepagecn, &pagecn, &alloc0, &alloc1, &alloc2);
+    err = setup_c_space(cnode_child_l1, &taskcn, &basepagecn, &pagecn, &argcn, &alloc0, &alloc1, &alloc2);
+    ON_ERR_RETURN(err);
 
     // endpoint to itself in child cspace
     struct capref child_ep_cap = (struct capref) {
@@ -204,27 +211,6 @@ errval_t spawn_setup_dispatcher(int argc, const char *const *argv, struct spawni
     err = cap_copy(mm_ep_cap, cap_mmep);
     ON_ERR_PUSH_RETURN(err, LIB_ERR_CAP_COPY_FAIL);
 
-/* <<<<<<< HEAD */
-    /*     struct capref irq = (struct capref) { */
-    /*         .cnode = taskcn, */
-    /*         .slot = TASKCN_SLOT_IRQ */
-    /*     }; */
-    /*     cap_copy(irq, cap_irq); */
-    /* } else if (strncmp(si->binary_name, "enet", 32) == 0) { */
-    /*     // TODO */
-    /*     debug_printf("special enet stuff\n"); */
-    /*     size_t source_addr = get_phys_addr(dev_frame); */
-    /*     err = cap_retype(child_dev_frame, dev_frame, IMX8X_ENET_BASE - source_addr, ObjType_DevFrame, IMX8X_ENET_SIZE, 1); */
-    /*     DEBUG_ERR(err, "oh no\n"); */
-    /*     ON_ERR_PUSH_RETURN(err, LIB_ERR_CAP_RETYPE); */
-
-    /*     struct capref irq = (struct capref) { */
-    /*         .cnode = taskcn, */
-    /*         .slot = TASKCN_SLOT_IRQ */
-    /*     }; */
-    /*     cap_copy(irq, cap_irq); */
-    /*     debug_printf("DONE\n"); */
-/* ======= */
     if (!capref_is_null(si->spawner_ep_cap)) {
         err = cap_copy(spawner_ep_cap, si->spawner_ep_cap);
         ON_ERR_PUSH_RETURN(err, LIB_ERR_CAP_COPY_FAIL);
@@ -521,10 +507,6 @@ static void strip_extra_spaces(char* str) {
   str[x] = '\0';
 }
 
-
-
-
-
 errval_t spawn_setup_module_by_name(const char *binary_name, struct spawninfo *si)
 {
     errval_t err;
@@ -559,32 +541,25 @@ errval_t spawn_setup_module_by_name(const char *binary_name, struct spawninfo *s
 }
 
 errval_t spawn_setup_by_name(char *binary_name, struct spawninfo *si, domainid_t *pid)
-{   
+{
 
     //PLEASE DONT LOOK AT THIS WHILE GRADING!
     //THANK YOU
 
     errval_t err = SYS_ERR_OK;
 
-
     binary_name = strdup(binary_name);
-    
-
 
     //Pretty ugly, but fixes a silent Nullptr dereference
     int argc = get_argc(binary_name);
     char * res[argc];
-    char cmd_line_copy[strlen(binary_name)];
+    char cmd_line_copy[strlen(binary_name)+1];
     strcpy(cmd_line_copy,binary_name);
     create_argv(cmd_line_copy,(char **) res);
 
 
     err = spawn_setup_module_by_name(res[0], si);
     ON_ERR_RETURN(err);
-
-
-
-
 
     if(argc > 1){
         char *args_string = binary_name;
@@ -596,7 +571,7 @@ errval_t spawn_setup_by_name(char *binary_name, struct spawninfo *si, domainid_t
         
         create_argv(binary_name, (char **) si->argv);
         si->binary_name = (char *) si->argv[0];
-   
+
     }
     else {
         struct mem_region* mem_region = multiboot_find_module(bi, res[0]);
@@ -612,7 +587,7 @@ errval_t spawn_setup_by_name(char *binary_name, struct spawninfo *si, domainid_t
         si->binary_name = (char *) res[0];
     }   
 
-    
+
     return spawn_setup_dispatcher(argc, (const char *const *)si->argv , si, pid);
 }
 
@@ -650,3 +625,8 @@ errval_t spawn_load_by_name(char *binary_name, struct spawninfo *si,
 
     return SYS_ERR_OK;
 }
+
+
+
+
+

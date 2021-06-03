@@ -1,4 +1,5 @@
 #define ENET_SERVICE_NAME "/ethernet"
+#define MAX_PAYLOAD_LEN 1494
 #include <aos/nameserver.h>
 
 enum udp_service_messagetype {

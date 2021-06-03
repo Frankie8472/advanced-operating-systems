@@ -6,6 +6,7 @@
 #include <aos/default_interfaces.h>
 #include <aos/waitset.h>
 #include <aos/coreboot.h>
+#include <spawn/multiboot.h>
 
 
 #include <spawn/spawn.h>
@@ -617,6 +618,23 @@ void handle_binding_request(struct aos_rpc * rpc,const char* name,uintptr_t src_
         }
     }
 }
+
+
+void handle_get_all_modules(struct aos_rpc *rpc, char* modules)
+{
+    memset(modules, 0, 1024);
+    for(size_t i = 0; i < bi->regions_length; i++) {
+        struct mem_region *region = &bi->regions[i];
+        const char *modname = multiboot_module_name(region);
+        if (modname != NULL) {
+            char *only_name = strrchr(modname, '/') + 1;
+            strcat(modules, only_name);
+            strcat(modules, ";");
+        }
+    }
+}
+
+
 /**
  * \brief initialize all handlers for rpc calls
  * 
@@ -649,6 +667,8 @@ errval_t initialize_rpc_handlers(struct aos_rpc *rpc)
     aos_rpc_register_handler(rpc,INIT_CLIENT_CALL2,&handle_client_call2);
     aos_rpc_register_handler(rpc,INIT_CLIENT_CALL3,&handle_client_call3);
     aos_rpc_register_handler(rpc,INIT_BINDING_REQUEST,&handle_binding_request);
+    aos_rpc_register_handler(rpc, INIT_IFACE_GET_ALL_MODULES, &handle_get_all_modules);
+    aos_rpc_register_handler(rpc,INIT_FS_ON,&handle_fs_on);
 
     return SYS_ERR_OK;
 }
@@ -670,3 +690,6 @@ void register_core_channel_handlers(struct aos_rpc *rpc)
 }
 
 
+void handle_fs_on(struct aos_rpc *rpc){
+    set_fs_online();
+}

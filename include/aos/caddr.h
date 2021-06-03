@@ -99,7 +99,7 @@ static inline bool capref_is_null(struct capref capref)
 
 /* well-known cnodes */
 extern struct cnoderef cnode_root, cnode_task, cnode_base, cnode_super,
-                       cnode_page, cnode_module;
+                       cnode_page, cnode_module, cnode_argcn;
 
 /* well-known capabilities */
 extern struct capref cap_root, cap_monitorep, cap_irq, cap_io, cap_dispatcher,

@@ -2,6 +2,7 @@
 #include "format.h"
 #include "variables.h"
 #include "main.h"
+#include "dcprintf.h"
 #include "running.h"
 
 #include <aos/nameserver.h>
@@ -13,20 +14,20 @@ struct builtin
     int(*handler)(size_t argc, const char **argv, struct aos_datachan *out);
 };
 
+int handle_help(size_t argc, const char **argv, struct aos_datachan *out);
 int handle_echo(size_t argc, const char **argv, struct aos_datachan *out);
 int handle_clear(size_t argc, const char **argv, struct aos_datachan *out);
 int handle_env(size_t argc, const char **argv, struct aos_datachan *out);
-int handle_time(size_t argc, const char **argv, struct aos_datachan *out);
 int handle_pmlist(size_t argc, const char **argv, struct aos_datachan *out);
 int handle_nslist(size_t argc, const char **argv, struct aos_datachan *out);
 int handle_nslookup(size_t argc, const char **argv, struct aos_datachan *out);
 
 
 const struct builtin builtins[] = {
+    { "help", &handle_help },
     { "echo", &handle_echo },
     { "clear", &handle_clear },
     { "env", &handle_env },
-    { "time", &handle_time },
     { "pmlist", &handle_pmlist },
     { "nslist", &handle_nslist},
     { "nslookup", &handle_nslookup}
@@ -97,13 +98,34 @@ int run_builtin(const char *cmd, size_t argc, const char **argv, struct aos_data
 }
 
 
+int handle_help(size_t argc, const char **argv, struct aos_datachan *out)
+{
+    static const char helpstring[] = 
+    "Josh - The JameOS Bond Shell\n"
+    ;
+
+    dcprintf(out, "%s\n", helpstring);
+
+
+    dcprintf(out, "supported builtins:\n");
+
+    for (size_t i = 0; i < sizeof(builtins) / sizeof(builtins[0]); i++) {
+        dcprintf(out, "%s\n", builtins[i].cmd);
+    }
+
+
+
+    return 0;
+}
+
+
 int handle_echo(size_t argc, const char **argv, struct aos_datachan *out)
 {
     for (size_t i = 0; i < argc; i++) {
         const char *arg = argv[i];
         aos_dc_send(out, strlen(arg), arg);
         if (i < argc - 1) {
-            aos_dc_send(out, 1, " ");
+            dcprintf(out, " ");
         }
     }
     return 0;
@@ -113,7 +135,7 @@ int handle_echo(size_t argc, const char **argv, struct aos_datachan *out)
 int handle_clear(size_t argc, const char **argv, struct aos_datachan *out)
 {
     const char code[] = "\033[H\033[2J\033[3J";
-    aos_dc_send(out, sizeof code - 1, code);
+    dcprintf(out, code);
     return 0;
 }
 
@@ -124,29 +146,14 @@ int handle_env(size_t argc, const char **argv, struct aos_datachan *out)
         for (char *var = *ev; *var != '\0'; var++) {
             char c = *var;
             if (c == '\033') {
-                printf("^[");
+                dcprintf(out, "^[");
             }
             else {
-                printf("%c", c);
+                dcprintf(out, "%c", c);
             }
         }
-        printf("\n");
+        dcprintf(out, "\n");
     }
-    return 0;
-}
-
-
-int handle_time(size_t argc, const char **argv, struct aos_datachan *out)
-{
-    /*struct running_program prog;
-    spawn_program(NULL, argv[0], argc, argv, &prog);
-
-    display_running_process(&prog, &prog.process_out);
-
-    while (!aos_dc_is_closed(&prog.process_out)) {
-        printf("timing\n");
-    }*/
-    printf("NYI!\n");
     return 0;
 }
 
@@ -159,19 +166,19 @@ int handle_pmlist(size_t argc, const char **argv, struct aos_datachan *out)
     err = aos_rpc_process_get_all_pids(get_ns_rpc(), &pids, &pid_count);
 
     if (err_is_fail(err)) {
-        printf("error querying nameserver\n");
+        dcprintf(out, "error querying nameserver\n");
         return 1;
     }
 
-    printf(JF_BOLD "%-9s %-32s\n" JF_RESET, "PID", "Name");
+    dcprintf(out, JF_BOLD "%-9s %-32s\n" JF_RESET, "PID", "Name");
     for (size_t i = 0; i < pid_count; i++) {
         char *pname;
         err = aos_rpc_process_get_name(get_ns_rpc(), pids[i], &pname);
         if (err_is_ok(err)) {
-            printf("%-9"PRIuDOMAINID" %-32s\n", pids[i], pname);
+            dcprintf(out, "%-9"PRIuDOMAINID" %-32s\n", pids[i], pname);
         }
         else {
-            printf("error querying process name\n");
+            dcprintf(out, "error querying process name\n");
         }
 
         free(pname);
@@ -192,7 +199,7 @@ int handle_nslist(size_t argc, const char **argv, struct aos_datachan *out){
     bool has_prop = find_property(argc,argv,properties);
     
     if((int) verbose + (int) has_query + (int) has_prop != argc){
-        printf("\nInvalid nslist parameters, try: " JF_BOLD "nslist " JF_RESET "[-v] [prefix] [properties]\n" JF_RESET);
+        dcprintf(out, "\nInvalid nslist parameters, try: " JF_BOLD "nslist " JF_RESET "[-v] [prefix] [properties]\n" JF_RESET);
         return 1;
     }
     
@@ -206,19 +213,19 @@ int handle_nslist(size_t argc, const char **argv, struct aos_datachan *out){
     }
 
     if(err_is_fail(err) ){
-        printf("error querying nameserver\n");
+        dcprintf(out, "error querying nameserver\n");
         DEBUG_ERR(err,"");
         return 1;
     }
 
-    printf(JF_BOLD YEL " %-32s" RESET "     # %-9"PRIuDOMAINID"\n\n"  JF_RESET, "Servers",ret_size);
+    dcprintf(out, JF_BOLD YEL " %-32s" RESET "     # %-9"PRIuDOMAINID"\n\n"  JF_RESET, "Servers",ret_size);
 
     for(int i = 0;i < ret_size;++i){
-        printf("\n  * %-32s\n",ret_string[i]);
+        dcprintf(out, "\n  * %-32s\n",ret_string[i]);
         if(verbose){
             char * props;
             err = nameservice_get_props(ret_string[i],&props);
-            printf(CYN "     %-32s\n"RESET,props);
+            dcprintf(out, CYN "     %-32s\n"RESET,props);
             
         }        
     }
@@ -231,16 +238,17 @@ int handle_nslist(size_t argc, const char **argv, struct aos_datachan *out){
 
 int handle_nslookup(size_t argc, const char **argv, struct aos_datachan *out){
     errval_t err;
+
     domainid_t server_pid;
     if(argc != 1 || !name_check(argv[0])){
-        printf("Invalid parameters for nslookup, try: " JF_BOLD "nslookup" JF_RESET " [name]");
+        dcprintf(out, "Invalid parameters for nslookup, try: " JF_BOLD "nslookup" JF_RESET " [name]");
         return 1;
     }
     err = nameservice_get_pid(argv[0],&server_pid);
-    if(err_is_fail(err)){
-        printf("Server name " JF_BOLD "%s" JF_RESET " not online.",argv[0]);
+    if(err_is_fail(err) || server_pid == 0xffffffff){
+        dcprintf(out, "Server name " JF_BOLD "%s" JF_RESET " not online.",argv[0]);
         return 1;
     }
-    printf(JF_BOLD "\nPID: %d\n" JF_RESET);
+    dcprintf(out, JF_BOLD "\nPID: %d\n" JF_RESET,server_pid);
     return 0;
 }

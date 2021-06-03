@@ -43,6 +43,7 @@ static void initialize_interfaces(void)
     aos_rpc_initialize_binding(&init_interface, "round_trip",AOS_RPC_ROUNDTRIP, 0, 0);
 
     aos_rpc_initialize_binding(&init_interface, "NS ON", INIT_NAMESERVER_ON, 0, 0);
+    aos_rpc_initialize_binding(&init_interface, "NS ON", INIT_FS_ON, 0, 0);
 
     aos_rpc_initialize_binding(&init_interface, "spawn", INIT_IFACE_SPAWN,
                                2, 1, AOS_RPC_VARSTR, AOS_RPC_WORD, AOS_RPC_WORD);
@@ -73,6 +74,8 @@ static void initialize_interfaces(void)
 
     aos_rpc_initialize_binding(&init_interface, "binding request", INIT_BINDING_REQUEST,4,1,AOS_RPC_VARSTR,AOS_RPC_WORD,AOS_RPC_WORD,AOS_RPC_CAPABILITY,AOS_RPC_CAPABILITY);
 
+    aos_rpc_initialize_binding(&init_interface, "spawn_extended", INIT_IFACE_GET_ALL_MODULES,
+                               0, 1, AOS_RPC_VARSTR);
 
 
     // ===================== Dispatcher Interface =====================

@@ -722,23 +722,21 @@ int main(int argc, char *argv[]) {
 
     struct devq_buf buf;
     while(true) {
-        err = devq_dequeue((struct devq*) st->rxq, &buf.rid, &buf.offset,
-                           &buf.length, &buf.valid_data, &buf.valid_length,
-                           &buf.flags);
-        if (err_is_ok(err)) {
-            ENET_DEBUG("Received Packet of size %lu \n", buf.valid_length);
-            handle_packet(st->rxq, &buf, st);
-            /* print_packet(st->rxq, &buf); */
-            err = devq_enqueue((struct devq*) st->rxq, buf.rid, buf.offset,
-                               buf.length, buf.valid_data, buf.valid_length,
-                               buf.flags);
-            assert(err_is_ok(err));
-        } else {  // NOTE: maybe compare against DEVQ_ERR_QUEUE_EMPTY
-            /* thread_yield(); */
-            err = event_dispatch_non_block(get_default_waitset());
-            if (err == LIB_ERR_NO_EVENT) {
-                thread_yield();
+        err = event_dispatch_non_block(get_default_waitset());
+        if(err_no(err) == LIB_ERR_NO_EVENT) {
+            err = devq_dequeue((struct devq*) st->rxq, &buf.rid, &buf.offset,
+                               &buf.length, &buf.valid_data, &buf.valid_length,
+                               &buf.flags);
+            if (err_is_ok(err)) {
+                ENET_DEBUG("Received Packet of size %lu \n", buf.valid_length);
+                handle_packet(st->rxq, &buf, st);
+                /* print_packet(st->rxq, &buf); */
+                err = devq_enqueue((struct devq*) st->rxq, buf.rid, buf.offset,
+                                   buf.length, buf.valid_data, buf.valid_length,
+                                   buf.flags);
+                assert(err_is_ok(err));
             } else {
+                thread_yield();
             }
         }
     }

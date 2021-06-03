@@ -9,7 +9,8 @@ errval_t spawn_new_core(coreid_t core);
 errval_t spawn_new_domain(const char *mod_name, int argc, char **argv, domainid_t *new_pid,
                           struct capref spawner_ep_cap, struct capref child_stdout_cap, struct capref child_stdin_cap, struct spawninfo **ret_si);
 
-errval_t spawn_lpuart_driver(const char *mod_name, struct spawninfo **ret_si);
+errval_t spawn_lpuart_driver(const char *mod_name, struct spawninfo **ret_si, struct capref in, struct capref out);
 errval_t spawn_enet_driver(const char *mod_name, struct spawninfo **ret_si);
+errval_t spawn_filesystem(const char *mod_name, struct spawninfo **ret_si);
 
 #endif // INIT_SPAWN_SERVER_H_

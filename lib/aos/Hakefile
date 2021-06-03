@@ -36,6 +36,7 @@
                              "domain.c",
                              "event_mutex.c",
                              "event_queue.c",
+                             "fs_service.c",
                              "heap.c",
                              "init.c",
                              "inthandler.c",

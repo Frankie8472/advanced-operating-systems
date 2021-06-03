@@ -21,7 +21,7 @@
 #include <aos/ump_chan.h>
 
 #define AOS_RPC_RETURN_BIT 0x1000000
-#define DEFAULT_TIMEOUT 1000000000
+#define DEFAULT_TIMEOUT 100000000000 // increased by 00
 
 #define min(a,b) \
    ({ __typeof__ (a) _a = (a); \

@@ -1894,7 +1894,7 @@ errval_t caps_retype(enum objtype type, gensize_t objsize, size_t count,
         assert(count == 1);
         struct capability *dest_cap = &dest_cte->cap;
         dest_cap->u.endpointipi.listener_core = my_core_id;
-        dest_cap->u.endpointipi.notifier = src_cap;
+        //dest_cap->u.endpointipi.notifier = src_cap;
 
         uint32_t chan_id = ipi_alloc_channel();
         dest_cap->u.endpointipi.channel_id = chan_id;

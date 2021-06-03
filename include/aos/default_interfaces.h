@@ -19,6 +19,7 @@ enum {
     INIT_IFACE_SPAWN = AOS_RPC_MSG_TYPE_START,
     INIT_IFACE_SPAWN_EXTENDED,      ///< same as spawn but with more 
     INIT_NAMESERVER_ON,
+    INIT_FS_ON,
     INIT_REG_NAMESERVER,
     INIT_CLIENT_CALL,
     INIT_CLIENT_CALL1,
@@ -26,6 +27,7 @@ enum {
     INIT_CLIENT_CALL3,
     INIT_MULTI_HOP_CON,
     INIT_BINDING_REQUEST,
+    INIT_IFACE_GET_ALL_MODULES,
     INIT_IFACE_N_FUNCTIONS, // <- count -- must be last
 };
 

@@ -156,7 +156,7 @@ errval_t init_dispatcher_rpcs(void)
 
         initialize_dispatcher_handlers(&dispatcher_rpc);
 
-        struct capref real_stdout_ep_cap = stdout_cap;
+        //struct capref real_stdout_ep_cap = stdout_cap;
 
         // Setting up stdout endpoint
         struct capability disp_rpc_ep;
@@ -165,7 +165,11 @@ errval_t init_dispatcher_rpcs(void)
             struct capref new_stdout;
             err = aos_rpc_call(&dispatcher_rpc, DISP_IFACE_BINDING, dispatcher_rpc.channel.lmp.local_cap, stdin_epcap, &new_stdout);
             if (!capref_is_null(new_stdout)) {
-                real_stdout_ep_cap = new_stdout;
+
+                cap_delete(stdout_cap);
+                cap_copy(stdout_cap, new_stdout);
+                //real_stdout_ep_cap = new_stdout;
+
             }
             if (err_is_fail(err)) {
                 debug_printf("error binding to spawner endpoint\n");
@@ -175,22 +179,21 @@ errval_t init_dispatcher_rpcs(void)
 
         }
 
-        aos_dc_init_lmp(&stdout_chan, 64);
+        /*aos_dc_init_lmp(&stdout_chan, 64);
 
         struct capability stdout_c;
-        invoke_cap_identify(real_stdout_ep_cap, &stdout_c);
+        invoke_cap_identify(stdout_cap, &stdout_c);
         if (stdout_c.type == ObjType_EndPointLMP) {
             // debug_printf("setting LMP stdout\n");
             aos_dc_init_lmp(&stdout_chan, 64);
-            stdout_chan.channel.lmp.remote_cap = real_stdout_ep_cap;
+            stdout_chan.channel.lmp.remote_cap = stdout_cap;
         }
         else if (stdout_c.type == ObjType_Frame) {
-            debug_printf("FRAME Stdout\n");
-            debug_printf("NYI, assomption wrong\n");
+
         }
         else {
             stdout_chan.channel.lmp.remote_cap = NULL_CAP;
-        }
+        }*/
 
 
         /*struct capability rem_cap;
@@ -205,7 +208,7 @@ errval_t init_dispatcher_rpcs(void)
 
 
 
-        return SYS_ERR_OK;
+        //return SYS_ERR_OK;
 
     }
     else if (spawner_ep.type == ObjType_Frame) {
@@ -230,6 +233,9 @@ errval_t init_dispatcher_rpcs(void)
 
         err = aos_dc_init_ump(&stdout_chan, 64, (lvaddr_t) frame, block_size, 0);
         ON_ERR_RETURN(err);
+    }
+    else {
+        // NYI
     }
 
     struct capability ic;

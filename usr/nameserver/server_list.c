@@ -33,7 +33,7 @@ errval_t add_server(struct server_list* new_server){
     }
     n_servers++;
 
-
+    // print_server_list();
     int failed = server_ht -> d.put_word(&server_ht ->d,new_server -> name,strlen(new_server -> name),(uintptr_t) new_server);
     if(failed){
         return LIB_ERR_NAMESERVICE_HASHTABLE_ERROR;
