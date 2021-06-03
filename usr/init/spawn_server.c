@@ -240,8 +240,8 @@ errval_t spawn_enet_driver(const char *mod_name, struct spawninfo **ret_si) {
     aos_rpc_init_lmp(disp_rpc, NULL_CAP, NULL_CAP, NULL, NULL);
     aos_rpc_set_interface(disp_rpc, get_dispatcher_interface(), DISP_IFACE_N_FUNCTIONS, malloc(DISP_IFACE_N_FUNCTIONS * sizeof(void *)));
     aos_rpc_register_handler(disp_rpc, DISP_IFACE_BINDING, handle_binding);
-    debug_printf("disp_rpc: %p\n", disp_rpc);
-    debug_printf("handle_binding: %p\n", handle_binding);
+    //debug_printf("disp_rpc: %p\n", disp_rpc);
+    //debug_printf("handle_binding: %p\n", handle_binding);
 
     si->spawner_ep_cap = disp_rpc->channel.lmp.local_cap;
 
@@ -373,8 +373,8 @@ errval_t spawn_filesystem(const char *mod_name, struct spawninfo **ret_si)
     aos_rpc_init_lmp(disp_rpc, NULL_CAP, NULL_CAP, NULL, NULL);
     aos_rpc_set_interface(disp_rpc, get_dispatcher_interface(), DISP_IFACE_N_FUNCTIONS, malloc(DISP_IFACE_N_FUNCTIONS * sizeof(void *)));
     aos_rpc_register_handler(disp_rpc, DISP_IFACE_BINDING, handle_binding);
-    debug_printf("disp_rpc: %p\n", disp_rpc);
-    debug_printf("handle_binding: %p\n", handle_binding);
+    //debug_printf("disp_rpc: %p\n", disp_rpc);
+    //debug_printf("handle_binding: %p\n", handle_binding);
 
     si->spawner_ep_cap = disp_rpc->channel.lmp.local_cap;
 
