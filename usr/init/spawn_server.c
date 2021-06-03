@@ -145,7 +145,7 @@ errval_t spawn_new_domain(const char *mod_name, int argc, char **argv, domainid_
 }
 
 
-errval_t spawn_lpuart_driver(const char *mod_name, struct spawninfo **ret_si)
+errval_t spawn_lpuart_driver(const char *mod_name, struct spawninfo **ret_si, struct capref in, struct capref out)
 {
     errval_t err;
     struct spawninfo *si = spawn_create_spawninfo();
@@ -167,6 +167,9 @@ errval_t spawn_lpuart_driver(const char *mod_name, struct spawninfo **ret_si)
     debug_printf("handle_binding: %p\n", handle_binding);
 
     si->spawner_ep_cap = disp_rpc->channel.lmp.local_cap;
+
+    si->child_stdin_cap = in;
+    si->child_stdout_cap = out;
 
     spawn_setup_by_name((char*) mod_name, si, pid);
     /*err = lmp_chan_register_recv(&rpc->channel.lmp, get_default_waitset(), MKCLOSURE(&aos_rpc_on_lmp_message, &rpc));
