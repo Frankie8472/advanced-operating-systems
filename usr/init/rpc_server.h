@@ -68,4 +68,5 @@ void handle_binding_request(struct aos_rpc * rpc,const char* name,uintptr_t src_
 void handle_get_all_modules(struct aos_rpc *rpc, char* modules);
 
 
+void handle_fs_on(struct aos_rpc *rpc);
 #endif // INIT_RPC_SERVER_H_

@@ -20,6 +20,7 @@
 #include <fs/fs.h>
 #include <fs/dirent.h>
 #include <fs/ramfs.h>
+#include <fs/fatfs.h>
 #include "fs_internal.h"
 
 
@@ -48,6 +49,7 @@ static struct fdtab_entry fdtab[MAX_FD] = {
     },
 };
 
+__unused
 static int fdtab_alloc(struct fdtab_entry *h)
 {
     for (int fd = MIN_FD; fd < MAX_FD; fd++) {
@@ -64,6 +66,7 @@ static int fdtab_alloc(struct fdtab_entry *h)
     return -1;
 }
 
+__unused
 static struct fdtab_entry *fdtab_get(int fd)
 {
     static struct fdtab_entry invalid = {
@@ -79,6 +82,7 @@ static struct fdtab_entry *fdtab_get(int fd)
     }
 }
 
+__unused
 static void fdtab_free(int fd)
 {
     assert(fd >= MIN_FD && fd < MAX_FD);
@@ -92,29 +96,29 @@ static void fdtab_free(int fd)
 //XXX: flags are ignored...
 static int fs_libc_open(char *path, int flags)
 {
-    ramfs_handle_t vh;
+    fatfs_handle_t vh;
     errval_t err;
 
-    // If O_CREAT was given, we use ramfsfs_create()
+    // If O_CREAT was given, we use fatfsfs_create()
     if(flags & O_CREAT) {
         // If O_EXCL was also given, we check whether we can open() first
         if(flags & O_EXCL) {
-            err = ramfs_open(mount, path, &vh);
+            err = fatfs_open(mount, path, &vh);
             if(err_is_ok(err)) {
-                ramfs_close(mount, vh);
+                fatfs_close(mount, vh);
                 errno = EEXIST;
                 return -1;
             }
             assert(err_no(err) == FS_ERR_NOTFOUND);
         }
-
-        err = ramfs_create(mount, path, &vh);
+        // todo: create part
+        err = fatfs_create(mount, path, &vh);
         if (err_is_fail(err) && err == FS_ERR_EXISTS) {
-            err = ramfs_open(mount, path, &vh);
+            err = fatfs_open(mount, path, &vh);
         }
     } else {
         // Regular open()
-        err = ramfs_open(mount, path, &vh);
+        err = fatfs_open(mount, path, &vh);
     }
 
     if (err_is_fail(err)) {
@@ -135,9 +139,10 @@ static int fs_libc_open(char *path, int flags)
         .handle = vh,
         .epoll_fd = -1,
     };
+
     int fd = fdtab_alloc(&e);
     if (fd < 0) {
-        ramfs_close(mount, vh);
+        fatfs_close(mount, vh);
         return -1;
     } else {
         return fd;
@@ -147,15 +152,15 @@ static int fs_libc_open(char *path, int flags)
 static int fs_libc_read(int fd, void *buf, size_t len)
 {
     errval_t err;
-
+    //debug_printf(">> REACHHHHH %d\n", len);
     struct fdtab_entry *e = fdtab_get(fd);
     size_t retlen = 0;
     switch(e->type) {
     case FDTAB_TYPE_FILE:
     {
-        ramfs_handle_t fh = e->handle;
+        fatfs_handle_t fh = e->handle;
         assert(e->handle);
-        err = ramfs_read(mount, fh, buf, len, &retlen);
+        err = fatfs_read(mount, fh, buf, len, &retlen);
         if (err_is_fail(err)) {
             return -1;
         }
@@ -176,12 +181,11 @@ static int fs_libc_write(int fd, void *buf, size_t len)
     }
 
     size_t retlen = 0;
-
     switch(e->type) {
     case FDTAB_TYPE_FILE:
     {
-        ramfs_handle_t fh = e->handle;
-        errval_t err = ramfs_write(mount, fh, buf, len, &retlen);
+        fatfs_handle_t fh = e->handle;
+        errval_t err = fatfs_write(mount, fh, buf, len, &retlen);
         if (err_is_fail(err)) {
             return -1;
         }
@@ -202,10 +206,10 @@ static int fs_libc_close(int fd)
         return -1;
     }
 
-    ramfs_handle_t fh = e->handle;
+    fatfs_handle_t fh = e->handle;
     switch(e->type) {
     case FDTAB_TYPE_FILE:
-        err = ramfs_close(mount, fh);
+        err = fatfs_close(mount, fh);
         if (err_is_fail(err)) {
             return -1;
         }
@@ -221,7 +225,7 @@ static int fs_libc_close(int fd)
 static off_t fs_libc_lseek(int fd, off_t offset, int whence)
 {
     struct fdtab_entry *e = fdtab_get(fd);
-    ramfs_handle_t fh = e->handle;
+    fatfs_handle_t fh = e->handle;
     switch(e->type) {
     case FDTAB_TYPE_FILE:
     {
@@ -246,13 +250,13 @@ static off_t fs_libc_lseek(int fd, off_t offset, int whence)
             return -1;
         }
 
-        err = ramfs_seek(mount, fh, fs_whence, offset);
+        err = fatfs_seek(mount, fh, fs_whence, offset);
         if(err_is_fail(err)) {
             DEBUG_ERR(err, "vfs_seek");
             return -1;
         }
 
-        err = ramfs_tell(mount, fh, &retpos);
+        err = fatfs_tell(mount, fh, &retpos);
         if(err_is_fail(err)) {
             return -1;
         }
@@ -265,13 +269,13 @@ static off_t fs_libc_lseek(int fd, off_t offset, int whence)
     }
 }
 
-static errval_t fs_mkdir(const char *path){ return ramfs_mkdir(mount, path);}
-static errval_t fs_rmdir(const char *path){ return ramfs_rmdir(mount, path); }
-static errval_t fs_rm(const char *path){ return ramfs_remove(mount, path); }
-static errval_t fs_opendir(const char *path, fs_dirhandle_t *h){ return ramfs_opendir(mount, path, h); }
-static errval_t fs_readdir(fs_dirhandle_t h, char **name) { return ramfs_dir_read_next(mount, h, name, NULL); }
-static errval_t fs_closedir(fs_dirhandle_t h) { return ramfs_closedir(mount, h); }
-static errval_t fs_fstat(fs_dirhandle_t h, struct fs_fileinfo *b) { return ramfs_stat(mount, h, b); }
+static errval_t fs_mkdir(const char *path){ return fatfs_mkdir(mount, path);}
+static errval_t fs_rmdir(const char *path){ return fatfs_rmdir(mount, path); }
+static errval_t fs_rm(const char *path){ return fatfs_remove(mount, path); }
+static errval_t fs_opendir(const char *path, fs_dirhandle_t *h){ return fatfs_opendir(mount, path, h); }
+static errval_t fs_readdir(fs_dirhandle_t h, char **name) { return fatfs_dir_read_next(mount, h, name, NULL); }
+static errval_t fs_closedir(fs_dirhandle_t h) { return fatfs_closedir(mount, h); }
+static errval_t fs_fstat(fs_dirhandle_t h, struct fs_fileinfo *b) { return fatfs_stat(mount, h, b); }
 
 typedef int   fsopen_fn_t(char *, int);
 typedef int   fsread_fn_t(int, void *buf, size_t);

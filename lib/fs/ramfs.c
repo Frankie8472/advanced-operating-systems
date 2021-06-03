@@ -674,7 +674,7 @@ errval_t ramfs_mount(const char *uri, ramfs_mount_t *retst)
 
     ramfs_root = calloc(1, sizeof(*ramfs_root));
     if (ramfs_root == NULL) {
-        free(ramfs_mount);
+        free(mount);
         return LIB_ERR_MALLOC_FAIL;
     }
 

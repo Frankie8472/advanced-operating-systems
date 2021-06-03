@@ -91,6 +91,8 @@ struct core_state_generic {
     struct aos_rpc *ns_forw_rpc;
     bool init_domain;
 
+    bool fs_online;
+
     struct aos_rpc* core_channels[4];
 
 };

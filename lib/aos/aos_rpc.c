@@ -250,6 +250,7 @@ errval_t aos_rpc_register_handler(struct aos_rpc *rpc, enum aos_rpc_msg_type msg
  */
 errval_t aos_rpc_call(struct aos_rpc *rpc, enum aos_rpc_msg_type msg_type, ...)
 {   
+    assert(rpc != NULL);
 
     RPC_LOCK(rpc);
     va_list args;
