@@ -18,7 +18,6 @@ int handle_help(size_t argc, const char **argv, struct aos_datachan *out);
 int handle_echo(size_t argc, const char **argv, struct aos_datachan *out);
 int handle_clear(size_t argc, const char **argv, struct aos_datachan *out);
 int handle_env(size_t argc, const char **argv, struct aos_datachan *out);
-int handle_time(size_t argc, const char **argv, struct aos_datachan *out);
 int handle_pmlist(size_t argc, const char **argv, struct aos_datachan *out);
 int handle_nslist(size_t argc, const char **argv, struct aos_datachan *out);
 int handle_nslookup(size_t argc, const char **argv, struct aos_datachan *out);
@@ -29,7 +28,6 @@ const struct builtin builtins[] = {
     { "echo", &handle_echo },
     { "clear", &handle_clear },
     { "env", &handle_env },
-    { "time", &handle_time },
     { "pmlist", &handle_pmlist },
     { "nslist", &handle_nslist},
     { "nslookup", &handle_nslookup}
@@ -156,21 +154,6 @@ int handle_env(size_t argc, const char **argv, struct aos_datachan *out)
         }
         dcprintf(out, "\n");
     }
-    return 0;
-}
-
-
-int handle_time(size_t argc, const char **argv, struct aos_datachan *out)
-{
-    /*struct running_program prog;
-    spawn_program(NULL, argv[0], argc, argv, &prog);
-
-    display_running_process(&prog, &prog.process_out);
-
-    while (!aos_dc_is_closed(&prog.process_out)) {
-        printf("timing\n");
-    }*/
-    dcprintf(out, "NYI!\n");
     return 0;
 }
 

@@ -12,7 +12,7 @@
 
 let
     -- Default list of modules to build/install
-    modules_common = [ "/sbin/" ++ f | f <- [ "init", "hello", "memeater", "performance_tester", "process_manager" ,"server", "client", "lpuart_terminal", "josh", "cat", "xxd", "nameservicetest", "nameserver" , "client_perf", "server_perf", "enet", "echoserver", "arp", "ping", "msh", "mandel_server", "mandel_client" ]]
+    modules_common = [ "/sbin/" ++ f | f <- [ "init", "hello", "memeater", "performance_tester", "process_manager" ,"server", "client", "lpuart_terminal", "josh", "cat", "xxd", "nameservicetest", "nameserver" , "client_perf", "server_perf", "enet", "echoserver", "arp", "ping", "msh", "mandel_server", "mandel_client", "time" ]]
 in
   [
     --

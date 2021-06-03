@@ -27,4 +27,5 @@ module /armv8/sbin/ping
 module /armv8/sbin/msh
 module /armv8/sbin/mandel_server
 module /armv8/sbin/mandel_client
+module /armv8/sbin/time
 # newlines are important here
