@@ -20,6 +20,7 @@
       "server_list.c",
       "nameserver_handlers.c",
       "process_manager_handlers.c"
-    ]
+    ],
+    addLibraries = [ "grading" ]
   }
 ]

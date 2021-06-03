@@ -9,6 +9,8 @@
 #include "server_list.h"
 #include "nameserver_handlers.h"
 
+#include <grading.h>
+
 extern void *name_server_rpc_handlers[NS_IFACE_N_FUNCTIONS];
 
 void handle_reg_proc(struct aos_rpc *rpc,uintptr_t core_id,const char* name,struct capref proc_ep_cap, uintptr_t pid, struct capref* ns_ep_cap){
@@ -86,6 +88,7 @@ void handle_get_proc_core(struct aos_rpc* rpc, uintptr_t pid,uintptr_t *core){
 
 void handle_get_proc_list(struct aos_rpc *rpc, uintptr_t *size,char * pids){
     // debug_printf("Handle get list of processes\n");
+    grading_rpc_handler_process_get_all_pids();
     *size = pl.size;
     char buffer[12]; 
     size_t index = 0;

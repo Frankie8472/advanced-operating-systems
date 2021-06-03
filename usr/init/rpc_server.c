@@ -8,6 +8,7 @@
 #include <aos/coreboot.h>
 #include <spawn/multiboot.h>
 
+#include <grading.h>
 
 #include <spawn/spawn.h>
 
@@ -135,20 +136,22 @@ errval_t init_core_channel(coreid_t coreid, lvaddr_t urpc_frame)
  * \brief handler function for send number rpc call
  */
 void handle_send_number(struct aos_rpc *r, uintptr_t number) {
-    debug_printf("recieved number: %ld\n", number);
+    //debug_printf("recieved number: %ld\n", number);
+    grading_rpc_handle_number(number);
 }
 
 /**
  * \brief handler function for send string rpc call
  */
 void handle_send_string(struct aos_rpc *r, const char *string) {
-    // debug_printf("recieved string: %s\n", string);
+    grading_rpc_handler_string(string);
 }
 
 /**
  * \brief handler function for putchar rpc call
  */
 void handle_putchar(struct aos_rpc *r, uintptr_t c) {
+    grading_rpc_handler_serial_putchar((char) c);
     putchar(c);
     //debug_printf("recieved: %c\n", (char)c);
 }
@@ -157,6 +160,7 @@ void handle_putchar(struct aos_rpc *r, uintptr_t c) {
  * \brief handler function for getchar rpc call
  */
 void handle_getchar(struct aos_rpc *r, uintptr_t *c) {
+    grading_rpc_handler_serial_getchar();
     int v = getchar();
     //debug_printf("getchar: %c\n", v);
     *c = v;//getchar();
@@ -167,7 +171,7 @@ void handle_getchar(struct aos_rpc *r, uintptr_t *c) {
  */
 void handle_request_ram(struct aos_rpc *r, uintptr_t size, uintptr_t alignment, struct capref *cap, uintptr_t *ret_size) {
     // debug_printf("handle_request_ram\n");
-    //TODO: error here?!
+    grading_rpc_handler_ram_cap(size, alignment);
     errval_t err = ram_alloc_aligned(cap, size, alignment);
     if (err_is_fail(err)) {
         DEBUG_ERR(err, "Error in remote ram allocation!\n");
@@ -186,6 +190,7 @@ void handle_initiate(struct aos_rpc *rpc, struct capref cap) {
 
 
 void handle_spawn(struct aos_rpc *old_rpc, const char *name, uintptr_t core_id, uintptr_t *new_pid) {
+    grading_rpc_handler_process_spawn((char *) /* why no const? :( */ name, core_id);
     uintptr_t current_core_id = disp_get_core_id();
     if(core_id == current_core_id) {
         domainid_t pid;

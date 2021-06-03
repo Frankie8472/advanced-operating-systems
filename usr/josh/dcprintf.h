@@ -12,6 +12,7 @@
  */
 inline static int dcprintf(struct aos_datachan *chan, const char *fmt, ...) {
     char buf[2048];
+	memset(buf, 0, sizeof buf);
 	va_list vl;
 	va_start(vl, fmt);
     size_t written = vsnprintf(buf, sizeof buf, fmt, vl);

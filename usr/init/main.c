@@ -261,6 +261,15 @@ static int bsp_main(int argc, char *argv[])
         DEBUG_ERR(err, "/>/> Error: starting memory thread");
     }
 
+    // Grading
+
+    grading_test_mm(&aos_mm);
+
+    grading_test_early();
+
+
+    // TODO: Spawn system processes, boot second core etc. here
+
     err = init_terminal_state();
     if(err_is_fail(err)){
         DEBUG_ERR(err,"Failed to init terminal state\n");
@@ -291,87 +300,6 @@ static int bsp_main(int argc, char *argv[])
     spawn_enet_driver("enet", &enet_si);
 
     start_josh_on_serial();
-
-
-
-
-    // struct periodic_event pe;
- 
-    // err = periodic_event_create(&pe,get_default_waitset(),1000000,MKCLOSURE(print_hello,NULL));
-    // if(err_is_fail(err)){
-    //     DEBUG_ERR(err,"Failed to create even closure\n");
-    // }
-    //struct aos_rpc *josh_rpc = &josh_si->disp_rpc;
-
-    /*aos_rpc_set_interface(josh_rpc, get_dispatcher_interface(), DISP_IFACE_N_FUNCTIONS, malloc(DISP_IFACE_N_FUNCTIONS * sizeof(void *)));
-    initialize_initiate_handler(josh_rpc);
-    aos_rpc_init_lmp(josh_rpc, josh_si->spawner_ep_cap, NULL_CAP, josh_si->spawner_ep, NULL);*/
-
-    //__unused
-    //struct aos_rpc *lpuart_rpc = get_rpc_from_spawn_info(pid - 1);
-
-
-    /*while (capref_is_null(josh_rpc->channel.lmp.remote_cap)) {
-        err = event_dispatch(get_default_waitset());
-        if (err_is_fail(err)) {
-            DEBUG_ERR(err, "in event_dispatch");
-            abort();
-        }
-    }
-    debug_printf("getting josh in\n");
-
-
-    struct capref josh_in;
-    aos_rpc_call(josh_rpc, DISP_IFACE_GET_STDIN, &josh_in);
-
-    debug_printf("got josh in\n");
-    //aos_rpc_call(lpuart_rpc, DISP_IFACE_SET_STDOUT, josh_in);*/
-
-
-    /*for (int i = 0; i < 20; i++) {
-        spawn_new_domain("client",NULL);
-        for (int j = 0; j < 10; j++) {
-            err = event_dispatch(get_default_waitset());
-        }
-    }*/
-
-  
-
-    // spawn_new_domain("client_perf",0,NULL,NULL,NULL_CAP,NULL_CAP,NULL_CAP,NULL);
-
-    // spawn_new_core(my_core_id + 1);
-
-
-
-    // 
-    
-    //run_init_tests(my_core_id);
-
-    
-    
-    //run_init_tests(my_core_id);
-
-
-    //for (volatile size_t i = 0; i < 1000000000; i++);
-
-    // debug_printf(">> INIT filesystem server\n");
-    // for (volatile size_t i = 0; i < 100; i++){
-    //     thread_yield();
-    // }
-
-
-
-    //spawn_new_domain("hello", 0, NULL, NULL, NULL_CAP, NULL_CAP, NULL_CAP, NULL);
-
-    // Grading
-    grading_test_early();
-
-    // TODO: Spawn system processes, boot second core etc. here
-    
-
-
-
-
 
     // Grading
     grading_test_late();
