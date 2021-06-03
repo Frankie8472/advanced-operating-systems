@@ -12,7 +12,7 @@
 int main(int argc, char *argv[])
 {
     if (argc == 2) {
-        char *path = argv[0];
+        char *path = argv[1];
         create_dir(path);
         return 0;
     }

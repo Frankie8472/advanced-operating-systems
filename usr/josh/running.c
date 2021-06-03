@@ -35,6 +35,7 @@ void on_console_input(void *arg) {
         if (recvd > 0) {
             if (!prog->is_builtin && buffer[0] == 3) { // Ctrl+C
                 aos_rpc_call(&prog->process_disprpc, DISP_IFACE_TERMINATE);
+                aos_dc_close(&prog->process_in);
             }
             if (buffer[0] == 4) { // Ctrl+D
                 aos_dc_close(&prog->process_in);

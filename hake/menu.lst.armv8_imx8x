@@ -22,6 +22,10 @@ module /armv8/sbin/enet
 module /armv8/sbin/cat
 module /armv8/sbin/filesystemserver
 module /armv8/sbin/wtf
+module /armv8/sbin/mkdir
+module /armv8/sbin/rmdir
+module /armv8/sbin/rm
+module /armv8/sbin/ls
 module /armv8/sbin/xxd
 module /armv8/sbin/echoserver
 module /armv8/sbin/arp
