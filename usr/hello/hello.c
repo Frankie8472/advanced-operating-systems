@@ -32,7 +32,7 @@ int main(int argc, char *argv[])
     for(int i = 0; i < argc; ++i){
         printf("argv[%d] = %s\n",i,argv[i]);
     }
-    /*
+
     debug_printf("> START FS DEMO\n");
 
     char *path = "/sdcard/RABA.TXT";
@@ -73,8 +73,8 @@ int main(int argc, char *argv[])
     read_dir(path, &readdir);
 
     debug_printf("> END FS DEMO\n");
-    //return EXIT_SUCCESS;
-    */
+    return EXIT_SUCCESS;
+
     systime_t start, end;
     uint64_t diff;
 

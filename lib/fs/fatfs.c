@@ -164,10 +164,11 @@ static errval_t get_free_fat_entry(struct fatfs_mount *mount, uint32_t *ret){
 
     // Iterate over FAT cluster
     for (int i = 0; i < mount->fs->bpb.secPerClus; i++) {
+        //err = long_sdhc_read(mount->ds, fat_sec + i, get_phys_addr(mount->fs->buf_cap));
+        //err = sdhc_read_block(mount->ds, fat_sec + i, get_phys_addr(mount->fs->buf_cap));
         err = long_sdhc_read(mount->ds, fat_sec + i, get_phys_addr(mount->fs->buf_cap));
         ON_ERR_RETURN(err);
         uint32_t *addr = mount->fs->buf_va;
-        //for(volatile int t = 0; t < 1000000; t++);
         //debug_printf(">>> FAT ADDR ONE: %x\n", *addr);
 
         // Iterate over FAT sector
@@ -233,13 +234,14 @@ static errval_t initialize_fat32_partition(struct sdhc_s *ds, struct fat32_fs *f
     size_t retbytes;
     err = frame_alloc_and_map_flags(&fs->buf_cap, SDHC_BLOCK_SIZE, &retbytes, &fs->buf_va, VREGION_FLAGS_READ_WRITE_NOCACHE);
     ON_ERR_RETURN(err);
-
+    //debug_printf("PA: %x\n", get_phys_addr(fs->buf_cap));
+    //debug_printf("VA: %x\n", fs->buf_va);
+    //debug_dump_hw_ptables(fs->buf_va);
     assert(SDHC_BLOCK_SIZE <= retbytes && "Allocated blocksize is too small");
 
     // Read first sector
     fs->bpb_sector = 0;
-    arm64_dcache_wbinv_range((vm_offset_t) fs->buf_va, 4096);
-    //dmb();
+
     err = long_sdhc_read(ds, fs->bpb_sector, get_phys_addr(fs->buf_cap));
     ON_ERR_RETURN(err);
 
@@ -253,7 +255,6 @@ static errval_t initialize_fat32_partition(struct sdhc_s *ds, struct fat32_fs *f
     fs->rootDir_sector = fs->data_sector + fs->bpb.secPerClus * (fs->bpb.rootClus - 2);
 
     // Read fsinfo sector
-    arm64_dcache_wbinv_range((vm_offset_t) fs->buf_va, 4096);
     err = long_sdhc_read(ds, fs->fsinfo_sector, get_phys_addr(fs->buf_cap));
     ON_ERR_RETURN(err);
 
@@ -741,8 +742,12 @@ errval_t fatfs_read(void *st, fatfs_handle_t handle, void *buffer, uint32_t byte
 
     // Load sector from sdhc
     uint32_t sector = (int)(mount->fs->data_sector + (current_cluster - 2) * mount->fs->bpb.secPerClus + (h->file_pos / mount->fs->bpb.bytsPerSec));
-
+    //debug_printf("READ\n");
+    //systime_t start = systime_now();
     err = long_sdhc_read(mount->ds, (int) sector, get_phys_addr(mount->fs->buf_cap));
+    //systime_t end = systime_now();
+    //systime_t diff = systime_to_us(end - start)/1000;
+    //debug_printf(">> fread ms: %lu\n", diff);
     ON_ERR_RETURN(err);
 
     // Adjust read length for simplicity

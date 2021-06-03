@@ -35,6 +35,7 @@ static void file_read(char *path, size_t size, char **ret)
     }
     //debug_printf(">>>> |%s|%zu\n", path, size);
     char *content = calloc(1, size);
+    //debug_printf("CALLING READ\n");
     fread(content, 1, size, f);
     //debug_printf(">>>> |%s|%zu|\n", content, strlen(content));
     content[size+1] = '\0';
