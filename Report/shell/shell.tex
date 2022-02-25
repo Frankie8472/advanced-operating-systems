@@ -1,0 +1,236 @@
+\section{Shell} \label{shell}
+
+Our Operating System was now ready for a shell.
+
+As my personal project, I designed and implemented \emph{Josh}, the \textbf{J}ame\textbf{O}S Bond \textbf{Sh}ell.
+
+
+\subsection{Core Functionality \& Overview}
+The main purpose of a shell is to provide the user with an interface to control and use the system.
+
+One can spawn a new domain (in this case `hello') by simply typing its name followed by arguments.
+\begin{mdframed}[style=shell]
+\josh{hello arg1 "multi word arg2"}
+\end{mdframed}
+
+The basic handling and syntax of the shell is similar to that of conventional shells. Using the pipe
+symbol, the output of one process can be connected to the input of another one.
+\begin{mdframed}[style=shell]
+\josh{hello \textbar\ cat \textbar\ xxd}
+\end{mdframed}
+
+A small difference to most systems however is that you can specify a destination for a command.
+This is done using a destination tag '@'. The destination needs to be a valid core id
+\begin{mdframed}[style=shell]
+\josh{@2 hello}
+\end{mdframed}
+
+While a process is running in the shell, the terminal will display its outputs. The user
+can press Ctrl+C to send a Terminate command to the running process. Using Ctrl+Z,
+the shell can disconnect from the process, letting it run in the background and prompt
+for a new input line.
+
+
+There is some very basic support for variables.
+\begin{mdframed}[style=shell]
+\josh{text="Hello World!"}\\
+\josh{echo \$text}\\
+\texttt{Hello World!}
+\end{mdframed}
+
+Variables are automatically added to the environment variables of the shell.
+
+There is also support for ``shell-internal'' variables. These variables
+are not written to the shell's environment variables but merely stored
+in a separate dictionary. These variables can be defined using the \C{var} prefix.
+\begin{mdframed}[style=shell]
+\josh{var text="Hello World!"}\\
+\josh{echo \$text}\\
+\texttt{Hello World!}
+\end{mdframed}
+
+\comment{
+We currently don't pass the environment to spawned processes. This would be possible to
+implement without changing too much of the current implementation, however due to
+time constraints, we decided to not implement this, as we never directly use those
+(except in the shell). Therefore the difference between environment variables and other
+variables is just in how they are stored in the shell.
+}
+
+\subsection{IO ABI}
+
+A general problem that a shell needs to solve is to multiplex the terminal interface to different
+processes. A process should be able to be started from the shell, produce output that is displayed in the terminal. After termination/disconnecting, the shell should take back control over the terminal and prompt for new input. In order to engineer a solution for this problem I took some
+inspiration from Linux (please forgive me).
+
+In POSIX-compliant systems, each process has three IO ``streams'', stdin, stdout and stderr.
+Writing into one of these streams can be done with a single system call. As a shell, we can connect
+to a spawned process' stdout and stderr and redirect its output into the terminal.
+
+Up until now, the only output a program could show was using a call to
+\C{debug_printf} in order to write directly to the serial console or send a character to the
+init process to do the same there.
+
+My first goal was for each process to have a default way of outputting data as well as readin input data. For this I created the module \texttt{aos\_datachan}.
+The \C{struct aos_datachan} provides mainly the following abstraction over either an LMP or a UMP channel:
+
+
+\begin{mdframed}[style=myframe]
+\begin{minted}[xleftmargin=\parindent,linenos,breaklines]{C}
+errval_t aos_dc_send(struct aos_datachan *dc,
+                     size_t bytes,
+                     const char *data);
+                     
+
+errval_t aos_dc_receive(struct aos_datachan *dc,
+                        size_t bytes, char *data,
+                        size_t *received);
+
+\end{minted}
+\end{mdframed}
+
+A datachan also has a buffer associated to it on the reading end. When we can read a message from
+the channel, it first is written into that buffer, where it can be read from in smaller chunks. Otherwise it is a pretty slim abstraction over either LMP or UMP channels to send streams of data.
+It is also possible to register a datachan in a waitset to be notified when there is data available to read. These in and out channels can therefore be used in an ``event-oriented'' programming style
+as well as for a more thread/polling-based approach.
+
+Even though the datachan structure builds on the underlying channel structures (e.g. \lstinline{struct lmp_chan}) and supports bidirectional communication -- both sides can read
+and write independently -- we use two separate datachans for stdin and stdout. This enables us
+to use different backends, for example we can have a standard input over LMP and write our standard output to a different core via UMP.
+
+When a new dispatcher is spawned, it initializes its stdin and stdout datachans by looking up
+the capability in its task cnode in slots
+\lstinline{TASKCN_SLOT_STDOUT_CAP} and \lstinline{TASKCN_SLOT_STDIN_CAP} respectively.
+If it finds an LMP endpoint there, it initializes a datachan with lmp backend connected to
+the specified endpoint. If it finds a Frame capability, it initializes a UMP datachan using this
+frame. If the capability slot is empty, then we initialize an empty channel.
+
+\hindsight{
+As mentioned above, these channels do have a buffer associated with them. When I implemented them,
+this seemed like a good idea, as it allowed to receive and store large messages and slowly reading small chunks of it without blocking the sender. However the same functionality could also be achieved by
+allocating a larger buffer at the underlying LMP or UMP level. If I were to rewrite them again, I would
+leave out the buffer, as it incurs a slight penalty on the performance of these channels, as well as
+some memory overhead.
+\vspace{2mm}\\
+To visualize: If we use \C{printf("Hello World!\n");} we first write into the buffer of \C{stdout},
+this gets flushed into a \C{aos_datachan} which will write it into a UMP or LMP buffer. From there it will then be moved into the datachan-buffer where it can be read from (possibly via another libc buffer).
+}
+
+
+\subsection{Implementation}
+
+\subsubsection{UART Driver}
+
+I implemented a simple module for a userspace UART driver. Based on my \C{aos_datachan} implementations, I wanted
+it to provide one input and one output datachan, redirecting every byte it received on its input channel
+to the serial port, while simultaneously redirecting every byte it received on the serial port to its output channel.
+
+The core part of the driver is just an event loop waiting for either an interrupt
+from the serial port or a message on the input datachan. On each interrupt,
+it just reads the character available to read and puts it into the drivers output datachan.
+On a message on the input channel, it writes the message to the serial port.
+
+As every dispatcher is started with a stdin and stdout channel, I use those for this purpose.
+
+Note that my UART driver does no multiplexing of the serial port, it is basically just a translator process
+between the serial console and two \C{struct aos_datachan}s. This is designed on purpose like this, as I want the
+shell to have complete control over the console (except for \C{debug_printf} and kernels printing stuff, but in theory
+this should not occur too often during regular use). If the serial port really needs to be shared, the datachannels for the driver can be passed in between dispatchers.
+Let's say we are typing a long command line in the shell. In this moment, I don't want
+a different process to be able to annoy me by writing something at this moment.
+In our system, if multiple processes have been spawned by the shell, it is the shell's
+responsibility to multiplex the terminal's input/ouptut streams between the processes.
+
+This will also allow to run the shell over a network connection exposing the exact same interface as over the
+serial port. However, also there, the shell assumes that no other process is
+writing to that same connection, otherwise the nice user interface experience
+can't be guaranteed.
+
+\hindsight{
+One might argue that it would be better for the UART driver to allow multiple
+processes to share the resource instead of offering control over the full resource
+to exactly one process. Because it is a driver for a device, it should make that device available to multiple processes.
+This might be true, but in the case of the serial port, where we want to run
+a shell that also does let different processes write to it, I decided against it.
+}
+
+\subsubsection{Shell}
+I started writing the core part of the shell: A loop that prompts for a line of input and then processes that line.
+
+This is -- greatly simplified -- just
+\begin{mdframed}[style=myframe]
+\begin{minted}[xleftmargin=\parindent,linenos,breaklines]{C}
+while(true) {
+    char c = getchar();
+    process(c);
+}
+\end{minted}
+\end{mdframed}
+
+For some usability improvements, I ported
+the linenoise library\footnote{\url{https://github.com/antirez/linenoise}}
+and used it, so the user of the shell is able to use arrow keys et al. to edit the line.
+
+Whenever a line is entered, it is passed to the parser, which will translate it into easily interpretable form.
+The parser is a very simple parser written using bison and flex, two commonly used tools for this.
+
+
+If it is an assignment, the shell simply 
+
+If the line consists of a command to be run, the shell calls the init process to spawn the desired program using the following RPC call:
+
+\begin{mdframed}[style=myframe]
+\begin{minted}[xleftmargin=\parindent,linenos,breaklines]{C}
+while(true) {
+    char c = getchar();
+    process(c);
+}
+\end{minted}
+\end{mdframed}
+
+\hindsight{
+When implementing the shell, I was focused on building the program around 
+my newly created datachans. While this programming style resembles many console-based 
+programs written for Unix-like systems, and probably is not inherently bad, I see this as a missed opportunity to implement
+a shell in an event-based style.
+}
+
+
+\subsection{Spawning}
+In our system, by design, only the init process on each core has the ability to spawn new dispatchers.
+In order to provide this functionality to other processes, init provides an RPC interface.
+As the shell needs exact control over which arguments and environment variables the new process is
+spawned with, I added a new "extended spawn" function to that interface. Calling this function,
+we supply an array of strings both for arguments and environment variables. We can also directly specify
+a stdout- and stdin-capability which will be copied into the processes task cnode in slots
+\C{TASKCN_SLOT_STDOUT_CAP} and \C{TASKCN_SLOT_STDIN_CAP} respectively.
+
+When spawning multiple processes and connecting them with pipes, josh simply allocates a frame for
+every connection and sets them as the respective input and output frames for the spawned dispatchers. It would also be possible to set up LMP connections between dispatchers on the same
+core, however I opted for UMP in this case purely because of simplicity -- to set up a UMP connection
+the individual dispatchers don't even need to create an additional LMP endpoint when starting up
+but can just use the frame they received.
+
+\subsection{Builtins}
+Josh provides several builtins that are handled directly by the shell: help, echo, clear, env, pmlist, nslist, nslookup.
+
+I wanted builtins to behave similarly to spawning processes, as what they do is very similar,
+they both execute a command with some specific arguments and produce some output.
+They should both be able to be piped into another command.
+
+I implemented builtins as simple functions that are however called in a separate thread each.
+This step is necessary, as in theory, multiple builtins can run concurrently.
+
+One difference is however that builtins can't be spawned on different cores as they are always executed inside
+the shell process.
+
+\subsection{Terminating a process}
+When pressing Ctrl+C while a dispatcher is running in the shell, we call the RPC function
+\C{DISP_IFACE_TERMINATE} on that dispatcher. The dispatcher shall then exit. It must however be noted that if the dispatcher crashed and can't handle any RPC calls anymore, this call will
+have no effect and the shell will remain stuck. There is no easy solution to this problem as
+we have no means of forcefully terminating a process on our system. We can however disconnect
+the stuck process using Ctrl+Z and go on spawning other processes.
+
+
+
+

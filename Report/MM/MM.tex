@@ -1,0 +1,150 @@
+\section{Memory Manager}
+When booting up, we receive a number of address regions of physical memory from multiboot.
+These chunks will be the RAM that our system works with. For our first real milestone,
+we implemented a module that manages the distribution of this RAM. Each part of our system,
+when needing some memory, will one way or another have to go through this module.
+
+Our memory manager needs to support two main functions: It needs to be able to allocate memory in the form of RAM capabilities, and it needs to be able to free allocated RAM after it is no longer used. Our memory manager is capable of splitting available memory regions, depending on how little memory is required. Lastly, to avoid steady fragmentation, our memory manager will also try and possibly merge memory regions once they have been freed again. See listing \ref{code:mm_state} for an overview of the memory manager's state information.
+
+
+
+
+Perhaps the most important element of an \C{mm} instance is its \C{head}, for without a head a body is but a mindless corpse. A memory manager's \C{head} is a pointer to the lowest address node it manages. Furthermore, every \C{mmnode} has the two members \C{next} and \C{prev}. Through these two pointers, the \C{mmnode} instances managed by our manager form a doubly-linked list. During its initialization, this linked list gets populated with all nodes to manage, ordered according to their base address. A crucial invariant of our memory manager is that this list \emph{always is ordered according to the node's addresses.}
+
+Since our memory manager should be able to quickly find and manipulate available nodes when required, it also has the members \C{free\_head} and \C{free\_last}, pointing to the second list of \C{mmnode} instances. This list is linked through the members \C{free\_next} and \C{free\_prev} in the \C{mmnode} struct, and it only contains free nodes. Without this additional linked list, allocating memory required looping through the first list of nodes, in memory order, until a free node of sufficient size was found. Not only did this waste time by iterating over-allocated nodes, but it also concentrated most activity to a small region of memory, wasting further time through constant fragmentation and defragmentation when other nodes still were available.
+\begin{code}
+\begin{mdframed}[style=myframe]
+
+
+\begin{minted}[xleftmargin=\parindent,linenos,breaklines]{C}
+
+struct mmnode {
+    enum nodetype type;       ///< Type of `this` node.
+    struct capinfo cap;       ///< Cap in which this region exists
+    struct mmnode *prev;      ///< Previous node in the list.
+    struct mmnode *next;      ///< Next node in the list.
+    struct mmnode *free_next; ///< next node in the free-list
+    struct mmnode *free_prev; ///< previous node in the free-list
+    genpaddr_t base;          ///< Base address of this region
+    gensize_t size;           ///< Size of this free region in cap
+};
+
+struct mm {
+    struct slab_allocator slabs;  ///< Slab allocator used for allocating nodes
+    slot_alloc_t slot_alloc_priv; ///< Slot allocator for allocating cspace
+    slot_refill_t slot_refill;    ///< Slot allocator refill function
+    void *slot_alloc_inst;        ///< Opaque instance pointer for slot allocator
+    enum objtype objtype;         ///< Type of capabilities stored
+    struct mmnode *head;          ///< Head of doubly-linked list of nodes in order
+    struct mmnode *free_head;     ///< Head of unordered doubly-linked list of free nodes
+    struct mmnode *free_last;     ///< Last of unordered doubly-linked list of free nodes
+
+    /* statistics */
+    gensize_t stats_bytes_max;
+    gensize_t stats_bytes_available;
+
+    bool initialized_slot;
+    bool refilling;
+
+    struct thread_mutex mutex;
+};
+\end{minted}
+\end{mdframed}
+\caption{Our Memory Manager's State Information.}
+\label{code:mm_state}
+\end{code}
+With a separate list just for free nodes, the memory manager can simply loop through it until a sufficiently large node is found, and then use it to allocate the requested amount of memory. Furthermore, since this free list is not ordered in any particular way, using it to allocate memory also spreads out the activity more evenly over all available memory. The only cost incurred through this modification is the additional time spent on ensuring the free list's integrity after allocating or freeing memory. Fortunately, however, this can always be done in constant time.
+
+\subsection{The MM-Invariant}
+While mentioned briefly before, the core invariant of our memory manager warrants a more detailed description. In essence, the linked list under \C{mm}'s \C{head} and linked with \C{mmnode}'s members \C{free} and \C{prev} is always ordered according to the nodes' base address and size. A more formal description is as follows:
+\[
+\forall n \in head.\ \big( n.next = NULL \lor
+n.base + n.size = (n.next).base \big)
+\]
+
+This invariant is crucial because it allows us to merge newly freed \C{mmnodes} very quickly, as it suffices to check only the two adjacent nodes' type. If the node \C{prev} is free as well, it can simply be merged with the current one. Afterwards, the same process can be repeated with the node \C{next} and we are done. This process does not need to loop, as any adjacent free nodes have already been merged with their free neighbors upon being freed themselves.
+
+After merging two nodes, the only thing left to do is to reestablish the integrity of all linked lists, but since both lists are doubly linked, this is straight forward as well. We can keep one of the nodes and adjust its base or size, and discard the other. In doing so, we simply adjust any references pointing to the node to delete so that it is simply skipped in both lists. For a concrete example, see listing \ref{mm:coalesce} for our function to coalesce a \C{mmnode} with its \C{next}. If both are free, the provided node increases by \C{next}'s size and \C{next} is removed from the ordered linked list. Finally, \C{next} is removed from the list of free nodes too.
+
+\begin{code}
+\begin{mdframed}[style=myframe]
+\begin{minted}[xleftmargin=\parindent,linenos,breaklines]{C}
+static bool coalesce(struct mm *mm, struct mmnode *node)
+{
+    assert(mm != NULL);
+
+    if (node == NULL || node->next == NULL || !capcmp(node->next->cap.cap, node->cap.cap)) {
+        return false;
+    }
+
+    struct mmnode *right = node->next;
+
+    if (node->type == NodeType_Free && right->type == NodeType_Free) {
+        assert(node->base + node->size == right->base);
+
+        node->size += right->size;
+        node->next = right->next;
+
+        if (node->next != NULL) {
+            node->next->prev = node;
+        }
+
+        remove_node_from_free_list(mm, right); // right node no longer usable
+        slab_free(&mm->slabs, right);
+
+        return true;
+    }
+    return false;
+}
+\end{minted}
+\end{mdframed}
+\caption{Merging two Nodes and Updating all Linked Lists.}
+\end{code}
+\label{mm:coalesce}
+
+Complementary to merging nodes, we also have to preserve our invariant when splitting nodes. To do so, all we have to do is create a new node next to the one being split. The new node is then added to the ordered linked list next to the node being split. If the new node also is a free node, we can insert it to the free list as well. But since the free list is not ordered, we do not have to worry about the location at which it is inserted.
+
+%\subsection{Thread Safety}
+%Initially, our memory manager did not have to worry much about thread safety. But as our system grew in complexity, we started observing a somewhat rare yet annoying bug. When spawning multiple processes, they request large amounts of memory at the same time. This could in some cases lead to the memory manager retyping the same capability twice. Naturally, such an event caused catastrophic failures whenever it happened, so the logical solution was to add a mutex to the memory manager. Whenever a process requests memory, it has to wait until the \C{mm-mutex} becomes free. Then it locks the memory manager and obtains its memory before finally freeing the memory manager's mutex again.
+%
+\subsection{Allocating and Freeing Memory}
+Based on the above explanation, we now examine how the memory manager provides its core functionality. Namely, how the memory manager can allocate and free memory, how it tracks its available space and how it prevents fragmentation.
+
+To allocate memory of a requested size, the manager simply loops through all its available free nodes. If it cannot find one of at least the requested size, it reports an error. Next, if the found node is located at an unfortunate offset, the memory manager simply splits it to obtain a new node with valid offset. Afterwards, the node's capability is retyped according to the request's type and size before in a last step, our memory manager checks if the node it allocated is larger than the requested size. In case the allocated node is indeed bigger than requested, the remaining part is split into a new free node, as to not waste memory unnecessarily.
+
+Luckily, freeing allocated memory is much easier than allocating it: In a first step, the memory manager has to find the \C{mmnode} corresponding to the capability it is to free. Next, it sets the node's type to free and destroys the provided capability. To avoid fragmentation, the memory manager then tries to merge the freed node with both of its neighbors, before finally adding it to the list of free nodes.
+
+\subsection{The Memory Server}
+To make finally make our memory server available to other processes, we decided to keep
+it as a part of the init process. However, in order for it to work more independently
+from init, we moved all the functionality of allocating memory for different dispatchers
+than init into a separate thread.
+
+The memory server implements the backend for a selection of methods in \C{usr/init/mem\_alloc.c}, and we can access them from any dispatcher through corresponding RPC calls (\emph{see Section \ref{message_passing}}). We initialize our memory manager in our init process and start a new thread that constantly dispatches events on its own \C{waitset}. We then provide each process we start up with a direct channel to the memory server so that all of them can request memory independently. The method \C{get\_mm\_rpc} in \C{lib/aos/domain.c} can be used by those processes to obtain this connection and request memory as needed.
+
+Finally, each process that is initialized has to be instructed which function to use when requesting memory. This can be done with the function \C{errval_t ram_alloc_set(ram_alloc_func_t local_allocator)} and every process outside of \C{init} and our memory server has this set to one that simply calls our memory server with an RPC (\emph{see Listing \ref{mm:remote_alloc_fun}}).
+
+\begin{code}
+\begin{mdframed}[style=myframe]
+\begin{minted}[xleftmargin=\parindent,linenos,breaklines]{C}
+void handle_request_ram(struct aos_rpc *r, uintptr_t size, uintptr_t alignment, struct capref *cap, uintptr_t *ret_size) {
+    errval_t err = ram_alloc_aligned(cap, size, alignment);
+    if (err_is_fail(err)) {
+        DEBUG_ERR(err, "Error in remote ram allocation!\n");
+    }
+}
+\end{minted}
+\end{mdframed}
+\caption{Default RAM Allocator Function: Small Wrapper around an RPC Call.}
+\end{code}
+\label{mm:remote_alloc_fun}
+
+
+
+Since \C{init} is started before our memory server thread, we allow it to allocate memory by
+directly calling the functions in the MM module. After the memory server thread is started,
+we therefore need to pay attention to race conditions when init and a different dispatcher
+request memory at the same time. We solve this problem by simply locking the MM
+module for each call. 
+
+%it also has its own RAM allocator function. Finally, for the memory server itself we set the RAM allocator function to be our memory manager's allocator function since the memory server is designed to have exclusive direct access to our memory manager.

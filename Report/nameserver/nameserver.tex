@@ -1,0 +1,580 @@
+
+
+\section{Nameserver}\label{nameserver}
+The nameserver functions as the primary high-level entity connecting the various processes running on the system. First and foremost it is responsible for all process bookkeeping, for example ensuring the uniqueness of all process identifiers. The nameserver stores records of each running process, such as the name, which core it is running on, and has a direct RPC to each process. This can be an LMP channel with processes on the same core or a UMP channel with processes on a different core. Furthermore, the nameserver provides an interface for any process to register a server handler function to supply its functionality system-wide. It abstracts away the under-the-hood RPC UMP and LMP connections interface and allows for simplified communication between arbitrary processes. This interface is used by the File system and Networking system, assisting them in providing their service to the entire system.
+
+
+\subsection{Overview}
+
+The nameserver is the bookkeeping process of the system. It holds information on all processes and servers in the system. All processes are stored in the \textit{process linked list}. Except for spawning the nameserver, whenever Init spawns a new domain it requests a new, globally unique PID from the nameserver and assigns it to the fresh dispatcher. Once the newly spawned process is running it establishes a direct UMP or LMP channel (depending on which core the process is running on) and registers itself as online to the nameserver. Listing \ref{code:processlist} shows all the information we keep per process. This comes in handy with managing the servers, as the \textit{core id} is used for the multi-hop protocol further discussed in section \ref{mulit_hop}. Also storing an RPC pointer in the process list allows us to verify a deregister request for \textit{dead service removal} originates from a process with valid rights to do so. This is further discussed in section \ref{dead_service_removal}. Furthermore, before a domain exits, it pings the nameserver, deregistering itself from the process list before freeing the channel and shutting down. For these reasons having the nameserver and process management on the same process a straightforward decision  
+
+\begin{code}
+
+
+\begin{mdframed}[style=myframe]
+\begin{minted}[xleftmargin=\parindent,linenos,breaklines]{C}
+struct process {
+    struct process * next;
+    domainid_t pid;
+    coreid_t core_id;
+    char* name;
+    struct aos_rpc* rpc;
+};
+
+
+\end{minted}
+\end{mdframed}
+\caption{Process List}
+\label{code:processlist}
+\newline
+\end{code}
+
+
+\paragraph{}
+
+On to the main functionality of the nameserver: storing all services provided in the system and providing an interface for lookup and establishing client-server connectivity. Similarly to the process list we store a linked list of all services. To provide faster lookup, the nameserver has a hashtable, with the servername as the key and a pointer to the server entry. In this way we support $O(1)$ lookup time and scales well with the number of servers registered. 
+\begin{code}
+
+
+\begin{mdframed}[style=myframe]
+\begin{minted}[xleftmargin=\parindent,linenos,breaklines]{C}
+struct server_list {
+    struct server_list* next;
+    char name[SERVER_NAME_SIZE];
+    domainid_t pid;
+    coreid_t core_id;
+    bool direct;
+    char * key[N_PROPERTIES];
+    char * value[N_PROPERTIES];
+    size_t n_properties;
+    bool marked;
+
+};
+
+
+
+struct hashtable* server_ht;
+
+ /**
+    *  Server list hashtable lookup
+ */
+ server_ht -> d.get(&server_ht ->d,name,strlen(name),(void**) ret_serv);
+\end{minted}
+\end{mdframed}
+\caption{Server linked list and hashtable}
+\newline
+\label{code:server_list}
+\end{code}
+% \newline\newline
+\paragraph{}
+As illustrated in listing \ref{code:server_list} we support each server to assign itself up to 64 attributes in a property key-value system, such that clients may query the nameserver for specific properties instead of only supporting a lookup by name.
+
+\comment{
+All the datastructures held by the namserver do not need to be implemented thread safe, as each nameserver request is handled sequentially on a single thread.
+}
+
+\subsection{Bootstrapping the Nameserver}
+
+As one of the critical elements of a functioning system, the nameserver is the first component to be spawned after the memory server. While the nameserver is starting up, registering itself and the original init process into the process list with hard coded values, the init process yields its scheduling time in a waitset loop until the nameserver-init RPC channel is set up and the nameserver has sent the go-ahead message. After the init-nameserver channel is successfully created, any future process spawned will immediately seek to create a direct nameserver channel over the pre-established init channels, observe figure \ref{fig:ns_bootstrap}. This also includes the init process after booting a new core.
+
+\begin{figure}[ht]
+    \centering
+        \scalebox{0.9}{
+            \includesvg{./nameserver/nameserver_data/bootstrap.svg}
+        }
+    \caption{Bootstrapping the nameserver}
+    \label{fig:ns_bootstrap}
+    
+\end{figure}
+
+\comment{
+On a  side-note, the Init processes currently do not have an RPC channel with the nameserver that implements the namserver interface, so in an Init process it is not possible to register or lookup a server. This would require setting up an additional channel between the namserver and init processes. Definitely could be added, however, we did not think of an actual use case were this is necessary.
+}
+
+
+
+
+
+
+
+\subsection{Client server communication}
+
+Once a channel has been established between a client and a server, described in section \ref{ns_lookup}, any further communication between client server is done over the provided method described in listing \ref{code:nameservice_rpc}. Under the hood, however, there are two different protocols supported on top of our message passing IPC system, the \C{Multi-hop protocol} and the \C{Direct channel protocol}.
+\begin{code}
+\begin{mdframed}[style=myframe]
+\begin{minted}[xleftmargin=\parindent,linenos,breaklines]{C}
+/**
+ * @brief nameservice_chan_t is a nameserver abstraction, always storing a pointer to type struct server_connection
+ */
+typedef void* nameservice_chan_t;
+
+struct server_connection {
+	const char* name;
+	coreid_t core_id;
+	bool direct;
+	struct aos_rpc * rpc;
+};
+
+
+/**
+ * @brief Client sends message of of size: bytes, a capref: tx_cap and receives response and response capref: rx_cap
+ */
+errval_t nameservice_rpc(nameservice_chan_t chan, void *message, size_t bytes, void **response, size_t *response_bytes,struct capref tx_cap, struct capref rx_cap);
+\end{minted}
+\end{mdframed}
+\caption{Nameservice RPC used for any requests sent by a client to a server}
+\newline
+\label{code:nameservice_rpc}
+\end{code}
+
+\subsubsection{Multi-hop protocol} \label{mulit_hop}
+
+The multi-hop protocol is implemented as a protocol reminiscent of the routing in a network. With this client-server connection type, the field \C{rpc} in the struct \C{server_connection} on line 7 in listing \ref{code:nameservice_rpc} always points to init RPC of the domain. This means all traffic between a client and a server is routed through the init processes. Observe an example of a multi-hop connection in figure \ref{fig:ns_multihop}. Here our Client A has a server channel with Server A. A nameservice call is sent to the init process on its core, from which the call is forwarded to init on core 0, and eventually to the init on core 2, from where the init process has a direct LMP channel to the server A. Note that during server registration the init process of the core creates a \C{routing table entry} if the registration is successful. Furthermore, each request in the multi-hop protocol has the destination server core,which is stored in the struct \C{server_connection} appended to its RPC message. With the combination of the destination cores and the routing entries in the init process the client's request will always find a path to the desired server, as long as the server is still alive.
+
+
+\begin{figure}[h!]
+    \centering
+        \scalebox{0.6}{
+            \includesvg{./nameserver/nameserver_data/multihop.svg}
+        }
+    \caption{Multihop protocol}
+    \label{fig:ns_multihop}
+\end{figure}
+
+
+
+% \hindsight{
+% The multihop protocol can in some cases lead to bugs due to the non-reentrant nature of our RPC channels, as described in section \ref{message_passing}. In the case a message is sent exactly at the same time over the forwarding channels, 
+% }
+\subsubsection{Direct channel protocol}\label{direc_channel_protocol}
+
+While the Direct channel protocol is more cumbersome to setup the server connection, the communication protocol is much simpler. As shown in figure \ref{fig:ns_direct_protocol} any client-server pairing will have either a direct UMP or LMP channel, depending on whether they reside on the same core. This way any messages can be sent directly and do not need to be routed over the init processes. However, while this method is simpler in terms of communication it lacks, the flexibility of the multi-hop protocol. The only monitors in our system allowed to forge capabilities between cores are the init processes, so this type of server connection disallows the sending of capabilities and will throw an exception if attempted.
+\begin{figure}[h!]
+    \centering
+        \scalebox{0.6}{
+            \includesvg{./nameserver/nameserver_data/direct_channel.svg}
+        }
+    \caption{Direct channel protocol}
+    \label{fig:ns_direct_protocol}
+\end{figure}
+
+
+\subsubsection{Multi-hop vs Direct channel protocol}
+
+\textbf{Why support both protocols?} One of the primary reasons to support the multi-hop protocol is the ability to allow servers receive and respond with capabilities, such that they can be forged in the init processes. However, only providing this protocol would not scale as well. Firstly, because for each client-server roundtrip we pay the price of up to three RPC calls! This can definitely add up in latency critical applications. For this reason, having every server connection seemed unsatisfactory when it can be done in a single RPC call with a direct connection. On top of this, when thinking of scaling up the amount of servers in a system, we speculate there might be congestion issues if everything is routed over the init processes. 
+On the contrary, when deciding which protocol to choose, one must keep in mind the UMP channels are polled whereas LMP channels use message passing system on the waitsets. This means can estimate how often a server is called a priori, it could be beneficial to use a multi-hop protocol over a direct channel protocol in order to save CPU cycles or avoid polluting the cache. We go into further depths in the differences of the protocol in section \ref{ns_eval}.
+
+
+\paragraph{}
+Whether a direct- or multi-hop protocol is used under the hood is decided by the process registering a service to the nameserver. Once a service is registered as one or the other, the nameservice takes care of the initial channel setup, such as setting up routing entries and bootstrapping the direct channel setup.
+
+
+\subsubsection{How is the nameservice receive handler called?}
+
+Whenever a client makes a nameservice rpc call, the message is received, either routed through init or over a direct channel, by an RPC channel implementing the \C{Opaque server interface}, seen in listing \ref{code:opaque_server_channel}. Every \C{struct aos_rpc} has an optional pointer to a \C{struct serv_entry}, see listing \ref{code:server_entry}, always set if the channel is dedicated to a service. 
+\begin{code}
+\begin{mdframed}[style=myframe]
+\begin{minted}[xleftmargin=\parindent,linenos,breaklines]{C}
+enum {
+    OS_IFACE_MULITHOP_MESSAGE = AOS_RPC_MSG_TYPE_START,
+    OS_IFACE_DIRECT_MESSAGE,
+    OS_IFACE_BINDING_REQUEST,
+    OS_IFACE_N_FUNCTIONS,
+};
+\end{minted}
+\end{mdframed}
+\caption{Opaque server channel interface}
+\newline
+\label{code:opaque_server_channel}
+\end{code}
+\paragraph{}
+
+\begin{figure}[h!]
+    \centering
+        \scalebox{0.6}{
+            \includesvg{./nameserver/nameserver_data/nameserice_chan.svg}
+        }
+    \caption{Calling the registered \C{namservice_receive_handler_t}}
+    \label{fig:ns_call_ns_recv_handler_t}
+\end{figure}
+
+\paragraph{}
+Once the message is over the rpc channel, the message is unmarshalled by our RPC implementation and passed to the nameservice handler setup during server registration alongside the pointer to the state of the service. The ensuing result is then of the nameservice handler is then marshalled again by our RPC implementation and sent as a response. This whole process is illustrated in figure \ref{fig:ns_call_ns_recv_handler_t}.
+
+
+
+
+
+\paragraph{}
+In the case of a direct service, there is an individual channel for each client-server connection. All channels implementing a direct client-server connection point to the same \C{struct serv_entry}. 
+\paragraph{}
+\begin{code}
+\begin{mdframed}[style=myframe]
+\begin{minted}[xleftmargin=\parindent,linenos,breaklines]{C}
+struct srv_entry {
+	struct srv_entry* next;
+	const char *name;
+	nameservice_receive_handler_t *recv_handler;
+	void *st;
+	struct periodic_event liveness_checker;
+	struct aos_rpc main_rpc;
+};
+\end{minted}
+\end{mdframed}
+
+\caption{Server entry struct}
+\newline
+\label{code:server_entry}
+\end{code}
+\paragraph{}
+
+In summary, each has an opaque wrapper function, set as the handler to the corresponding message types in listing \ref{code:opaque_server_channel} and this opaque wrapper function serves as the bridge from the nameservice RPC call to our RPC implementation. The full process is shown in figure \ref{fig:ns_call_ns_recv_handler_t}.
+
+\subsection{Registration}
+
+We support the following API to register a service.
+
+
+\begin{code}
+\begin{mdframed}[style=myframe]
+\begin{minted}[xleftmargin=\parindent,linenos,breaklines]{C}
+errval_t nameservice_register(const char *name, nameservice_receive_handler_t recv_handler,void *st);
+
+errval_t nameservice_register_direct(const char *name, nameservice_receive_handler_t recv_handler,void *st);
+
+errval_t nameservice_register_properties(const char * name,nameservice_receive_handler_t recv_handler, void * st, bool direct,const char * properties);
+\end{minted}
+\end{mdframed}
+
+
+\caption{Functions to register a service}
+\newline
+\label{code:server_register}
+\end{code}
+
+\paragraph{}
+A server can register a name, following the naming system in section  \ref{naming_system}. It can specify a string of propertiy key-value pairs, up to 64 and whether it wants the server connections to be direct or over multi-hop.
+
+\subsubsection{Naming convention} \label{naming_system}
+
+The nameserver uses a hierarchical naming system similar to a POSIX filesystem. All names must start with a \C{/}. While this structure is not represented in the way the servers are stored in the namserver, this supports the \C{nameservice_enumerate} function to look for servers in a specific category, i.e with the query \C{/} all servers in the system are shown, and with query \C{/eth0/} only servers with the prefix \C{/eth0/} are shown, simulating a hierarchical structure.  
+\paragraph{}
+Additionally, the properties can be specified by the string of key-value pairs in the form \C{key1=value1,key2=value2,...}, currently up to 64 properties per server are supported.
+Before any function call specifying a query(prefix), name or set of properties is checked with regex for validity, meaning a function like \C{nameservice_register_properties} or \C{nameservice_lookup_with_prop} will throw an exception if the regex is not passed.
+\paragraph{}
+\newline
+\begin{code}
+\begin{mdframed}[style=myframe]
+\ttfamily{\textasciicircum\/([a-z]|[A-Z])+([a-z]|[A-Z]|[0-9])*(/([a-z]|[A-Z])+([a-z]|[A-Z]|[0-9])*)*\$}
+\end{mdframed}
+\caption{Server name}
+\newline
+\label{code:regex_checks}
+\end{code}
+\begin{code}
+
+\begin{mdframed}[style=myframe]
+\ttfamily{\textasciicircum(\/([a-z]|[A-Z])+([a-z]|[A-Z]|[0-9])*)*/\$"}
+\end{mdframed}
+\caption{Query (prefix)}
+\newline
+\label{code:regex_checks}
+\end{code}
+\begin{code}
+\begin{mdframed}[style=myframe]
+\ttfamily{\textasciicircum(([a-z]|[A-Z])*=([a-z]|[A-Z]|[0-9]|:|-)*)(,([a-z]|[A-Z])*=([a-z]|[A-Z]|[0-9]|:|-)*)*\$}
+\end{mdframed}
+\caption{Property key value pairs}
+\newline
+\label{code:regex_checks}
+\end{code}
+
+
+
+\subsubsection{Registering a service}
+
+Service registration is done directly over the nameserver channel every process has. No capability exchanging is needed for the server registration, it is merely a bookkeeping process and all the heavy lifting is done at lookup. Before an RPC call is made to the nameserver, the name and properties are checked by a regular expression to verify that they are formatted correctly and will throw an exception if not. Once the RPC is handled at the nameservice, before adding the service to the server list and server hashtable, it checks for the uniqueness of the name and responds with unsuccessful if the name has already been taken, which throws an error to the caller of the registration function.
+\paragraph{}
+Once the registration returns successfully, the service is valid and offered to any process in the system. To ensure both communication protocols work correctly, the process creates a new \C{struct aos_rpc} with an LMP backend channel. It sends the endpoint capability of the newly created channel to its corresponding init process, which has a communications initializer handler. This handler creates a new RPC channel connected to the server endpoint, adds the channel address and server name as a new routing entry. 
+
+
+\paragraph{}
+This new channel between the init process and the process providing a service answers to the message types shown in listing \ref{code:opaque_server_channel} and has handlers set for each one. This channel is the target for all client messages sent over the multi-hop protocol and all binding requests to set up new direct channels for the direct channel protocol.
+
+\subsection{Service Lookup} \label{ns_lookup}
+
+The goal of the service lookup is to create a new \C{server_connection} struct as shown in listing \ref{code:server_connection}. To make a nameservice RPC we need to pass structure in order to ensure correct communication. This results in two phases of the service lookup. The first part is finding the correct service to connect to, which can be done either by name or by property. If the process needs to connect to a service with a specific set of attributes, it may call a lookup by properties, which will establish a connection with an arbitrary service that matches all the required properties. Otherwise connect by name, which is a unique identifier of a service. If no server is found, the nameserver responds with an unsuccessful response, throwing an error in the caller. If a matching server is found, the nameserver responds with the core id of the service and whether it is a direct channel service or not. The first phase corresponds to the lookup call denoted by step[1] in figure \ref{fig:lookup}. At this point the lookup function makes a case distinction if the service is direct or not:
+\newline
+\begin{code}
+\begin{mdframed}[style=myframe]
+\begin{minted}[xleftmargin=\parindent,linenos,breaklines]{C}
+struct server_connection {
+	const char* name;
+	coreid_t core_id;
+	bool direct;
+	struct aos_rpc * rpc;
+};
+\end{minted}
+\end{mdframed}
+
+\caption{Server connection structure}
+\newline
+\label{code:server_connection}
+\end{code}
+
+
+\paragraph{}
+In the case the service is registered as a multi-hop server, the lookup is now complete; we have all the required information to complete the \C{server_connection}. The \C{rpc} field of the structure is set to the init RPC and all client calls as such are forwarded to init, where the inter-init channels and routing entries handle the rest of the communication. Recall that the server after a successful registration sets up a new channel and routing entry in the init process. A routing entry is only needed in the init process on the same core as the service, the other init processes route solely based on the destination core ID.
+\paragraph{}
+
+However, if we are dealing with a direct channel service, the client is responsible for creating a new channel and sending its endpoint to the server process. If they are on the same core, this is an LMP endpoint capability, otherwise, a frame capability is used for the UMP channel system. The server has a channel dedicated to listening to messages of type binding requests, as seen in listing \ref{code:opaque_server_channel}, and creates a new channel using the capability sent alongside the binding request. Additionally, the binding request is sent with the source core id, so that the binding request handlers know which backend channel to create. If the channel to create is LMP, the binding request handler responds with its local endpoint capability, required by the client to complete the setup, after which we have a working server-client connection! This process is visualized in figure \ref{fig:lookup} by steps [2] - [4].
+
+\vspace{0.5in}
+\begin{figure}[h!]
+    \centering
+        \scalebox{0.6}{
+            \includesvg{./nameserver/nameserver_data/lookup_multihop.svg}
+        }
+    \caption{Illustrates the steps done by the lookup function to setup a direct channel between server-client. Order of operations are denoted by number in square brackets [x].}
+    \label{fig:lookup}
+\end{figure}
+
+
+
+
+
+\subsection{Dead service removal}\label{dead_service_removal}
+A server can be taken down from the nameserver in two ways; it can deregister itself by name, or, in the case of a crash, a service can be automatically removed if it is no longer capable of sending liveness checks to the nameserver. I.e, when a server process crashes it has not removed the service registered through an explicit deregistration call, but we still want to remove it or potential clients may attempt to communicate with an unresponsive server. Additionally, we want to ensure that deregistration is only valid if the call originates from the process which has registered the service in the first place. 
+\paragraph{}
+Every server name is globally unique, checked on the side of the nameserver during registration, and such the name of a server is a unique identifier. Therefore the deregistration call takes only a name as a parameter. The deregistration call is made over the direct process-nameserver connection. When the nameserver receives a deregistration call, it first checks whether or not the call originated from the same process as the registration. Recall that every process itself initiates a direct RPC channel with nameserver, meaning the address of the \C{struct aos_rpc} channel itself is used as an identification technique to ensure the proper authority of deregistration. Our RPC implementation passes a pointer to the RPC channel to the handler assigned to the corresponding message type. After receiving a deregistration message, the nameserver looks up the server by name over the hashtable and subsequently scans the process list looking for the process over which the message was sent. If the PIDs of the server and the deregistration callee match, we know the removal request is valid. Subsequently, the nameserver deletes the server entry from the list and hashtable and no longer offers it to the rest of the system. In the case that the PIDs do not match, we ignore the request and keep the service alive. 
+\paragraph{}
+Currently, no administrator process is allowed to remove any service, however, this interface can be easily extended to support white-listing specific processes and giving them the deregistration rights. In a nutshell, the uniqueness of PIDs and RPC channels guarantees only deregistration calls from the correct processes are acted upon.
+\begin{code}
+\begin{mdframed}[style=myframe]
+\begin{minted}[xleftmargin=\parindent,linenos,breaklines]{C}
+err = periodic_event_create(&pe,get_default_waitset(),
+                      NS_SWEEP_INTERVAL,
+                      MKCLOSURE(sweep_server_list,NULL));
+                      
+\end{minted}
+\end{mdframed}
+\caption{Creating the deferred event for Dead service removal}
+\newline
+\label{code:sweep_registration}
+\end{code}
+
+
+\begin{mdframed}[style=algorithm]
+\begin{algorithm}[H]
+ \For{server in server list}{
+  \eIf{marked}{
+   remove\_server(server)\;
+   }{
+   set marked
+  }
+ }
+ \caption{Dead service removal sweep}
+ \label{alg:dead_service_sweep}
+\end{algorithm}
+\end{mdframed}
+
+
+
+\paragraph{}
+But what happens when the process on which the server is running crashes? During startup of the nameserver, it creates a deferred event, which periodically iterates through the server list, shown in listing \ref{code:sweep_registration}. During each sweep, the nameserver marks all entries by setting the \C{marked} field, as seen in listing \ref{code:server_list}, to \C{true}. The algorithm,  \`a la second-chance replacement, removes any server that is already marked during its sweep. If already marked, no liveness check with the server name was received between two \C{NS_SWEEP_INTERVAL}, and the process running the server is no longer alive.
+
+
+\paragraph{}
+To support the liveness checks, at registration, when a new server entry is created successfully, a deferred event is created and stored alongside the server state, name, and handler, shown in Listing \ref{code:server_entry}. This event pings the nameserver that the process is still alive at a given interval, sending a \C{NS_LIVENESS_CHECK} message with the corresponding server name directly over the nameserver RPC channel. Similar to the deregistration call, the nameserver checks whether the liveness check was sent over the correct channel, making sure it originates from the process on which the server is running. In conclusion, any crashed server is quickly removed and no longer offered by the nameserver. 
+
+
+
+\hindsight{
+Right now whenever a service gets deregistered or is removed by the dead service removal, any ongoing client calls that have not yet been handled by the service will timeout, throw an exception and return an empty response. Ideally there would be a more elegant solution to tear down a connection between a client and server. A possibility would be for the namserver to keep track of active connections and flush the system with a tear down message, notifying all connected processes of the removal/crash. Furthermore, all Init processes still have routing table entries for the now dead service. The nameserver should ideally notify each init process as well, for them to free their routing entries. If given more time to work on this project, this is the addition we would have added to the dead service removal section.
+}
+
+
+\subsection{Shell integration}
+
+For user interaction with the nameserver we support a set of shell commands. First off to get a list of PID's of all running processes in the system, we support the builtin command:
+\newline
+
+\begin{mdframed}[style=shell]
+\josh{pmlist}
+\end{mdframed}
+\newline
+
+
+\C{pmlist} sends a request to nameserver, returning an array of all PID's in the system. Subsequently, each PID is used to lookup the name of the binary the process is running in the nameserver and prints forwards it to the terminal output.
+\paragraph{}
+
+\begin{mdframed}[style=shell]
+\josh{nslist [-v] [prefix] [properties]}
+\end{mdframed}
+\paragraph{}
+
+
+Just calling \C{nslist} will give a list of all services registered to the service at the time, with the \C{-v} option will include the properties with which the service was registered. An \C{nslist -v} call could produce this output:
+\newline
+
+\begin{mdframed}[style=shell]
+\josh{nslist -v}
+
+\ttfamily{\textbf{\color{servers}Servers \color{black}  \#4} \\ \\ 
+/eth0/server0  \\
+      \color{properties}type=ethernet,mac=44:8a:5b:d3:b8:07,speed=1GB \color{black}\\ \\
+/eth0/server1 \\
+    \color{properties} type=default\color{black} \\ \\
+/eth1/server2 \\ 
+   \color{properties} type=weatherforecast,source=NZZ\color{black} \\ \\ 
+/eth1/server0  \\
+  \color{properties}type=ethernet,mac=44:8a:5b:d3:b8:07,speed=1GB }\color{black}
+\end{mdframed}
+\paragraph{}
+
+Further more we support the an \C{nslist} call searching for only a subset of all the registered servers, by allowing for a prefix matching or filtering by properties. I.e with the same registered servers as above we would get the following results:
+\newline
+
+\begin{mdframed}[style=shell]
+\josh{nslist -v /eth1/ type\%ethernet,speed\%1GB} 
+
+
+
+\ttfamily{
+\textbf{\color{servers}Servers \color{black}\#1} \\ \\ 
+/eth1/server0  \\
+ \color{properties}type=ethernet,mac=44:8a:5b:d3:b8:07,speed=1GB}\color{black}
+\end{mdframed}
+\newline
+\paragraph{}
+
+\paragraph{}
+Note that we use \C{'\%'} instead of \C{'='} for the shell property key-value separation, since the character \C{'='} is reserved as a special character for the shell to setup variable declarations. Internally, before the \C{nameservice_enumerate_with_props} is called, the properties are rewritten with \C{'='} instead of \C{'\%'}.
+
+
+The last command support integrated into the shell is  
+\begin{mdframed}[style=shell]
+\josh{nslookup [name]}
+\end{mdframed}
+\paragraph{}
+which prints the corresponding PID of the process running the server with the specified name.
+
+\subsection{Evaluation} \label{ns_eval}
+
+In this section we discuss some performance measurements to get a feeling for how well the nameserver performs, how the indirect and direct protocols match up in certain scenarios. This section was additionally performed to stress test our system to run with multiple client and server pairs, to check for any undesired behaviour. Furthermore, our nameserver is used by the file and networking system, thus it is critical that any client-server call performs efficiently even in a system with many concurrent client-server connections. For all experiments discussed  in this section the client sends the request string \C{"request !!"} and the server responds with \C{"reply!!"}, so 11 bytes are sent and 8 bytes are received.
+\begin{figure}[ht]
+    \centering
+    
+        \scalebox{0.5}{
+            \hspace{-0.40in}
+            \includesvg{./nameserver/nameserver_data/service_rpc.svg}
+        }
+    \caption{Illustrates the latency of a client-service roundtrip in an "empty" system, meaning no other client-server pairs are currently running. 2 core means the client and server are running on different cores, while 1 core means they are on the same core. The results are aggregated over a few thousand runs, error bars were omitted as they were not visible}
+    \label{fig:ns_rtt}
+    
+\end{figure}
+\paragraph{}
+
+Figure \ref{fig:ns_rtt} illustrates the the time it take for a message to be sent and later received by the client. The first thing to stand out is the big difference between a direct and multi-hop call. This makes sense, since the multi-hop call accrues the cost of an LMP call twice, in the case of both client and server running on the same core. However the multihop core call takes more than twice as long, at around \~ $350\mu s$ compared to  \~ $100\mu s$. This can be attributed to the additional overhead caused mostly by the hashtable lookup to find the routing entry corresponding to the correct server.
+\comment{
+Interestingly, routing over multiple cores is actually faster than routing through init on the same core, even-though an additional UMP call is made throughout the roundtrip. We were initially very surprised with this result, and ran the experiment a few more times, giving us the same result. The only reasonable we could come up with is that it might be more expensive to context switch between three different processes than making a cross-core UMP call. This however remains speculation, and would be interesting to further explore. Also the multiple core multi-hop had slightly higher variance in the measurements, while the multi-hop on the same core had more variance.
+}
+
+
+\paragraph{}
+Figure \ref{fig:ns_rtt} compared to the performance evaluation in section \ref{message_passing} gives us an idea of the overhead incurred by the a \C{nameservice_rpc} in a direct client call. This overhead was much larger than expected, being around a difference of $13 \mu s$ to $48 \mu s$, around 3 - 4 times slower. This is mostly explained by \C{mallocing} a chunk of memory large enough to receive any type of message from the service and having more nested function calls, with a little bit of pointer chasing sprinkled in. I believe this would be a potential area to improve performance. We observe similar behaviour with the LMP direct client call, where the RTT is around 5 times slower.
+\paragraph{}
+
+In summary this plot shows us how expensive it is to use a multi-hop protocol in performance critical situations, or in other words, how much it costs to be able to send capabilities over a service. Furthermore, we see how using the how the direct \C{nameservice_rpc} matches up with a vanilla RPC call, and that in the current implementation, causes a significant amount of overhead. 
+
+
+
+
+\begin{figure}[ht]
+    \centering
+    
+        \scalebox{0.5}{
+            \hspace{-0.20in}
+            \includesvg{./nameserver/nameserver_data/lookup.svg}
+        }
+    \caption{Shows the time required to setup a communications channel between a client and a service. This is the required time for a \C{nameservice_lookup} call to complete.}
+    \label{fig:lookup_times}
+    
+\end{figure}
+
+
+
+
+\paragraph{}
+In contrast, when observing figure \ref{fig:lookup_times} we see the difference in time we need to setup a channel, comparing a direct and multi-hop service. Unsurprisingly, setting up a multi-hop channel is much quicker, as we do not require the creation and setup of a new RPC channel between the two processes. When connecting to a multi-hop server, the only information we need from the nameserver is essentially on which core the service is provided on, after that \C{rpc} field in the \C{struct server_connection} copies the pointer to the init process, and the setup is complete. With a combination of the core ID and the preestablished routing entries on the Init processes, all traffic is guaranteed to be redirected to the correct handler. 
+\paragraph{}
+While the Multi-hop protocol lookup is quick to complete, the Direct communications channel is heavy weight in comparison. To setup a connection both parties must allocate new RPC channel structures, exchange Endpoint or Frame capabilities for LMP and UMP respectively. This requires multiple round trips and subsequently much more time is spent during setup.
+\paragraph{}
+This data suggest, as discussed previously, some use cases are better suited for different types of connection protocols. Take for an example a service which may only get called a single time throughout the lifespan of the connection, it might make more sense to register the service as a multi-hop service. Or imagine initial call to a service is very latency critical, the setup time and following message exchange time of a single message is substantially lower for a multi-hop protocol, adding up to around 300 - 400 $\mu s$, which is still a fraction of just the setup time of a direct communications channel, with the mean being slightly under 2000 $\mu s$. 
+
+\begin{figure}[h!]
+    \centering
+        \scalebox{0.5}{
+            \hspace{-0.60in}
+            \includesvg{./nameserver/nameserver_data/server_client_perf.svg}
+        }
+    \caption{Shows the slowdown of running multiple server-client connections on the system. Each server client connection is using the full capacity of its connection, so whenever a client receives a response from a server, it immediately sends a succeeding request. Every type of server client connections was measured in isolation, so while measuring the Direct 1 core connection, every other server-client pair also used a direct 1 core channel. Similarly to figure \ref{fig:ns_rtt}, 1 core means both client and server where on the same core and 2 core means they were on two different cores.}
+    \label{fig:client_serv_perf}
+    
+\end{figure}
+
+
+
+
+\paragraph{}
+For the third and final experiment on the topic of server-client connections, we set up an experiment to put our nameserver and RPC implementation to the test. We designed a small test function that spawns in a fresh client-server pair every few seconds. Every client sends a nameservice request to its corresponding server as soon as it has received the response to the previous call. Thus every channel is firing on all cylinders, trying to fully utilize the channel.
+
+\paragraph{}
+The measurement results are displayed in figure \ref{fig:client_serv_perf} and give a good overview of how the two different protocols respond to heavy load on the system. Unsurprisingly, the direct channels scale much butter in regards to RTT when scaling up the number of client-server pairs. However, it was still astounding to see by how much the RTT of the multi-hop protocol increased, reaching up to almost 10 ms per request at only 15 client-server pairs! This is mostly because all RPC calls are routed over the same RPC channel and cause congestion in the communications protocol. 
+\paragraph{}
+The direct server channels scale much better but still see a substantial increase in RTT. However this is mostly due to competing for CPU time, memory bandwidth, and context switching between the different client and server processes, which are unavoidable costs when running multiple processes.
+\paragraph{}
+An interesting insight we gained during this experiment, and an explanation for the Direct 2 core with yield and no yield, initially we had our RPC implementation for a UMP busy loop waiting for a response, without yielding its CPU time, shown in listing \ref{code:ump_no_yield_vs_yield}. Initially, we were flabbergasted by the results of the no yield line, as I expected it to be much faster than its multi-hop protocol. After a bit of investigating, we found that a UMP call would poll its frame capability until it was a message was able to read, eating up all the CPU time. In practice, this results in a very low latency UMP call in isolation, as the call can be read almost immediately after it is available. However, when tested in conjunction with multiple other running UMP channels, this leads to a huge increase in RTT time as seen in figure \ref{fig:client_serv_perf}, even worse than routing all calls over the same RPC channel. Worst case scenario, this could potentially even lead to no progress being made until the kernel scheduler preempts the currently running dispatcher. 
+
+\begin{code}
+\begin{mdframed}[style=myframe]
+\begin{minted}[xleftmargin=\parindent,linenos,breaklines]{C}          
+bool received = false;
+do {
+    received = ump_chan_poll_once(&rpc->channel.ump, response);
+} while (!received);
+\end{minted}
+\end{mdframed}
+
+\begin{mdframed}[style=myframe]
+\begin{minted}[xleftmargin=\parindent,linenos,breaklines]{C}         
+bool received = false;
+do {
+    received = ump_chan_poll_once(&rpc->channel.ump, response);
+    if(!received){
+        thread_yield_dispatcher(NULL_CAP);
+    }
+} while (!received);
+\end{minted}
+\end{mdframed}
+
+\caption{Ump no yield vs yield}
+\newline
+\label{code:ump_no_yield_vs_yield}
+\end{code}
+
+\comment{
+There are potentially a few ways one could attempt to decrease the interference effect of having multiple server-client connections over a multi-hop protocol. For example one could implement direct channels between each init process, meaning each multi-hop call would route over maximally one init process. Initially, we also wished to attempt an experiment by adding more redundant channels between the init processes to see if this could potentially make it faster. However, after further reflection, since our UMP channels are blocking, i.e they busy loop and yield until they receive a response, this would not cause a speedup. This leads us to believe making all forwarding calls in the init processes non-blocking might be the way to go. This means an init process could just pass the message to the next destination be scheduled to perform other tasks, in this case forwarding messages of other server-client pairs. Once a response to the same message is received, it can again forward it correctly.
+}
+
+\paragraph{}
+Ultimately the performance evaluations and discussion above motivate the current implementation of our nameserver interface. The combination of Multi-hop and directly routed protocols give us the flexibility to support a variety of different use cases. Most importantly, giving us the ability to exchange capabilities over a nameservice RPC, but without sacrificing performance by offering the possibility of a direct communications protocol. These results also motivated the decision to offer the filesystem and networking service as a direct channel protocol, as neither requires the exchange of capabilities with clients. Also, in most cases a request to a file or networking system is not a one-time operation, so short lookup latency is a very negligible factor in evaluating the performance of these services. Finally, both services can lead to a large number of client-server calls, depending on the workload the system is performing, suggesting a direct-channel protocol as the more optimal solution.
+
+
+\hindsight{
+Realistically there is no reason to have a multi-hop protocol on the same core, as we do not need to init to forge capabilities in this case. It was implemented this way to make a clear distinction between the two types of servers. Also, there are situations where offering a direct UMP channel between a client and server is beneficial, since a direct UMP call is faster than a direct LMP call, especially as the size of the messages and responses get larger. This functionality is currently not supported and would be great to add. 
+}
+
+
+
+

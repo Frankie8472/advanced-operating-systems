@@ -1,0 +1,82 @@
+
+\section{Spawning new domains}
+
+This chapter introduces the implementation and interface to spawn process, or dispatchers, on our system. For the sake of brevity, we keep this section short, since there are not many design aspects to discuss in this section. Spawning a process, as with many things in this world, either works or it doesn't. Most steps follow a strict framework for how dispatchers and processes are organized. All the processes in our system are spawned by an init process on the desired spawn core. In general, terms, spawning a process entails the following steps:
+\begin{itemize}
+    \item Loading and mapping the ELF file the new process is supposed to run
+    \item Setting up the initial Cspace and Vspace for the child process
+    \item Creating and invoking a \C{struct dispatcher}
+    \item Bootstrap an initial RPC channel between init and the spawnee
+\end{itemize}
+
+\subsection{Loading the ELF file}
+
+All binaries are prebuilt and shipped along with the kernel. They can be located in the boot info. Currently, any process spawned in our system must be in a memory region of the type module. The ELF file is loaded with the \C{multiboot_find_module} function and the corresponding arguments with \C{multiboot_module_opts}. In our case, we decided to only read the arguments written in the memory region if no other arguments are provided when calling the spawn function. Next, the module is mapped into virtual address space into \textit{both} the parent's virtual address space, and the child's virtual address space.
+
+\subsection{Setting up the childs Cspace}
+Every domain expects to have a set of capabilities available to it as soon as it is spawned in. Furthermore, as the parent, we must set up the CNode hierarchy to a certain degree. This includes creating a new \C{L1_CNODE}. Missing this step would not allow the child process to allocate any capabilities, rendering it helpless, due to a dependency loop. I.e it requires the ability to allocate capabilities to create new CNode entries but needs free slots in the Cspace to create new CNodes. Additionally, the child process expects a set of \C{L2_Cnodes} to be already mapped into the CSpace as well, which includes CNodes for slot allocation a, \C{Task CNode} for holding to the dispatcher in memory or the init endpoint used to bootstrap the LMP channel, discussed in section \ref{bootstrap_spawn} and quite a few more. 
+
+\subsection{Setting up the Vspace}
+The child process requires its own page table. This requires the child space to already set up. We create new \C{ObjType_VNode_AARCH64_l0}
+as the root page table and give the capability to the child over its Cspace. Our paging requires the state of the shadow page table and the page table to always be consistent and have a one-to-one mapping between the two. After providing a Root page table entry for the child, we must initialize its paging state, create a corresponding root page table in the shadow page table. If left out, the child would not be aware of the Vspace state and unable to correctly map in new frames or correctly update the page table without the help of the shadow page table. Mirroring setting up the Cspace, without providing a rudimentary setup for the Vspace, there would be no way for the child process to escape the dependency loop, requiring a root page table frame to create a root page table frame. 
+
+% \paragraph{}
+% Ultimately, spawning a process requires a lot of basic, such that any further operations can be done by themselves. In this section there are not many interesting design choices, as the spawning either works or it doesn't. Most steps follow a strict framework for how dispatchers and processes are organized.
+
+\subsection{Bootstrapping communication} \label{bootstrap_spawn}
+Generally speaking, creating a new channel between two processes can be quite challenging. Luckily for us, the init process has full control over the initial Cspace of the child. To start an LMP connection, init copies its endpoint capability into the \C{Task_Cnode} at \C{TASKCN_SLOT_INITEP}. The init process also creates a new LMP channel with an empty remote capability. Already this is enough information exchanged for a successful channel initialization. After the child is spawned and has created its channel and corresponding endpoint capability, it pings the init process, sending its endpoint over the fresh channel with an \C{AOS_RPC_INITIATE} message. With the received endpoint the remote capability for the channel is set. This concludes bootstrapping communication between the child and parent, and the child is now an active member of the system!     
+
+
+\subsection{Spawning interface}
+
+To wrap the above mentioned steps into a single function call, we implemented \C{spawn_new_domain} shown in listing \ref{code:spawn_interface}. It can be invoked with explicit \C{argv} and \C{argc}, or the command line parameters can be passed as a string like \C{"hello welcome to aos"} with \C{argc} set to zero and \C{argv} to \C{NULL}. \C{ret_si} takes a pointer to a \C{struct spawninfo} to be filled in by this function. The \C{capref spawner_ep} is an optional parameter (can be a \C{NULL_CAP}) to initialize a second RPC channel at startup, which can be useful in some cases. An example would be spawning the shell with an additional RPC channel to the lpuart terminal. \C{child_stdin_cap} and \C{child_stdout_cap} set endpoints for standard out and in respectively, they are simply written into the child's cspace at their appropriate slots. Their functionality is covered in more depth in section \ref{shell}.
+
+\begin{code}
+\begin{mdframed}[style=myframe]
+\begin{minted}[xleftmargin=\parindent,linenos,breaklines]{C}
+errval_t spawn_new_domain(const char *mod_name, int argc, char **argv, domainid_t *new_pid,
+                          struct capref spawner_ep, struct capref child_stdout_cap, struct capref child_stdin_cap, struct spawninfo **ret_si)
+\end{minted}
+\end{mdframed}
+\caption{Spawning function to start a new function}
+\newline
+\label{code:spawn_interface}
+\end{code}
+
+
+We also had to create some functions for spawning special modules. These functions
+provide some additional capabilities to the child. For example extra capabilities
+for device drivers in the \C{ROOTCN_SLOT_ARGCN} in the Root CNode.
+
+\begin{code}
+\begin{mdframed}[style=myframe]
+\begin{minted}[xleftmargin=\parindent,linenos,breaklines]{C}
+errval_t spawn_lpuart_driver(const char *mod_name,
+                             struct spawninfo **ret_si,
+                             struct capref in,
+                             struct capref out);
+
+errval_t spawn_enet_driver(const char *mod_name,
+                           struct spawninfo **ret_si);
+
+errval_t spawn_filesystem(const char *mod_name, struct spawninfo **ret_si);
+\end{minted}
+\end{mdframed}
+\caption{Special spawning functions for special programs}
+\newline
+\label{code:spawn_specials}
+\end{code}
+
+Bottom line, for a process with special needs (connection to serial port, to ethernet port, etc.) a separate spawn function has to be written. For a normal program the following function call suffices:
+
+\begin{code}
+\begin{mdframed}[style=myframe]
+\begin{minted}[xleftmargin=\parindent,linenos,breaklines]{C}
+errval_t spawn_new_domain(const char *mod_name, int argc, char **argv, domainid_t *new_pid,
+                          struct capref spawner_ep_cap, struct capref child_stdout_cap, struct capref child_stdin_cap, struct spawninfo **ret_si);
+\end{minted}
+\end{mdframed}
+\caption{Special spawning functions for special programs}
+\newline
+\label{code:spawn_specials}
+\end{code}

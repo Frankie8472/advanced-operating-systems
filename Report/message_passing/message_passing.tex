@@ -1,0 +1,642 @@
+\section{Message Passing}\label{message_passing}
+
+We have different methods to send messages from one dispatcher to another.
+
+\subsection{LMP Messages}
+When spawning a new domain, we want to establish a mean of communication the newly created process. The Barrelfish CPU Driver has specific functionality for this; It lets us retype a dispatcher capability to an \emph{endpoint capability} and then associate a buffer to that endpoint. The endpoint can then be used (i.e. invoked) to send a message holding a couple of machine words to the target endpoint.
+These messages are comparatively small, as they have to fit into the arguments of a syscall invocation.
+The receiving dispatcher is notified of its message by the kernel using an upcall.
+
+\subsection{UMP Messages}
+Two dispatchers can also share a chunk of RAM and communicate via messages written into this chunk.
+This method works also when the dispatchers are not running on the same core, i.e. they don't share the same CPU Driver.
+
+\subsubsection{Implementation}
+A very basic communication protocol over a shared memory region is not too complex to implement.
+However, to send fast and correct messages, we still need to overcome a few hurdles.
+
+At our lowest level of abstraction, we create a one-way channel for UMP messages. We implement a ring buffer, a commonly used data structure for passing data in memory. For this to work however, we also need to ensure that we only read from the ring buffer when a whole message was received and not before. We devoted a whole chapter discussing our implementation of barriers and flags, see section \ref{barriers}.
+
+We created a module around \C{struct ump_chan}, designed to mimic to a certain degree the
+behaviour of the already existing \C{struct lmp_chan}. It is a bidirectional channel
+that allows us to send and receive messages of a fixed size.
+
+UMP channels can, like LMP channels, be registered in a waitset in order to receive
+a callback whenever there is a message available to read on the channel.
+
+By default they operate in polled mode, i.e. whenever our dispatcher gets scheduled
+or actively polls for events to dispatch, we check whether there is a message available for 
+receiving. We also implemented pinged mode, which is similar to LMP channels: The channel
+is never polled; instead we rely on an upcall being made whenever there is something to receive.
+To make that work across cores, we used Inter-Processor-Interrupts (See more Section \ref{sec:ipi}).
+
+
+To initialize a \C{ump_chan}, we call
+\begin{mdframed}[style=myframe]
+\begin{minted}[xleftmargin=\parindent,linenos,breaklines]{C}
+errval_t ump_chan_init(struct ump_chan *chan,
+                       void *send_buf, size_t send_buf_size,
+                       void *recv_buf, size_t recv_buf_size);
+\end{minted}
+\end{mdframed}
+
+\C{send_buf} is a pointer to a shared portion of memory of size \C{send_buf_size}. The same
+goes for \C{recv_buf}. On the other end of the communication channel, the respective buffers
+passed to the struct need to be inverted. (The virtual address there does not matter, it just
+needs to be mapped to the same physical address)
+
+The messages we can then send over the channel look like this:
+\begin{mdframed}[style=myframe]
+\begin{minted}[xleftmargin=\parindent,linenos,breaklines]{C}
+struct ump_msg
+{
+    uint8_t flag;
+    uint64_t data[];
+};
+\end{minted}
+\end{mdframed}
+
+
+Furthermore, a \C{ump_chan} instance tracks its messages using the following struct members:
+\begin{mdframed}[style=myframe]
+\begin{minted}[xleftmargin=\parindent,linenos,breaklines]{C}
+struct ump_chan {
+    size_t msg_size; /// < size of a single ump message
+    void *recv_pane;  // state for receive-buffer
+    size_t recv_pane_size;
+    size_t recv_buf_index;
+    void *send_pane;  // state for send-buffer
+    size_t send_pane_size;
+    size_t send_buf_index;
+    //...
+};
+\end{minted}
+\end{mdframed}
+
+In our messages,\C{flag} is reserved for our protocol as it indicates the status of the message at a given location. We can use its value to check if a location contains a message ready to be read by a receiver, or the receiver has already copied all data inside. If a flag indicates that the receiver is done receiving a message, the sender can then write a new message to the according location.
+
+As a result, the flag of a message cannot be overwritten with message content. However the data can be filled in by us. The length of the data array should be 7 by default. In this case the whole message fills up 8 words which is exactly one L1 cache line on our machine.
+
+The member \C{recv\_buf\_index} of \C{struct ump_chan} tracks which message will be read the next time a process tries to receive data over a UMP channel, while \C{send\_buf\_index} is the index to which the next outgoing message over a UMP channel will be written. Both indices are updated whenever a message was successfully transmitted (\emph{received or sent}).
+
+
+In order to allocate and then fill in a message, we use the macro \C{DECLARE_MESSAGE}:
+\begin{mdframed}[style=myframe]
+\begin{minted}[xleftmargin=\parindent,linenos,breaklines]{C}
+DECLARE_MESSAGE(ump_channel, msg);
+msg->data[0] = ...;
+\end{minted}
+\end{mdframed}
+
+We implemented the ump message struct as a variable sized struct, as we (technically) support
+different message sizes (multiples of cache line length). However in our project
+we only used and tested ump channels with a message size of seven words i.e. one cache line.
+
+
+To then send a message, we use the following function:
+\begin{mdframed}[style=myframe]
+\begin{minted}[xleftmargin=\parindent,linenos,breaklines]{C}
+/**
+ * \brief Send a message over a ump-channel.
+ * \param chan Channel to use.
+ * \param send Pointer to the message to send.
+ * \param ping_if_pinged If the channel is operating in
+ *        pinged mode, determines whether
+ *                       a ping will be sent. Otherwise
+ *                       ignored.
+ * \return true if the message could be sent, false if the
+ * message could not be sent (because send-buffer is full).
+ */
+bool ump_chan_send(struct ump_chan *chan,
+                   struct ump_msg *send,
+                   bool ping_if_pinged);
+\end{minted}
+\end{mdframed}
+
+It checks the flag of the message at index \C{send\_buf\_index} under \C{send\_pane} of the provided channel. If the flag indicates the message under this index has not been received yet, the send buffer is full. Hence, we are unable to send a new message over the provided UMP channel and return false. If the flag indicates the location to be free however, we can write the provided message's data into the send-buffer. After we are done, we update the flag to inform our receiver of the new message ready to be received.
+
+
+To check whether a message can be received on a UMP channel, we use:
+\begin{mdframed}[style=myframe]
+\begin{minted}[xleftmargin=\parindent,linenos,breaklines]{C}
+bool ump_chan_can_receive(struct ump_chan *chan);
+\end{minted}
+\end{mdframed}
+
+This function simply checks the message flag for the message under index \C{recv\_buf\_index} under the provided channel's \C{recv\_pane}. If the flag indicates a new message ready to receive, the message returns true. Otherwise, it returns false.
+
+
+To receive a message, we use \C{ump_chan_receive}. It checks if there
+is a message to receive. In case there is, it fills in the provided message with the received
+content and return true. If there is no message to receive, it returns false. Furthermore, if the message received successfully, it also updates the flag under the provided location to let the sender for this channel know it can store a new message under the index in question.
+\begin{mdframed}[style=myframe]
+\begin{minted}[xleftmargin=\parindent,linenos,breaklines]{C}
+bool ump_chan_receive(struct ump_chan *chan,
+                      struct ump_msg *recv);
+\end{minted}
+\end{mdframed}
+
+\subsubsection{Cache Coherence} \label{barriers}
+Since one key usage for UMP channels is message passing between different cores through shared memory, we have to take extra precautions regarding cache coherence. Modern computers often change the order in which memory transactions become visible between cores. And, in the case of UMP channels between cores, this can have fatal consequences. For instance, we could implement one core sending data to another core like this:
+\begin{mdframed}[style=algorithm]
+\begin{algorithm}[H]
+set(msg->data, message);\\
+set(msg->flag, SENT);
+\end{algorithm}
+\end{mdframed}
+
+When running however, we have no guarantee that any other server will observe our operations in the same order. If we are unlucky, the other core might see the message's flag being changed before the message's data. In such a case, the receiver might copy a message from the ring buffer before the sender has finished writing its message. On the flipside, a sender might observe a mesage's flag being set to \emph{RECEIVED} before the receiver has copied the entire message to its own side. The sender could then already start writing a new message into a location before the receiver has received the entire old message. Both cases can lead to incomplete and corrupted messages being exchanged between two cores.
+
+To prevent such cases from happening, we have to employ \emph{memory bariers}. These are special instructions we can place to ensure our transactions become visible to other cores in the correct order. In short, \emph{any} transaction placed before a memory barrier always becomes visible before \emph{any} transactions placed after it.
+
+In the case of our UMP channels we can thus solve the described issues through skillful placement of message barriers. As long as we make sure to always place a message barrier between a message and its flag, we can ensure the correctness of our UMP channels. In case of our receive-function we end up with the following two barriers:
+\begin{mdframed}[style=myframe]
+\begin{minted}[xleftmargin=\parindent,linenos,breaklines]{C}
+// ...
+if (*((volatile uint8_t *) &read->flag) == UMP_FLAG_SENT) {
+    dmb();  // memory barrier
+    memcpy(recv, read, chan->msg_size);
+    dmb();  // memory barrier
+    read->flag = UMP_FLAG_RECEIVED;
+    // ...
+}
+\end{minted}
+\end{mdframed}
+
+\subsection{RPC implementation}
+In order to use this message sending effectively, we wanted to create an RPC abstraction over the raw channels.
+
+Often, when sending messages to another dispatcher, we are expecting it to respond with some result.
+This is what an RPC abstraction provides a nice interface for. It should let us call a function
+with some arguments, send them to the server, which then executes the chosen function and sends us back
+the return values. When the response arrives, the function on the client side returns and execution of the program continues as usual.
+
+In order to manage the sending and receiving of arguments and turning them into function parameters
+(called marshalling and unmarshalling), RPC frameworks often rely on some interface definition language that
+is then compiled to generate the C interface and marshalling code.
+
+As such an interface description language exists for Barrelfish but was specifically removed from our code
+handout, we decided not to reinvent the wheel but to implement a simple but usable alternative directly in C.
+
+\subsubsection{Interface}
+We defined the following interface:
+
+\begin{mdframed}[style=myframe]
+\begin{minted}[xleftmargin=\parindent,linenos,breaklines]{C}
+errval_t
+aos_rpc_init(struct aos_rpc* rpc,
+             struct capref self_ep,
+             struct capref end_ep,
+             struct lmp_endpoint *lmp_ep);
+                      
+errval_t
+aos_rpc_initialize_binding(struct aos_rpc *rpc,
+                           enum aos_rpc_msg_type msg_type,
+                           int n_args, int n_rets, ...);
+
+errval_t
+aos_rpc_register_handler(struct aos_rpc *rpc,
+                         enum aos_rpc_msg_type binding,
+                         void* handler);
+
+errval_t
+aos_rpc_call(struct aos_rpc *rpc,
+             enum aos_rpc_msg_type binding, ...);
+
+\end{minted}
+\end{mdframed}
+\C{aos_rpc_init} initializes a \C{struct aos_rpc} over a \C{struct lmp_endpoint}. We can now bind handler functions
+to it, can be called in either direction. In other words, the handlers is registered to both endpoints. See an example of setting up a handler that multiplies two integers in 
+
+Setup code for an RPC server providing a function to multiply two integers would look like this:
+
+
+\begin{code}
+\begin{mdframed}[style=myframe]
+\begin{minted}[xleftmargin=\parindent,linenos,breaklines]{C}
+#define MULTIPLY_NUMBERS 0
+
+struct aos_rpc rpc;
+extern struct aos_rpc_interface *multiply_interface;
+void *handlers[1];
+
+aos_rpc_initialize_binding(
+        &multiply_interface,
+        MULTIPLY_NUMBERS,   // function id
+        2,                  // number of arguments
+        1,                  // number of return arguments
+        AOS_RPC_WORD,       // type of first argument
+        AOS_RPC_WORD,       // type of second argument
+        AOS_RPC_WORD        // type of first return argument
+);
+
+aos_rpc_init(&rpc, self_ep, end_ep, ep);
+aos_rpc_set_interface(&rpc, multiply_interface, 1,
+                      &handlers);
+
+// specify the send number function as taking one word
+// argument and no return arguments
+
+
+
+\end{minted}
+\end{mdframed}
+
+The server side would then register a service function with:
+
+\begin{mdframed}[style=myframe]
+\begin{minted}[xleftmargin=\parindent,linenos,breaklines]{C}
+
+void handle_multiply(uint64_t a, uint64_t b, 
+                     int64_t *result) {
+    *result = a * b;
+}
+
+aos_rpc_register_handler(
+        &rpc,
+        MULTIPLY_NUMBERS,
+        &handle_multiply
+);
+
+\end{minted}
+\end{mdframed}
+
+The calling side would simply call the function using 
+
+\begin{mdframed}[style=myframe]
+\begin{minted}[xleftmargin=\parindent,linenos,breaklines]{C}
+
+uint64_t result;
+aos_rpc_call(&rpc, MULTIPLY_NUMBERS, 5, 7, &result);
+
+\end{minted}
+\end{mdframed}
+\label{code:example_rpc}
+\caption{Example illustrating how one would set up a function that multiplies two integers using our RPC interface}
+\end{code}
+
+\subsection{Implementation}
+The core function of our rpc module is
+
+
+\begin{mdframed}[style=myframe]
+\begin{minted}[xleftmargin=\parindent,linenos,breaklines]{C}
+errval_t aos_rpc_call(struct aos_rpc *rpc,
+                      enum aos_rpc_msg_type binding, ...);
+\end{minted}
+\end{mdframed}
+
+The number and type of the required arguments depends on what function is called.
+A short pseudocode overview of what the function does is the following:
+
+\begin{itemize}
+    \item Read arguments depending on what function to call
+    \item Marshall arguments into a series of messages
+    \item Send all messages
+    \item Wait for response, as long as there is no response to receive, yield our timeslice to the
+          dispatcher we are awaiting a message from.
+    \item Unmarshall the response messages back into return values and write them into
+          our return parameters
+\end{itemize}
+
+
+The \lstinline{aos_rpc} implements its abstraction over either a \lstinline{struct lmp_chan} or
+a \lstinline{struct ump_chan}. There is no additional layer of abstraction in between. This whole
+functionality is then basically implemented twice, as there are significant differences in how the
+parameters are marshalled into messages.
+
+
+\subsubsection{Reading arguments}
+The arguments \lstinline{aos_rpc_call} vary depending on what function is called. We proceed as follows:
+We get a function id in the \lstinline{binding} parameter. This is used as an index into the function array for the interface bound to the rpc struct. The interface contains a list of argument types that
+this function takes. Using this list, we can read the passed parameter values and directly write them into a message buffer. 
+
+After all the messages have been sent, we block the current thread until we receive a response message.
+
+\subsubsection{Server-side unmarshalling}
+On the receiving end, we read the first word of the message, which specifies the function index
+that is being called. From the function index, we can read the argument types that will be following. We read all messages and write the passed arguments into temporarily
+allocated variables. For the return arguments we are also allocating the needed space.
+
+\subsubsection{Calling the handler function}
+On the server side, we have set up a list of function pointers for each call that
+we want to be able to handle. This lets us quickly look up the handler function that will be called.
+We then need to call this handler, but need to pass different argument numbers and types depending
+on the function. To do this, we make use of a trick that works on aarch64.
+Luckily, all our supported argument types are either the size of one machine word (integers
+and pointers) or structs the size of two machine words (caprefs and varbytes).
+As specified in \footnote{\url{https://developer.arm.com/architectures/system-architectures/software-standards/abi}}, the first eight machine word sized arguments are passed in registers x0-x7.
+Structs twice that size are simply split up across two registers. If there are more
+arguments, or only one register left for a double word sized argument, we start putting arguments
+on the stack. If we put too many values on the stack or fill up register x7 with some value
+even though the function only takes seven arguments, it is simply ignored (as x0-x7 are
+caller-saved registers and values put on the stack are none of the callee's business).
+These properties of the calling convention allow us to simply allocate an array
+of 24 machine words, then write our arguments into it and then call the function as if it would take 24 arguments, each being one word. The only thing that we need to pay attention to is
+that when a double-word-sized struct is split up, it must never be split between x7 and the first stack argument, either both in registers, or both on the stack.
+
+This might seem like a risky and unnecessarily complicated approach. However it provides a cleaner
+interface without much performance penalty, so we kept it that way.
+
+\subsubsection{Returning the arguments}
+After the handler function exited, we basically do the same as on the calling side but for
+the return arguments. We iterate through the return types and put the preallocated return values
+into messages and send them back to the caller side.
+
+
+
+
+
+\subsection{Backend-Specific}
+
+As mentioned, we support either LMP or UMP as backends.
+
+When using LMP as a backend, we always send the last message with the \C{LMP_FLAG_SYNC}- and \C{LMP_FLAG_YIELD}-flags, all messages before only with the \C{LMP_FLAG_YIELD}-flag.
+This way, we automatically yield to the callee dispatcher after sending the call messages.
+The callee does the same, so for calls that don't take very long, we should not have much
+more overhead than the marshalling and the two context switches (which are inherent to LMP messages
+between dispatchers).
+
+
+When using polled UMP, we are facing another problem. As we want to block the current
+thread until we receive a return message, we have the choice between:
+
+\begin{itemize}
+
+    \item \textbf{Busy Loop}\ \ If we just check the ump connection for new messages in a loop,
+    we get incredibly fast round trip times when the call doesn't perform a lot of work.
+    However, we essentially block one core for the time it takes to complete the call.
+    
+    \item \textbf{Instant Yield}\ \ We can also poll for a message once and if no message
+    is available, we instantly yield the current thread. This way, we don't waste a lot of
+    resources on polling. However we will probably not detect an incoming message instantly.
+    
+\end{itemize}
+
+We argue that in most cases, it is better to yield. If the system is busy, we aren't denying too
+much CPU time to other dispatchers, and if the system is not very busy, we should not have to worry about yielding as we should soon get another timeslice. In the case of the system being busy
+but our dispatcher still needing the return values of the rpc call as soon as possible, it
+might be better to busy loop. For this case, which we assume to be rare, we can set the
+\C{ump_dont_yield} flag in \C{struct aos_rpc} to true, which will direct the \C{aos_rpc_call}
+function to not yield. Note that we can still get preempted, especially if the call takes a long time.
+
+\label{sec:ipi}
+\subsection{IPI}
+The aforementioned problem is what prompted us initially to search for better suited methods of awaiting
+a message than just polling. We can note that polling a UMP channel is by no means an expensive
+operation, however we imagine that in high-load situations, polling many different channels
+may have a noticeable impact on performance, not necessarily only because of the CPU time it
+uses, but also because it pollutes the cache.
+
+The four cores on our system are not only interconnected by the memory system, they also share
+an interrupt controller. Cores can raise Software Generated Interrupts on other cores.
+
+We want to make use of this feature in order to implement UMP channels that don't need polling.
+
+However, the version of the CPU Driver that we were using had no functionality implemented that
+let us do this.
+
+\comment{
+\noindent
+It had been mentioned to us, that this feature is already implemented in barrelfish
+for the x86 architecture, so we took a look at the official barrelfish repository on github\footnote{\url{https://github.com/BarrelfishOS/barrelfish}} for some inspiration.
+\vspace{2mm}\\
+Implementing this was not part of any of the assignments and was more like a personal
+interest. Therefore we felt like looking at the barrelfish repo and porting some functionality from x86 was allowed. For all other milestones we did \textbf{not} copy any code from there.
+}
+
+For the most part of the project, we did not need to modify the CPU driver. To get IPIs to work,
+we needed to add some functionality to it and also think about a good interface for the
+processes running at user-level.
+
+\subsubsection{Capabilities/Syscalls Interface}
+Notifying dispatchers via upcall is a well-supported and often used feature of our kernel.
+A dispatcher can \emph{retype} it's dispatcher capability to an endpoint capability and then
+\emph{mint} a buffer to it. This new capability can then be passed to a different dispatcher
+that receives the capability to send messages and notify this dispatcher.
+
+The interface we provide is similar. In order to send IPI notifications across cores,
+we introduce a new capability type \emph{IPI Endpoint}.
+
+To create an IPI Endpoint using libaos, we take the following steps:
+
+\begin{itemize}
+    \item A dispatcher creates an LMP Endpoint as it would to establish a LMP channel.
+
+\begin{mdframed}[style=myframe]
+
+\begin{minted}[breaklines]{C}
+struct lmp_endpoint *ep;
+struct capref epcap;
+endpoint_create(LMP_RECV_LENGTH, &epcap, &ep); 
+\end{minted}
+\end{mdframed}
+
+    \item It retypes that endpoint capability to a IPI Endpoint capablity
+\begin{mdframed}[style=myframe]
+\begin{minted}[breaklines]{C}
+struct capref ipi_epcap;
+slot_alloc(&ipi_epcap);
+cap_retype(ipi_epcap, epcap,
+                0, ObjType_EndPointIPI,
+                0, 1);
+\end{minted}
+\end{mdframed}
+
+    \item That IPI Endpoint capability can then be invoked using \C{invoke_ipi_notify}.
+    Invoking the capability sends one empty LMP message to the endpoint it was retyped from.
+\begin{mdframed}[style=myframe]
+\begin{minted}[breaklines]{C}
+invoke_ipi_notify(ipi_epcap);
+
+// implementation of invoke_ipi_notify
+errval_t invoke_ipi_notify(struct capref ipi_ep)
+{
+    return cap_invoke1(ipi_ep, EndPointIPICmd_Notify).error;
+}
+\end{minted}
+ \end{mdframed}   
+\end{itemize}
+Invoking the IPI capability on the same core it was created does nothing spectacular
+yet works as expected. The core generates an interrupt for itself, handles it i.e. sends
+an empty message to the endpoint and upcalls the associated dispatcher.
+    
+However the IPI capability can also be sent to another core (via an init-to-init channel)
+and be invoked there. This causes the core on which the original LMP endpoint
+was created to be interrupted and the corresponding CPU Driver will upcall the
+dispatcher to be notified.
+
+In order to set a callback function that should be called in the original dispatcher
+when a notification is avilable, we can simply use \C{lmp_endpoint_register} on
+the original LMP Endpoint.
+
+
+
+\subsubsection{Implementation}
+While the interface for user space was designed by us alone, for the
+data structure in the kernel, we ported some code from the github
+repository\footnote{\url{https://github.com/BarrelfishOS/barrelfish}},
+notably the file \texttt{ipi\_notify.c}\footnote{\url{https://github.com/BarrelfishOS/barrelfish/blob/06a9f54721a8d96874a8939d8973178a562c342f/kernel/arch/x86/ipi_notify.c}}. This file implements many FIFO datastructures. On each core we have
+a ring buffer to receive data from other cores. All these FIFO's are globally
+shared by all CPU Drivers. In order for a CPU driver to know what to do
+after an IPI has been received, the sending driver will write into the FIFO
+of the receiving driver a \emph{channel number}. Every CPU driver has a huge
+static array of capability slots. It will look up at the index of channel number
+and will find an lmp endpoint capability to send a notification to.
+
+In order to send a notification to a core to a specific LMP endpoint we
+therefore only need to know on which core the endpoint is and at which
+index in the big capability list, i.e. the channel number. These are also the
+only two things stored in an EndPointIPI capability:
+\begin{mdframed}[style=myframe]
+
+\begin{minted}[breaklines]{hamlet}
+cap EndPointIPI from EndPointLMP {
+    coreid listener_core;          /* core on which listening dispatcher resides */
+    uint32 channel_id;             /* channel for ipi notification */
+};
+\end{minted}
+\end{mdframed}
+When retyping an LMP Endpoint to an IPI Endpoint, we therefore need to find a free
+channel, then copy the endpoint capability into the corresponding slot and fill in the
+IPI capability with the core number we are on and channel id we just created.
+
+When invoking the IPI Endpoint, we just write the channel number into the FIFO of the
+target core (we can do that as it is a global structure) and tell the Interrupt
+Controller to send the interrupt.
+\hindsight{
+\noindent
+Overall, we are very happy that we managed to get this working. However there
+are a lot of improvements to this system. We opted not to spend too much more
+time on this, as the milestones required most of our focus.
+\vspace{2mm}
+\\
+However we think that our modifications to the CPU Driver do not fit
+very well into the barrelfish philosophy. Ironically this was exactly the
+part we ported from
+the official repository, however, also there it was only implemented for one
+architecture (x86). We hold global FIFO structures in the
+CPU Drivers and manage the distribution of a resource, the channels, also in
+the kernel. These are two things we actually try to avoid doing in the kernel
+but push into userspace. One could argue that it works well and that is enough, however
+we would like to know whether it also would work without introducing state
+and resource management into the kernel. Our modification already increased the
+in-memory size of the kernel binary by a lot, as every CPU Driver has a
+static array of 65535 capability slots.
+\vspace{2mm}
+\\
+One straight-forward possibility to move this functionality into userspace would
+be the creation of a IPI driver that runs on each core.
+It would be a normal dispatcher that just receives a capability to create and handle IPIs.
+If two processes want to be able to notify each other, they can ask their respective IPI
+driver to allocate them a channel. However, using this approach, we might possibly
+need more context switches for every IPI notification. This would be
+kind of a bummer, as we originally thought of IPI-based channels as resource-savers, however
+this is a common problem when moving drivers from kernel space to userspace.
+}
+
+
+
+\subsection{LMP Server Mode}
+We implemented special functionality for RPC servers that run in LMP mode, set by a flag
+in \C{struct aos_rpc}: \C{bool lmp_server_mode}. When in this mode, one single LMP endpoint
+can be handed out to several clients who all can call this server. The clients
+will then always send an additional \emph{response capability} with their message, i.e.
+an LMP capability where they wish to receive the RPC response on.
+
+Using this feature, we can run a server serving many clients without allocating too many
+endpoints. The server also does not need to know how many clients have a connection to
+it nor anything else about its clients really. It can just receive message after message
+and serve.
+
+There are however several disadvantages to that approach. If an RPC call needs to be split
+over several LMP message, two dispatchers calling at the same time might cause race conditions.
+We therefore advise the user of our library to only ever use this feature with
+RPC calls that fit into one message or when they know exactly what they are doing.
+
+In our project, we only use this feature for the memory server. (All requests to the
+memory server fit into one message.)
+
+\hindsight{
+\noindent
+This feature is probably questionable at least. While saving endpoints might seem like a
+good idea, as we can only use that type of connection for RPC requests that fit into
+one message, all the endpoints we are saving would run perfectly fine with a buffer
+size of one LMP message size. As LMP buffers are allocated on the dispatcher frame,
+they are one of the costlier aspects of LMP endpoints, we don't really save much there.
+Secondly, copying capabilities around is not a cheap operation. We pay a lot of 
+performance penalty for some simplicity in rare cases.
+}
+
+\subsubsection{Thread safety}
+RPC channels may be shared among threads. An example would be the Init RPC that every domain has. We want to avoid multiple threads making an RPC call at the same time. To avoid any undesired behavior, before each call, the calling thread takes out a lock on the \C{struct aos_rpc}, releasing it if an error is thrown or the call is completed. On the receiving end, no locks are required, as all the responses are event-based, with a handler registered on a waitset. In this scenario, it is not possible for two threads to concurrently read the same message.
+
+
+\subsubsection{Timeouts}
+To make our RPC system more robust, we added an exception case that throws a timeout after certain interval if no response was received. This was to deal with situations where processes crashed while a message sent to them were in flight, which might propagate this crash to another process, never exiting an RPC call. Every \C{struct aos_rpc} has an individual timeout time which can be set dynamically, and all are initialized with a default timeout. 
+
+\subsection{Performance}
+\label{mp:perf_subs}
+
+
+
+Any our system, the performance of RPC has a major factor on the overall system performance. Thus we measured the cost of our RPC implementation to compare the different RPC channels backends and overall get a taste for the cost of each call. Each RPC call was called multiple thousands of times and timing results are aggregated over all runs.
+
+
+
+
+\begin{figure}[h!]
+    \centering
+    
+    \scalebox{0.5}{
+        \hspace{-0.40in}
+        \includesvg{./message_passing/data/rpc_perf.svg}
+    }
+    \caption{illustrates the latency of a single round trip of a \C{NULL} RPC, comparing different backend implementations }
+    \label{fig:rpc_rtt}
+    
+\end{figure}
+
+
+\paragraph{}
+Figure \ref{fig:rpc_rtt} illustrates the RTT of a \C{NULL} message of all the different types. For an empty RPC call, the latency is fairly comparable between all types of communications. As expected \C{UMP no yield} is the fastest to respond, as it polls the channel without explicitly yielding any CPU resources, resulting in the fastest response times. In the case of an empty, both UMP and LMP have almost the exact same latency. Using the IPI interrupt version of UMP has the longest latency. This implies that sending an interrupt between cores is slightly more expensive.
+
+\begin{figure}[ht]
+    \centering
+    
+        \scalebox{0.5}{
+            \hspace{-0.40in}
+            \includesvg{./message_passing/data/ump_vs_lmp.svg}
+        }
+    \caption{Comparing LMP to UMP message send latency with variable sized messages}
+    \label{fig:lmp_vs_ump}
+    
+\end{figure}
+
+
+Figure \ref{fig:lmp_vs_ump} gives us further insight into the cost of sending a message. Any message sent over LMP is subject to much bigger slowdowns based on the message size, while UMP is much more robust in this regard. This is explained by the fact that a single LMP message only has a finite amount of words that can be sent with a single message, in our case exactly 4 words. This means the latency of sending a message can scale linearly with the size of the message. The size of the endpoint buffer can potentially also have a influence on this benchmark, however in this specific example the endpoint buffer was large enough to hold the full message. In contrast, a UMP message passing system is much more resistant to longer messages, since the implementation allows use to constantly read and write in FIFO fashion, scaling much better. Figure \ref{fig:rtt_strings} shows the RTT time of a message of up to 512 bytes.
+
+\begin{figure}[h!]
+    \centering
+        \resizebox{\textwidth}{!}{
+            \hspace{-0.40in}
+            \includesvg{./message_passing/data/TTC_of_sending_strings.svg}
+        }
+    \caption{Shows the increase in delay of sending larger and larger strings over a UMP channel}
+    \label{fig:rtt_strings}
+\end{figure}
+
+Overall these results show that in the case of empty or very small messages, LMP channels can keep up with UMP channels quite well. However, for any larger data exchange the use of UMP channels is strongly suggested if we want high performance, even when communicating over the same core.
+\newpage
+\subsection{Thoughts about our system}
+We designed a lot of our system around RPCs for communication between dispatchers.
+While RPCs are a very fitting solution for example to request ram from the memory server,
+they can be the cause of a lot of bugs, because of their blocking nature.
+
+We deliberately designed our \C{struct aos_rpc} to work as a symmetric connection, i.e. both
+endpoints can offer functions that the other can then call (however they need to implement the same interface, this restriction is however not inherent to our design). It is up to the programmer using this
+module to ensure that it is always only used in one direction at the time. It is non-reentrant, which in
+this case means that you cannot call back a function on an \C{struct aos_rpc} while handling a call
+coming from that struct. A specific example of this bug is shown in the appendix.
+
+

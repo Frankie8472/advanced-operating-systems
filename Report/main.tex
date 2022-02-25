@@ -1,0 +1,439 @@
+\documentclass{article}
+\usepackage[utf8]{inputenc}
+\usepackage[english]{babel}
+\usepackage{imakeidx}
+\usepackage{listings}
+\usepackage{xcolor}
+\usepackage{minted}
+\usepackage{dashrule}
+\usepackage{svg}
+\usepackage{pdfpages}
+\usepackage{mdframed}
+\usepackage{fbox} 
+\usepackage{caption}
+\usepackage[]{algorithm2e}
+\usepackage[T1]{fontenc}
+\usepackage{hyperref}
+
+%Color definitions
+
+%---------------------------
+\definecolor{joshgreen}{RGB}{78, 154, 6}
+\definecolor{bg}{rgb}{0.94,0.97,1.0}
+\definecolor{bgshell}{rgb}{0.94,0.9,1.0}
+\definecolor{ccol}{RGB}{255,220,220}
+\definecolor{commentcol}{RGB}{255, 229, 153}
+\definecolor{algo}{RGB}{249,249,239}
+\definecolor{servers}{rgb}{0.71, 0.65, 0.26}
+\definecolor{properties}{rgb}{0.57, 0.63, 0.81}
+\usemintedstyle{perldoc}
+
+%---------------------------
+
+
+%MD frame styles 
+
+%---------------------------
+\mdfdefinestyle{myframe}{%
+    linewidth=0.01pt,
+    linecolor=grey,
+    backgroundcolor=bg,
+    nobreak=true
+}
+
+\mdfdefinestyle{shell}{%
+    linewidth=0.01pt,
+    linecolor=grey,
+    backgroundcolor=bgshell,
+    nobreak=true
+}
+
+
+\mdfdefinestyle{algorithm}{%
+    linewidth=0.01pt,
+    linecolor=grey,
+    backgroundcolor=algo,
+    nobreak=true
+}
+
+\mdfdefinestyle{hindsight}{%
+    linewidth=0.01pt,
+    linecolor=grey,
+    backgroundcolor=ccol,
+    nobreak=true,
+    innertopmargin=\baselineskip,
+    innerbottommargin=\baselineskip,
+    innerrightmargin=20pt,
+    innerleftmargin=20pt,
+}
+
+\mdfdefinestyle{comment}{%
+    linewidth=0.01pt,
+    linecolor=grey,
+    backgroundcolor=commentcol,
+    nobreak=true,
+    innertopmargin=\baselineskip,
+    innerbottommargin=\baselineskip,
+    innerrightmargin=20pt,
+    innerleftmargin=20pt,
+}
+
+\lstset{keywordstyle=\ttfamily\color{purple},language=C}
+\def\inline{\lstinline[basicstyle=\ttfamily,keywordstyle={}]}
+
+\lstset{
+    language=C,
+    basicstyle=\ttfamily,
+    keywordstyle=\color{purple},
+    commentstyle=\color{darkgreen}
+}
+
+%---------------------------
+
+
+%Commands
+%---------------------------
+\newcommand{\hindsight}[1]{
+\begin{center}
+\vspace{0.5cm}
+\begin{minipage}{0.9\textwidth}
+\begin{mdframed}[style=hindsight]
+\textbf{Hindsight}
+
+
+
+
+\vspace{0.1cm}
+\textit{#1}
+\end{mdframed}
+\end{minipage}
+\vspace{0.5cm}
+\end{center}
+}
+
+
+\newcommand{\comment}[1]{
+\begin{center}
+\vspace{0.5cm}
+\begin{minipage}{0.9\textwidth}
+\begin{mdframed}[style=comment]
+\textbf{Comment}
+
+
+
+
+\vspace{0.1cm}
+\textit{#1}
+\end{mdframed}
+\end{minipage}
+\vspace{0.5cm}
+\end{center}
+}
+
+\newcommand{\C}[1]{
+\lstinline{#1}%{\fontfamily{qcr}\selectfont #1}
+}
+
+\newcommand{\N}[1]{\newline\newline\textit{#1} \hdashrule[0.5ex]{12cm}{0.5pt}{3pt} \newline\newline}
+
+\newcommand{\EN}{\newline\newline\hdashrule[0.5ex]{13cm}{0.5pt}{3pt} \newline\newline}
+
+\newcommand{\josh}[1]
+{\ttfamily{\bfseries\color{joshgreen}josh}\color{black}\ \$ #1}
+
+\newcommand{\bash}[1]
+{\ttfamily{\bfseries\color{joshgreen}bash}\color{black}\ \$ #1}
+% \cline{}
+
+\newenvironment{code}{\captionsetup{type=listing}}{}
+
+\setlength{\parindent}{0em}
+\setlength{\parskip}{1ex}
+%---------------------------
+
+\if 0
+
+Struktur:
+A detailed description of the core of the OS you built as a group:
+    - MM %Roman
+    - Vspace -> - Page fault handling %Vspace + Pagefault handler
+    - Processes, threads, dispatch (only spawning) %Franz
+    - Multicore %Multicore
+    
+    - Message passing %Nico
+        -> Overview
+        -> LMP
+        -> UMP 
+    
+
+        
+
+
+
+A section containing descriptions of the individual projects you undertook:
+    Individual 
+    -> File
+    -> Shell
+    -> Name
+    -> Networking
+
+An evaluation of the performance of the OS you have built:
+
+
+Evaluations: 
+-> MM
+-> pagefault handle
+-> malloc -> 
+
+A user guide for the OS, explaining how to run its functionality and any particularly important programming interfaces:
+    -> Basic use
+    -> shell usage
+    -> core programs that can be used
+    -> how to write a program using our interfaces
+
+
+\fi
+
+
+
+
+
+
+
+
+
+\lstset{
+    frameround=fttt,
+    language=C,
+    numbers=left,
+    breaklines=true,
+    }
+    
+\lstMakeShortInline[columns=fixed]|
+
+
+\if 0
+
+\section{Notes}
+\subsection{Foreword}
+\N{Franz}
+How we proceed with tasks: First, we build a simple and mostly straight forward base structure. With that working, we have a solid and hopeful stable base to build upon on and improve our structure. From then on, we have also the option to experiment with new ideas and algorithms. 
+\EN
+\subsection{Milestone 1 - 18.03.2020}
+\N{Franz}
+\EN
+
+
+\subsection{Milestone 2 - 25.03.2020}
+\subsubsection{Base structure}
+\N{Nico}
+As we do not yet have to implement the \C{paging_unmap} function, we opted for a simple approach
+for the vspace management.
+\EN
+\N{Franz}
+Vspace mapping as a pointer/address (\C{current_virtual_free_address}) in \C{paging_state}. We increment this address each time we allocate virtual address space. This first solution works only with the current assumption that the vspace will never be fully utilised. 
+
+elf address map to virtual address to read.
+\EN
+
+\N{Nico}
+We use this vspace management system to implement the next steps of the milestone. It works for our purposes now, as we never exhaust a 48-bit address space. However, we absolutely need to come back to this and implement it so it allows freeing memory as well. If not, we will eventually run out of virtual address space. If we want to design a system that can sustain memory-intensive processes or run for a long time without rebooting, this is a no-go.
+
+With the vspace management working, we moved on to implementing the first part of process creation -- Creating the child's cspace and vspace.
+
+As a next step, we want to load the ELF-file into the child's address space. The elf library in our source tree is designed to help us with that. It provides the function \lstinline{elf_load}, which
+needs a callback function that maps some memory to some specific location in the child process, and maps the same memory into the current virtual address space in order to write to it. Implementing this
+function seemed rather straight-forward, but as we later discovered, we made a small mistake, that cost us two days of debugging.
+\EN
+
+
+
+\subsection{Milestone 3 - 31.03.2020}
+\N{Franz}
+- lmp message from d1 to d2, what happens step for step
+prozess wird erstellt mit ep cap from parent
+lmp init, aos rpc init (lmp chan init, init bindings, get cap from called), register handlers, send msgs...
+waitset expl.: zentrale datenstruktur wo sichmerkt, bei welchem event was aufgerufen werden soll. und dann die richtigen eventhandler called
+schribe anenn ort, kernel aufruf, kernel luegt git e reaktion (write or reject, upcall ime andere prozess dass was zum lese verfüägbar isch)
+
+This method works also when the dispatchers are not running on the same core, i.e. they don't share the same CPU Driver.
+
+- explain how a channel is created
+1:1 verbindung mit endpoints als "telefonnummer"
+
+- explain in terms of network protocol (Roman), hanshake, 
+
+- demonstration (nico):
+    1. invoke an endpoint capability and receive a message on the same cap in other domain (nico)
+    2. demostrate rpc implementation, show that it works (code explain: franz + nico / show that messages work well / interface könnte auch für cross-core funktionieren) 
+    3. demo spawn new domains upon request (franz)
+    4. demo & explain memory server for multiple domains (code explain: nico)
+    5. demo & expl termial service (code explain: roman)
+    6. extra1: passing large messages (franz)
+    7. extra2: terminal read (matt)
+    8. extra3: cycle counter (franz+nico)
+
+\EN
+
+
+
+
+
+
+
+
+
+
+% \N{Nico}
+
+% When handling a page fault our page fault handler first does a lookup in which paging region the 
+% page fault occurred.
+
+% \begin{itemize}
+%     \item In the \emph{vaddr region} and \emph{meta region}, we treat all page faults as
+%     fatal errors. This is, as allocations/deallocations in these regions should only ever be done by
+%     the aos library i.e. our system code. Trying to access any non-mapped page is certainly an error.
+%     \item In the heap region, we proceed differently: On any access to a non-mapped page,
+%     we allocate a frame and map it at the fault address. This allows us to let malloc manage the heap and only lazily allocate the necessary RAM to back it up.
+%     When first implementing the page fault handler, we always allocated and mapped 4KiB frames.
+%     However this proved to require the creation of a lot of capabilities. We therefore changed the size of the allocated frames to 2MiB. Also see \textbf{TODO}
+%     \item The stack regions are handled similarly to the heap region. However in the stack regions, we pre-map one page at the beginning of the region that is neither readable nor writable. If we pagefault on this pre-mapped page, we print that a (non-recoverable) stack overflow occurred.
+    
+%     This works, because the stacks in our system grow from high addresses to lower ones. As a stack starts growing at the end of its paging region, we lazily allocate pages until we are at the start of the region where we will (in most cases) fail with an understandable error message. In the stack,
+%     we kept the fine-grained 4KiB chunk size for lazy allocation since stacks are generally of a smaller size than data structures in the heap. % THIS IS NOT TRUE ANYMORE --> rewrite this and hint to this 
+    
+    
+%     \begin{mdframed}
+%     \paragraph{Comments}
+%     One might question why we map a non-readable non-writable page at the start of every stack region. When handling a page fault within the stack region, the pagefault handler can easily check at which position in the stack region the access occurred and fail with a stack overflow exception without having mapped a page in it.
+%     \end{mdframed}
+    
+% \end{itemize}
+
+% \EN{}
+
+% The user-level address space storage format; what data structures do you maintain, and why?
+% Vaddr -> linked list and shadowpagetable
+
+
+% The fields in the \C{struct paging_state}, and how are they used?
+
+% \EN
+
+\EN{franz nico}
+    mega vill schneller wenn mm 2mb pages zrugg git
+    assert statements im cap delete: vo wennt childs machsch bi mmalloc, denne löschisch de parent cap und das isch z.t. 20ms ime syscall
+\EN
+
+
+\subsection{Milestone 5 - 29.04.2020}
+
+\subsubsection{frame sharing barriers}
+\N{roman}
+
+\subsection{Milestone 6 - 6.05.2020 }
+\subsection{Milestone 7 - 3.06.2020 }
+
+
+% \section{MM}
+\N{Roman}
+Possible speedup for MM
+\begin{itemize}
+\item keep 2 linked lists
+\begin{itemize}
+\item 1 for all nodes
+\item 1 for free nodes
+\item add according prev / next references to struct mmnode
+\end{itemize}
+\end{itemize}
+\EN
+
+\fi
+
+
+
+
+\begin{document}
+
+\begin{titlepage}
+\Huge
+\title{\textbf{AOS Report}}
+\author{Roman Niggli, Nicolas Winkler, Franz Knobel, Matthew Weingarten}
+%\date{March 2021}
+\maketitle
+
+\vspace{3cm}
+\begin{center}
+    \Large
+    Advanced Operating System\\
+    ETH Zürich\\
+    \date{}
+\end{center}
+\end{titlepage}
+\newpage
+
+\makeindex
+\tableofcontents
+
+
+\newpage
+\begin{abstract}
+ \emph{   A RAM cap, a Frame cap and a NULL cap walk into a bar. The bouncer asks them to identify themselves. Immediately the bar crashes and shuts down.}
+\end{abstract}
+\newpage
+
+
+\section{Prelude}
+
+In this course, we completed several assignments, each being part of one big project.
+Starting from an initial handout, step by step, we implemented several core parts of an operating system.
+
+Already after a few weeks, we noticed the importance of clean and simple interfaces,
+good communication, and improved our skills in understanding pre-existing code.
+
+Over the course of this semester we gained a lot of new perspectives on the design of Operating Systems.
+With mostly superficial knowledge about common Operating Systems, we had several moments
+of realization that things we assumed inherent to an OS don't need to be. The further
+the project went on, the more we understood the often-heard answer ``That is a design
+decision which is up to you'' -- There is really no correct way, just multiple ways, each
+with its pros and cons.
+
+Looking back on our finished\footnote{at least more or less} project, we almost have a 
+hard time accepting that course is already over. We now see so much more
+that could be improved or implemented in our system. However realistically speaking,
+we can say that we are quite happy and proud of our work.
+
+\if 0
+
+mir hennd de kurs gnah, will eus dgrundlage und dkonzept vo operating systems fasiziniert und interessiert. um das wüsse zvertüüfe hennd mir praktischi erfahrig welle sammli und dhoffnig gha konzept ala learning by doing besser zverstah.
+d milestones hennd eus usegfordered und di einzelne baustei vome basic operating system zeiget. 
+mir hend gseh und glernt wie die baustei voenand abhängig sind und ufenand ufbaued.
+so hennd mir am schluss es funktionierends sehr sehr basics betriebsystem zemebastled. 
+es mag nöd s beschte si. heck, nödma guet, aber es söll euses glernte wüsse zu de basics zu operatingsystems und was mir glernt hend idere zit widerspiegle
+
+Wie wichtig d teamarbet und dokumentation vo code isch het sich idem projekt starch bemerkbar gmacht. mit underschidliche codestyles bruchts e codesyle guide und gueti absprache. mir hend glück gha es sones guets team zha. mr seit ja, ds team isch so starch wi sis schwächschte glied und jedi schwächene vo eus sind vo stärchene vo anderne usgliche worde. 
+
+by examining common issues through the lens of barrelfish we gained a new ... profound... complexity operating systems
+
+the eyebrows must be mentioned... 
+\fi
+
+\include{./MM/MM}
+\include{./paging/paging}
+\include{./spawning/spawning}
+\include{./message_passing/message_passing}
+\include{./multicore/multicore}
+
+
+\include{./shell/shell}
+\include{./nameserver/nameserver}
+\include{./networking/networking}
+\include{./filesystem/filesystem}
+\section{Acknowledgements}
+
+We would like to thank Professor Dr. Roscoe and Dr. Cock for organizing the course. Furthermore, we appreciate all the TAs who helped fixing bugs during development and organizing the coffee and chat sessions in times of corona. Last, but most certainly never least, we would like to thank Lord Huron for making absolutely fantastic music.
+\include{./bugs/bugs}
+
+
+
+\end{document}

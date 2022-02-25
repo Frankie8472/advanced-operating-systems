@@ -1,0 +1,377 @@
+\section{Paging}\label{paging}
+
+In this section, we describe how we organized our virtual address space, implemented our paging state, and handle page faults. The memory manager, together with the bookkeeping functionality of the paging infrastructure, handles all memory related operations.
+
+
+    \begin{figure}[hbt!]
+        \centering
+        % 
+        \scalebox{0.6}{
+            \includesvg{./paging/data/virtual_address_layout.svg}
+        }
+
+        \caption{Virtual address space layout}
+        \label{fig:virtual_address_layout}
+    \end{figure}
+
+
+
+\subsection{Virtual address layout}
+On a high level, the virtual address space is divided into \textit{paging regions}, see listing \ref{code:paging_region}. A paging region is a (mostly large) contiguous block of addresses. The \C{struct paging_region} holds information on the memory subsection defined by this paging region, what the region is used for and how page-faults in this region will be handled. No two paging regions overlap and every address can uniquely be resolved to
+belong to a certain paging region. To uphold this invariant, we create one large paging region covering the whole address space at the start, mark that region as free space, and then offer a function to allocate new paging regions, which, similarly to the memory management system, subdivides free regions.
+
+\paragraph{}
+At system startup, the first region we split off is the \textit{Global Region}, ranging from address \C{0x0} to \C{VADDR_OFFSET}. This region holds all globally defined data in the Vspace, such as binaries. We treat this region as a black box, where the process that spawned our current process (or the CPU driver in the case of init) allocated data necessary
+for spawning.
+\begin{code}
+\begin{mdframed}[style=myframe]
+\begin{minted}[xleftmargin=\parindent,linenos,breaklines]{C}
+struct paging_region {
+    lvaddr_t base_addr;
+    lvaddr_t current_addr;
+    size_t region_size;
+    char region_name[32]; 
+    enum paging_region_type type;
+    bool lazily_mapped;
+    bool map_large_pages;
+    paging_flags_t flags;
+    struct paging_region *next;
+    struct paging_region *prev;
+};
+\end{minted}
+\end{mdframed}
+
+
+\caption{Paging regions, dividing and recording the virtual address space }
+\newline
+\label{code:paging_region}
+\end{code}
+\paragraph{}
+
+
+
+Since, in our system, no information about the layout and mappings
+of this region is transferred to the child process, we just accept this region “as is” and never allocate something in it. 
+\paragraph{}
+The next region, referred to as the \textit{meta region}, is where we map memory used to manage all of the virtual memory system itself and further allocations that take place before malloc is initialized. For example, the data structure keeping track of the memory regions itself is allocated mostly inside this region. This region also holds our shadow page table, described in section \ref{paging_state}. We assigned a size of 8 TB to this region since the shadow page table can potentially get quite large, with a maximum of $512^3$ page table entries, each having $512$ entries, resulting in up to $2^{36}$ entries. Thus, 8 TB or $2^{43}$ b gives us more than enough space to hold a fully loaded shadow page table, including paging and any further allocations made that cannot use malloc.
+\paragraph{}
+We then define one additional big region as the \textit{heap region}. This is the memory region
+passed via morecore to malloc. In our implementation, we set the region to a
+fixed size of 4TB, this should be enough for all current purposes of our system. Further regions are added dynamically on demand. In most cases, these are Stack regions containing the stacks of newly spawned threads. There are multiple reasons for this splitting of the virtual memory space. It simplifies memory management, as there are different strategies applied to different
+regions. Most importantly however is that we handle page faults differently
+depending on which region they occur in. Figure \ref{fig:virtual_address_layout} shows the full picture of our virtual address space division into regions.
+
+\subsection{Paging state} \label{paging_state}
+
+
+Our paging state stores all the information regarding the paging regions of our virtual address space, and the state needed to map frames, and the current layout of our Vspace. This means the paging state stores a pointer to the shadow page table, a pointer to the special regions for faster lookup, including the threads stack region, and pointer to a linked list containing all regions.
+
+\begin{code}
+\begin{mdframed}[style=myframe]
+\begin{minted}[xleftmargin=\parindent,linenos,breaklines]{C}
+struct paging_state
+{
+    struct thread_mutex mutex;
+    struct slot_allocator *slot_alloc;      
+    struct mapping_table map_l0;            
+    struct slab_allocator mappings_alloc;   
+    bool mappings_alloc_is_refilling;       
+    struct paging_region *head;            
+    struct paging_region vaddr_offset_region;  
+    struct paging_region free_region;   
+    struct paging_region heap_region;   
+    struct paging_region meta_region;   
+    struct paging_region stack_region;  
+};
+
+\end{minted}
+\end{mdframed}
+\caption{Paging state structure}
+\newline
+\label{code:paging_state }
+\end{code}
+
+
+
+
+Now that we understand the overview of our Vspace layout and the paging state, we must provide the utility to map physical addresses, in the form of RAM capabilities, into our virtual address space. To be precise, a RAM capability is an untyped capability, and any memory used in userspace for reading and writing must be retyped to a \textit{Frame} capability. In our case, the responsibility of mapping a Frame into the virtual address space falls on to our paging implementation in userspace. To create a new mapping between a virtual address and a physical Frame capability we must invoke the \C{vnode_map} function. 
+\begin{mdframed}[style=myframe]
+\begin{minted}[xleftmargin=\parindent,linenos,breaklines]{C}
+errval_t vnode_map(struct capref dest, struct capref src, capaddr_t slot,
+ uint64_t attr, uint64_t off, uint64_t pte_count,
+ struct capref mapping)
+\end{minted}
+\end{mdframed}
+
+\paragraph{}
+However, \C{vnode_map} merely creates an entry in the page table. We must ensure that this function is invoked correctly and we must keep track of the resulting capabilities. Furthermore, we need to keep track of the state of the paging table, which is not necessarily directly exposed to us. To perform this task we created a shadow page table, mirroring the page table entries written onto the \C{ObjType_VNode_AARCH64} capabilities. These read-only frames are used by the MMU for virtual to physical address translation. Our shadow page implementation is shown best by the struct in figure \ref{code:shadow_page_table}. Each instance of \C{struct mapping_table} has a one-to-one relationship with a VNode, and a reference to said VNode stored in \C{struct capref pt_cap}. Each mapping table entry holds a resulting mapping capability of the \C{vnode_map} in the \C{mapping_cap} array. If the instance of a mapping table entry corresponds to an L3 VNode, the children pointer array stays empty, as these Nodes correspond to the leaf of the paging tree.
+
+\begin{code}
+\begin{mdframed}[style=myframe]
+\begin{minted}[xleftmargin=\parindent,linenos,breaklines]{C}
+struct mapping_table
+{
+    struct capref pt_cap;
+
+    struct paging_region *region;
+
+    struct capref mapping_caps[PTABLE_ENTRIES];
+
+    struct mapping_table *children[PTABLE_ENTRIES];
+};
+\end{minted}
+\end{mdframed}
+\caption{Shadow page table structure}
+\newline
+\label{code:shadow_page_table}
+\end{code}
+
+
+
+
+
+\comment{
+Currently in our system the mapping capabilities are never actually used. However, if we wished to extend our implementation, for example to support the unmapping operation, this would require us to have access and the ability to invoke these capabilities. I.e the mapping capabilities serve as our access rights to update the paging table.
+}
+
+
+
+
+\paragraph{}
+Following this logic, our main function for handling the mappings is
+\begin{mdframed}[style=myframe]
+\begin{minted}[xleftmargin=\parindent,linenos,breaklines]{C}
+paging_map_fixed_attr(struct paging_state *st, lvaddr_t vaddr,struct capref frame, size_t bytes,int flags
+\end{minted}
+\end{mdframed}
+the pseudocode is shown in algorithm \ref{alg:paging_map_frame}. The idea is, given a virtual address, a frame capability and the size of the physical frame to: (1) create an entry in the page table used by the MMU for the translation, and (2) keep track of this mapping in our shadow page table, only used by our process in user-space for bookkeeping and further mapping operations.
+
+
+\begin{mdframed}[style=algorithm]
+\begin{algorithm}[H]
+\SetKwInOut{Input}{input}
+\Input{vaddr, frame, size}
+
+  \emph{chunks} $\leftarrow $  split frame into chunks of size \C{BASE_PAGE_SIZE} \\
+  \emph{page table entry }$\leftarrow $ \C{ROOT_PAGE_TABLE}\\
+ \For{chunk in chunks}{
+    \For{$i\leftarrow 3$ \KwTo $1$ }{
+        \emph{pt\_index} $\leftarrow $ \emph{vaddr$[(12 + i * 9) :: (12 + (i - 1) * 9)]$} \\
+        \emph{page table entry}$\leftarrow $ \emph{page table entry}$[pt\_index]$ \\
+        \eIf{page table entry \textbf{is} NULL}{
+            \tcc{Table entry of level i has to be created} \\ 
+            
+            Create new \C{struct mapping_table} \;
+            Allocate a VNode capability\;
+            Map VNode with \C{vnode_map} \; \\ 
+            
+        }
+    }
+    \tcc{Reached a Leaf Page table entry}\\ 
+    \C{vnode_map(pt table entry,chunk,pt_index} \\
+    Store resulting mapping in \C{mapping_caps}$[pt\_index]$\\ 
+ }
+ \caption{The function to map frames into VSpace using our shadow page table}
+ \label{alg:paging_map_frame}
+\end{algorithm}
+\end{mdframed}
+
+\paragraph{}
+The index into the page table entry is described by a subset of 9 bits in the virtual address of the desired mapping. The 12 LSB are discarded for the translation, as they are translated one-to-one. This is because the smallest possible unit of mapping is 4KiB, i.e the \C{BASE_PAGE_SIZE}. The following sets of 9 LSB are used to index into the different levels of the page table, mirrored in our shadow page table.
+\paragraph{}
+Using these indices we can walk the page table. Whenever a page table index has a \C{NULL} entry in our shadow page table, we can infer that the page table for virtual address translation also does not have the corresponding page table entry. Therefore, whenever we encounter a reference to \C{NULL}, we must allocate a new VNode with the correct type, consistent with the level of the page table entry. Furthermore, this VNode must also be mapped into the page table entry and shadow page table and is written to be mapped into the VNode one level higher in the hierarchy. This is one of the reasons which motivates the implementation of a shadow page table, such that we can always keep track of exactly which VNodes have yet to be mapped.
+
+\paragraph{}
+Once the leaf node instance of the shadow table has been reached, we have all the information required to invoke the kernel, create a new entry in the page table and receive a mapping capability, completing the operation.
+
+\paragraph{Large Pages}
+It is also supported on aarch64 to directly map frames of either 2MiB or 1GiB directly into
+either a level 2 or level 1 page table\footnote{There are even more supported
+page sizes, however changing that would require a bit more changes to the system}.
+In our system, we implemented support for mapping frames directly in the L2 page table.
+For this, a frame needs to be aligned to 2MiB (its physical address), and also the virtual
+address we want to map it at needs to fullfill this alignment. See Section \ref{sec:slow_mem}
+
+
+
+\subsubsection{Locking the paging state}
+
+Operations on the paging state can happen concurrently over multiple threads and are inherently critical. Bad inter-leavings of threads can result in errors, leaving our mapping table with an inconsistent state, or potentially even worse, assigning a \C{struct region} to two different threads. To prevent this type of behavior and make the paging operations thread-safe, we store a \C{thread_mutex} on the paging state. Any critical operation will first attempt to take the lock before continuing, ensuring any updates to the paging state are seen atomically by other threads.
+
+
+
+
+
+
+
+
+
+
+
+\subsection{Handling page faults} \label{page_fault_handling}
+
+A page fault occurs when the kernel triggers an upcall into our process in \C{disp_pagefault}. It passes the \textit{address} causing the pagefault, an \textit{instruction pointer} and processor specific \textit{error code}. This upcall disables the previously running thread. Next, the dispatcher forwards the exception to the currently running thread with \C{thread_deliver_exception_disabled}. To explain how we respond appropriately to the page fault we distinguish the different types of pagefaults based on the faulting address:
+
+\begin{itemize}
+\item Inside the heap region
+\item Inside a stack region
+\item Any other address, including  
+    \begin{itemize}
+        \item Inside the meta region
+        \item Outside our virtual address space (\C{>0x0000FFFFFFFFFFFFULL)}
+        \item Below the Virtual address offset, inside the global region
+    \end{itemize}
+\end{itemize}
+
+Of all the region types we have divided our virtual address space into, \textit{only} addresses inside the stack and heap region can be validly resolved by the pagefault handler without throwing an exception and aborting the thread. Both the stack and heap regions are \textit{lazily} mapped and thus allow for on demand paging. 
+\paragraph{}
+When a pagefault is thrown with an address inside the heap region, this means an access was made to a virtual address inside the heap that has not yet been backed by a physical frame. To resolve the fault we simply allocate a new frame capability, requesting more memory from the memory manager and map it into our virtual address space. Thereafter we exit the pagefault handler thread and resume the previously running thread. Similarly, the stack region may also be paged in on demand. However, to ensure that a stack overflow does not corrupt memory, we check whether the address is the last page left in the stack region. If this is the case, we also throw an exception and abort the thread. To support this on demand paging for stacks, whenever a new thread is created we split  a region from an available free region and assign the addresses thereof to the thread stack pointers.
+
+\paragraph{}
+Even further, depending on the region type, we choose different granule sizes for the frame we allocate:
+\begin{itemize}
+    \item In a stack region, we always allocate frames of size \C{BASE_PAGE_SIZE} (4096)
+    \item In the heap region, we generally use a larger amount of memory. Using a small
+    page size granularity leads to high ``capability overhead'' in our system. We therefore opted to
+    always allocate and map frames of size \C{LARGE_PAGE_SIZE} (2MiB).
+\end{itemize}
+
+\comment{ We can't catch all stack overflow errors with certainty, as allocating
+huge data structures on the stack might cause us to ``overstep'' the guard region entirely. However these cases are extremely rare, so that they don't legitimize
+making the guard region even larger.}
+
+\subsection{Slow Memory System}
+\label{sec:slow_mem}
+
+After our initial implementation of the paging infrastructure, we noticed that our paging system was very slow. To test whether our implementation worked
+correctly, we wanted to malloc 100 MiB of memory, write to it and read it again. To our satisfaction, everything worked correctly
+however the whole process took about 10 minutes.
+
+After investigating the cause of this, we found that a call to \C{frame_alloc} got slower and slower the more it was called.
+\C{Frame_alloc} is used in our page fault handler to page in physical frames on demand each time we needed a new one. It requests a ram capability from the memory server,
+retypes it to a frame capability and deletes the original ram cap.
+Further investigation showed us that it was the deletion that caused almost all of the
+slowdown. After allocating sufficiently many frames, we managed to bring the time
+needed for one capability deletion i.e. a call to \C{cap_delete}, a single syscall,
+taking over 20 milliseconds.
+
+We \textit{feverishly} sought for a spectacular bug that was responsible for this havoc.
+
+What we discovered was something different.
+The CPU Driver keeps a large tree-like datastructure containing all capabilities. It always upholds certain invariants for this tree. Several functions operating on this tree have assertions and macros
+that check that these invariants are upheld at all times. Some of these assertions require  a whole DFS on the tree for to validate the assertion. As we were always running our code with
+assertions enabled, we always performed these checks.
+A deletion operation performed therefore several DFSes over the whole capability tree
+of the CPU Driver, which explains the more or less linear growth in runtime we observed
+for this function.
+
+The effect that disabling assertions has on the speed of allocating memory
+can be seen in Table \ref{table:large_paging}. For this example, we
+used malloc to allocate 100 MiB of data and then write to every byte.
+We measured the time this took both with assertions enabled and disabled,
+as well as when the lazy allocation backing up the heap region operates with
+4KiB granularity and with 2MiB granularity.
+\begin{table}[h]
+\begin{center}
+\begin{tabular}{c c c} 
+     &  2 MiB & 4 KiB \\ \hline 
+Assertions enabled & 452\,ms  & 8\,min 44\,s \\\hline  
+Assertions disabled  & 384\,ms & 6933\,ms \\  
+\hline
+
+\end{tabular}
+\end{center}
+\caption{Difference of paging speed when using larger page granularity, in debug and no debug mode}
+\label{table:large_paging}
+\end{table}
+\paragraph{}
+As can be seen, using larger pages is even faster than disabling assertions. Therefore we
+opted for our bigger granule size of 2MiB that we use to back up the heap region, and decided
+to keep the assertions, as they are sometimes very useful.
+
+
+Disabling assertions gave us the speedup we wanted, however we wanted to try to fix our
+problem while leaving it on. Keeping the number of capabilities in the system low is
+generally good practice, as also with assertions disabled, there still is a
+slight performance overhead when having more capabilities, including the obvious linear overhead of memory.
+
+Until then, we were always allocating heap memory in chunks of 4 kilobytes, which equaled our
+page size. As in our heap, we are generally not too picky about allocating a few pages
+too much, we decided to up that chunk size to 2 megabytes. We planned to use
+2MiB aligned frames to map, and directly use \C{vnode_map} to insert it into a
+L2 page table. 
+
+    \begin{figure}[hbt!]
+        \centering
+        % 
+        \scalebox{0.5}{
+            \includesvg{./paging/data/paging.svg}
+        }
+
+        \caption{Average time for 1000 calls to \C{frame_alloc} requesting a 4096 byte frame.
+        \\
+        Each dot represents the time it took to complete 1000 calls in ms, starting
+        from the left with the first 1000 calls, the second 1000 calls, performing 15000 calls
+        in total with assertions enabled (Debug) and assertions disabled (Nodebug)
+        \\
+        Without assertions, we never exceed 160ms 
+        \\
+        \emph{Note that both variants were compiled with the otherwise same compiler flags \texttt{-g -O2}, the only difference being \texttt{-DNDEBUG}}
+        }
+        \label{fig:paging_with_debug}
+    \end{figure}
+
+
+However, in the handout we received there was actually no support from the CPU Driver
+to do that. 
+
+With the help of the architecture documentation\footnote{\url{https://developer.arm.com/documentation/101811/0101/Controlling-address-translation}} and the cleanly written pre-existing CPU driver code, we added that functionality
+to the CPU Driver.
+
+Mapping large pages of 1GiB was a feature we decided not to implement, as we never make use of
+pages that large, we could barely fit one such page on our device (that would actually be backed
+by real RAM)
+
+
+
+
+%\begin{center}
+%\begin{tabular}{l|l|l|}
+% & 2 Mib & 4 KiB\\
+%\hline
+%Debug & 452 ms & 524894 ms\\
+%\hline
+%NoDebug & 384 ms & 6933 ms\\
+%\hline
+%\end{tabular}
+%\end{center}
+
+
+
+\paragraph{}
+Back to page-fault handling: When a fault is handled and the address is resolved to reside in the meta region, the global region, or generally outside of our virtual address space, that means something has gone wrong and we must throw an error and abort the thread.  % Sorry for hijacking
+The meta region is used for allocations that cannot be done with malloc or on the stack, either because
+they are required before malloc is set up (e.g. ``metadata'' about the paging state, hence the name).
+It is also used to perform allocations with special requirements like frames shared with other dispatchers
+or memory that must not be lazily allocated.
+
+
+
+
+    
+    
+
+
+
+
+% \subsubsection{Allocating stack space}
+
+% We designed our system to support on demand paging for stacks as well. To do this safely we must keep a guard page as well, such that a stack overflow can get correctly diagnosed by the pagefault handler as described in section \ref{page_fault_handling}. Whenever a new thread is created, we split of one fresh paging region for the actual stack, and one for the stack guard. The stack fields of the new thread are assigned according the highest and lowest addresses of the tack region accordingly and the stack guard region is allocated below the base address of the stack region. We also allocate and map an initial frame for the thread to work with. In this manner we can ensure any memory access in the stack that is below the intended maximum stack region will trigger a page fault and correctly abort the thread.
+
+
+
+
+
+
+
+

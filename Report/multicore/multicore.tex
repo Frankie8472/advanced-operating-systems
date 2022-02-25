@@ -1,0 +1,92 @@
+
+\section{Multicore}\label{multicore}
+
+Booting up the second core in our system is a straightforward process, but still many steps are taken in userspace to ensure the core booted by the kernel can run successfully. In this chapter, we discuss exactly what we need to prepare before calling the Kernel. Furthermore, we discuss the initialization once we are in the Init process on the new core, to make it a coexisting element in our system. This includes how we can bootstrap our UMP communications protocol and allocate memory across multiple cores. We do not get into an extremely in-depth discussion in this chapter, as starting a new core is merely about being precise and correct, less so about design choices.
+
+\subsection{Initializing a new core}
+
+Before we can invoke the kernel call \C{invoke_monitor_spawn_core()} we need to put all the right puzzle pieces in place. The following elements must be allocated:
+\begin{itemize}
+    \item The kernel control block (KCB)
+    \item Memory for the boot and CPU driver
+    \item A kernel stack
+    \item Init process space 
+    \item A URPC frame for a fresh UMP channel
+\end{itemize}
+
+Our coreboot function initially allocates a ram cap for the KCB and retypes it to a \C{ObjType_KernelControlBlock}. We also provide ram capability with 16 pages for the Kernel stack. Once completed, we load both our boot- and CPU driver from our bootinfo struct and map these into our virtual address space. This is not enough for the drivers to start, as the new core expects the entry points for both binaries to be at a predefined offset in the virtual address space of the fresh kernel. Both ELF files are subsequently scanned for their entry point symbol and relocated, such that the entry point symbol sits at the desired location. If this is done incorrectly, the core will not be able to run the necessary drivers after startup.
+\paragraph{}
+If the core successfully spawns and runs the boot driver and CPU driver, it starts the init process on the respective core. To ensure the new core has all the correct resources, we must provide it with the init binary and enough memory on which to run Init, as, at this point, the memory manager is yet to be initialized. Similarly, to the boot and CPU drivers, we load the init image into our virtual address space into the Cnode module, which, as the name suggests, holds all our capabilities referring to binaries. In contrast, though, the location of the Init binary is not predefined like the CPU and boot drivers, and the location is passed along with the \C{armv8_core_data} struct.
+
+Before we can invoke the kernel call to boot the core, it is critical to flush the cache. When a new core is booted, it has not yet started the cache coherency protocol. It initially reads all data directly from memory, meaning the spawning-core must guarantee that all the required information has been flushed, otherwise we risk reading inconsistent data. To flush the cache we use the following calls, shown in listing \ref{code:flushing_cache}. The data that needs to be flush is the URPC data frame, the memory region containing the bootinfo binary, the memory region containing the CPU driver binary, and the core data structure. 
+
+\begin{code}
+
+\begin{mdframed}[style=myframe]
+\begin{minted}[xleftmargin=\parindent,linenos,breaklines]{C}
+cpu_dcache_wbinv_range((vm_offset_t) boot_info_memory.buf, boot_info_memory.size);
+cpu_dcache_wbinv_range((vm_offset_t) cpu_driver_memory.buf, cpu_driver_memory.size);
+cpu_dcache_wbinv_range((vm_offset_t) core_data, sizeof *core_data);
+cpu_dcache_wbinv_range((vm_offset_t) urpc_data, BASE_PAGE_SIZE);
+\end{minted}
+\end{mdframed}
+\caption{Flushing the cache}
+\label{code:flushing_cache}
+\newline
+\end{code}
+
+\subsection{Initialization on the new core}
+
+After the CPU driver on the new core has started and the Init process is spawned, the following components must be setup:
+\begin{itemize}
+    \item Establish a UMP channel with init on the BSP core
+    \item Get access to the bootinfo struct, so we have access to binary files on the new core
+    \item Add RAM capabilities and start the memory server thread
+\end{itemize}
+During the setup phase of coreboot on the spawning core, we allocate a Frame used for the UMP channel between the processes. We use this channel to pass along some preliminary information to the new core, assisting with the initialization. For this reason, we also flush the URPC frame, shown in listing \ref{code:flushing_cache}. 
+\paragraph{}
+After this, we create a new RPC channel using the URPC frame. Each core will now have a direct channel to init, which can be fetched using the function:
+\begin{code}
+
+\begin{mdframed}[style=myframe]
+\begin{minted}[xleftmargin=\parindent,linenos,breaklines]{C}
+struct aos_rpc* get_core_channel(coreid_t core_id);
+\end{minted}
+\end{mdframed}
+\caption{Get UMP channel to core with \C{core_id}}
+\label{code:get_core_channel}
+\newline
+\end{code}
+
+Every init process, not on the BSP core will only have a core channel to the init process with core ID zero, with all other \C{get_core_channel} calls returning \C{NULL}. The init process on the BSP core will have a non-\C{NULL} result for every ID that identifies a currently online core. 
+
+\paragraph{}
+Additionally, we are provided with the physical address of the bootinfo struct, for which we forge a capability and map it into our virtual address space. Any memory region held by the bootinfo struct that has type \C{RegionType_Module} is forged, such that the new core can spawn all the built-in binaries. This means all cores share the same bootinfo struct. This is safe due to the read-only nature of these regions.
+
+
+
+\subsubsection{Memory management across cores} \label{mm_across_cores}
+Before starting a new core, the Init process on the BSP core allocates a RAM capability of two MB and writes its physical address range into the URPC frame. Once the core starts up, after establishing the UMP channel with core 0, it forges the received RAM capability and uses this to initialize the memory manager, providing it with the freshly forged capability using \C{mm_add(core_ram)} . This means the system-wide RAM is split up among cores statically when starting up a new core, and as a consequence sets a requirement of having at least 2 MB of RAM to start a new core.  
+\paragraph{}
+This design choice is very nice when it comes to the speed and simplicity of allocating RAM on each core. Since the accessibility of RAM is split across all cores, per core RAM allocation can be handled separately and we do not require a global lock or a form of consensus protocol to ensure the safety of our RAM allocator. Additionally, we avoid any potential unwanted memory aliasing, as after the initial forging of the RAM capability, the only way to forge capabilities is by explicitly sending them over our RPC communications channel. 
+\paragraph{}
+However, we discussed implementing a multi-core shared memory system, or at least support a way of reclaiming and requesting additional RAM capabilities. While our implementation is arguably the simplest and fastest way of implementing cross-core memory allocation, it lacks flexibility in cases where memory usage is heavily skewed to one core. Currently, a non-BSP core may never use over 256 MB of RAM at a single point in time. This value of course may be adjusted, but that does not solve the inflexibility of statically splitting the memory. Ultimately we decided to stick with this implementation though since for the scope of our project encountering large memory usage seemed unlikely, but we concede this should be part of a fully-fledged system.
+
+
+
+
+\subsection{Corebooting interface}
+
+We provide and use a clean interface to quickly spawn new cores that takes care of all the setup
+\begin{code}
+
+\begin{mdframed}[style=myframe]
+\begin{minted}[xleftmargin=\parindent,linenos,breaklines]{C}
+errval_t spawn_new_core(coreid_t core);
+\end{minted}
+\end{mdframed}
+\caption{Spawn Core}
+\label{code:spawn_core}
+\newline
+\end{code}
+This function can be called up to three times with unique core identities with values ranging from 1-3.
